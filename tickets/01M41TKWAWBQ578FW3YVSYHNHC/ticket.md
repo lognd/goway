@@ -8,8 +8,8 @@ points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T21:27:11Z"
-updated = "2026-10-03T21:38:08Z"
-scope = ["crates/goway/src/runners.rs", "crates/goway/src/shard.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/usage.md"]
+updated = "2026-10-03T21:46:47Z"
+scope = ["crates/goway/src/runners.rs", "crates/goway/src/shard.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/usage.md", "crates/goway/src/detect.rs", "crates/goway/src/run.rs", "crates/goway/src/gc.rs", "crates/goway/src/state.rs", "crates/goway/src/lib.rs"]
 
 [[acceptance]]
 text = "Given goway run --shard N -- ./build/tests where the binary is built on the helper, when the shard starts, then the helper reads (never executes) the file: GoogleTest markers (GTEST_SHARD_INDEX, --gtest_list_tests) set GTEST_TOTAL_SHARDS and GTEST_SHARD_INDEX; Catch2 v3 markers (--shard-count and --shard-index) add those flags; anything else runs unchanged with GOWAY_SHARD and GOWAY_SHARD_COUNT"
