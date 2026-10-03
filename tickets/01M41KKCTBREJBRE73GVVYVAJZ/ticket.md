@@ -27,6 +27,10 @@ target = "01M41P2FWVAT5AP3XD121HE9YF"
 kind = "blocked-by"
 target = "01M41P2FZ22KC8PJVR9RY6QS01"
 
+[[links]]
+kind = "blocked-by"
+target = "01M41P2G171VZJW77Z1XP4RZVS"
+
 [[acceptance]]
 text = "Given the v0.1.0 tag, when the release workflow has run, then the release has Linux x86_64 and aarch64 binaries, goway-setup.exe for x64 and arm64, SHA256SUMS and install.sh, and the documented one-line installer installs goway on a fresh Linux machine"
 bound = false
