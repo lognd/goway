@@ -8,11 +8,11 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:55Z"
-updated = "2026-10-03T18:46:31Z"
+updated = "2026-10-03T18:46:38Z"
 labels = ["security"]
 scope = ["crates/goway/**", "docs/usage.md"]
 
 [[acceptance]]
 text = "Given goway run -vv -e TOKEN=sentinel, when it runs, then the sentinel appears neither in goway's log output nor in the remote process command line"
-bound = false
+bound = true
 +++
