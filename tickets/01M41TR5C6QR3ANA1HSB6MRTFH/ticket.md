@@ -2,13 +2,13 @@
 id = "01M41TR5C6QR3ANA1HSB6MRTFH"
 title = "Copy integrity: verify changed files every run, verify everything on failure, rerun once only on a proven bad copy, and distrust the fast path afterwards"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:29:31Z"
-updated = "2026-10-03T21:32:47Z"
+updated = "2026-10-03T22:34:45Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/src/sync.rs", "crates/goway/src/state.rs", "crates/goway/src/shard.rs", "crates/goway/src/cli.rs", "crates/goway/src/gc.rs", "crates/goway/tests/**", "docs/design.md", "docs/usage.md", "SECURITY.md"]
 
 [[links]]
