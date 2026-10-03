@@ -2,7 +2,8 @@
 id = "01M41ZE1AJB704T3YPAK2BXN3N"
 title = "Shares note lists hosts in a random order, so the weighted sharding test is flaky"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
