@@ -233,7 +233,9 @@ static OUTPUT: Mutex<()> = Mutex::new(());
 
 /// Take the global output lock; a panic in another writer must not silence output.
 fn lock_output() -> std::sync::MutexGuard<'static, ()> {
-    OUTPUT.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    OUTPUT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Write `bytes` to `sink` as one unit under the global output lock, then flush.
@@ -306,7 +308,11 @@ impl LineFramer {
     }
 
     fn emit(&self, piece: &[u8], out: &mut Vec<u8>) {
-        let prefix = if self.continued { &self.cont_prefix } else { &self.prefix };
+        let prefix = if self.continued {
+            &self.cont_prefix
+        } else {
+            &self.prefix
+        };
         out.extend_from_slice(prefix.as_bytes());
         out.extend_from_slice(piece);
     }
@@ -479,7 +485,11 @@ mod tests {
         let mut out = Vec::new();
         f.push(&input, &mut out);
         let text = String::from_utf8(out).expect("every piece is valid UTF-8");
-        assert!(text.contains("\n[h]+ \u{e9}tail\n"), "{}", &text[text.len() - 20..]);
+        assert!(
+            text.contains("\n[h]+ \u{e9}tail\n"),
+            "{}",
+            &text[text.len() - 20..]
+        );
     }
 
     /// A sink that accepts a few bytes per call and yields, as a slow
@@ -516,7 +526,10 @@ mod tests {
                             // goway's own message shape, one buffer
                             framed.extend_from_slice(format!("goway: note: {w} {n}\n").as_bytes());
                         } else {
-                            lines.push(format!("line {n} from {w}\nand more {n}\n").as_bytes(), &mut framed);
+                            lines.push(
+                                format!("line {n} from {w}\nand more {n}\n").as_bytes(),
+                                &mut framed,
+                            );
                         }
                         write_locked(&mut sink, &framed);
                     }
@@ -529,7 +542,8 @@ mod tests {
         for line in text.lines() {
             count += 1;
             let ok = (line.starts_with("goway: note: ") && line.split(' ').count() == 4)
-                || (line.starts_with("[w") && (line.contains("] line ") || line.contains("] and more ")));
+                || (line.starts_with("[w")
+                    && (line.contains("] line ") || line.contains("] and more ")));
             assert!(ok, "torn or interleaved line: {line:?}");
         }
         assert_eq!(count, 8 * (67 + 133 * 2));

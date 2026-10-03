@@ -83,7 +83,9 @@ pub struct Report {
 /// through one stateful terminal filter per stream, so a sequence cannot be
 /// hidden across lines; a line the filter empties entirely prints nothing.
 fn pump(reader: impl std::io::Read, to_stderr: bool, prefix: &str, filter: bool) {
-    pump_with(reader, prefix, filter, |bytes| render::prefixed_batch(to_stderr, bytes));
+    pump_with(reader, prefix, filter, |bytes| {
+        render::prefixed_batch(to_stderr, bytes)
+    });
 }
 
 /// [`pump`] with the destination as a closure, so tests can capture each batch.
@@ -319,14 +321,20 @@ mod tests {
         input.push(b'\n');
         input.extend_from_slice(b"next\n");
         let all: Vec<u8> = pumped(&input, false).concat();
-        let lines: Vec<&[u8]> = all.split(|&b| b == b'\n').filter(|l| !l.is_empty()).collect();
+        let lines: Vec<&[u8]> = all
+            .split(|&b| b == b'\n')
+            .filter(|l| !l.is_empty())
+            .collect();
         assert_eq!(lines.len(), 4);
         assert!(lines[0].starts_with(b"[h1] x"));
         assert!(lines[1].starts_with(b"[h1]+ x"));
         assert!(lines[2].starts_with(b"[h1]+ x"));
         assert_eq!(lines[3], b"[h1] next");
         assert!(lines.iter().all(|l| l.len() <= render::MAX_LINE + 6));
-        let x: usize = lines[..3].iter().map(|l| l.len() - l.iter().position(|&b| b == b'x').unwrap()).sum();
+        let x: usize = lines[..3]
+            .iter()
+            .map(|l| l.len() - l.iter().position(|&b| b == b'x').unwrap())
+            .sum();
         assert_eq!(x, render::MAX_LINE * 2 + 10);
     }
 
@@ -343,7 +351,9 @@ mod tests {
             }
         }
         let mut out = Vec::new();
-        pump_with(Dribble(b"hello\nwor\x1b]0;t\x07ld\n"), "[h1] ", true, |b| out.extend_from_slice(b));
+        pump_with(Dribble(b"hello\nwor\x1b]0;t\x07ld\n"), "[h1] ", true, |b| {
+            out.extend_from_slice(b)
+        });
         assert_eq!(out, b"[h1] hello\n[h1] world\n");
     }
 
