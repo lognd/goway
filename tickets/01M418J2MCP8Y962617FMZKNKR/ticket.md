@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given any goway failure, when goway exits, then the exit code is 125 and the error is rendered on stderr"
-bound = false
+bound = true
 +++
