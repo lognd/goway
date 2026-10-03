@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T19:04:34Z"
+digest = "ec5304163fb747413cdd0179e8d909d4154737281b0d2147d4781f69489cc649"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c7698d8f-4730-49b0-938d-443be6016643 with nextest profile: default
+    Starting 2 tests across 22 binaries (223 tests skipped)
+        PASS [   0.019s] goway resolve::tests::nothing_found_lists_every_miss
+        PASS [   0.182s] goway::run_local outside_a_git_project_the_error_says_what_to_do
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.184s] 2 tests run: 2 passed, 223 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(outside_a_git_project_the_error_says_what_to_do) | test(nothing_found_lists_every_miss)'"
+size = 638
+status = "measured"
+tests = ["resolve::tests::nothing_found_lists_every_miss", "outside_a_git_project_the_error_says_what_to_do"]
+at = "2026-10-03T19:04:34Z"
+actor = "lognd"
+rev = 1

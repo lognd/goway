@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:01:40Z"
-updated = "2026-10-03T19:04:33Z"
+updated = "2026-10-03T19:04:34Z"
 labels = ["newcomer"]
 scope = ["crates/goway/src/**", "crates/goway/tests/**"]
 
@@ -18,5 +18,5 @@ bound = true
 
 [[acceptance]]
 text = "Given the errors unreachable host, key refused, host key mismatch, not a git repository and no usable host, when they are shown, then each names the next step to take"
-bound = false
+bound = true
 +++
