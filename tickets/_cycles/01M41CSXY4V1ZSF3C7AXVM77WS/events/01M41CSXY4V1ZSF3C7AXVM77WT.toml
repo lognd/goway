@@ -1,0 +1,8 @@
+kind = "create"
+object = "cycle"
+goal = "Guided reversible ssh setup and multi-host test sharding"
+start = "2026-10-03"
+end = "2026-10-04"
+at = "2026-10-03T17:25:49Z"
+actor = "lognd"
+rev = 1
