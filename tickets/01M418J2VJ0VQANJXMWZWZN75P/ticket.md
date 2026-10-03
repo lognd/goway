@@ -2,7 +2,8 @@
 id = "01M418J2VJ0VQANJXMWZWZN75P"
 title = "goway run: per-run work dir, cargo target slots, streaming, faithful exit code, cancel"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 8
 parent = "01M418GXXC6312Z4N151DYH3Y4"
