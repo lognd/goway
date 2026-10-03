@@ -571,7 +571,16 @@ mod tests {
 
     #[test]
     fn windows_interop_answers_under_wsl() {
-        if !under_wsl() {
+        // WSL interop is absent in ssh sessions (and on goway hosts); only
+        // check the answer where powershell.exe can actually run.
+        let interop = std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", "exit 0"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success());
+        if !under_wsl() || !interop {
             return;
         }
         let ips = windows_lookup("localhost");

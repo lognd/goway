@@ -95,7 +95,16 @@ impl World {
             .env("GOWAY_CONFIG_DIR", &self.config)
             .env("GOWAY_STATE_DIR", self.root.join("state"))
             .env("GOWAY_WINDOWS_LOOKUP", "0")
-            .env_remove("RUSTC_WRAPPER");
+            // The fake remote is this machine: settings inherited from an
+            // outer goway job (or the user's shell) must not leak in.
+            .env_remove("RUSTC_WRAPPER")
+            .env_remove("CARGO_TARGET_DIR")
+            .env_remove("SCCACHE_DIR")
+            .env_remove("SCCACHE_SERVER_PORT")
+            .env_remove("GOWAY")
+            .env_remove("GOWAY_RUN_ID")
+            .env_remove("GOWAY_SHARD")
+            .env_remove("GOWAY_SHARD_COUNT");
         cmd
     }
 
