@@ -2,7 +2,7 @@
 id = "01M418J2XBD2XSQ98NG5Z33GCC"
 title = "Pool scheduling: parallel probes and least-loaded pick"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
