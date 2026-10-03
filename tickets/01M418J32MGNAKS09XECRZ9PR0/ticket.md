@@ -2,7 +2,7 @@
 id = "01M418J32MGNAKS09XECRZ9PR0"
 title = "goway doctor with --fix: toolchain and ssh checks, sudo steps explained"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
