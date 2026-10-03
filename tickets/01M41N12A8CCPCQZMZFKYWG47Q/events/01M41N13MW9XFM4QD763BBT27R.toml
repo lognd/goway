@@ -1,7 +1,7 @@
 kind = "transition"
 from = "todo"
 to = "in-progress"
-reason = "lease: lognd in /home/logan/projects/goway-wt/KYWG47Q; scope: README.md; ttl 7200s"
+reason = "lease: lognd in goway-wt/KYWG47Q; scope: README.md; ttl 7200s"
 at = "2026-10-03T19:49:33Z"
 actor = "lognd"
 rev = 1

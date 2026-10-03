@@ -6,7 +6,7 @@ exit_code = 100
 inline = '''
 goway: synced 354 files (2 sent, 5017 bytes, 0 deleted)
 goway: running on orion-notebook (x86_64, Orion-Notebook) at 192.0.2.11: cargo nextest run --workspace
-   Compiling goway v0.1.0 (/home/user/.cache/goway/work/1791050580-1ffb56d4-3624294/tree/crates/goway)
+   Compiling goway v0.1.0 (~other/.cache/goway/work/1791050580-1ffb56d4-3624294/tree/crates/goway)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.31s
 \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
  Nextest run ID 337f4c94-dcae-491b-becf-98a22464a0d0 with nextest profile: default
@@ -107,7 +107,7 @@ goway: running on orion-notebook (x86_64, Orion-Notebook) at 192.0.2.11: cargo n
   stderr \u{2500}\u{2500}\u{2500}
 
     thread 'a_changed_binary_is_kept_and_a_second_install_is_refused' (21920) panicked at crates/goway/tests/install_scripts.rs:46:5:
-    install.sh: bash: /home/user/.cache/goway/work/1791050552-2c4c1571-3620436/tree/crates/goway/../../scripts/install.sh: No such file or directory
+    install.sh: bash: ~other/.cache/goway/work/1791050552-2c4c1571-3620436/tree/crates/goway/../../scripts/install.sh: No such file or directory
 
     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 
@@ -127,7 +127,7 @@ goway: running on orion-notebook (x86_64, Orion-Notebook) at 192.0.2.11: cargo n
   stderr \u{2500}\u{2500}\u{2500}
 
     thread 'bin_already_on_path_means_no_profile_edit' (21919) panicked at crates/goway/tests/install_scripts.rs:46:5:
-    install.sh: bash: /home/user/.cache/goway/work/1791050552-2c4c1571-3620436/tree/crates/goway/../../scripts/install.sh: No such file or directory
+    install.sh: bash: ~other/.cache/goway/work/1791050552-2c4c1571-3620436/tree/crates/goway/../../scripts/install.sh: No such file or directory
 
     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 
@@ -147,7 +147,7 @@ goway: running on orion-notebook (x86_64, Orion-Notebook) at 192.0.2.11: cargo n
   stderr \u{2500}\u{2500}\u{2500}
 
     thread 'install_then_uninstall_keeps_existing_profile_and_dirs' (21927) panicked at crates/goway/tests/install_scripts.rs:46:5:
-    install.sh: bash: /home/user/.cache/goway/work/1791050552-2c4c1571-3620436/tree/crates/goway/../../scripts/install.sh: No such file or directory
+    install.sh: bash: ~other/.cache/goway/work/1791050552-2c4c1571-3620436/tree/crates/goway/../../scripts/install.sh: No such file or directory
 
     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 
@@ -167,7 +167,7 @@ goway: running on orion-notebook (x86_64, Orion-Notebook) at 192.0.2.11: cargo n
   stderr \u{2500}\u{2500}\u{2500}
 
     thread 'install_then_uninstall_restores_an_empty_home' (21934) panicked at crates/goway/tests/install_scripts.rs:46:5:
-    install.sh: bash: /home/user/.cache/goway/work/1791050552-2c4c1571-3620436/tree/crates/goway/../../scripts/install.sh: No such file or directory
+    install.sh: bash: ~other/.cache/goway/work/1791050552-2c4c1571-3620436/tree/crates/goway/../../scripts/install.sh: No such file or directory
 
     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 

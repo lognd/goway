@@ -106,7 +106,7 @@ goway: running on helios (x86_64, Helios) at 192.0.2.10: cargo nextest run --wor
   stderr \u{2500}\u{2500}\u{2500}
 
     thread 'a_changed_binary_is_kept_and_a_second_install_is_refused' (22658) panicked at crates/goway/tests/install_scripts.rs:46:5:
-    install.sh: bash: /home/user/.cache/goway/work/1791050540-26a35881-3618419/tree/crates/goway/../../scripts/install.sh: No such file or directory
+    install.sh: bash: ~other/.cache/goway/work/1791050540-26a35881-3618419/tree/crates/goway/../../scripts/install.sh: No such file or directory
 
     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 
