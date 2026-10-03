@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["Given a host, when goway ssh setup runs and then goway ssh setup --undo runs, then authorized_keys and local files equal their state before setup", "Given a Windows sshd target, when setup writes administrators_authorized_keys, then the ACL grants only Administrators and SYSTEM"]
+new = ["Given a host, when goway ssh setup runs and then goway ssh setup --undo runs, then authorized_keys and local files equal their state before setup", "Given a Windows client, when setup creates goway's key, then the key file's ACL is reduced to the current user (icacls), so Windows OpenSSH accepts it", "Given a host whose key authentication does not work yet, when goway ssh setup runs, then it authorizes goway's key over one password login and goway's own key-only calls work afterwards"]
+moved = [1, 0]
+at = "2026-10-03T17:26:10Z"
+actor = "lognd"
+rev = 1

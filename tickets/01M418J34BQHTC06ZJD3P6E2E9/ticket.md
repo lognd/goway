@@ -8,14 +8,18 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:11:38Z"
-scope = ["crates/**", "docs/**"]
+updated = "2026-10-03T17:26:10Z"
+scope = ["crates/goway/**", "crates/goway-journal/**", "docs/ssh-setup.md", "docs/usage.md", "README.md"]
 
 [[acceptance]]
 text = "Given a host, when goway ssh setup runs and then goway ssh setup --undo runs, then authorized_keys and local files equal their state before setup"
 bound = false
 
 [[acceptance]]
-text = "Given a Windows sshd target, when setup writes administrators_authorized_keys, then the ACL grants only Administrators and SYSTEM"
+text = "Given a Windows client, when setup creates goway's key, then the key file's ACL is reduced to the current user (icacls), so Windows OpenSSH accepts it"
+bound = false
+
+[[acceptance]]
+text = "Given a host whose key authentication does not work yet, when goway ssh setup runs, then it authorizes goway's key over one password login and goway's own key-only calls work afterwards"
 bound = false
 +++
