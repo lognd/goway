@@ -70,3 +70,49 @@ fn goway_failure_exits_125_with_rendered_error() {
     assert!(stderr.starts_with("goway: error:"), "{stderr}");
     assert!(out.stdout.is_empty());
 }
+
+// frob:tests crates/goway/src/lib.rs::host_list
+// frob:tests crates/goway/src/lib.rs::host_remove
+// frob:tests crates/goway/src/paths.rs::Paths.from_env
+#[test]
+fn host_list_and_remove_through_the_cli() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("config.toml"),
+        "[[host]]\nname = \"helios\"\n\n[[host]]\nname = \"nova\"\nport = 22\n",
+    )
+    .unwrap();
+    let run = |args: &[&str]| {
+        goway()
+            .arg("--color=never")
+            .args(args)
+            .env("GOWAY_CONFIG_DIR", dir.path())
+            .env("GOWAY_STATE_DIR", dir.path())
+            .output()
+            .unwrap()
+    };
+    let out = run(&["host", "list"]);
+    assert!(out.status.success());
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("helios  2222"), "{text}");
+    assert!(text.contains("nova    22"), "{text}");
+
+    let out = run(&["host", "remove", "helios"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&run(&["host", "list"]).stdout).into_owned();
+    assert!(!text.contains("helios"), "{text}");
+
+    let out = run(&["host", "remove", "helios"]);
+    assert_eq!(out.status.code(), Some(125));
+
+    let out = run(&["config", "path"]);
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.contains(&dir.path().join("config.toml").display().to_string()),
+        "{text}"
+    );
+}

@@ -1,0 +1,1 @@
+goway reads its host pool from ~/.config/goway/config.toml (unknown keys rejected), caches last good addresses, pins each host's ssh key to its name rather than its IP, and adds goway host list, goway host remove and goway config path.

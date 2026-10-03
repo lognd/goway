@@ -1,0 +1,63 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T16:23:42Z"
+digest = "2afdabeeaf760c08ccb9cd12dba5dc4fa6a1dcccbe020dd0df83f8b75aa9df05"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+   Compiling rustix v1.1.5
+   Compiling tracing-core v0.1.36
+   Compiling utf8parse v0.2.2
+   Compiling colorchoice v1.0.5
+   Compiling syn v3.0.6
+   Compiling anstyle-query v1.1.5
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling anstyle v1.0.14
+   Compiling regex-automata v0.4.18
+   Compiling clap_lex v1.1.1
+   Compiling lazy_static v1.5.1
+   Compiling strsim v0.11.1
+   Compiling anstyle-parse v1.0.0
+   Compiling log v0.4.34
+   Compiling heck v0.5.0
+   Compiling anstyle-parse v0.2.7
+   Compiling sharded-slab v0.1.7
+   Compiling anstream v1.0.0
+   Compiling tracing v0.1.44
+   Compiling tracing-log v0.2.0
+   Compiling thread_local v1.1.10
+   Compiling smallvec v1.16.2
+   Compiling nu-ansi-term v0.50.3
+   Compiling anstream v0.6.21
+   Compiling matchers v0.2.0
+   Compiling tracing-subscriber v0.3.23
+   Compiling tempfile v3.27.0
+   Compiling terminal_size v0.4.4
+   Compiling clap_builder v4.6.7
+   Compiling rusty-fork v0.3.1
+   Compiling thiserror-impl v2.0.21
+   Compiling serde_derive v1.0.229
+   Compiling clap_derive v4.6.7
+   Compiling proptest v1.11.0
+   Compiling thiserror v2.0.21
+   Compiling clap v4.6.7
+   Compiling goway v0.1.0 (/home/user/projects/goway-wt/QQRVXW2/crates/goway)
+   Compiling serde v1.0.229
+   Compiling goway-journal v0.1.0 (/home/user/projects/goway-wt/QQRVXW2/crates/goway-journal)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.84s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 24c77cfd-214e-49d5-a660-64b4bc809e2f with nextest profile: default
+    Starting 1 test across 8 binaries (40 tests skipped)
+        PASS [   1.600s] goway-journal::properties revert_after_apply_restores_initial_state
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.602s] 1 test run: 1 passed, 40 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E test(revert_after_apply_restores_initial_state)"
+size = 1945
+status = "measured"
+tests = ["revert_after_apply_restores_initial_state"]
+at = "2026-10-03T16:23:42Z"
+actor = "lognd"
+rev = 1

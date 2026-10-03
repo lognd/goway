@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T16:19:17Z"
+digest = "51c6c14d56bf355cd6fa7c9cbb1f61791605072638776160db885e1309c8596d"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 59a19e07-b2d8-4a32-a099-448d2792905c with nextest profile: default
+    Starting 1 test across 3 binaries (19 tests skipped)
+        PASS [   0.012s] goway ssh::tests::ssh_pins_identity_by_alias_with_strict_checking
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.014s] 1 test run: 1 passed, 19 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E test(ssh_pins_identity_by_alias_with_strict_checking)"
+size = 556
+status = "measured"
+tests = ["ssh::tests::ssh_pins_identity_by_alias_with_strict_checking"]
+at = "2026-10-03T16:19:17Z"
+actor = "lognd"
+rev = 1

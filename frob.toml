@@ -79,3 +79,7 @@ preview = []
 ref = "refs/heads/main"
 # `trunk` commits to `ref`; `branch` commits to the checked-out branch.
 ref_mode = "trunk"
+
+[lease]
+# Generated lockfiles never count as lease overlap or SCOPE001.
+shared_files = ["Cargo.lock"]
