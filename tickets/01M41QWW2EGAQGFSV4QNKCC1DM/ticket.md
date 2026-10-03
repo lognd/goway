@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:39:40Z"
-updated = "2026-10-03T23:38:40Z"
+updated = "2026-10-03T23:39:13Z"
 scope = ["README.md", "docs/install-linux.md", "crates/goway/src/uninstall.rs", ".github/workflows/ci.yml", "crates/goway/tests/install_methods.rs", "docs/install-methods.md"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = false
 
 [[acceptance]]
 text = "Given a goway installed with uv from the built wheel in CI, when goway uninstall --yes runs, then the program, its settings and its uv tool environment are gone"
-bound = false
+bound = true
 +++

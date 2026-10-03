@@ -1,0 +1,11 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T23:39:13Z"
+digest = "a964f104cbd6525571c07f94b8ea52c0fd6b21964cda53217069a29549461704"
+provider = "file"
+ref = ".github/workflows/ci.yml"
+size = 3563
+status = "measured"
+at = "2026-10-03T23:39:13Z"
+actor = "lognd"
+rev = 1
