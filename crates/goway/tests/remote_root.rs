@@ -53,3 +53,39 @@ fn purge_keeps_foreign_files_in_a_marked_root() {
     );
     assert!(!root.exists());
 }
+
+#[test]
+fn gc_all_never_removes_a_work_dir_created_moments_ago() {
+    let home = tempfile::tempdir().unwrap();
+    let root = home.path().join(".cache/goway");
+    assert!(
+        remote(home.path(), "manifest", &[".cache/goway", "abc"])
+            .status
+            .success()
+    );
+    let work = root.join("work/run-1");
+    std::fs::create_dir_all(&work).unwrap();
+    std::fs::write(
+        work.join("meta.json"),
+        r#"{"kind":"work","repo":"r","repo_id":"i"}"#,
+    )
+    .unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string();
+    let gc = |now: &str| {
+        remote(
+            home.path(),
+            "gc",
+            &[".cache/goway", now, "0", "0", "0", "apply", "", "0"],
+        )
+    };
+    assert!(gc(&now).status.success());
+    assert!(work.exists(), "a fresh, unlocked work dir was removed");
+    // Once it is old enough it goes.
+    let later = (now.parse::<u64>().unwrap() + 3600).to_string();
+    assert!(gc(&later).status.success());
+    assert!(!work.exists());
+}

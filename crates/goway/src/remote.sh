@@ -306,6 +306,9 @@ probe() {
   fi
 }
 
+# A work dir with no lock file yet and younger than this (seconds) is never removed by gc.
+WORK_GRACE=120
+
 # Seconds since the last use of DIR (its meta.json mtime).
 age_of() {
   local m
@@ -352,6 +355,10 @@ gc_entry() {
   done
   age=$(age_of "$dir" "$now")
   if [ "$action" = keep ] && [ "$age" -ge "$ttl" ]; then action=remove; fi
+  # A run creates its work dir in one ssh call and its lock in the next, so
+  # for a moment the dir is unlocked and has no lock file yet. Never remove
+  # such a young dir, not even with --all (a finished run always has the file).
+  if [ "$kind" = work ] && [ "$action" = remove ] && [ ! -e "$dir/lock" ] && [ "$age" -lt "$WORK_GRACE" ]; then action=keep; fi
   bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$action" "$kind" "$age" "${bytes:-0}" "$repo" "$dir"
   if [ "$action" = remove ] && [ "$mode" = apply ]; then

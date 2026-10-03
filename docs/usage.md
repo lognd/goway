@@ -157,6 +157,10 @@ goway gc --repo goway --older-than 2d
 goway gc --host <YOUR-COMPUTER-NAME-HERE> --all   # everything not in use
 ```
 
+A work directory a run has only just created (it has no lock file yet and is
+under two minutes old) is never removed, so `gc` cannot race a run that is
+starting.
+
 Locked entries (a run in progress) are reported `busy` and never
 touched. gc removes only entries goway labelled itself, and only under a
 root that carries goway's `.goway-root` marker. Anything else you put
