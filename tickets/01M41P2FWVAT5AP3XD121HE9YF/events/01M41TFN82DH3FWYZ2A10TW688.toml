@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T21:24:53Z"
+digest = "043830ab197cdb1ffb3654927412d383d27a1ebd8dcba33558625b586d4a3a46"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 4fe3b92b-b28d-419c-b430-dfcda2848696 with nextest profile: default
+    Starting 1 test across 29 binaries (343 tests skipped)
+        PASS [   0.006s] goway runners::tests::native_cpp_runners_use_their_own_flags
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.008s] 1 test run: 1 passed, 343 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "native_cpp_runners_use_their_own_flags"
+size = 554
+status = "measured"
+tests = ["runners::tests::native_cpp_runners_use_their_own_flags"]
+at = "2026-10-03T21:24:53Z"
+actor = "lognd"
+rev = 1

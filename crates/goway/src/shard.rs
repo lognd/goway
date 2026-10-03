@@ -1,9 +1,9 @@
 //! `goway run --shard N`: one test run split across N hosts.
 //!
-//! goway does not invent its own partitioning: nextest already has
-//! `--partition count:i/N`, so for `cargo nextest run` goway adds it, and
-//! any other command gets `GOWAY_SHARD=i` and `GOWAY_SHARD_COUNT=N` to split
-//! its own work. Each host syncs and runs in parallel; output lines are
+//! The split itself is the [`crate::runners`] adapters' job (native
+//! sharding flags, or a deterministic split of files, packages and
+//! classes); every command also gets `GOWAY_SHARD=i` and
+//! `GOWAY_SHARD_COUNT=N`. Each host syncs and runs in parallel; output lines are
 //! prefixed with the host; goway exits with the first failing shard's code
 //! (in shard order), or 0 when every shard passed.
 
@@ -20,29 +20,10 @@ use crate::pool;
 use crate::render::{self, Renderer};
 use crate::repo::Repo;
 use crate::run::{self, Env};
+use crate::runners;
 use crate::ssh::{self, KeyPolicy};
 use crate::state::State;
 use crate::termfilter;
-
-/// `command` for shard `index` (1-based) of `count`: nextest runs get
-/// `--partition count:index/count` (before any `--`), others are unchanged.
-pub fn shard_command(command: &[String], index: usize, count: usize) -> Vec<String> {
-    let nextest_run = command
-        .windows(2)
-        .position(|w| w[0].ends_with("nextest") && w[1] == "run");
-    let Some(at) = nextest_run else {
-        return command.to_vec();
-    };
-    let insert = command[at + 2..]
-        .iter()
-        .position(|a| a == "--")
-        .map_or(command.len(), |p| at + 2 + p);
-    let mut out = command[..insert].to_vec();
-    out.push("--partition".to_owned());
-    out.push(format!("count:{index}/{count}"));
-    out.extend_from_slice(&command[insert..]);
-    out
-}
 
 /// One shard's outcome, in the `--report` file.
 #[derive(Debug, Clone, Serialize)]
@@ -83,7 +64,9 @@ pub struct Report {
 /// through one stateful terminal filter per stream, so a sequence cannot be
 /// hidden across lines; a line the filter empties entirely prints nothing.
 fn pump(reader: impl std::io::Read, to_stderr: bool, prefix: &str, filter: bool) {
-    pump_with(reader, prefix, filter, |bytes| render::prefixed_batch(to_stderr, bytes));
+    pump_with(reader, prefix, filter, |bytes| {
+        render::prefixed_batch(to_stderr, bytes);
+    });
 }
 
 /// [`pump`] with the destination as a closure, so tests can capture each batch.
@@ -130,6 +113,14 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
     let count = usize::from(count);
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
+    let project = runners::project_for(&args.command, &args.env, &repo.root)?;
+    // Plan every shard first, so a command that cannot be split is refused before any host is touched.
+    let plans = (1..=count)
+        .map(|index| runners::plan(&args.command, &args.env, &project, index, count))
+        .collect::<Result<Vec<_>>>()?;
+    if let Some(framework) = plans.first().and_then(|p| p.framework) {
+        renderer.note(format_args!("sharding as {}", framework.name()));
+    }
     let mut state = State::load(&env.paths.state_file())?;
     let hosts = pool::choose_many(&config, &mut state, env.lookup, env.prober, count)?;
     if let Err(e) = state.save(&env.paths.state_file()) {
@@ -154,6 +145,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                 let config = &config;
                 let repo = &repo;
                 let interrupted = &interrupted;
+                let plan = &plans[i];
                 scope.spawn(move || -> Result<ShardReport> {
                     let shard_started = Instant::now();
                     let index = i + 1;
@@ -163,7 +155,8 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                     let mut pairs = args.env.clone();
                     pairs.push(format!("GOWAY_SHARD={index}"));
                     pairs.push(format!("GOWAY_SHARD_COUNT={count}"));
-                    let command = shard_command(&args.command, index, count);
+                    pairs.extend(plan.env.iter().cloned());
+                    let command = plan.command.clone();
                     run::send_env(env, config, found, &run_id, &run::encode_env(&pairs)?)?;
                     let cmd = run::run_invocation(
                         config,
@@ -283,10 +276,6 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
 mod tests {
     use super::*;
 
-    fn words(s: &str) -> Vec<String> {
-        s.split_whitespace().map(str::to_owned).collect()
-    }
-
     fn pumped(input: &[u8], filter: bool) -> Vec<Vec<u8>> {
         let mut batches = Vec::new();
         pump_with(input, "[h1] ", filter, |b| {
@@ -319,14 +308,20 @@ mod tests {
         input.push(b'\n');
         input.extend_from_slice(b"next\n");
         let all: Vec<u8> = pumped(&input, false).concat();
-        let lines: Vec<&[u8]> = all.split(|&b| b == b'\n').filter(|l| !l.is_empty()).collect();
+        let lines: Vec<&[u8]> = all
+            .split(|&b| b == b'\n')
+            .filter(|l| !l.is_empty())
+            .collect();
         assert_eq!(lines.len(), 4);
         assert!(lines[0].starts_with(b"[h1] x"));
         assert!(lines[1].starts_with(b"[h1]+ x"));
         assert!(lines[2].starts_with(b"[h1]+ x"));
         assert_eq!(lines[3], b"[h1] next");
         assert!(lines.iter().all(|l| l.len() <= render::MAX_LINE + 6));
-        let x: usize = lines[..3].iter().map(|l| l.len() - l.iter().position(|&b| b == b'x').unwrap()).sum();
+        let x: usize = lines[..3]
+            .iter()
+            .map(|l| l.len() - l.iter().position(|&b| b == b'x').unwrap())
+            .sum();
         assert_eq!(x, render::MAX_LINE * 2 + 10);
     }
 
@@ -343,24 +338,9 @@ mod tests {
             }
         }
         let mut out = Vec::new();
-        pump_with(Dribble(b"hello\nwor\x1b]0;t\x07ld\n"), "[h1] ", true, |b| out.extend_from_slice(b));
+        pump_with(Dribble(b"hello\nwor\x1b]0;t\x07ld\n"), "[h1] ", true, |b| {
+            out.extend_from_slice(b);
+        });
         assert_eq!(out, b"[h1] hello\n[h1] world\n");
-    }
-
-    #[test]
-    fn nextest_gets_its_own_partition_flag() {
-        assert_eq!(
-            shard_command(&words("cargo nextest run --workspace"), 2, 3),
-            words("cargo nextest run --workspace --partition count:2/3")
-        );
-        assert_eq!(
-            shard_command(&words("cargo nextest run -E all() -- --nocapture"), 1, 2),
-            words("cargo nextest run -E all() --partition count:1/2 -- --nocapture")
-        );
-        assert_eq!(
-            shard_command(&words("/x/cargo-nextest nextest run"), 1, 2),
-            words("/x/cargo-nextest nextest run --partition count:1/2")
-        );
-        assert_eq!(shard_command(&words("make test"), 1, 2), words("make test"));
     }
 }

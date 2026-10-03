@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["scripts/install.sh", ".github/workflows/release.yml", "crates/goway/tests/install_scripts.rs", "docs/release.md", "scripts/uninstall.sh", ".github/workflows/ci.yml", "README.md"]
+new = ["scripts/install.sh", ".github/workflows/release.yml", "crates/goway/tests/install_scripts.rs", "docs/release.md", "scripts/uninstall.sh", ".github/workflows/ci.yml", "README.md", "crates/goway/src/sync.rs"]
+at = "2026-10-03T21:24:06Z"
+actor = "lognd"
+rev = 1

@@ -90,15 +90,43 @@ goway run --shard 2 -- cargo nextest run --workspace
 ```
 
 `--shard N` picks the N least-loaded usable hosts, syncs to all of them
-in parallel and runs part i of N on each. goway does not invent its own
-partitioning: for `cargo nextest run` it adds nextest's own
-`--partition count:i/N` (before any `--`). Every command sees
-`GOWAY_SHARD=i` and `GOWAY_SHARD_COUNT=N`, so other test runners can
-split their work the same way. Output lines are prefixed with
-`[host] `. goway exits with the first failing shard's code, or 0 when
-every shard passed. `--report` lists every shard's host, arch, address,
-command and exit code. Each host builds for itself, so give every host
-the toolchain (`goway doctor --fix`).
+in parallel and runs part i of N on each. goway recognises the test
+framework from the command line (and, for `npm test` style commands, from
+`scripts.test` in `package.json`) and splits the tests the way that
+framework supports. Every command also sees `GOWAY_SHARD=i` and
+`GOWAY_SHARD_COUNT=N`. A command goway does not recognise runs unchanged
+on every host with just those two variables, so your own runner can split
+by them. Output lines are prefixed with `[host] `. goway exits with the
+first failing shard's code, or 0 when every shard passed. `--report`
+lists every shard's host, arch, address, command and exit code. Each host
+builds for itself, so give every host the toolchain (`goway doctor --fix`).
+
+goway refuses (usage error, before any host is used) a command that
+already splits itself: `--partition`, `--shard`, `--shard-count`,
+`-I` for ctest, `-Dtest=` for Maven, `--tests` for Gradle, or the
+`GTEST_*` shard variables.
+
+#### Framework adapters
+
+| Framework | How it is sharded | Prerequisites | Status |
+|---|---|---|---|
+| cargo nextest | `--partition count:i/N` | none | tested (unit, and in CI) |
+| vitest, jest, Playwright | `--shard=i/N`; also via `npm/pnpm/yarn test` when `scripts.test` names the tool (`npm test -- --shard=i/N`) | the framework 3.x/29+/1.x | argument rewriting unit-tested; not run against the real tools |
+| Catch2 v3 | `--shard-count N --shard-index i-1` | pass `--env GOWAY_RUNNER=catch2` (a test binary cannot be recognised from its name) | argument rewriting unit-tested; not run against the real library |
+| GoogleTest | env `GTEST_TOTAL_SHARDS=N`, `GTEST_SHARD_INDEX=i-1` | a `--gtest_*` argument, or `--env GOWAY_RUNNER=gtest` | env rewriting unit-tested; not run against the real library |
+| CTest | `-I i,,N` (every Nth test starting at the i-th) | `ctest` on the host | tested with real ctest through the fake-ssh harness |
+| pytest | goway splits the `test_*.py` / `*_test.py` files of the synced project (sorted, round-robin) and passes them as arguments; explicit path arguments narrow the set and `--ignore` is honoured; composes with pytest-xdist (`-n auto` runs inside each shard) | none | tested with real pytest through the fake-ssh harness; xdist not run |
+| go test | goway splits the packages that contain `*_test.go` (skipping `testdata`, `vendor` and nested modules); needs a pattern such as `./...` or `./x/...` | none | tested with real `go test` through the fake-ssh harness |
+| Maven | `-Dtest=<fully qualified classes>` from `src/test/**` (surefire's `Test*`, `*Test`, `*Tests`, `*TestCase`), plus `-Dsurefire.failIfNoSpecifiedTests=false` | surefire 2.19 or newer | class split unit-tested; Maven not run |
+| Gradle | repeated `--tests <fully qualified class>` | a project where every module with tests has matching classes (Gradle fails a project whose filter matches nothing) | class split unit-tested; Gradle not run |
+| RSpec | goway splits the `*_spec.rb` files under `spec/` and passes them as arguments | none | file split unit-tested; RSpec not run |
+
+Splitting by file works from the synced file list, so it needs no round
+trip to the host. A shard that receives no tests runs `true` instead of
+running everything. The split is deterministic (stable sort, then
+round-robin by position), so reruns and `--keep` debugging reproduce a
+shard. Unit tests of every splitting adapter prove the shards together
+cover each file, package or class exactly once.
 
 ### Exit codes
 

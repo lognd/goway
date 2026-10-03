@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T21:24:53Z"
+digest = "c1bd79e088f4b1739706bddc366ba0a83f546b5c95a152052cb7016250029931"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e3a1c10f-b933-40d3-824f-1083e154c090 with nextest profile: default
+    Starting 1 test across 29 binaries (343 tests skipped)
+        PASS [   0.006s] goway runners::tests::nextest_gets_its_own_partition_flag
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.008s] 1 test run: 1 passed, 343 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "nextest_gets_its_own_partition_flag"
+size = 551
+status = "measured"
+tests = ["runners::tests::nextest_gets_its_own_partition_flag"]
+at = "2026-10-03T21:24:53Z"
+actor = "lognd"
+rev = 1
