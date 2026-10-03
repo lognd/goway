@@ -2,7 +2,8 @@
 id = "01M41F1RCK7DZQNPXF6PFDSEFK"
 title = "Warm cargo runs used binaries whose baked CARGO_MANIFEST_DIR pointed at a deleted work dir"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
