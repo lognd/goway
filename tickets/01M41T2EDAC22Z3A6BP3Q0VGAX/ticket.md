@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:17:40Z"
-updated = "2026-10-03T21:37:41Z"
-scope = ["crates/goway/src/remote.sh", "crates/goway/src/pool.rs", "crates/goway/src/facts.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs", "crates/goway/src/state.rs", "crates/goway/tests/**", "docs/usage.md"]
+updated = "2026-10-03T21:37:58Z"
+scope = ["crates/goway/src/remote.sh", "crates/goway/src/pool.rs", "crates/goway/src/facts.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs", "crates/goway/src/state.rs", "crates/goway/tests/**", "docs/usage.md", "crates/goway/src/cli.rs", "crates/goway/src/config.rs", "crates/goway/src/lib.rs", "docs/config.md"]
 
 [[acceptance]]
 text = "Given a host, when goway probes it, then it learns GPUs (vendor, model, memory, driver and CUDA version via nvidia-smi or rocm-smi), total and available RAM, CPU features (avx2, avx512f, neon), /dev/kvm, a working docker, and free disk for goway's root, parsed defensively with bounds like the existing probe"
