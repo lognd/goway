@@ -37,8 +37,8 @@
   <g transform="translate(70,112)">
     <rect x="0" y="0" width="140" height="88" rx="10" fill="url(#mainFill)"/>
     <rect x="10" y="10" width="120" height="68" rx="5" fill="#0d1117"/>
-    <text x="22" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="15" fill="#79c0ff">$ goway run</text>
-    <text x="22" y="62" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="15" fill="#c9d1d9">-- cargo test</text>
+    <text x="70" y="40" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="15" fill="#79c0ff">$ goway run</text>
+    <text x="70" y="59" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="15" fill="#c9d1d9">-- cargo test</text>
     <path d="M-12 96 H152 L140 108 H0 Z" fill="#1f6feb"/>
   </g>
 
@@ -50,13 +50,13 @@
   <g transform="translate(350,44)">
     <rect x="0" y="0" width="112" height="70" rx="8" fill="url(#helperFill)"/>
     <rect x="8" y="8" width="96" height="54" rx="4" fill="#0d1117"/>
-    <text x="18" y="41" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="14" fill="#56d364">ok 118</text>
+    <text x="56" y="40" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="14" fill="#56d364">ok 118</text>
     <path d="M-10 76 H122 L112 86 H0 Z" fill="#2ea043"/>
   </g>
   <g transform="translate(350,190)">
     <rect x="0" y="0" width="112" height="70" rx="8" fill="url(#helperFill)"/>
     <rect x="8" y="8" width="96" height="54" rx="4" fill="#0d1117"/>
-    <text x="18" y="41" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="14" fill="#56d364">ok 127</text>
+    <text x="56" y="40" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="14" fill="#56d364">ok 127</text>
     <path d="M-10 76 H122 L112 86 H0 Z" fill="#2ea043"/>
   </g>
 
