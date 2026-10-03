@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T19:04:33Z"
+digest = "b1bda418ae763bf7ad42bc0765c151c55bec2e08ab5a3ed8fb7f6c0b69ed8ea1"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 626f985e-1d20-4fed-ba9b-e634ddb45eea with nextest profile: default
+    Starting 2 tests across 22 binaries (223 tests skipped)
+        PASS [   0.011s] goway render::tests::every_style_renders_without_color
+        PASS [   0.229s] goway::run_local a_failing_command_is_labelled_failed_in_words
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.231s] 2 tests run: 2 passed, 223 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(every_style_renders_without_color) | test(a_failing_command_is_labelled_failed_in_words)'"
+size = 638
+status = "measured"
+tests = ["render::tests::every_style_renders_without_color", "a_failing_command_is_labelled_failed_in_words"]
+at = "2026-10-03T19:04:33Z"
+actor = "lognd"
+rev = 1
