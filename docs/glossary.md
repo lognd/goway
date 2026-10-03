@@ -20,6 +20,7 @@ Plain explanations of the words goway's documentation uses.
 | firewall rule | A permission that lets other computers reach a port. |
 | Public / Private network | How Windows classifies a network. Cafes are Public. Your home should be Private. |
 | mirrored networking | A WSL setting that lets other computers reach the Linux inside Windows. |
+| port relay | A Windows rule (`netsh interface portproxy`) that forwards a helper's port to the Linux inside WSL. goway uses it on Windows 10 and with WSL in NAT mode, and a task keeps it current when WSL's address changes. |
 | keepalive task | A Windows task that keeps WSL running so a helper stays reachable. |
 
 ## Logging in securely

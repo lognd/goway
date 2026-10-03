@@ -68,7 +68,8 @@ reachable:
 - systemd in WSL with `ssh.socket` enabled on the port
 - a keepalive task
 - the firewall rules
-- mirrored networking
+- mirrored networking, or on Windows 10 and WSL in NAT mode a port relay
+  with a task that keeps it pointed at WSL
 
 `goway doctor HOST` warns while sshd still accepts passwords. Its fix
 (with `--sudo`) adds a drop-in that turns password login off. Do this
