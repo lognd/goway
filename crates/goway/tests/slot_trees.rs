@@ -1,5 +1,6 @@
 //! Persistent slot trees: a slot's tree is updated in place from the run's
 //! snapshot, dependency dirs stay warm, and gc never races a lock.
+#![cfg(unix)]
 
 mod common;
 
