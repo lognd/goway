@@ -16,6 +16,7 @@ use serde::Serialize;
 use crate::cli::RunArgs;
 use crate::config::Config;
 use crate::error::{Error, Result};
+use crate::needs::{self, Matched, Selection};
 use crate::paths::Paths;
 use crate::pool;
 use crate::remote;
@@ -48,6 +49,9 @@ pub struct Report {
     pub run_id: String,
     /// Repository name.
     pub repo: String,
+    /// The host facts that met the run's `--needs` and `--prefers`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub matched: Vec<Matched>,
 }
 
 /// A new run id: time plus process id, unique per client.
@@ -142,12 +146,14 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         return crate::shard::run_sharded(env, renderer, args, count);
     }
     let started = Instant::now();
+    let selection = Selection::parse(&args.needs, &args.prefers)?;
     let env_bytes = encode_env(&args.env)?;
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
     let mut state = State::load(&env.paths.state_file())?;
     let (host, found, probe) = pool::choose(
         &config,
+        &selection,
         &mut state,
         env.lookup,
         env.prober,
@@ -158,6 +164,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     }
     let arch = probe.arch.clone();
     let hostname = probe.hostname.clone();
+    let matched = selection.assess(&host, &probe).matched;
     if args.host.is_none() && config.hosts.len() > 1 {
         renderer.note(format_args!(
             "picked {} (load {:.2} on {} cores, {} goway jobs)",
@@ -185,9 +192,14 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     );
 
     renderer.headline(format_args!(
-        "running on {} ({arch}, {hostname}) at {}: {}",
+        "running on {} ({arch}, {hostname}) at {}{}: {}",
         host.name,
         found.target.address,
+        if matched.is_empty() {
+            String::new()
+        } else {
+            format!(" [{}]", needs::summary(&matched))
+        },
         ssh::shell_join(&args.command)
     ));
     let (code, interrupted) = stream(&found, env.settings, &cmd, args.output)?;
@@ -226,6 +238,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
                 duration_secs: elapsed.as_secs_f64(),
                 run_id,
                 repo: repo.name.clone(),
+                matched,
             },
         )?;
     }

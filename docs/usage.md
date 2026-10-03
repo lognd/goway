@@ -192,6 +192,50 @@ round-robin by position), so reruns and `--keep` debugging reproduce a
 shard. Unit tests of every splitting adapter prove the shards together
 cover each file, package or class exactly once.
 
+### Choosing hardware: `--needs` and `--prefers`
+
+```
+goway run --needs gpu-mem>=8G,cuda>=12.1 -- cargo test --features cuda
+goway run --needs mem>=16G --prefers cpu=avx512f -- cargo nextest run
+goway run --shard 3 --needs kvm -- ./vm-tests
+```
+
+`--needs` terms are hard: a host that fails any is never used (not even with
+`--host`). `--prefers` terms are soft: each one a host meets lowers its score
+by 0.5 (about half a core of load per core), so a preferred host wins unless
+it is much busier; a host that lacks a preference is never excluded. Both
+flags repeat or take comma-separated terms.
+
+| Term | Meaning |
+|---|---|
+| `gpu`, `gpu=cuda`, `gpu=rocm` | a GPU (any, NVIDIA, AMD) visible on the host |
+| `gpu-mem>=8G` | some single GPU with at least that much memory |
+| `cuda>=12.1` | a GPU whose CUDA version (from `nvidia-smi`) is at least this |
+| `mem>=16G` | total RAM |
+| `cores>=8` | logical CPUs |
+| `arch=x86_64` | `uname -m` (`amd64` and `arm64` are accepted) |
+| `os=linux` | `uname -s`, lower case |
+| `cpu=avx512f` | a CPU feature: `avx2`, `avx512f`, `neon` |
+| `kvm`, `docker` | usable `/dev/kvm`; a working `docker info` |
+| `disk>=50G` | free disk where goway keeps its state |
+| `label=NAME` | the host's `labels = ["NAME"]` entry in the config |
+
+Sizes are binary (`16G` is 16 GiB) with `K`, `M`, `G` or `T`. A term that is
+not in the table is an error that lists the valid ones. goway never guesses
+needs from a project's dependencies; `goway doctor` may suggest a rule.
+
+When no host qualifies, goway exits 125 and lists every host with what it
+lacks (`helios: lacks gpu-mem>=48G: largest GPU has 24.0 GiB`). With
+`--shard N`, every shard's host must meet the needs; preferences only order
+the choice. Facts come from the host's own probe: RAM and disk live, the
+rest cached daily (see `goway status`). A fact that was never probed counts
+as not met.
+
+The `--report` file (each shard's entry when sharded) lists `matched`: every
+need and preference the chosen host met and the fact that met it (GPU model
+and memory, RAM, cores), so a result says what it was measured on. The
+`running on` line shows them too.
+
 ### Exit codes
 
 | Code | Meaning |

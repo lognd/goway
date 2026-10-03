@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
 use crate::facts::{self, Facts};
+use crate::needs::Selection;
 use crate::remote;
 use crate::resolve::{self, Found, Lookup, Prober};
 use crate::ssh::KeyPolicy;
@@ -107,9 +108,20 @@ pub struct Probed<'a> {
     pub result: Result<(Found, Probe)>,
 }
 
+/// How much one met `--prefers` term lowers a host's score (a host with
+/// that much more load per core still wins on the preference).
+pub const PREFER_BONUS: f64 = 0.5;
+
 /// Indices of the usable hosts among `probed`, best first. Hosts at
 /// `max_jobs` or above their `max_load` (load per core) are left out.
 pub fn ranked(config: &Config, probed: &[Probed<'_>]) -> Vec<usize> {
+    ranked_for(config, &Selection::default(), probed)
+}
+
+/// [`ranked`] for a run with `selection`: hosts failing a `--needs` term
+/// are left out, and each met `--prefers` term lowers the score by
+/// [`PREFER_BONUS`] (preferences never exclude).
+pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>]) -> Vec<usize> {
     let mut usable: Vec<(usize, f64, u32)> = probed
         .iter()
         .enumerate()
@@ -124,7 +136,18 @@ pub fn ranked(config: &Config, probed: &[Probed<'_>]) -> Vec<usize> {
                 tracing::info!(host = %p.host.name, per_core, "host above max_load; skipped");
                 return None;
             }
-            Some((i, score(probe, config.defaults.mem_per_core), probe.jobs))
+            let a = selection.assess(p.host, probe);
+            if !a.qualifies() {
+                tracing::info!(host = %p.host.name, lacks = ?a.lacks, "host fails --needs; skipped");
+                return None;
+            }
+            #[allow(clippy::cast_precision_loss)] // a handful of terms
+            let bonus = PREFER_BONUS * a.preferences_met as f64;
+            Some((
+                i,
+                score(probe, config.defaults.mem_per_core) - bonus,
+                probe.jobs,
+            ))
         })
         .collect();
     usable.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.2.cmp(&b.2)).then(a.0.cmp(&b.0)));
@@ -133,7 +156,12 @@ pub fn ranked(config: &Config, probed: &[Probed<'_>]) -> Vec<usize> {
 
 /// Index of the best host among `probed`, if any is usable.
 pub fn pick(config: &Config, probed: &[Probed<'_>]) -> Option<usize> {
-    let best = ranked(config, probed).first().copied();
+    pick_for(config, &Selection::default(), probed)
+}
+
+/// [`pick`] for a run with `selection`.
+pub fn pick_for(config: &Config, selection: &Selection, probed: &[Probed<'_>]) -> Option<usize> {
+    let best = ranked_for(config, selection, probed).first().copied();
     if let Some(i) = best {
         tracing::info!(host = %probed[i].host.name, "picked");
     }
@@ -141,17 +169,43 @@ pub fn pick(config: &Config, probed: &[Probed<'_>]) -> Option<usize> {
 }
 
 /// Why no (or not enough) hosts are usable, one line per host.
-fn unusable(results: &[Probed<'_>]) -> Vec<String> {
+fn unusable(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> {
     results
         .iter()
         .map(|p| match &p.result {
-            Ok((_, probe)) => format!(
-                "{}: load {:.2} on {} cores, {} goway jobs",
-                p.host.name, probe.load[0], probe.cores, probe.jobs
-            ),
+            Ok((_, probe)) => {
+                let a = selection.assess(p.host, probe);
+                if a.qualifies() {
+                    format!(
+                        "{}: load {:.2} on {} cores, {} goway jobs",
+                        p.host.name, probe.load[0], probe.cores, probe.jobs
+                    )
+                } else {
+                    format!("{}: lacks {}", p.host.name, a.lacks.join("; lacks "))
+                }
+            }
             Err(e) => format!("{}: {e}", p.host.name),
         })
         .collect()
+}
+
+/// The error for "nothing usable": a needs error when every reachable host
+/// fails a need (and at least one is reachable), else the general one.
+fn none_usable(selection: &Selection, results: &[Probed<'_>]) -> Error {
+    let reachable: Vec<&Probed<'_>> = results.iter().filter(|p| p.result.is_ok()).collect();
+    let all_fail_needs = !selection.needs.is_empty()
+        && !reachable.is_empty()
+        && reachable.iter().all(|p| {
+            p.result
+                .as_ref()
+                .is_ok_and(|(_, probe)| !selection.assess(p.host, probe).qualifies())
+        });
+    let lines = unusable(selection, results);
+    if all_fail_needs {
+        Error::NeedsUnmet(lines)
+    } else {
+        Error::NoHost(lines)
+    }
 }
 
 /// The `n` least-loaded usable hosts, best first (for sharding).
@@ -161,20 +215,30 @@ fn unusable(results: &[Probed<'_>]) -> Vec<String> {
 /// Never: each ranked index is taken once.
 pub fn choose_many(
     config: &Config,
+    selection: &Selection,
     state: &mut State,
     lookup: &(dyn Lookup + Sync),
     prober: &(dyn Prober + Sync),
     n: usize,
 ) -> Result<Vec<(HostConfig, Found, Probe)>> {
-    let results = probe_all(config, state, lookup, prober, false);
-    let order = ranked(config, &results);
+    let results = probe_all(config, state, lookup, prober, selection.wants_disk());
+    let order = ranked_for(config, selection, &results);
     if order.len() < n {
         let mut why = vec![format!(
-            "{n} shards need {n} usable hosts, {} are usable",
+            "{n} shards need {n} usable hosts{}, {} are usable",
+            if selection.needs.is_empty() {
+                ""
+            } else {
+                " that each meet --needs"
+            },
             order.len()
         )];
-        why.extend(unusable(&results));
-        return Err(Error::NoHost(why));
+        why.extend(unusable(selection, &results));
+        return Err(if selection.needs.is_empty() {
+            Error::NoHost(why)
+        } else {
+            Error::NeedsUnmet(why)
+        });
     }
     let mut slots: Vec<Option<Probed<'_>>> = results.into_iter().map(Some).collect();
     order
@@ -311,6 +375,7 @@ pub fn probe_all<'a>(
 /// Choose where to run: `wanted` if given, else the least-loaded host.
 pub fn choose(
     config: &Config,
+    selection: &Selection,
     state: &mut State,
     lookup: &(dyn Lookup + Sync),
     prober: &(dyn Prober + Sync),
@@ -318,7 +383,17 @@ pub fn choose(
 ) -> Result<(HostConfig, Found, Probe)> {
     if let Some(name) = wanted {
         let host = config.host(name)?;
-        let (found, probe) = probe_one(config, host, state, lookup, prober, false)?;
+        let (found, probe) =
+            probe_one(config, host, state, lookup, prober, selection.wants_disk())?;
+        // A pinned host is used as is, but not when it cannot meet the needs.
+        let a = selection.assess(host, &probe);
+        if !a.qualifies() {
+            return Err(Error::NeedsUnmet(vec![format!(
+                "{}: lacks {}",
+                host.name,
+                a.lacks.join("; lacks ")
+            )]));
+        }
         return Ok((host.clone(), found, probe));
     }
     if config.hosts.is_empty() {
@@ -326,14 +401,14 @@ pub fn choose(
             "no hosts configured; add one with `goway host add NAME`".to_owned(),
         ));
     }
-    let mut results = probe_all(config, state, lookup, prober, false);
-    match pick(config, &results) {
+    let mut results = probe_all(config, state, lookup, prober, selection.wants_disk());
+    match pick_for(config, selection, &results) {
         Some(i) => {
             let chosen = results.swap_remove(i);
             let (found, probe) = chosen.result?;
             Ok((chosen.host.clone(), found, probe))
         }
-        None => Err(Error::NoHost(unusable(&results))),
+        None => Err(none_usable(selection, &results)),
     }
 }
 
@@ -365,6 +440,7 @@ mod tests {
             priority: None,
             max_load: None,
             identity: None,
+            labels: Vec::new(),
         }
     }
 
@@ -517,8 +593,28 @@ mod tests {
         h.max_load = Some(0.0);
         config.hosts.push(h);
         let mut state = State::default();
-        assert!(choose(&config, &mut state, &NoLookup, &ByAddress, None).is_err());
-        assert!(choose(&config, &mut state, &NoLookup, &ByAddress, Some("a")).is_ok());
+        assert!(
+            choose(
+                &config,
+                &Selection::default(),
+                &mut state,
+                &NoLookup,
+                &ByAddress,
+                None
+            )
+            .is_err()
+        );
+        assert!(
+            choose(
+                &config,
+                &Selection::default(),
+                &mut state,
+                &NoLookup,
+                &ByAddress,
+                Some("a")
+            )
+            .is_ok()
+        );
     }
 
     struct ByAddress;
@@ -559,16 +655,257 @@ mod tests {
             config.hosts.push(h);
         }
         let mut state = State::default();
-        let (h, found, probe) = choose(&config, &mut state, &NoLookup, &ByAddress, None).unwrap();
+        let (h, found, probe) = choose(
+            &config,
+            &Selection::default(),
+            &mut state,
+            &NoLookup,
+            &ByAddress,
+            None,
+        )
+        .unwrap();
         assert_eq!(h.name, "b", "2/16 beats 3/4");
         assert_eq!(found.target.address, "10.0.0.2");
         assert_eq!(probe.hostname, "b");
         assert_eq!(state.get("a").unwrap().address, "10.0.0.1");
         assert!(state.get("c").is_none());
 
-        let (h, ..) = choose(&config, &mut state, &NoLookup, &ByAddress, Some("a")).unwrap();
+        let (h, ..) = choose(
+            &config,
+            &Selection::default(),
+            &mut state,
+            &NoLookup,
+            &ByAddress,
+            Some("a"),
+        )
+        .unwrap();
         assert_eq!(h.name, "a", "--host pins");
-        assert!(choose(&config, &mut state, &NoLookup, &ByAddress, Some("c")).is_err());
-        assert!(choose(&Config::default(), &mut state, &NoLookup, &ByAddress, None).is_err());
+        assert!(
+            choose(
+                &config,
+                &Selection::default(),
+                &mut state,
+                &NoLookup,
+                &ByAddress,
+                Some("c")
+            )
+            .is_err()
+        );
+        assert!(
+            choose(
+                &Config::default(),
+                &Selection::default(),
+                &mut state,
+                &NoLookup,
+                &ByAddress,
+                None
+            )
+            .is_err()
+        );
+    }
+
+    /// Answers every address like a different machine: only `10.0.0.2` has a GPU.
+    struct GpuProber;
+    impl Prober for GpuProber {
+        fn probe(&self, target: &Target, _: KeyPolicy, _: &str) -> resolve::ProbeResult {
+            let gpu = "static=1\ngpu.0=nvidia|RTX 4090|24576|555.1|12.5\ncpu_flags=avx2\nkvm=1\n";
+            let plain = "static=1\ncpu_flags=\nkvm=0\n";
+            let (cores, load, extra) = match target.address.as_str() {
+                "10.0.0.1" => (16, 0.0, plain),
+                "10.0.0.2" => (8, 4.0, gpu),
+                "10.0.0.3" => (8, 0.0, plain),
+                _ => return Err((Failure::Unreachable, String::new())),
+            };
+            Ok(format!(
+                "arch=x86_64\nhostname={}\ncores={cores}\nload1={load}\nload5=0\nload15=0\njobs=0\nos=linux\nmem_total=34359738368\nmem_avail=34359738368\n{extra}",
+                target.address
+            ))
+        }
+    }
+
+    fn three_hosts() -> Config {
+        let mut config = Config::default();
+        for (name, addr) in [
+            ("idle", "10.0.0.1"),
+            ("gpu", "10.0.0.2"),
+            ("small", "10.0.0.3"),
+        ] {
+            let mut h = host(name, None);
+            h.address = Some(addr.to_owned());
+            if name == "gpu" {
+                h.labels = vec!["gpu-box".to_owned()];
+            }
+            config.hosts.push(h);
+        }
+        config
+    }
+
+    fn selection(needs: &str, prefers: &str) -> Selection {
+        let split = |s: &str| {
+            if s.is_empty() {
+                Vec::new()
+            } else {
+                vec![s.to_owned()]
+            }
+        };
+        Selection::parse(&split(needs), &split(prefers)).unwrap()
+    }
+
+    // frob:tests crates/goway/src/pool.rs::choose
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn needs_pick_only_qualifying_hosts_even_when_busier() {
+        let config = three_hosts();
+        let mut state = State::default();
+        // Without needs the idle host wins; with `gpu` only the busy gpu host qualifies.
+        let (h, ..) = choose(
+            &config,
+            &Selection::default(),
+            &mut state,
+            &NoLookup,
+            &GpuProber,
+            None,
+        )
+        .unwrap();
+        assert_eq!(h.name, "idle");
+        let (h, _, probe) = choose(
+            &config,
+            &selection("gpu,gpu-mem>=8G,label=gpu-box", ""),
+            &mut state,
+            &NoLookup,
+            &GpuProber,
+            None,
+        )
+        .unwrap();
+        assert_eq!(h.name, "gpu");
+        assert_eq!(probe.facts.gpus()[0].name, "RTX 4090");
+        // Nothing qualifies: exit 125 listing every host and what it lacks.
+        let err = choose(
+            &config,
+            &selection("gpu-mem>=48G", ""),
+            &mut state,
+            &NoLookup,
+            &GpuProber,
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(err.exit_code(), 125);
+        let text = err.to_string();
+        assert!(matches!(err, Error::NeedsUnmet(_)), "{text}");
+        for name in ["idle", "gpu", "small"] {
+            assert!(
+                text.contains(&format!("{name}: lacks gpu-mem>=48G")),
+                "{text}"
+            );
+        }
+        assert!(text.contains("largest GPU has 24.0 GiB"), "{text}");
+        // A pinned host that lacks a need is refused too.
+        let err = choose(
+            &config,
+            &selection("kvm", ""),
+            &mut state,
+            &NoLookup,
+            &GpuProber,
+            Some("idle"),
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("idle: lacks kvm: no usable /dev/kvm"),
+            "{err}"
+        );
+        assert!(
+            choose(
+                &config,
+                &selection("kvm", ""),
+                &mut state,
+                &NoLookup,
+                &GpuProber,
+                Some("gpu")
+            )
+            .is_ok()
+        );
+    }
+
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn preferences_reorder_but_never_exclude() {
+        let config = three_hosts();
+        let mut state = State::default();
+        // Load per core: idle 0.0, small 0.0, gpu 0.5. Preferring a gpu (bonus 0.5) ties it with the idle ones; kvm too beats them.
+        let (h, ..) = choose(
+            &config,
+            &selection("", "gpu,kvm"),
+            &mut state,
+            &NoLookup,
+            &GpuProber,
+            None,
+        )
+        .unwrap();
+        assert_eq!(h.name, "gpu");
+        // A preference nobody meets changes nothing and excludes nobody.
+        let (h, ..) = choose(
+            &config,
+            &selection("", "gpu=rocm"),
+            &mut state,
+            &NoLookup,
+            &GpuProber,
+            None,
+        )
+        .unwrap();
+        assert_eq!(h.name, "idle");
+        let hosts = choose_many(
+            &config,
+            &selection("", "gpu=rocm"),
+            &mut state,
+            &NoLookup,
+            &GpuProber,
+            3,
+        )
+        .unwrap();
+        assert_eq!(hosts.len(), 3);
+    }
+
+    // frob:tests crates/goway/src/pool.rs::choose_many
+    #[test]
+    fn every_shard_host_meets_the_needs() {
+        let config = three_hosts();
+        let mut state = State::default();
+        let hosts = choose_many(
+            &config,
+            &selection("cores>=8,os=linux", ""),
+            &mut state,
+            &NoLookup,
+            &GpuProber,
+            3,
+        )
+        .unwrap();
+        assert_eq!(hosts.len(), 3);
+        // Only one host has a GPU, so two shards cannot be placed.
+        let err = choose_many(
+            &config,
+            &selection("gpu", ""),
+            &mut state,
+            &NoLookup,
+            &GpuProber,
+            2,
+        )
+        .unwrap_err();
+        assert!(matches!(err, Error::NeedsUnmet(_)));
+        assert!(
+            err.to_string()
+                .contains("2 shards need 2 usable hosts that each meet --needs, 1 are usable"),
+            "{err}"
+        );
+        let one = choose_many(
+            &config,
+            &selection("gpu", ""),
+            &mut state,
+            &NoLookup,
+            &GpuProber,
+            1,
+        )
+        .unwrap();
+        assert_eq!(one[0].0.name, "gpu");
     }
 }

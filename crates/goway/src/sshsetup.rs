@@ -302,6 +302,7 @@ pub fn setup(
         priority: None,
         max_load: None,
         identity: None,
+        labels: Vec::new(),
     });
     // A configured host is pinned: check its key strictly. A new one is
     // reached with a scratch known_hosts and verified by hostname below.

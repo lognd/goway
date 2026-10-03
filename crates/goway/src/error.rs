@@ -74,6 +74,9 @@ pub enum Error {
     /// No host of the pool can take a job now.
     #[error("no usable host:\n  {}\n  next: `goway status` shows each host's state; `goway add NAME` adds another helper", .0.join("\n  "))]
     NoHost(Vec<String>),
+    /// Hosts answered, but none meets the run's `--needs`.
+    #[error("no host meets the requirements:\n  {}\n  next: `goway status` shows each host's hardware; relax --needs, or label/add a host that fits", .0.join("\n  "))]
+    NeedsUnmet(Vec<String>),
     /// The command line is inconsistent or incomplete.
     #[error("{0}")]
     Usage(String),
@@ -136,6 +139,7 @@ mod tests {
         let errors = [
             Error::NotImplemented("gc"),
             Error::UnknownHost("q".to_owned()),
+            Error::NeedsUnmet(vec!["h: lacks gpu".to_owned()]),
             Error::io("read", "/x", std::io::Error::other("boom")),
         ];
         for e in errors {

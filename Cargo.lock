@@ -352,6 +352,7 @@ dependencies = [
  "goway-journal",
  "humantime",
  "humantime-serde",
+ "proptest",
  "serde",
  "serde_json",
  "sha2",

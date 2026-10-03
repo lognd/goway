@@ -52,6 +52,7 @@ name = "my-helper"             # the helper's computer name; also tried as my-he
 # max_jobs = 2                 # skip this host while it runs this many goway jobs
 # priority = "normal"          # override defaults.priority for this host
 # max_load = 0.5               # override defaults.max_load for this host
+# labels = ["gpu-box"]         # names `--needs label=gpu-box` can ask for
 # identity = "/home/me/.config/goway/id_ed25519"   # private key to offer (see below)
 ```
 

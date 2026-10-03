@@ -109,6 +109,17 @@ pub struct RunArgs {
     /// every byte through. Pipes and files are never filtered.
     #[arg(long, value_enum, default_value_t, env = "GOWAY_OUTPUT")]
     pub output: crate::termfilter::OutputMode,
+    /// Hardware the host must have (repeatable or comma separated): `gpu`,
+    /// `gpu=cuda`, `gpu=rocm`, `gpu-mem>=8G`, `cuda>=12.1`, `mem>=16G`,
+    /// `cores>=8`, `arch=x86_64`, `os=linux`, `cpu=avx512f`, `kvm`, `docker`,
+    /// `disk>=50G`, `label=NAME`. Hosts that lack any are never used; when
+    /// none qualifies goway exits 125 and lists what each host lacks.
+    #[arg(long, value_name = "TERM", value_delimiter = ',')]
+    pub needs: Vec<String>,
+    /// Hardware that makes a host score better (same terms as `--needs`);
+    /// a host that lacks it is still used when it is the best otherwise.
+    #[arg(long, value_name = "TERM", value_delimiter = ',')]
+    pub prefers: Vec<String>,
     /// Extra environment for the remote command (KEY=VALUE, repeatable).
     #[arg(long = "env", short = 'e', value_name = "KEY=VALUE")]
     pub env: Vec<String>,

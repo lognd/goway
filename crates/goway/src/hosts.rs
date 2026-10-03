@@ -318,6 +318,7 @@ pub fn add(
             priority: None,
             max_load: None,
             identity: None,
+            labels: Vec::new(),
         };
         let prober = AddProber {
             inner: SshProber {

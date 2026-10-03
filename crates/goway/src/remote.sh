@@ -683,6 +683,7 @@ probe() {
   awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {if (t) printf "mem_total=%.0f\n", t*1024; if (a) printf "mem_avail=%.0f\n", a*1024}' /proc/meminfo 2>/dev/null || true
   if [ "$want_static" = 1 ]; then static_facts; fi
   printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(uname -m)" "$(uname -n)" "$(nproc)"
+  printf 'os=%s\n' "$(uname -s | tr '[:upper:]' '[:lower:]')"
   read -r l1 l5 l15 _ </proc/loadavg
   printf 'load1=%s\nload5=%s\nload15=%s\n' "$l1" "$l5" "$l15"
   if [ -d "$root/work" ]; then

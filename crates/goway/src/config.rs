@@ -136,6 +136,10 @@ pub struct HostConfig {
     /// goway's own key); default: whatever ssh would use.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identity: Option<String>,
+    /// Free-form labels (`gpu-box`, `fast-disk`) that `--needs label=NAME`
+    /// and `goway.toml` rules can ask for.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<String>,
 }
 
 impl HostConfig {
@@ -582,6 +586,7 @@ user = "user"
             priority: None,
             max_load: None,
             identity: None,
+            labels: Vec::new(),
         };
         add_host(&path, &host).unwrap();
         assert!(add_host(&path, &host).is_err());
@@ -614,6 +619,7 @@ user = "user"
             priority: None,
             max_load: None,
             identity: None,
+            labels: Vec::new(),
         };
         add_host(&path, &host).unwrap();
         let text = std::fs::read_to_string(&path).unwrap();
@@ -658,6 +664,7 @@ user = "user"
             priority: None,
             max_load: None,
             identity: None,
+            labels: Vec::new(),
         };
         add_host(&path, &host).unwrap();
         assert_eq!(Config::load(&path).unwrap().hosts, vec![host]);

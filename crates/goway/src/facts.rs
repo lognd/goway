@@ -83,6 +83,8 @@ pub struct Cached {
 /// Everything known about a host for scheduling and display.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Facts {
+    /// The operating system (`uname -s`, lower case): `linux`, `windows`.
+    pub os: Option<String>,
     /// Total RAM in bytes (live).
     pub mem_total: Option<u64>,
     /// Available RAM in bytes (live).
@@ -119,7 +121,12 @@ pub fn parse_live(map: &BTreeMap<String, String>) -> Facts {
     let mem_total = bytes(map, "mem_total");
     // Available can never exceed the total.
     let mem_avail = bytes(map, "mem_avail").filter(|a| mem_total.is_none_or(|t| *a <= t));
+    let os = map
+        .get("os")
+        .map(|v| crate::render::clean(v).to_ascii_lowercase())
+        .filter(|v| !v.is_empty() && v.len() <= 32);
     Facts {
+        os,
         mem_total,
         mem_avail,
         hw: None,

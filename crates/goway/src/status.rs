@@ -151,6 +151,7 @@ mod tests {
             priority: None,
             max_load: None,
             identity: None,
+            labels: Vec::new(),
         };
         let found = Found {
             target: Target {
@@ -173,6 +174,7 @@ mod tests {
             disk_used: None,
             disk_free: None,
             facts: Facts {
+                os: Some("linux".to_owned()),
                 mem_total: Some(16 * gib),
                 mem_avail: Some(8 * gib),
                 hw: Some(StaticFacts {

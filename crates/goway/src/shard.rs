@@ -17,6 +17,7 @@ use crate::cli::RunArgs;
 use crate::config::Config;
 use crate::detect::{self, Detection, ResultSplitter};
 use crate::error::{Error, Result};
+use crate::needs::{Matched, Selection};
 use crate::pool;
 use crate::render::{self, Renderer};
 use crate::repo::Repo;
@@ -43,6 +44,9 @@ pub struct ShardReport {
     pub command: Vec<String>,
     /// This shard's exit code.
     pub exit_code: u8,
+    /// The host facts that met the run's `--needs` and `--prefers`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub matched: Vec<Matched>,
     /// What the helper's test-binary detection did, when it was asked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detection: Option<Detection>,
@@ -146,6 +150,7 @@ fn note_detection(renderer: Renderer, report: &ShardReport, d: &Detection, progr
 #[allow(clippy::too_many_lines)] // the shard thread is one sequence: sync, run, report
 pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16) -> Result<u8> {
     let started = Instant::now();
+    let selection = Selection::parse(&args.needs, &args.prefers)?;
     let count = usize::from(count);
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
@@ -174,7 +179,9 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
             ));
         }
     }
-    let hosts = pool::choose_many(&config, &mut state, env.lookup, env.prober, count)?;
+    let hosts = pool::choose_many(
+        &config, &selection, &mut state, env.lookup, env.prober, count,
+    )?;
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
     }
@@ -195,6 +202,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
             .enumerate()
             .map(|(i, (host, found, probe))| {
                 let config = &config;
+                let selection = &selection;
                 let repo = &repo;
                 let interrupted = &interrupted;
                 let plan = &plans[i];
@@ -277,6 +285,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                     };
                     tracing::info!(host = %host.name, index, code, "shard finished");
                     Ok(ShardReport {
+                        matched: selection.assess(host, probe).matched,
                         shard: index,
                         host: host.name.clone(),
                         address: found.target.address.clone(),

@@ -10,6 +10,7 @@ pub mod error;
 pub mod facts;
 pub mod gc;
 pub mod hosts;
+pub mod needs;
 pub mod paths;
 pub mod pool;
 pub mod remote;

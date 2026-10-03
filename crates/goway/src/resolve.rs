@@ -410,6 +410,7 @@ mod tests {
             priority: None,
             max_load: None,
             identity: None,
+            labels: Vec::new(),
         }
     }
 
