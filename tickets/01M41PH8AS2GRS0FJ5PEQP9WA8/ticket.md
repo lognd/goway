@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:15:51Z"
-updated = "2026-10-03T20:36:41Z"
+updated = "2026-10-03T20:37:04Z"
 scope = ["Cargo.toml", "crates/*/Cargo.toml", ".github/workflows/release.yml", ".github/workflows/ci.yml", "docs/release.md", "README.md", "pyproject.toml", "crates/goway/tests/publishing.rs", "LICENSE"]
 
 [[acceptance]]
