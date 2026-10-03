@@ -2,13 +2,14 @@
 id = "01M41G49ZQGA15P0674EA0DRCN"
 title = "M6: validate host names at the CLI boundary before any side effect"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:55Z"
-updated = "2026-10-03T18:37:30Z"
+updated = "2026-10-03T18:37:31Z"
 labels = ["security"]
 scope = ["crates/goway/**"]
 
