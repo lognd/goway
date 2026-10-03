@@ -257,3 +257,87 @@ fn locking_a_seed_survives_gc_removing_it_mid_acquire() {
         "the lock was retaken in a fresh dir"
     );
 }
+
+/// Set `file`'s content and mtime (`ago` seconds before now).
+fn write_dated(file: &Path, content: &str, ago: u64) {
+    std::fs::write(file, content).unwrap();
+    let when = std::time::SystemTime::now() - std::time::Duration::from_secs(ago);
+    std::fs::File::options()
+        .write(true)
+        .open(file)
+        .unwrap()
+        .set_modified(when)
+        .unwrap();
+}
+
+/// Build A in a slot, then run a worktree state B whose changed source has
+/// an older mtime than A's output: the build must still see B's source.
+const STAMP_BUILD: &str =
+    "if [ ! -e out ] || [ src.txt -nt out ]; then cp src.txt out; echo rebuilt; fi; cat out";
+
+#[test]
+fn changed_files_are_stamped_newer_than_the_slots_outputs() {
+    let w = world();
+    let src = w.repo.join("src.txt");
+    std::fs::write(w.repo.join(".gitignore"), "out\n").unwrap();
+    write_dated(&src, "from A\n", 0);
+    assert_eq!(sh(&w, STAMP_BUILD), "rebuilt\nfrom A\n");
+    // An older branch: different content, a much older mtime.
+    write_dated(&src, "from B\n", 3600);
+    assert_eq!(
+        sh(&w, STAMP_BUILD),
+        "rebuilt\nfrom B\n",
+        "the build saw B's source"
+    );
+    // Nothing changed: the warm build stays warm (no rebuild, no rewrite).
+    assert_eq!(sh(&w, STAMP_BUILD), "from B\n");
+    assert_eq!(stats(&w, 0), "written=0 removed=0");
+}
+
+#[test]
+fn make_rebuilds_when_an_older_branch_reuses_the_slot() {
+    if Command::new("make").arg("--version").output().is_err() {
+        return;
+    }
+    let w = world();
+    std::fs::write(w.repo.join("Makefile"), "out: src.txt\n\tcp src.txt out\n").unwrap();
+    std::fs::write(w.repo.join(".gitignore"), "out\n").unwrap();
+    write_dated(&w.repo.join("src.txt"), "from A\n", 0);
+    assert_eq!(sh(&w, "make -s && cat out"), "from A\n");
+    write_dated(&w.repo.join("src.txt"), "from B\n", 3600);
+    assert_eq!(sh(&w, "make -s && cat out"), "from B\n");
+}
+
+#[test]
+fn cargo_rebuilds_when_an_older_branch_reuses_the_slot() {
+    if Command::new("cargo").arg("--version").output().is_err() {
+        return;
+    }
+    let w = world();
+    std::fs::write(
+        w.repo.join("Cargo.toml"),
+        "[package]\nname = \"fx\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir(w.repo.join("src")).unwrap();
+    let main = w.repo.join("src/main.rs");
+    let run = "cargo run -q --offline 2>&1";
+    write_dated(&main, "fn main() { println!(\"from A\"); }\n", 0);
+    assert_eq!(sh(&w, run), "from A\n");
+    write_dated(&main, "fn main() { println!(\"from B\"); }\n", 3600);
+    assert_eq!(
+        sh(&w, run),
+        "from B\n",
+        "cargo saw B's older source as changed"
+    );
+}
+
+#[test]
+fn written_files_are_stamped_after_outputs_dated_in_the_future() {
+    let w = world();
+    std::fs::write(w.repo.join(".gitignore"), "out\n").unwrap();
+    write_dated(&w.repo.join("src.txt"), "from A\n", 0);
+    sh(&w, "cp src.txt out; touch -d '+2 days' out");
+    write_dated(&w.repo.join("src.txt"), "from B\n", 3600);
+    assert_eq!(sh(&w, STAMP_BUILD), "rebuilt\nfrom B\n");
+}

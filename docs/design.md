@@ -74,9 +74,21 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       slot bake that path, so it must hold the current tree.
       `tree-<k>` persists between runs (persistent slot trees). Under the
       slot lock, `sync_slot` updates it in place from the run's snapshot:
-      files missing or different (type, size, mtime, mode, link target)
-      are copied with the seed's mtime, so cargo, make and ninja
-      fingerprints stay valid; files in neither the snapshot nor the keep
+      only files that may differ are looked at: new or changed in the
+      snapshot since the slot's last reconcile (`tree-<k>.farm` keeps the
+      snapshot records then), changed or removed in the slot by a job
+      (`tree-<k>.slot` keeps the slot's own records then), missing, or
+      named by the seed's change log. A candidate whose content (SHA-256)
+      already equals the snapshot's is left alone, so files that did not
+      change keep their mtime and warm builds stay warm. A file actually
+      written gets the current time as mtime, as git checkout does:
+      make, ninja and cargo rebuild only when a source is newer than its
+      output, and a changed file from an older branch (older laptop
+      mtime) must never look older than another branch's build. The
+      laptop's mtimes only decide what is sent, never what the slot
+      shows. If anything in the slot or its target dir is dated in the
+      future (a clock step), written files are stamped one second after
+      the newest such file instead. Files in neither the snapshot nor the keep
       set are removed, so no run sees another's leftovers; emptied
       directories go. It uses only find, sort, comm, xargs and cp (git
       when present, for the ignore rules). The keep set is detected
