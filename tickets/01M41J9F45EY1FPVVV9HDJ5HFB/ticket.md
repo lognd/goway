@@ -2,13 +2,13 @@
 id = "01M41J9F45EY1FPVVV9HDJ5HFB"
 title = "Helper laptop one command: install --host prints the fingerprint and the exact next command, owns its uninstall entry"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:01:41Z"
-updated = "2026-10-03T19:01:41Z"
+updated = "2026-10-03T19:05:09Z"
 labels = ["newcomer"]
 scope = ["crates/goway-setup/**"]
 
