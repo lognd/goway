@@ -29,7 +29,7 @@ fn exit_code_passes_through_and_work_dir_is_removed() {
     assert_eq!(String::from_utf8_lossy(&out.stdout), "hello\n");
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("to-stderr"), "{stderr}");
-    assert!(stderr.contains("goway: running on local"), "{stderr}");
+    assert!(stderr.contains("goway: info: running on local"), "{stderr}");
     assert!(w.work_dirs().is_empty(), "{:?}", w.work_dirs());
 
     let kept = w.run(&["run", "--keep", "--", "true"]);
@@ -662,5 +662,34 @@ fn sccache_listens_on_an_owner_only_socket_not_a_tcp_port() {
     assert!(
         text.contains("/cache/") && text.contains("sccache.sock"),
         "{text}"
+    );
+}
+
+#[test]
+fn outside_a_git_project_the_error_says_what_to_do() {
+    let w = world();
+    let elsewhere = w.root.join("not-a-project");
+    std::fs::create_dir(&elsewhere).unwrap();
+    let out = w
+        .goway(&["run", "--", "true"])
+        .current_dir(&elsewhere)
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(125));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("not in one") && stderr.contains("next: `cd`"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn a_failing_command_is_labelled_failed_in_words() {
+    let w = world();
+    let out = w.run(&["run", "--", "sh", "-c", "exit 4"]);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("goway: failed: exit 4 on local"),
+        "{stderr}"
     );
 }

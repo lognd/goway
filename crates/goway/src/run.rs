@@ -210,7 +210,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     if code == 0 {
         renderer.ok(summary);
     } else {
-        renderer.note(summary);
+        renderer.failed(summary);
     }
     if let Some(path) = &args.report {
         write_report(

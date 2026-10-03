@@ -2,7 +2,9 @@
 //! [`Renderer`]; the streamed output of remote commands never does.
 //!
 //! Status lines, warnings and errors go to stderr so stdout stays clean for
-//! machine-readable output and for the remote command's own stdout.
+//! machine-readable output and for the remote command's own stdout. Every
+//! line names its kind in words (`error:`, `warning:`, `failed:`, `note:`,
+//! `done:`, `info:`, `next:`), so color is never the only signal.
 #![allow(clippy::print_stdout, clippy::print_stderr, clippy::disallowed_macros)]
 
 use std::fmt::Display;
@@ -73,21 +75,35 @@ impl Renderer {
     pub fn note(self, message: impl Display) {
         use std::io::Write as _;
         let message = clean(&message.to_string());
-        let _ = writeln!(self.err(), "{DIM}goway:{DIM:#} {message}");
+        let _ = writeln!(self.err(), "{DIM}goway: note:{DIM:#} {message}");
     }
 
     /// A success line on stderr.
     pub fn ok(self, message: impl Display) {
         use std::io::Write as _;
         let message = clean(&message.to_string());
-        let _ = writeln!(self.err(), "{GOOD}goway:{GOOD:#} {message}");
+        let _ = writeln!(self.err(), "{GOOD}goway: done:{GOOD:#} {message}");
     }
 
     /// An accented headline on stderr, such as where a run is going.
     pub fn headline(self, message: impl Display) {
         use std::io::Write as _;
         let message = clean(&message.to_string());
-        let _ = writeln!(self.err(), "{ACCENT}goway:{ACCENT:#} {message}");
+        let _ = writeln!(self.err(), "{ACCENT}goway: info:{ACCENT:#} {message}");
+    }
+
+    /// A command that ran but failed (not a goway error), on stderr.
+    pub fn failed(self, message: impl Display) {
+        use std::io::Write as _;
+        let message = clean(&message.to_string());
+        let _ = writeln!(self.err(), "{WARN}goway: failed:{WARN:#} {message}");
+    }
+
+    /// What the user should do next, on stderr.
+    pub fn next(self, message: impl Display) {
+        use std::io::Write as _;
+        let message = clean(&message.to_string());
+        let _ = writeln!(self.err(), "{ACCENT}goway: next:{ACCENT:#} {message}");
     }
 
     /// A line of primary output on stdout (tables, paths, lists).
@@ -197,6 +213,8 @@ mod tests {
     // frob:tests crates/goway/src/render.rs::Renderer.headline
     // frob:tests crates/goway/src/render.rs::Renderer.line
     // frob:tests crates/goway/src/render.rs::Renderer.table
+    // frob:tests crates/goway/src/render.rs::Renderer.failed
+    // frob:tests crates/goway/src/render.rs::Renderer.next
     #[test]
     fn every_style_renders_without_color() {
         let r = Renderer::new(ColorWhen::Never);
@@ -204,6 +222,8 @@ mod tests {
         r.note("n");
         r.ok("o");
         r.headline("h");
+        r.failed("f");
+        r.next("x");
         r.line("l");
         r.table(&[vec!["a".to_owned()]]);
     }

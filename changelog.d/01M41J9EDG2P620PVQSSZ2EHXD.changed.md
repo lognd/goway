@@ -1,0 +1,1 @@
+goway's own lines now name their kind in words (error, warning, failed, note, done, info, next) so meaning never depends on color, a failing command is reported as failed, and the common errors (unreachable host, key refused, host key changed, not in a git project, no usable host) end with the next step to take.

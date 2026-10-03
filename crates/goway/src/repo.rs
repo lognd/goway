@@ -81,7 +81,14 @@ pub fn client_name() -> String {
 impl Repo {
     /// Discover the repository containing `dir`.
     pub fn discover(dir: &Path) -> Result<Self> {
-        let root = PathBuf::from(git(dir, &["rev-parse", "--show-toplevel"])?);
+        let root = git(dir, &["rev-parse", "--show-toplevel"]).map_err(|e| match e {
+            Error::Git { message } if message.contains("not a git repository") => Error::Usage(format!(
+                "goway runs a command from inside a git project, and {} is not in one\n  next: `cd` into your project folder first (or make this folder a project with `git init`)",
+                dir.display()
+            )),
+            other => other,
+        })?;
+        let root = PathBuf::from(root);
         let common = git(
             &root,
             &["rev-parse", "--path-format=absolute", "--git-common-dir"],

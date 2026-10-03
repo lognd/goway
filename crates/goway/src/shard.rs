@@ -207,7 +207,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                 if report.exit_code == 0 {
                     renderer.ok(line);
                 } else {
-                    renderer.note(line);
+                    renderer.failed(line);
                     if code == 0 {
                         code = report.exit_code;
                     }

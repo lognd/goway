@@ -72,7 +72,7 @@ pub enum Error {
         message: String,
     },
     /// No host of the pool can take a job now.
-    #[error("no usable host:\n  {}", .0.join("\n  "))]
+    #[error("no usable host:\n  {}\n  next: `goway status` shows each host's state; `goway add NAME` adds another helper", .0.join("\n  "))]
     NoHost(Vec<String>),
     /// The command line is inconsistent or incomplete.
     #[error("{0}")]
@@ -83,19 +83,27 @@ pub enum Error {
 }
 
 fn render_misses(misses: &[crate::resolve::Miss]) -> String {
+    use crate::ssh::Failure;
     if misses.is_empty() {
-        return ": no candidate address (no cache, no `address`, the name and NAME.local did not resolve)".to_owned();
+        return ": no address found for it (no cached address, no `address` in the config, and neither the name nor NAME.local resolved)\n  next: is it switched on, awake and on the same network? check with `goway status`".to_owned();
     }
     let mut out = String::from("; tried:");
     for m in misses {
         out.push_str("\n  ");
         out.push_str(&m.to_string());
     }
-    if misses
-        .iter()
-        .any(|m| m.failure == crate::ssh::Failure::HostKeyUnknown)
-    {
-        out.push_str("\n  hint: pin the key first with `goway host add NAME`");
+    let any = |f: Failure| misses.iter().any(|m| m.failure == f);
+    if any(Failure::HostKeyUnknown) {
+        out.push_str("\n  next: pin its key first: `goway add NAME` (or `goway host add NAME`)");
+    }
+    if any(Failure::AuthRefused) {
+        out.push_str("\n  next: set up key login: `goway add NAME` (asks for its password once)");
+    }
+    if any(Failure::HostKeyMismatch) {
+        out.push_str("\n  next: that address answered with a different key: another machine has it now (goway skips it), or NAME was reinstalled; if reinstalled: `goway host remove NAME`, then `goway add NAME`");
+    }
+    if misses.iter().all(|m| m.failure == Failure::Unreachable) {
+        out.push_str("\n  next: is it switched on, awake and on the same network, with WSL running? check with `goway status`");
     }
     out
 }
