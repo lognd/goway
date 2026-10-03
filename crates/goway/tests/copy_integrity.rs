@@ -1,6 +1,7 @@
 //! Copy integrity: the helper's copy of the tree is verified before the
 //! command starts and again when it fails; a proven mismatch rebuilds the
 //! copy and reruns exactly once, and is remembered locally.
+#![cfg(unix)]
 
 mod common;
 
