@@ -2,13 +2,13 @@
 id = "01M41AV1FXKNJQD47M4YCXEWYB"
 title = "Coexistence contract: never override other build systems' settings"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:51:28Z"
-updated = "2026-10-03T16:51:28Z"
+updated = "2026-10-03T17:04:27Z"
 scope = ["crates/goway/**"]
 
 [[acceptance]]
