@@ -8,8 +8,8 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:11:38Z"
-scope = ["crates/goway/**", "docs/**"]
+updated = "2026-10-03T16:25:18Z"
+scope = ["crates/goway/**"]
 
 [[acceptance]]
 text = "Given a work tree with tracked, modified, untracked and ignored files and a .env, when goway computes the file set, then it equals git ls-files -co --exclude-standard minus deleted files and .env files"
