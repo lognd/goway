@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:47:47Z"
-updated = "2026-10-03T23:21:28Z"
+updated = "2026-10-03T23:21:29Z"
 scope = ["crates/goway/src/resolve.rs", "crates/goway/src/sync.rs", "crates/goway/src/config.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/config.md"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a helper, when max_jobs is unset, then a sane default limit applies and docs explain disk and memory use and how to cap them"
-bound = false
+bound = true
 +++
