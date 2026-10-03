@@ -73,7 +73,9 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
    3. Cargo: `CARGO_TARGET_DIR` is the first free target slot of the repo
       (new slot when all are busy, up to `target_slots`); sccache is used
       when installed, with a per-repo `SCCACHE_DIR`.
-   4. stdout and stderr stream through untouched; goway's own lines go to
+   4. stdout and stderr stream through (byte for byte unless a stream is a
+      terminal, where control sequences other than colors are stripped; see
+      docs/usage.md); goway's own lines go to
       stderr. Exit code is the command's; 128+N on signal N; 125 when goway
       itself fails (the docker convention).
    5. Ctrl-C: goway sends a remote kill to the job's process group, and a

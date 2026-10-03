@@ -64,7 +64,10 @@ fall into one of these areas:
   influence what it does is in scope, and is treated as high severity.
 - **Output.** goway strips control characters from everything it prints
   itself. Terminal escape injection through goway's own lines is in
-  scope. The output of the command you run is passed through as is.
+  scope. The output of the command you run is passed through byte for byte
+  when it goes to a pipe or file; on a terminal goway strips OSC, DCS,
+  APC, PM and SOS strings, every CSI except colors, and other control
+  characters (`--output=raw` or `GOWAY_OUTPUT=raw` turns that off).
 - **Installers and releases.** `install.sh` verifies the release archive
   against `SHA256SUMS`, and releases carry build provenance
   attestations (see [docs/release.md](docs/release.md)).

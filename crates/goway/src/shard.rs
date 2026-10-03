@@ -22,6 +22,7 @@ use crate::repo::Repo;
 use crate::run::{self, Env};
 use crate::ssh::{self, KeyPolicy};
 use crate::state::State;
+use crate::termfilter;
 
 /// `command` for shard `index` (1-based) of `count`: nextest runs get
 /// `--partition count:index/count` (before any `--`), others are unchanged.
@@ -77,14 +78,26 @@ pub struct Report {
     pub shards: Vec<ShardReport>,
 }
 
-/// Copy `reader` to our stdout or stderr line by line with `prefix`.
-fn pump(reader: impl std::io::Read, to_stderr: bool, prefix: &str) {
+/// Copy `reader` to our stdout or stderr line by line with `prefix`. With
+/// `filter` (the target is a terminal and the mode is not raw) the bytes go
+/// through one stateful terminal filter per stream, so a sequence cannot be
+/// hidden across lines; a line the filter empties entirely prints nothing.
+fn pump(reader: impl std::io::Read, to_stderr: bool, prefix: &str, filter: bool) {
     let mut reader = std::io::BufReader::new(reader);
     let mut line = Vec::new();
+    let mut filtered = Vec::new();
+    let mut state = termfilter::Filter::new();
     loop {
         line.clear();
         match reader.read_until(b'\n', &mut line) {
             Ok(0) | Err(_) => break,
+            Ok(_) if filter => {
+                filtered.clear();
+                state.push(&line, &mut filtered);
+                if !filtered.is_empty() {
+                    render::prefixed_line(to_stderr, prefix, &filtered);
+                }
+            }
             Ok(_) => render::prefixed_line(to_stderr, prefix, &line),
         }
     }
@@ -155,14 +168,22 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                                 message: format!("cannot run ssh: {e}"),
                             })?;
                     let (out, err) = (child.stdout.take(), child.stderr.take());
+                    let filter_out = termfilter::should_filter(
+                        args.output,
+                        std::io::IsTerminal::is_terminal(&std::io::stdout()),
+                    );
+                    let filter_err = termfilter::should_filter(
+                        args.output,
+                        std::io::IsTerminal::is_terminal(&std::io::stderr()),
+                    );
                     std::thread::scope(|s| {
                         if let Some(out) = out {
                             let p = prefix.clone();
-                            s.spawn(move || pump(out, false, &p));
+                            s.spawn(move || pump(out, false, &p, filter_out));
                         }
                         if let Some(err) = err {
                             let p = prefix.clone();
-                            s.spawn(move || pump(err, true, &p));
+                            s.spawn(move || pump(err, true, &p, filter_err));
                         }
                     });
                     let status = child.wait().map_err(|e| Error::Ssh {

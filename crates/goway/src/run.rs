@@ -25,6 +25,7 @@ use crate::resolve::{Found, Lookup, Prober};
 use crate::ssh::{self, KeyPolicy};
 use crate::state::State;
 use crate::sync::{self, Label, SshTransport};
+use crate::termfilter::{self, OutputMode};
 
 /// Provenance of one run, written by `--report`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -189,7 +190,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         found.target.address,
         ssh::shell_join(&args.command)
     ));
-    let (code, interrupted) = stream(&found, env.settings, &cmd)?;
+    let (code, interrupted) = stream(&found, env.settings, &cmd, args.output)?;
     let elapsed = started.elapsed();
     tracing::info!(host = %host.name, code, ?elapsed, run_id, "run finished");
     if interrupted {
@@ -351,22 +352,53 @@ pub(crate) fn interrupt_flag() -> std::sync::Arc<std::sync::atomic::AtomicBool> 
 }
 
 /// Run `cmd` on the found host with stdio passed through; returns the exit
-/// code and whether the user interrupted.
-fn stream(found: &Found, settings: &ssh::Settings, cmd: &str) -> Result<(u8, bool)> {
+/// code and whether the user interrupted. A stream that is a terminal goes
+/// through the control-sequence filter unless `mode` is raw; any other
+/// stream is inherited and so stays byte-exact.
+fn stream(
+    found: &Found,
+    settings: &ssh::Settings,
+    cmd: &str,
+    mode: OutputMode,
+) -> Result<(u8, bool)> {
     let interrupted = interrupt_flag();
     let mut command = ssh::command(&found.target, settings, KeyPolicy::Strict, cmd);
     if std::io::IsTerminal::is_terminal(&std::io::stderr()) {
         command.env("CARGO_TERM_COLOR", "always");
     }
-    let status = command
+    let filter_out =
+        termfilter::should_filter(mode, std::io::IsTerminal::is_terminal(&std::io::stdout()));
+    let filter_err =
+        termfilter::should_filter(mode, std::io::IsTerminal::is_terminal(&std::io::stderr()));
+    let piped = |filtered: bool| {
+        if filtered {
+            Stdio::piped()
+        } else {
+            Stdio::inherit()
+        }
+    };
+    tracing::debug!(filter_out, filter_err, "remote output handling");
+    let ssh_err = |e: std::io::Error| Error::Ssh {
+        host: found.target.name.clone(),
+        message: format!("cannot run ssh: {e}"),
+    };
+    let mut child = command
         .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .map_err(|e| Error::Ssh {
-            host: found.target.name.clone(),
-            message: format!("cannot run ssh: {e}"),
-        })?;
+        .stdout(piped(filter_out))
+        .stderr(piped(filter_err))
+        .spawn()
+        .map_err(ssh_err)?;
+    let (out, err) = (child.stdout.take(), child.stderr.take());
+    let status = std::thread::scope(|s| {
+        if let Some(out) = out {
+            s.spawn(move || termfilter::relay(out, false));
+        }
+        if let Some(err) = err {
+            s.spawn(move || termfilter::relay(err, true));
+        }
+        child.wait()
+    })
+    .map_err(ssh_err)?;
     let interrupted = interrupted.load(std::sync::atomic::Ordering::SeqCst);
     // ssh exits 255 when interrupted; report it like the shell would (128+SIGINT).
     let code = if interrupted && status.code() == Some(255) {

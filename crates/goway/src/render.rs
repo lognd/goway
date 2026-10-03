@@ -1,5 +1,6 @@
 //! The one module that prints. Everything goway itself says goes through a
-//! [`Renderer`]; the streamed output of remote commands never does.
+//! [`Renderer`]; the streamed output of remote commands is only written
+//! here as bytes (after the terminal filter when the stream is a terminal).
 //!
 //! Status lines, warnings and errors go to stderr so stdout stays clean for
 //! machine-readable output and for the remote command's own stdout. Every
@@ -195,6 +196,21 @@ pub fn prefixed_line(to_stderr: bool, prefix: &str, line: &[u8]) {
         let mut out = std::io::stdout().lock();
         let _ = out.write_all(prefix.as_bytes());
         let _ = out.write_all(line);
+    }
+}
+
+/// Write already-filtered bytes of a remote command's output to our stdout
+/// or stderr and flush, so a prompt without a newline appears at once.
+pub fn passthrough(to_stderr: bool, bytes: &[u8]) {
+    use std::io::Write as _;
+    if to_stderr {
+        let mut err = std::io::stderr().lock();
+        let _ = err.write_all(bytes);
+        let _ = err.flush();
+    } else {
+        let mut out = std::io::stdout().lock();
+        let _ = out.write_all(bytes);
+        let _ = out.flush();
     }
 }
 
