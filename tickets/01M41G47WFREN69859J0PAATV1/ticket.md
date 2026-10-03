@@ -8,11 +8,11 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:53Z"
-updated = "2026-10-03T18:49:18Z"
+updated = "2026-10-03T18:58:13Z"
 labels = ["security"]
 scope = ["crates/goway-setup/**", "crates/goway-journal/**", "scripts/windows/**", "docs/install-windows.md"]
 
 [[acceptance]]
 text = "Given goway-setup install --host with default options, when it creates firewall rules, then they allow only Private/Domain profiles and the local subnet (wider only with an explicit --allow-from), and sshd password login is disabled once a key is authorized"
-bound = false
+bound = true
 +++

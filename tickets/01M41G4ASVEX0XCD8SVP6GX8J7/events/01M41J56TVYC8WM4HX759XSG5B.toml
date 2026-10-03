@@ -1,0 +1,29 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:59:22Z"
+digest = "36076ececafcb233c006b4a0769c21eb674554945e27ffea162162dff2ce80b9"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID fc06ec6d-a641-4df9-a067-69487fea1a20 with nextest profile: default
+    Starting 7 tests across 22 binaries (210 tests skipped)
+        PASS [   0.014s] goway doctor::tests::an_unknown_arch_never_reaches_a_command
+        PASS [   0.013s] goway ssh::tests::control_dir_is_private_and_off_means_no_reuse
+        PASS [   0.018s] goway sshsetup::tests::only_pub_files_are_read_as_keys
+        PASS [   0.020s] goway doctor::tests::missing_nextest_names_the_exact_fix
+        PASS [   0.023s] goway::install_scripts a_prefix_that_could_run_code_is_refused
+        PASS [   0.232s] goway sync::tests::a_non_utf8_file_name_fails_loudly
+        PASS [   2.564s] goway config::tests::writes_are_private_and_leave_no_temp_files
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   2.570s] 7 tests run: 7 passed, 210 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_non_utf8_file_name_fails_loudly) | test(writes_are_private_and_leave_no_temp_files) | test(control_dir_is_private_and_off_means_no_reuse) | test(missing_nextest_names_the_exact_fix) | test(an_unknown_arch_never_reaches_a_command) | test(only_pub_files_are_read_as_keys) | test(a_prefix_that_could_run_code_is_refused)'"
+size = 1062
+status = "measured"
+tests = ["a_prefix_that_could_run_code_is_refused", "doctor::tests::an_unknown_arch_never_reaches_a_command", "ssh::tests::control_dir_is_private_and_off_means_no_reuse", "sshsetup::tests::only_pub_files_are_read_as_keys", "doctor::tests::missing_nextest_names_the_exact_fix", "sync::tests::a_non_utf8_file_name_fails_loudly", "config::tests::writes_are_private_and_leave_no_temp_files"]
+at = "2026-10-03T18:59:22Z"
+actor = "lognd"
+rev = 1
