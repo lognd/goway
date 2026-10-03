@@ -26,8 +26,10 @@
 # goway-test-host). Case 1 checks its values and then uninstalls by running the entry's own
 # UninstallString (the protected copy in %ProgramData%, never the downloaded file); the snapshots
 # include the HKLM entries, so both cases prove the entry is gone again after uninstall.
-# Case 3 (nat): --network nat is forced on this (mirrored) machine on its own port 2399 to prove
-# the NAT relay: install adds the relay (netsh portproxy 0.0.0.0:2399), the refresh script in the
+# Case 3 (nat): --network nat is forced on this machine on its own port 2399. A mirrored machine has
+# no WSL NAT adapter, and the relay refuses to forward anywhere but a private address inside that
+# adapter's subnet, so there the case proves the refusal and a clean rollback (identical snapshots).
+# On a machine in NAT mode it proves the NAT relay: install adds the relay (netsh portproxy 0.0.0.0:2399), the refresh script in the
 # administrator-only directory and the refresh task (Highest privileges); .wslconfig is not
 # touched. The relay's address is then set to a wrong one by hand and the task is started: it must
 # put the WSL address back. A mirrored machine's WSL address is the Windows address itself, so to
@@ -205,6 +207,24 @@ run_nat_case() {
     echo "-- plan (dry run)"
     setup install --host --dry-run --network nat --port $nat_port --profile "$profile" --color never
     snapshot "before-$label"
+    # The relay only forwards to a private address inside the subnet of the WSL NAT adapter
+    # (vEthernet (WSL)). A mirrored machine has none, so there the install must refuse cleanly.
+    local adapter
+    adapter="$(winps_cmd "[System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces() | ? { \$_.Name -like 'vEthernet (WSL*' } | % { \$_.Name }")"
+    if [[ -z "$adapter" ]]; then
+        echo "-- no WSL NAT adapter on this machine: the nat install must refuse and roll everything back"
+        local refused
+        if refused="$(setup install --host --network nat --port $nat_port --profile "$profile" --no-activate --no-elevate --yes --allow-from 100.64.0.0/10 2>&1)"; then
+            echo "FAIL: the nat install succeeded without a WSL adapter"; status=1
+        else
+            echo "$refused"
+            grep -q "WSL virtual network adapter" <<<"$refused" || { echo "FAIL: the refusal does not name the missing adapter"; status=1; }
+        fi
+        setup uninstall --host --profile "$profile" --no-activate --no-elevate >/dev/null 2>&1 || true
+        snapshot "after-$label"
+        compare "$label" "before-$label" "after-$label"
+        return
+    fi
     local ip_before; ip_before="$(rwsl hostname -I | awk '{print $1}')"
     echo "WSL address as the distro reports it: $ip_before"
     setup install --host --network nat --port $nat_port --profile "$profile" --no-activate --no-elevate --yes --allow-from 100.64.0.0/10 -v

@@ -904,7 +904,12 @@ fn only_a_rule_shaped_like_the_relay_is_reported_and_removed_as_goways() {
 // frob:tests crates/goway-setup/src/hostsys.rs::resource_create
 #[test]
 fn the_relay_task_only_runs_the_refresh_script_by_absolute_path() {
-    assert!(relay::check_script_path("/ProgramData/goway/p/relay-refresh.ps1").is_ok());
+    let good = if cfg!(windows) {
+        r"C:\ProgramData\goway\p\relay-refresh.ps1"
+    } else {
+        "/ProgramData/goway/p/relay-refresh.ps1"
+    };
+    assert!(relay::check_script_path(good).is_ok());
     for bad in [
         "relay-refresh.ps1",
         "goway/p/relay-refresh.ps1",
@@ -930,7 +935,7 @@ fn the_relay_task_only_runs_the_refresh_script_by_absolute_path() {
         .is_err()
     );
     assert!(fake.log.borrow().is_empty(), "nothing is registered");
-    s.script = host::relay_script_path(&layout()).display().to_string();
+    s.script = good.to_owned();
     sys.resource_create(
         ResourceKind::ScheduledTask,
         "t",
