@@ -2,7 +2,8 @@
 id = "01M41AV1JM5RCN804G0D4TJVJS"
 title = "Shard one test run across hosts with nextest --partition"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
