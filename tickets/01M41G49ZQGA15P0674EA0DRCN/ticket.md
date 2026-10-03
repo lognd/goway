@@ -8,11 +8,11 @@ points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:55Z"
-updated = "2026-10-03T18:35:55Z"
+updated = "2026-10-03T18:37:23Z"
 labels = ["security"]
 scope = ["crates/goway/**"]
 
 [[acceptance]]
 text = "Given goway host add 'a*' or goway ssh setup ../x, when it runs, then it fails before writing known_hosts or any file"
-bound = false
+bound = true
 +++

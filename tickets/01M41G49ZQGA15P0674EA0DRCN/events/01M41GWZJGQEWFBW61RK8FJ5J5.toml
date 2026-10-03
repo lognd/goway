@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:37:23Z"
+digest = "b767d25b97022fe48862e1364387d56d01c2bb107c0edf189bf6f70025ad5418"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 82b1bcf6-de0e-4906-9b0f-82ae0cd0332a with nextest profile: default
+    Starting 2 tests across 21 binaries (185 tests skipped)
+        PASS [   0.038s] goway cli::tests::host_names_are_checked_before_anything_runs
+        PASS [   0.043s] goway::host_add a_bad_name_touches_nothing
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.048s] 2 tests run: 2 passed, 185 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_bad_name_touches_nothing) | test(host_names_are_checked_before_anything_runs)'"
+size = 781
+status = "measured"
+tests = ["cli::tests::host_names_are_checked_before_anything_runs", "a_bad_name_touches_nothing"]
+at = "2026-10-03T18:37:23Z"
+actor = "lognd"
+rev = 1
