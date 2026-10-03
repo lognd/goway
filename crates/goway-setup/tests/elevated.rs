@@ -466,3 +466,55 @@ fn a_directory_is_created_with_its_acl_from_the_start() {
     let again = create_dir_with_sddl(&dir, "D:P(A;OICI;FA;;;SY)");
     assert_eq!(again.unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
 }
+
+// frob:tests crates/goway-setup/src/host.rs::validate_journal
+// frob:tests crates/goway-setup/src/host.rs::expected_changes
+#[test]
+fn the_elevated_validator_accepts_exactly_the_host_arp_entry() {
+    use goway_journal::RegValue;
+    let tmp = tempfile::tempdir().unwrap();
+    let layout = layout_in(tmp.path());
+    let ok = |change: Change| {
+        let mut j = Journal::new("t");
+        j.entries.push(goway_journal::Entry {
+            change,
+            prior: Prior::Noop,
+            reverted: false,
+        });
+        host::validate_journal(&j, &layout, &settings(), Path::new(HOME)).is_ok()
+    };
+    let value = |key: &str, name: &str, v: RegValue| Change::SetRegistryValue {
+        key: key.into(),
+        name: name.into(),
+        value: v,
+    };
+    let key = layout.host_uninstall_key.clone();
+    assert!(ok(Change::EnsureRegKey { key: key.clone() }));
+    // An uninstaller of another version still accepts the entry an older install wrote.
+    assert!(ok(value(
+        &key,
+        "DisplayVersion",
+        RegValue::String("0.0.9-rc.1".into())
+    )));
+    // A version string is not a way to smuggle anything else in.
+    assert!(!ok(value(
+        &key,
+        "DisplayVersion",
+        RegValue::String("1; evil".into())
+    )));
+    // The command the entry runs is exact: never another exe, never other arguments.
+    let evil = r#""C:\Users\u\evil.exe" uninstall --host --profile p"#;
+    assert!(!ok(value(
+        &key,
+        "UninstallString",
+        RegValue::String(evil.into())
+    )));
+    assert!(!ok(value(&key, "Run", RegValue::String("x".into()))));
+    // The client's per-user key is not the host's to touch.
+    assert!(!ok(Change::EnsureRegKey {
+        key: layout.uninstall_key.clone()
+    }));
+    assert!(!ok(Change::EnsureRegKey {
+        key: r"HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\other-host".into()
+    }));
+}

@@ -744,3 +744,34 @@ fn public_networks_are_listed_one_per_line() {
     assert_eq!(s.public_networks().unwrap(), ["Cafe Wi-Fi", "Other"]);
     assert!(ps::public_networks().contains("NetworkCategory -eq 'Public'"));
 }
+
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.host_key_fingerprint
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.default_user
+#[test]
+fn the_fingerprint_comes_from_the_ed25519_key_as_root_and_the_user_from_the_default_user() {
+    let fake = Fake::new(vec![
+        (
+            "ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub",
+            0,
+            "256 SHA256:abc123 root@h (ED25519)\n",
+        ),
+        ("--exec id -un", 0, "user\n"),
+    ]);
+    let s = sys(&fake);
+    assert_eq!(
+        s.host_key_fingerprint().unwrap().as_deref(),
+        Some("SHA256:abc123")
+    );
+    assert_eq!(s.default_user().unwrap(), "user");
+    let log = fake.log.borrow();
+    assert!(
+        log[0].args.join(" ").contains("-u root"),
+        "the key is read as root"
+    );
+    assert!(
+        !log[1].args.join(" ").contains("-u root"),
+        "the user is the default user"
+    );
+    let missing = Fake::new(vec![("ssh-keygen", 1, "")]);
+    assert_eq!(sys(&missing).host_key_fingerprint().unwrap(), None);
+}

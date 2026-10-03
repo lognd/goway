@@ -18,6 +18,7 @@ use std::time::Duration;
 
 use goway_journal::{LocalSystem, RegValue, ResourceKind, SysResult, System, SystemError};
 
+use crate::helper::{HOST_KEY_FILE, WslProbe, parse_fingerprint};
 use crate::host::{FirewallSpec, HostFacts, HyperVSpec, TaskSpec};
 use crate::ps;
 use crate::sysapi::{Tool, tool_path};
@@ -318,6 +319,27 @@ impl<R: Runner> HostSystem<R> {
         Ok(self.wsl_raw(&["true"], None)?.success())
     }
 
+    /// The ed25519 ssh host key fingerprint (`SHA256:...`) of the distro's sshd; `None` when the
+    /// key does not exist yet.
+    pub fn host_key_fingerprint(&self) -> SysResult<Option<String>> {
+        let out = self.wsl_raw(&["ssh-keygen", "-lf", HOST_KEY_FILE], None)?;
+        if !out.success() {
+            tracing::warn!(error = %out.error_text(), "no ssh host key fingerprint");
+            return Ok(None);
+        }
+        Ok(parse_fingerprint(&out.text()))
+    }
+
+    /// The distro's default Linux user (the one whose password goway asks for).
+    pub fn default_user(&self) -> SysResult<String> {
+        let out = self.wsl_user(&["id", "-un"])?;
+        if out.success() && !out.text().is_empty() {
+            Ok(out.text())
+        } else {
+            Err(cmd_error("wsl id -un", &out))
+        }
+    }
+
     /// Whether systemd runs as PID 1 in the distro.
     pub fn systemd_running(&self) -> SysResult<bool> {
         let out = self.wsl_raw(&["ps", "-p", "1", "-o", "comm="], None)?;
@@ -426,6 +448,49 @@ impl<R: Runner> HostSystem<R> {
         self.powershell("start scheduled task", &ps::task_start(name))
             .map(drop)
     }
+}
+
+/// Distro names from `wsl.exe -l -q` output: one per line, with the byte-order mark and any
+/// line that is not a bare name (a help message) dropped.
+pub fn parse_distro_list(text: &str) -> Vec<String> {
+    text.lines()
+        .map(|l| l.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}' || c == '\u{fffd}'))
+        .filter(|l| !l.is_empty() && !l.contains(char::is_whitespace))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Whether `wsl.exe` exists in the system directory.
+pub fn wsl_exe_present() -> bool {
+    std::path::Path::new(&tool_path(Tool::Wsl)).is_file()
+}
+
+/// Probe WSL on this laptop as the invoking user, changing nothing (`wsl_exe`: see [`wsl_exe_present`]).
+pub fn probe_wsl(runner: &impl Runner, wsl_exe: bool) -> WslProbe {
+    let program = tool_path(Tool::Wsl);
+    let distros = if wsl_exe {
+        let inv = Invocation {
+            program,
+            args: vec!["-l".into(), "-q".into()],
+            stdin: None,
+        };
+        match runner.run(&inv) {
+            Ok(out) if out.success() => Some(parse_distro_list(&out.text())),
+            Ok(out) => {
+                tracing::info!(code = ?out.code, "wsl --list failed; WSL is not set up");
+                None
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "could not run wsl --list");
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let probe = WslProbe { wsl_exe, distros };
+    tracing::info!(?probe, "probed WSL");
+    probe
 }
 
 /// Ports from `sshd -T` output (`port 2222` lines).

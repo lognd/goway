@@ -1,5 +1,59 @@
 # Installing goway on Windows
 
+## Set up a helper laptop (the main path)
+
+A helper laptop is a Windows laptop that runs your builds and tests for you. Setting one up is
+one command here and one command on your main laptop.
+
+**Before you start**, the laptop needs WSL (Linux inside Windows) with Ubuntu, with a Linux user and
+password created. If it does not have them, the installer stops before changing anything and tells
+you the steps: open PowerShell as administrator, run `wsl --install -d Ubuntu`, restart, create the
+Linux user and password when the Ubuntu window opens, then run the command below again. goway never
+installs WSL for you.
+
+**1. On the helper laptop**, in a terminal, run:
+
+    goway-setup.exe install --host
+
+Windows asks permission once (the administrator prompt); say yes. What you are asked: nothing else,
+except possibly "Restart WSL now? [y/N]". Answer `n` (the default) if you have Linux windows open: the
+restart closes them, and the installer then prints the exact command to run when you are ready.
+(`--yes` asks no questions and prints the command instead.)
+
+When it finishes it prints this block (the values are the ones of that laptop):
+
+    ======================================================================
+     THIS LAPTOP IS READY TO BE A HELPER. Next, on your MAIN laptop.
+    ======================================================================
+
+    Name to use for this helper:  orion-notebook  (this laptop's Windows name)
+    Its ssh host key fingerprint: SHA256:...
+    Its Linux user:               user  (goway asks for this user's password once: ...)
+
+    On your main laptop run exactly this:
+
+        goway add orion-notebook --fingerprint SHA256:... --user user
+
+    goway shows the same fingerprint there; it must match the one above.
+    ======================================================================
+
+`goway-setup.exe status --host` prints the same block again later.
+
+**2. On your main laptop**, run the `goway add ...` line it printed. goway compares the helper's
+fingerprint with the one you passed, so you know you are talking to the laptop you just set up and
+not to something else on the network.
+
+**To remove the helper again**, use Windows Settings, Apps, "goway helper (host)", Uninstall (the
+installer keeps its own protected copy, so you do not need the file you downloaded), or run
+`goway-setup.exe uninstall --host`.
+
+**If the laptop is on cafe or hotel Wi-Fi**: Windows treats such networks as Public, and goway only
+opens its door on home or work (Private) networks, so the helper cannot be reached there. The
+installer says so and prints the one line that fixes it for a network you trust (in PowerShell as
+administrator: `Set-NetConnectionProfile -Name 'NETWORK' -NetworkCategory Private`).
+
+Everything below explains exactly what the installer changes and why, for those who want to check.
+
 `goway-setup.exe` is a single-file installer (the client component is per-user and needs no
 administrator rights; only the host component elevates) built around the
 journal in `crates/goway-journal`. Every change it makes is recorded together with the state it
@@ -7,11 +61,16 @@ replaced, so `uninstall` replays the journal backwards and restores the machine.
 
 ## Commands
 
+<details><summary>Details</summary>
+
     goway-setup install [--client] [--host] [--profile NAME] [--dry-run]
                         [--port N] [--distro NAME] [--keepalive logon|boot] [--no-harden]
-                        [--allow-from CIDR]... [--no-activate] [--no-elevate]
+                        [--allow-from CIDR]... [--no-activate] [--no-elevate] [--yes]
     goway-setup uninstall [--client] [--host] [--profile NAME] [--no-activate] [--no-elevate]
     goway-setup status [--profile NAME]
+
+`status` also prints the helper block (name, fingerprint, Linux user, the `goway add` command) when
+the host component is installed.
 
 `--profile` (default `goway`) names the install directory, the journal and the Add/Remove Programs
 key, so a test profile never touches a real install. `--dry-run` prints the plan and changes
@@ -27,7 +86,11 @@ elevated host steps" below). They are deleted with the component.
 `install --host --dry-run` on Windows probes the machine read-only and marks each step `in place`
 or `will do`.
 
+</details>
+
 ## What the client component changes (profile `P`)
+
+<details><summary>What this changes and why</summary>
 
 | What | Where | Value |
 |---|---|---|
@@ -44,7 +107,11 @@ see it; already-open terminals keep their old environment.
 
 Nothing else is sent or written: no network access, no admin rights, no secrets.
 
+</details>
+
 ## What the host component changes (profile `P`, port `N`, distro `D`)
+
+<details><summary>What this changes and why</summary>
 
 The host component turns a Windows machine with WSL2 into a goway build host, the way the two test
 laptops were set up by hand. Windows side:
@@ -52,6 +119,7 @@ laptops were set up by hand. Windows side:
 | What | Value |
 |---|---|
 | `%USERPROFILE%\.wslconfig` | `[wsl2] networkingMode=mirrored` (ini key; prior value journaled; a no-op when already set) |
+| Add/Remove Programs entry | `HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\P-host` (machine-wide, because the host component is): `DisplayName` `goway helper (host)` (`goway helper (host, profile P)` for another profile), `DisplayVersion`, `Publisher`, `InstallLocation` (`%ProgramData%\goway\P`), `DisplayIcon` and `UninstallString` running the protected copy: `"%ProgramData%\goway\P\bin\goway-setup.exe" uninstall --host --profile P`; `NoModify=1`, `NoRepair=1`. It is the first change of the plan, so it is reverted last: a stopped uninstall can still be finished from Settings. The elevated validator accepts exactly these values (`DisplayVersion` may be that of another goway-setup version). Because Windows opens a console just for this entry, the uninstaller waits for Enter before closing it |
 | Defender Firewall rule | inbound TCP `N`, Allow, profiles Private and Domain only, remote address `LocalSubnet` (plus any `--allow-from`), display name `WSL SSH N` (default profile; `P WSL SSH N` otherwise) |
 | Hyper-V firewall rule | inbound TCP `N` Allow for the WSL VM (`VMCreatorId {40E0AC32-46A5-438A-A0B2-2B479E8F2E90}`), named `WSL SSH N (Hyper-V)`; skipped when the cmdlets do not exist (before Windows 11 22H2). Scoped like the Windows rule (Private and Domain profiles, `LocalSubnet` plus any `--allow-from`). A specific rule is used instead of flipping the default inbound action |
 | scheduled task | `WSL Keepalive` (`P WSL Keepalive`): at logon of the invoking user, `conhost.exe --headless wsl.exe -d D --exec /bin/sh -c "exec sleep infinity"`, Interactive, no time limit, runs on battery, one instance. `--keepalive boot` registers `WSL Keepalive (boot)` at startup with an `S4U` principal instead |
@@ -68,8 +136,14 @@ WSL side (run as root through `wsl.exe -d D -u root --exec ...`; no password, no
 
 Unless `--no-activate` is given, a changed sshd is then validated (`sshd -t`), systemd reloaded, and
 the socket (or service) restarted only when the port is not yet listening (otherwise only reloaded),
-and a newly registered keepalive task is started. Restarting WSL is never done: when `.wslconfig` or
-`wsl.conf` changed, the install prints the `wsl --shutdown` / `wsl --terminate` you need.
+and a newly registered keepalive task is started.
+
+WSL is restarted only when you say so: if `.wslconfig` (mirrored networking) or `wsl.conf` changed,
+the install asks on the console "Restart WSL now? [y/N]", explaining that a restart closes open
+Linux windows; the default is No. With `--yes`, `--no-activate` or no console (a pipe, an SSH
+session) it asks nothing and prints the exact `wsl --shutdown` / `wsl --terminate D` instead. Before
+anything else (even before the administrator prompt) `install --host` checks that `wsl.exe` exists
+and lists the distro; if not it stops, changes nothing and prints the steps to install WSL.
 
 **Package safety.** The package step is a recorded no-op unless dpkg reports exactly `ii`; if it
 reports anything else but "not installed" (half-configured, removed with configuration left,
@@ -86,6 +160,8 @@ does not prompt when it cannot be shown (no `SESSIONNAME`, as in SSH sessions), 
 or in the elevated copy itself; it then fails with a message saying how to start an elevated
 terminal. The interactive UAC path is built but was not exercised end to end (the test machines are
 only reachable over SSH). How the elevated step is kept safe is described next.
+
+</details>
 
 ## Security of the elevated host steps
 
@@ -173,9 +249,10 @@ on, to everyone on that network.
   `--no-harden` opts out. With no key yet, the install finishes with a loud warning: run
   `goway ssh setup HOST` from your main laptop, then `goway doctor HOST --fix --rsudo` (or uninstall
   and rerun the install) to turn passwords off.
-* **Public networks are called out.** If a connected network is classified Public, the install
-  warns that the rules do not apply there (sshd is not reachable over it) and shows the command to
-  mark a network you trust as Private. `--dry-run` shows the same warning.
+* **Public networks are called out.** If a connected network is classified Public (Windows does
+  this for cafe and hotel Wi-Fi), the install warns, in plain words, that goway only opens its door on
+  home or work networks, so the helper cannot be reached over this one, and shows the one-line
+  command to mark a network you trust as Private. `--dry-run` shows the same warning.
 
 <details><summary>Details</summary>
 
@@ -199,11 +276,16 @@ on, to everyone on that network.
   (it logs in over the host's Tailscale address), then checks that both rules show only the
   Private and Domain profiles and `LocalSubnet` plus that range, that `sshd -T` reports
   `passwordauthentication no` for the default case and `yes` with `--no-harden`, and that
-  snapshots before and after uninstall are identical.
+  snapshots before and after uninstall are identical. It also checks the host's Add/Remove Programs
+  entry after install and, in the first case, uninstalls by running that entry's own
+  `UninstallString` (the protected copy, not the downloaded file); the snapshots include the HKLM
+  entries, so the entry must be gone afterwards.
 
 </details>
 
 ## Why uninstall provably restores the machine
+
+<details><summary>Details</summary>
 
 * Each entry stores the prior state (absent file, previous registry value and type, whether the
   key or `Path` variable existed, which directories were created). Revert runs entries last to
@@ -224,7 +306,11 @@ on, to everyone on that network.
   It runs a second case where `Path` already contains the directory.
 * If an install fails part-way it rolls itself back before reporting the error.
 
+</details>
+
 ## The running-exe problem
+
+<details><summary>Details</summary>
 
 Windows cannot delete a running executable, and the uninstall entry runs the installed
 `goway-setup.exe`. So when `uninstall` finds it is running from a file the journal installed, it
@@ -236,7 +322,11 @@ copy, its log and its directory after it exits (the standard self-delete trick).
 anywhere else (for example the downloaded installer) uninstall is synchronous and its exit code is
 the result.
 
+</details>
+
 ## Proving the host component on a live machine
+
+<details><summary>Details</summary>
 
     scripts/windows/roundtrip-host.sh Helios     # or any host name; symlink it as goway-roundtrip-host
 
@@ -255,7 +345,11 @@ and requires identical snapshots. Port 2222 is logged into once a second through
 fail. Probes are full public-key logins on purpose: `ssh-keyscan` or a bare connect counts as an
 unauthenticated connection, which sshd 9.8+ penalises per source address.
 
+</details>
+
 ## Building
+
+<details><summary>Details</summary>
 
     rustup target add x86_64-pc-windows-gnu      # once, for the pinned toolchain
     scripts/windows/build.sh                      # needs mingw-w64 (x86_64-w64-mingw32-gcc)
@@ -265,9 +359,15 @@ crate's build script; without it the crate still builds, with an empty payload, 
 install). Output: `target/x86_64-pc-windows-gnu/release/goway-setup.exe`. x86_64 binaries run on
 x64 Windows and under emulation on Windows on ARM.
 
+</details>
+
 ## Proving it on a machine
+
+<details><summary>Details</summary>
 
     scripts/windows/roundtrip.sh Helios          # host name resolved through mDNS at run time
 
 The script needs key-based SSH to the host, uploads the installer and helper scripts to
 `~\goway-roundtrip`, removes them afterwards, and touches only the `goway-test` profile.
+
+</details>

@@ -1,5 +1,6 @@
 //! Command line and command dispatch.
 
+use std::io::IsTerminal as _;
 use std::path::{Path, PathBuf};
 
 use clap::{Args, Parser, Subcommand};
@@ -9,13 +10,15 @@ use crate::admin;
 use crate::app::{self, Retry};
 use crate::elevate;
 use crate::error::SetupError;
+use crate::helper::{HelperInfo, check_wsl, next_steps, public_network_warning, wsl_steps};
 use crate::host::{
     self, DEFAULT_DISTRO, DEFAULT_PORT, HostFacts, HostParams, HostSettings, Keepalive, host_plan,
 };
-use crate::hostsys::HostSystem;
+use crate::hostsys::{HostSystem, Invocation, ProcessRunner, Runner, probe_wsl, wsl_exe_present};
 use crate::layout::{DEFAULT_PROFILE, Layout};
 use crate::plan::{Component, Sources, build};
 use crate::render::{ColorWhen, Renderer};
+use crate::sysapi::{Tool, tool_path};
 use crate::windows::{
     broadcast_environment_change, schedule_dir_removal, schedule_self_delete, spawn_detached,
 };
@@ -103,6 +106,9 @@ pub enum Command {
         /// Host: fail instead of asking Windows (UAC) for administrator rights.
         #[arg(long)]
         no_elevate: bool,
+        /// Host: ask no questions; when WSL needs a restart, print the command instead of offering it.
+        #[arg(long)]
+        yes: bool,
         /// Profile selection.
         #[command(flatten)]
         profile: ProfileArg,
@@ -153,6 +159,7 @@ pub fn selected_components(client: bool, host: bool) -> Vec<Component> {
 
 /// Everything `install` was asked for, gathered from the flags.
 #[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)] // one bool per command-line switch
 struct InstallRequest {
     components: Vec<Component>,
     dry_run: bool,
@@ -162,6 +169,7 @@ struct InstallRequest {
     harden: bool,
     allow_from: Vec<String>,
     activate: bool,
+    yes: bool,
     elevate: Elevate,
 }
 
@@ -200,6 +208,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             allow_from,
             no_activate,
             no_elevate,
+            yes,
             profile,
             child,
         } => install(
@@ -214,6 +223,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
                 harden: !*no_harden,
                 allow_from: allow_from.clone(),
                 activate: !*no_activate,
+                yes: *yes,
                 elevate: Elevate::new(*no_elevate, child),
             },
         ),
@@ -232,17 +242,35 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
                 vec![Component::Host, Component::Client]
             };
             let elevate = Elevate::new(*no_elevate, child);
-            uninstall(
+            let result = uninstall(
                 r,
                 &profile.profile,
                 &components,
                 !*no_activate,
                 &elevate,
                 relaunched.as_deref(),
-            )
+            );
+            if relaunched.is_none() && !child.elevated_child {
+                keep_window_open(r, result.as_ref().err());
+            }
+            result
         }
         Command::Status { profile } => status(r, &profile.profile),
     }
+}
+
+/// When Windows opened this console just for us (Add/Remove Programs runs the uninstall entry
+/// that way), keep it open until the user has read the result; otherwise it vanishes at once.
+fn keep_window_open(r: Renderer, error: Option<&SetupError>) {
+    if !std::io::stdin().is_terminal() || !crate::windows::owns_console_alone() {
+        return;
+    }
+    if let Some(e) = error {
+        r.error(e);
+    }
+    r.prompt("Press Enter to close this window. ");
+    let mut line = String::new();
+    let _ = std::io::stdin().read_line(&mut line);
 }
 
 fn staging_dir() -> PathBuf {
@@ -266,6 +294,9 @@ fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), Setup
         }
         if !req.dry_run && !cfg!(windows) {
             return Err(SetupError::HostNeedsWindows);
+        }
+        if !req.dry_run {
+            precheck_wsl(&req.distro)?;
         }
         if req.elevate.is_child {
             enter_elevated_child(&layout, &req.elevate)?;
@@ -292,10 +323,132 @@ fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), Setup
                 } else {
                     install_host(r, &layout, req)?;
                 }
+                if !req.elevate.is_child {
+                    after_host_install(r, &layout, req);
+                }
             }
         }
     }
     Ok(())
+}
+
+/// Stop before anything changes (and before any administrator prompt) when WSL or the distro is
+/// missing, printing the exact steps to set it up.
+fn precheck_wsl(distro: &str) -> Result<(), SetupError> {
+    let probe = probe_wsl(&ProcessRunner, wsl_exe_present());
+    let check = check_wsl(&probe, distro);
+    match wsl_steps(&check, distro) {
+        Some(steps) => {
+            tracing::warn!(?check, "install stopped before changing anything: no WSL");
+            Err(SetupError::WslMissing(steps))
+        }
+        None => Ok(()),
+    }
+}
+
+/// What follows a finished host install in the user's own (non-elevated) process: the WSL
+/// restart question, then the block that tells the user what to run on the main laptop. Failures
+/// here never fail the install, which is already done.
+fn after_host_install(r: Renderer, layout: &Layout, req: &InstallRequest) {
+    let need = match app::load_journal(&layout.host_view()) {
+        Ok(Some(journal)) => host::restart_need(&journal),
+        Ok(None) => host::RestartNeed::default(),
+        Err(e) => {
+            tracing::error!(error = %e, "could not read the host journal for the restart check");
+            host::RestartNeed::default()
+        }
+    };
+    let console = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+    let action = host::restart_action(need, req.yes, req.activate, console);
+    tracing::info!(?need, ?action, "WSL restart decision");
+    if let Some(command) = need.command(&req.distro) {
+        match action {
+            host::RestartAction::Nothing => {}
+            host::RestartAction::PrintCommand => r.notice(&format!(
+                "WSL must restart for a change to apply. {} When you are ready, run: {command}",
+                need.consequence()
+            )),
+            host::RestartAction::Ask => {
+                if ask_yes_no(
+                    r,
+                    &format!(
+                        "WSL must restart for a change to apply. {} Restart WSL now? [y/N] ",
+                        need.consequence()
+                    ),
+                ) {
+                    restart_wsl(r, need, &req.distro, &command);
+                } else {
+                    r.notice(&format!(
+                        "not restarting; when you are ready, run: {command}"
+                    ));
+                }
+            }
+        }
+    }
+    show_helper_block(r, &req.distro, req.port);
+}
+
+/// Ask a yes/no question on the console; anything but y or yes is no.
+fn ask_yes_no(r: Renderer, prompt: &str) -> bool {
+    r.prompt(prompt);
+    let mut answer = String::new();
+    match std::io::stdin().read_line(&mut answer) {
+        Ok(_) => host::is_yes(&answer),
+        Err(e) => {
+            tracing::warn!(error = %e, "could not read the answer; taking it as no");
+            false
+        }
+    }
+}
+
+/// Run the WSL restart `command` stands for (`wsl --shutdown` or `wsl --terminate <distro>`).
+fn restart_wsl(r: Renderer, need: host::RestartNeed, distro: &str, command: &str) {
+    let args = if need.shutdown {
+        vec!["--shutdown".to_owned()]
+    } else {
+        vec!["--terminate".to_owned(), distro.to_owned()]
+    };
+    let inv = Invocation {
+        program: tool_path(Tool::Wsl),
+        args,
+        stdin: None,
+    };
+    tracing::warn!(command, "restarting WSL at the user's request");
+    match ProcessRunner.run(&inv) {
+        Ok(out) if out.success() => r.notice("WSL was restarted"),
+        Ok(out) => r.notice(&format!(
+            "WSL did not restart ({}); run it yourself: {command}",
+            out.error_text()
+        )),
+        Err(e) => r.notice(&format!(
+            "could not run wsl.exe ({e}); run it yourself: {command}"
+        )),
+    }
+}
+
+/// Read the helper's name, host key fingerprint and Linux user from this laptop and print the
+/// block with the one command to run on the main laptop.
+fn show_helper_block(r: Renderer, distro: &str, port: u16) {
+    let sys = HostSystem::new(distro);
+    let user = match sys.default_user() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(error = %e, "could not read the distro's default user");
+            r.notice("could not read the Linux user from WSL; run `goway-setup.exe status --host` again in a minute");
+            return;
+        }
+    };
+    let fingerprint = sys.host_key_fingerprint().unwrap_or_else(|e| {
+        tracing::error!(error = %e, "could not read the host key fingerprint");
+        None
+    });
+    let info = HelperInfo {
+        device_name: std::env::var("COMPUTERNAME").unwrap_or_default(),
+        fingerprint,
+        user,
+        port,
+    };
+    r.block(&next_steps(&info));
 }
 
 /// The arguments of the elevated re-run of `install`: the host component only, with every
@@ -453,9 +606,6 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
     } else {
         r.notice("sshd and the keepalive task were not activated (--no-activate)");
     }
-    for notice in host::restart_notices(&journal) {
-        r.notice(&notice);
-    }
     Ok(())
 }
 
@@ -486,11 +636,7 @@ fn warn_public_networks(r: Renderer, sys: &HostSystem) {
     match sys.public_networks() {
         Ok(names) => {
             for name in names {
-                r.warning(&format!(
-                    "the active network {name:?} is classified Public, where the goway firewall rules do not apply, so sshd is not reachable over it. \
-                     If you trust that network, mark it Private (administrator PowerShell: `Set-NetConnectionProfile -Name '{}' -NetworkCategory Private`).",
-                    name.replace('\'', "''")
-                ));
+                r.warning(&public_network_warning(&name));
             }
         }
         Err(e) => tracing::warn!(error = %e, "could not query the network profiles"),
@@ -819,6 +965,7 @@ fn status(r: Renderer, profile: &str) -> Result<(), SetupError> {
         let settings = app::load_settings(&layout)?.unwrap_or_default();
         let sys = HostSystem::new(&settings.distro);
         r.status(&view, &app::status(&sys, &journal)?);
+        show_helper_block(r, &settings.distro, settings.port);
     }
     if !any {
         r.not_installed(&layout);

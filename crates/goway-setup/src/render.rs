@@ -207,6 +207,18 @@ impl Renderer {
         );
     }
 
+    /// Print a multi-line block of plain text (the next-steps hand-over) after a blank line.
+    pub fn block(self, text: &str) {
+        let _ = writeln!(self.out(), "\n{text}");
+    }
+
+    /// Print a question without a trailing newline so the answer follows it on the same line.
+    pub fn prompt(self, text: &str) {
+        let mut out = self.out();
+        let _ = write!(out, "{text}");
+        let _ = out.flush();
+    }
+
     /// A follow-up the user must act on or should know about.
     pub fn notice(self, text: &str) {
         self.line(WARN, "note", text);

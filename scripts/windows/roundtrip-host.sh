@@ -22,6 +22,10 @@
 # over the host's Tailscale address, which the default local-subnet scope would (rightly) refuse.
 # The rules must be limited to the Private and Domain profiles and to LocalSubnet plus that range.
 # Needs key-based ssh to the host's Windows OpenSSH (port 22) and to its WSL sshd (port 2222).
+# The host install also registers its own machine-wide Add/Remove Programs entry (HKLM Uninstall,
+# goway-test-host). Case 1 checks its values and then uninstalls by running the entry's own
+# UninstallString (the protected copy in %ProgramData%, never the downloaded file); the snapshots
+# include the HKLM entries, so both cases prove the entry is gone again after uninstall.
 # Exits nonzero unless every before/after snapshot pair is identical.
 set -euo pipefail
 
@@ -67,7 +71,7 @@ setup() { rsh "$remote_dir\\goway-setup.exe" "$@" 2>&1 | tr -d '\r'; }
 probe_login() { ssh -n -o BatchMode=yes -o ConnectTimeout=4 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$work/known_hosts" -p "$1" "$ip" true >/dev/null 2>&1 && echo 1 || echo 0; }
 
 snapshot() { # snapshot NAME
-    winps "$here/snapshot-host.ps1" > "$work/$1.win"
+    { winps "$here/snapshot-host.ps1"; winps "$here/snapshot-arp.ps1"; } > "$work/$1.win"
     wsh bash -s < "$here/snapshot-wsl.sh" > "$work/$1.wsl" 2>&1
     [[ -s "$work/$1.win" && -s "$work/$1.wsl" ]] || { echo "empty snapshot $1" >&2; exit 2; }
 }
@@ -118,7 +122,7 @@ run_case() { # run_case LABEL EXPECT_TASK_SUFFIX EXPECT_PASSWORDAUTH install-arg
     local label="$1" suffix="$2" expect_password="$3"; shift 3
     echo "== case $label"
     snapshot "before-$label"
-    setup install --host --port $port --profile "$profile" --no-activate --no-elevate "$@" -v
+    setup install --host --port $port --profile "$profile" --no-activate --no-elevate --yes "$@" -v
     setup status --profile "$profile" --color never
     local win; win="$(winps_cmd "
 Get-NetFirewallRule -DisplayName 'goway-test WSL SSH $port' | % { 'rule: ' + \$_.DisplayName + ' ' + \$_.Direction + ' ' + \$_.Action + ' profiles=' + \$_.Profile }
@@ -141,6 +145,18 @@ Get-ScheduledTask -TaskName 'goway-test WSL Keepalive$suffix' | % { 'task: ' + \
         local line; line="$(grep -F "$scoped" <<<"$win" | head -n1)"
         if [[ "$line" == *LocalSubnet* && "$line" =~ 100\.64\.0\.0/(10|255\.192\.0\.0) && "$line" != *Any* ]]; then echo "ok: '$scoped' limited to LocalSubnet + 100.64.0.0/10"; else echo "FAIL: '$scoped' remote scope wrong: $line"; status=1; fi
     done
+    echo "-- Add/Remove Programs entry (HKLM)"
+    local arp; arp="$(winps_cmd "
+\$k = Get-ItemProperty -LiteralPath 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\\$profile-host'
+'arp name: ' + \$k.DisplayName
+'arp uninstall: ' + \$k.UninstallString
+'arp exe exists: ' + (Test-Path -LiteralPath \$k.DisplayIcon)
+")"
+    echo "$arp"
+    for want in "arp name: goway helper (host, profile $profile)" "uninstall --host --profile $profile" "arp exe exists: True" 'ProgramData\goway\goway-test\bin\goway-setup.exe'; do
+        grep -qF "$want" <<<"$arp" || { echo "FAIL: after install, ARP entry missing: $want"; status=1; }
+    done
+    arp_cmd="$(sed -n 's/^arp uninstall: //p' <<<"$arp" | head -n1)"
     echo "-- sshd configuration check as root (sshd -t) and effective ports"
     rwsl /usr/sbin/sshd -t && echo "sshd -t ok"
     local effective; effective="$(rwsl /usr/sbin/sshd -T | grep -E '^(port|passwordauthentication) ' | sort | tr '\n' ' ')"
@@ -154,7 +170,19 @@ Get-ScheduledTask -TaskName 'goway-test WSL Keepalive$suffix' | % { 'task: ' + \
     rwsl rm -f /run/goway-test-sshd.pid
     sleep 1
     [[ "$(probe_login $port)" -eq 0 ]] && echo "ok: temporary sshd on $port is gone" || { echo "FAIL: $port still answers"; status=1; }
-    setup uninstall --host --profile "$profile" --no-activate --no-elevate -v
+    if [[ "$label" == logon && -n "${arp_cmd:-}" ]]; then
+        echo "-- uninstall through the entry's own UninstallString (no downloaded file)"
+        rsh "cmd /c \"$arp_cmd --no-activate --no-elevate\"" 2>&1 | tr -d '\r'
+        local gone; gone="$(winps_cmd "
+for (\$i = 0; \$i -lt 60; \$i++) { if (-not (Test-Path -LiteralPath \$env:ProgramData\goway\goway-test)) { break }; Start-Sleep -Seconds 1 }
+'admin dir present: ' + (Test-Path -LiteralPath \$env:ProgramData\goway\goway-test)
+'arp present: ' + (Test-Path -LiteralPath 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\\$profile-host')
+")"
+        echo "$gone"
+        grep -qF "admin dir present: False" <<<"$gone" && grep -qF "arp present: False" <<<"$gone" || { echo "FAIL: the ARP uninstall left state behind"; status=1; }
+    else
+        setup uninstall --host --profile "$profile" --no-activate --no-elevate -v
+    fi
     snapshot "after-$label"
     compare "$label" "before-$label" "after-$label"
 }

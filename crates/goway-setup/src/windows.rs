@@ -160,3 +160,21 @@ pub fn schedule_dir_removal(dir: &Path, root: &Path) {
 pub fn schedule_dir_removal(dir: &Path, _root: &Path) {
     tracing::debug!(dir = %dir.display(), "no scheduled removal off Windows");
 }
+
+#[cfg(windows)]
+#[allow(unsafe_code)] // one FFI call with a two-element buffer; see SAFETY
+/// Whether this process is the only one attached to its console, which is how Windows starts a
+/// console program from Add/Remove Programs or a double click: the window closes when it exits.
+pub fn owns_console_alone() -> bool {
+    use windows_sys::Win32::System::Console::GetConsoleProcessList;
+    let mut ids = [0u32; 2];
+    // SAFETY: `ids` is writable for the 2 entries passed as its length.
+    let n = unsafe { GetConsoleProcessList(ids.as_mut_ptr(), 2) };
+    n == 1
+}
+
+#[cfg(not(windows))]
+/// Whether this process alone owns its console (never, off Windows).
+pub fn owns_console_alone() -> bool {
+    false
+}
