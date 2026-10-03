@@ -2,7 +2,8 @@
 id = "01M418J2R4E5AMB16T81JJVK4G"
 title = "Address resolution without static IPs: cache, resolver, mDNS, WSL interop"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
