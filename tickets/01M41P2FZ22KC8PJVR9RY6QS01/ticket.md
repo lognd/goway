@@ -8,12 +8,12 @@ points = 8
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-03T21:03:32Z"
+updated = "2026-10-03T21:11:59Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/src/config.rs", "crates/goway/tests/**", "docs/usage.md", "docs/config.md", "crates/goway/src/gc.rs", "docs/design.md"]
 
 [[acceptance]]
 text = "Given two runs of the same worktree on the same slot, when the second starts, then its slot tree is updated in place from the seed (only changed files written, files deleted from the work tree removed) and no full copy of the tree is made"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a project with package.json, pyproject.toml, CMakeLists.txt, pom.xml, build.gradle or Cargo.toml, when it runs twice on the same slot, then node_modules, .venv, build/ or other detected dependency and build directories from the first run are still there"
