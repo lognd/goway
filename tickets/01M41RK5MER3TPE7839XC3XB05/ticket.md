@@ -2,13 +2,13 @@
 id = "01M41RK5MER3TPE7839XC3XB05"
 title = "Windows installer hygiene and NAT relay hardening: key ACL by SID, local config dir, absolute task paths, private subnet-bound relay target (audit L15 and relay review)"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:51:51Z"
-updated = "2026-10-03T20:51:51Z"
+updated = "2026-10-03T20:58:23Z"
 scope = ["crates/goway-setup/**", "crates/goway-journal/**", "docs/**", "scripts/windows/**", "crates/goway/**"]
 
 [[acceptance]]
