@@ -1,0 +1,1 @@
+The elevated goway-setup child no longer follows symbolic links or reparse points when it edits .wslconfig, and the elevated uninstall now checks that every recorded prior value fits the change that produced it.
