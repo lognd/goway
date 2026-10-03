@@ -173,9 +173,6 @@ pub fn now_secs() -> u64 {
 mod tests {
     use super::*;
 
-    // frob:tests crates/goway/src/state.rs::State::mark_mismatch
-    // frob:tests crates/goway/src/state.rs::State::distrusted
-    // frob:tests crates/goway/src/state.rs::State::clear_distrust
     #[test]
     fn distrust_expires_after_seven_clean_days_and_clears_by_repo() {
         let mut s = State::default();
