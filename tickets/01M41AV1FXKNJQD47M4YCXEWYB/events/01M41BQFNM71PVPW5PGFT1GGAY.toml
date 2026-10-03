@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T17:07:00Z"
+digest = "76140f01e3e775fed47be3c2a3aee529338167532167de6a35f1064efc485195"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 266ae5df-126f-42f9-b5e0-3639bf8fb456 with nextest profile: default
+    Starting 1 test across 15 binaries (128 tests skipped)
+        PASS [   1.891s] goway::run_local a_run_leaves_no_files_outside_its_root_and_no_processes
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.892s] 1 test run: 1 passed, 128 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_run_leaves_no_files_outside_its_root_and_no_processes)'"
+size = 566
+status = "measured"
+tests = ["a_run_leaves_no_files_outside_its_root_and_no_processes"]
+at = "2026-10-03T17:07:00Z"
+actor = "lognd"
+rev = 1
