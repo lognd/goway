@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:07:32Z"
+digest = "8c84bed6aa018784ed2b624cee00666ddd76abe6f6dce2162abe425ba5da4dc2"
+exit_code = 0
+inline = '''
+   Compiling goway v0.1.0 (/home/user/projects/goway-wt/PFDSEFK/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.89s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e5433a17-3800-4c40-b66e-f436e35a778a with nextest profile: default
+    Starting 1 test across 21 binaries (178 tests skipped)
+        PASS [   0.801s] goway::run_local paths_baked_by_a_build_stay_valid_for_later_runs_in_the_slot
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.803s] 1 test run: 1 passed, 178 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(paths_baked_by_a_build_stay_valid_for_later_runs_in_the_slot)'"
+size = 650
+status = "measured"
+tests = ["paths_baked_by_a_build_stay_valid_for_later_runs_in_the_slot"]
+at = "2026-10-03T18:07:32Z"
+actor = "lognd"
+rev = 1
