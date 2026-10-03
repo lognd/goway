@@ -74,6 +74,10 @@ pub struct Defaults {
     /// Skip hosts whose 1-minute load per core is above this (unless pinned).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_load: Option<f64>,
+    /// GiB of available RAM per core below which a host scores worse (0
+    /// turns the penalty off). A 16-core host with 3 GiB runs out of memory
+    /// on big builds, so by default it loses to a roomier one.
+    pub mem_per_core: f64,
     /// Extra paths that stay in a build slot's tree between runs, on top of
     /// the detected dependency and build directories (a name matches at
     /// any depth; a path with `/` is relative to the tree root).
@@ -97,6 +101,7 @@ impl Default for Defaults {
             port: 2222,
             priority: Priority::Low,
             max_load: None,
+            mem_per_core: crate::pool::DEFAULT_MEM_PER_CORE,
             keep: Vec::new(),
             keep_ignored: true,
         }

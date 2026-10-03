@@ -25,6 +25,20 @@ pub fn human_bytes(bytes: u64) -> String {
     }
 }
 
+/// The GPUs of a host, comma separated, or `none` (`-` when not yet probed).
+fn gpu_summary(f: &crate::facts::Facts) -> String {
+    match &f.hw {
+        None => "-".to_owned(),
+        Some(h) if h.gpus.is_empty() => "none".to_owned(),
+        Some(h) => h
+            .gpus
+            .iter()
+            .map(crate::facts::Gpu::summary)
+            .collect::<Vec<_>>()
+            .join(", "),
+    }
+}
+
 /// The status table rows (header first); pure so it can be tested.
 pub fn rows(probed: &[Probed<'_>]) -> Vec<Vec<String>> {
     let mut rows = vec![
@@ -33,10 +47,14 @@ pub fn rows(probed: &[Probed<'_>]) -> Vec<Vec<String>> {
             "address",
             "arch",
             "cores",
+            "ram avail/total",
+            "gpu",
+            "features",
             "load 1/5/15",
             "jobs",
             "goway disk",
             "free",
+            "facts",
         ]
         .map(str::to_owned)
         .to_vec(),
@@ -48,6 +66,9 @@ pub fn rows(probed: &[Probed<'_>]) -> Vec<Vec<String>> {
                 format!("{} ({})", found.target.address, found.source),
                 probe.arch.clone(),
                 probe.cores.to_string(),
+                crate::facts::ram_summary(&probe.facts),
+                gpu_summary(&probe.facts),
+                crate::facts::feature_summary(probe.facts.hw.as_ref()),
                 format!(
                     "{:.2} {:.2} {:.2}",
                     probe.load[0], probe.load[1], probe.load[2]
@@ -58,10 +79,15 @@ pub fn rows(probed: &[Probed<'_>]) -> Vec<Vec<String>> {
                 },
                 probe.disk_used.map_or_else(|| "-".to_owned(), human_bytes),
                 probe.disk_free.map_or_else(|| "-".to_owned(), human_bytes),
+                crate::facts::age_summary(probe.facts.hw_age),
             ]),
             Err(_) => rows.push(vec![
                 p.host.name.clone(),
                 "unreachable".to_owned(),
+                "-".to_owned(),
+                "-".to_owned(),
+                "-".to_owned(),
+                "-".to_owned(),
                 "-".to_owned(),
                 "-".to_owned(),
                 "-".to_owned(),
@@ -80,6 +106,7 @@ pub fn status(
     renderer: Renderer,
     lookup: &(dyn Lookup + Sync),
     prober: &(dyn Prober + Sync),
+    refresh: bool,
 ) -> Result<u8> {
     let config = Config::load(&paths.config_file())?;
     if config.hosts.is_empty() {
@@ -90,6 +117,7 @@ pub fn status(
         return Ok(0);
     }
     let mut state = State::load(&paths.state_file())?;
+    state.refresh_facts = refresh;
     let results = pool::probe_all(&config, &mut state, lookup, prober, true);
     if let Err(e) = state.save(&paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
@@ -106,6 +134,80 @@ pub fn status(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // frob:tests crates/goway/src/status.rs::rows
+    #[test]
+    fn rows_show_gpu_ram_and_features_and_stay_aligned() {
+        use crate::config::HostConfig;
+        use crate::facts::{Facts, Gpu, StaticFacts};
+        use crate::resolve::{Found, Source};
+        use crate::ssh::Target;
+        let host = HostConfig {
+            name: "helios".to_owned(),
+            address: None,
+            port: None,
+            user: None,
+            max_jobs: None,
+            priority: None,
+            max_load: None,
+            identity: None,
+        };
+        let found = Found {
+            target: Target {
+                name: "helios".to_owned(),
+                address: "192.0.2.1".to_owned(),
+                port: 22,
+                user: None,
+                identity: None,
+            },
+            source: Source::Cached,
+            output: String::new(),
+        };
+        let gib = 1024u64 * 1024 * 1024;
+        let probe = crate::pool::Probe {
+            arch: "x86_64".to_owned(),
+            hostname: "h".to_owned(),
+            cores: 8,
+            load: [0.0; 3],
+            jobs: 0,
+            disk_used: None,
+            disk_free: None,
+            facts: Facts {
+                mem_total: Some(16 * gib),
+                mem_avail: Some(8 * gib),
+                hw: Some(StaticFacts {
+                    gpus: vec![Gpu {
+                        vendor: "nvidia".to_owned(),
+                        name: "RTX 4090".to_owned(),
+                        mem_mib: Some(24576),
+                        driver: None,
+                        cuda: Some("12.5".to_owned()),
+                    }],
+                    cpu_features: vec!["avx2".to_owned()],
+                    kvm: true,
+                    ..StaticFacts::default()
+                }),
+                hw_age: Some(7200),
+            },
+        };
+        let probed = vec![
+            Probed {
+                host: &host,
+                result: Ok((found, probe)),
+            },
+            Probed {
+                host: &host,
+                result: Err(crate::error::Error::Usage("x".to_owned())),
+            },
+        ];
+        let rows = rows(&probed);
+        assert!(rows.iter().all(|r| r.len() == rows[0].len()));
+        let line = rows[1].join(" | ");
+        assert!(line.contains("8.0/16.0 GiB"), "{line}");
+        assert!(line.contains("RTX 4090 24 GiB cuda 12.5"), "{line}");
+        assert!(line.contains("avx2 kvm"), "{line}");
+        assert!(line.contains("2h ago"), "{line}");
+    }
 
     #[test]
     fn bytes_are_human() {

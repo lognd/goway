@@ -4,11 +4,17 @@
 //! Score = (1-minute load + goway jobs running) / cores. goway's own jobs
 //! are counted on top of the load average because a job that just started
 //! has not shown up in the load yet. Hosts at `max_jobs` are skipped.
+//!
+//! A host short of memory scores worse: when its available RAM per core is
+//! below `mem_per_core` GiB (default 0.5), up to 1.0 is added in proportion
+//! to the shortfall, so a 16-core host with 3 GiB loses to a roomier one but
+//! is still used when nothing else is.
 
 use std::collections::BTreeMap;
 
 use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
+use crate::facts::{self, Facts};
 use crate::remote;
 use crate::resolve::{self, Found, Lookup, Prober};
 use crate::ssh::KeyPolicy;
@@ -31,7 +37,12 @@ pub struct Probe {
     pub disk_used: Option<u64>,
     /// Bytes free in the remote home (status only).
     pub disk_free: Option<u64>,
+    /// RAM, GPUs and other facts (see [`crate::facts`]).
+    pub facts: Facts,
 }
+
+/// The default `defaults.mem_per_core` in GiB.
+pub const DEFAULT_MEM_PER_CORE: f64 = 0.5;
 
 /// Parse the `probe` verb's `key=value` lines.
 pub fn parse_probe(text: &str) -> Option<Probe> {
@@ -60,12 +71,31 @@ pub fn parse_probe(text: &str) -> Option<Probe> {
         jobs,
         disk_used: kv.get("disk_used").and_then(|v| v.parse().ok()),
         disk_free: kv.get("disk_free").and_then(|v| v.parse().ok()),
+        facts: facts::parse_live(
+            &kv.iter()
+                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                .collect(),
+        ),
     })
 }
 
+/// Penalty in 0..=1 for a host with less than `mem_per_core` GiB of
+/// available RAM per core; 0 when unknown or switched off.
+pub fn mem_penalty(p: &Probe, mem_per_core: f64) -> f64 {
+    let Some(ram) = p.facts.mem_avail.or(p.facts.mem_total) else {
+        return 0.0;
+    };
+    if mem_per_core.is_nan() || mem_per_core <= 0.0 {
+        return 0.0;
+    }
+    #[allow(clippy::cast_precision_loss)] // scoring only
+    let per_core = ram as f64 / (1024.0 * 1024.0 * 1024.0) / f64::from(p.cores.max(1));
+    (1.0 - per_core / mem_per_core).clamp(0.0, 1.0)
+}
+
 /// Lower is better.
-pub fn score(p: &Probe) -> f64 {
-    (p.load[0] + f64::from(p.jobs)) / f64::from(p.cores.max(1))
+pub fn score(p: &Probe, mem_per_core: f64) -> f64 {
+    (p.load[0] + f64::from(p.jobs)) / f64::from(p.cores.max(1)) + mem_penalty(p, mem_per_core)
 }
 
 /// A probed host: where it answered and what it said, or why it did not.
@@ -94,7 +124,7 @@ pub fn ranked(config: &Config, probed: &[Probed<'_>]) -> Vec<usize> {
                 tracing::info!(host = %p.host.name, per_core, "host above max_load; skipped");
                 return None;
             }
-            Some((i, score(probe), probe.jobs))
+            Some((i, score(probe, config.defaults.mem_per_core), probe.jobs))
         })
         .collect();
     usable.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.2.cmp(&b.2)).then(a.0.cmp(&b.0)));
@@ -159,13 +189,16 @@ pub fn choose_many(
 }
 
 /// The remote command that probes a host.
-pub fn probe_command(config: &Config, disk: bool) -> String {
+pub fn probe_command(config: &Config, disk: bool, statics: bool) -> String {
     let root = config.defaults.remote_root.as_str();
+    let mut args = vec![root];
     if disk {
-        remote::invocation("probe", &[root, "disk"])
-    } else {
-        remote::invocation("probe", &[root])
+        args.push("disk");
     }
+    if statics {
+        args.push("static");
+    }
+    remote::invocation("probe", &args)
 }
 
 /// Resolve and probe one host.
@@ -177,6 +210,9 @@ pub fn probe_one(
     prober: &dyn Prober,
     disk: bool,
 ) -> Result<(Found, Probe)> {
+    let key = host.name.to_ascii_lowercase();
+    let now = crate::state::now_secs();
+    let statics = state.refresh_facts || facts::stale(state.facts.get(&key), now);
     let found = resolve::resolve(
         config,
         host,
@@ -184,12 +220,22 @@ pub fn probe_one(
         lookup,
         prober,
         KeyPolicy::Strict,
-        &probe_command(config, disk),
+        &probe_command(config, disk, statics),
     )?;
-    let probe = parse_probe(&found.output).ok_or_else(|| Error::Ssh {
+    let mut probe = parse_probe(&found.output).ok_or_else(|| Error::Ssh {
         host: host.name.clone(),
         message: format!("unexpected probe output: {}", found.output.trim()),
     })?;
+    if let Some(hw) = facts::parse_static(&facts::kv(&found.output)) {
+        tracing::info!(host = %host.name, gpus = hw.gpus.len(), "host facts refreshed");
+        state
+            .facts
+            .insert(key.clone(), facts::Cached { at: now, facts: hw });
+    }
+    if let Some(c) = state.facts.get(&key) {
+        probe.facts.hw = Some(c.facts.clone());
+        probe.facts.hw_age = Some(now.saturating_sub(c.at));
+    }
     tracing::debug!(host = %host.name, ?probe, "probed");
     Ok((found, probe))
 }
@@ -234,6 +280,11 @@ where
                 state
                     .hosts
                     .insert(host.name.to_ascii_lowercase(), s.clone());
+            }
+            if let Some(f) = local.facts.get(&host.name.to_ascii_lowercase()) {
+                state
+                    .facts
+                    .insert(host.name.to_ascii_lowercase(), f.clone());
             }
             (host, result)
         })
@@ -300,6 +351,7 @@ mod tests {
             jobs,
             disk_used: None,
             disk_free: None,
+            facts: Facts::default(),
         }
     }
 
@@ -340,7 +392,7 @@ mod tests {
             (p.cores, p.jobs, p.disk_used, p.disk_free),
             (12, 2, Some(100), None)
         );
-        assert!((score(&p) - 2.5 / 12.0).abs() < 1e-9);
+        assert!((score(&p, 0.5) - 2.5 / 12.0).abs() < 1e-9);
         assert!(parse_probe("arch=x\n").is_none());
         for bad in ["load1=-inf", "load1=NaN", "load1=-1", "cores=0", "cores=-3"] {
             let text = format!(
@@ -394,6 +446,37 @@ mod tests {
             None,
             "full and down hosts are never picked"
         );
+    }
+
+    // frob:tests crates/goway/src/pool.rs::mem_penalty
+    #[test]
+    fn a_host_short_of_memory_scores_worse_but_stays_usable() {
+        let gib = 1024u64 * 1024 * 1024;
+        let mut tight = probe(16, 0.0, 0);
+        tight.facts.mem_avail = Some(3 * gib);
+        let mut roomy = probe(12, 0.0, 0);
+        roomy.facts.mem_avail = Some(7 * gib);
+        // 3 GiB over 16 cores is 0.19 GiB/core against a 0.5 target.
+        assert!(mem_penalty(&tight, 0.5) > 0.6);
+        assert!(mem_penalty(&roomy, 0.5).abs() < 1e-12);
+        assert!(score(&tight, 0.5) > score(&roomy, 0.5));
+        // Switched off, the bigger idle host ties and wins nothing extra.
+        assert!((score(&tight, 0.0) - score(&roomy, 0.0)).abs() < 1e-12);
+        // Unknown RAM is never penalised.
+        assert!(mem_penalty(&probe(16, 0.0, 0), 0.5).abs() < 1e-12);
+        let hosts = [host("tight", None), host("roomy", None)];
+        let probed = vec![
+            Probed {
+                host: &hosts[0],
+                result: Ok((found("tight"), tight)),
+            },
+            Probed {
+                host: &hosts[1],
+                result: Ok((found("roomy"), roomy)),
+            },
+        ];
+        assert_eq!(pick(&Config::default(), &probed), Some(1));
+        assert_eq!(pick(&Config::default(), &probed[..1]), Some(0));
     }
 
     #[test]

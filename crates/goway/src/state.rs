@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::write_atomic;
 use crate::error::{Error, Result};
+use crate::facts::Cached;
 
 /// What goway remembers about one host.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -26,6 +27,12 @@ pub struct State {
     /// Cached state per host.
     #[serde(default)]
     pub hosts: BTreeMap<String, HostState>,
+    /// Cached static host facts (GPUs, CPU features, KVM, Docker), per host.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub facts: BTreeMap<String, Cached>,
+    /// Probe static facts on the next probe regardless of age (not saved).
+    #[serde(skip)]
+    pub refresh_facts: bool,
 }
 
 impl State {
@@ -73,6 +80,7 @@ impl State {
     /// Forget `name` (when a host is removed).
     pub fn forget(&mut self, name: &str) {
         self.hosts.remove(&name.to_ascii_lowercase());
+        self.facts.remove(&name.to_ascii_lowercase());
     }
 }
 
