@@ -10,7 +10,16 @@ use goway_setup::plan::{Sources, client_plan};
 use proptest::prelude::*;
 use proptest::test_runner::{Config, TestRunner};
 
-const BIN: &str = "/Local/Programs/p/bin";
+/// The layout's bin directory as a Path entry, built the way the code
+/// builds it (so the separator matches on every OS).
+fn bin() -> String {
+    Path::new("/Local")
+        .join("Programs")
+        .join("p")
+        .join("bin")
+        .to_string_lossy()
+        .into_owned()
+}
 
 struct Fixture {
     _tmp: tempfile::TempDir,
@@ -62,7 +71,7 @@ fn install_then_uninstall_restores_the_machine_and_removes_the_journal() {
     let mut sys = initial.clone();
     let journal = app::install(&mut sys, &f.layout, &f.plan).unwrap();
     assert_eq!(journal.entries.len(), f.plan.len());
-    assert_eq!(sys.vars["Path"], format!(r"C:\Windows;{BIN}"));
+    assert_eq!(sys.vars["Path"], format!(r"C:\Windows;{}", bin()));
     assert_eq!(
         sys.files[&PathBuf::from("/Local/Programs/p/bin/goway.exe")],
         "goway"
@@ -83,7 +92,7 @@ fn install_then_uninstall_restores_the_machine_and_removes_the_journal() {
 #[test]
 fn a_path_that_already_contains_the_directory_keeps_it_after_uninstall() {
     let f = fixture();
-    let initial = machine(Some(&format!(r"C:\a;{BIN};C:\b")), true);
+    let initial = machine(Some(&format!(r"C:\a;{};C:\b", bin())), true);
     let mut sys = initial.clone();
     app::install(&mut sys, &f.layout, &f.plan).unwrap();
     assert_eq!(sys.vars["Path"], initial.vars["Path"], "never duplicated");
@@ -98,7 +107,7 @@ fn install_creates_a_missing_path_variable_and_uninstall_unsets_it() {
     let initial = machine(None, false);
     let mut sys = initial.clone();
     app::install(&mut sys, &f.layout, &f.plan).unwrap();
-    assert_eq!(sys.vars["Path"], BIN);
+    assert_eq!(sys.vars["Path"], bin());
     app::uninstall(&mut sys, &f.layout, Retry::ONCE).unwrap();
     assert_eq!(sys, initial);
 }
@@ -152,7 +161,7 @@ fn edits_made_after_install_are_kept_and_reported() {
     let journal = app::install(&mut sys, &f.layout, &f.plan).unwrap();
     sys.files
         .insert("/Local/Programs/p/bin/goway.exe".into(), "newer".into());
-    sys.vars.insert("Path".into(), format!("x;{BIN};later"));
+    sys.vars.insert("Path".into(), format!("x;{};later", bin()));
     let rows = app::status(&sys, &journal).unwrap();
     let exe_row = rows.iter().find(|r| matches!(&r.change, Change::InstallFile { path, .. } if path.ends_with("goway.exe"))).unwrap();
     assert!(!exe_row.holds);
@@ -201,7 +210,7 @@ fn arbitrary_path() -> impl Strategy<Value = Option<String>> {
         proptest::collection::vec(
             proptest::sample::select(vec![
                 r"C:\Windows".to_owned(),
-                BIN.to_owned(),
+                bin(),
                 r"C:\x".to_owned(),
                 String::new(),
             ]),
@@ -237,7 +246,7 @@ fn client_plan_reverts_exactly() {
             }
             let mut sys = initial.clone();
             app::install(&mut sys, &f.layout, &f.plan).unwrap();
-            prop_assert!(sys.vars["Path"].split(';').any(|e| e == BIN));
+            prop_assert!(sys.vars["Path"].split(';').any(|e| e == bin()));
             app::uninstall(&mut sys, &f.layout, Retry::ONCE)
                 .unwrap()
                 .unwrap();

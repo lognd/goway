@@ -26,4 +26,4 @@ jobs:
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - run: cargo clippy -p goway -p goway-setup -p goway-journal --all-targets --locked -- -D warnings
-      - run: cargo test -p goway-setup -p goway-journal --locked
+      - run: cargo test -p goway-setup -p goway-journal --locked --no-fail-fast
