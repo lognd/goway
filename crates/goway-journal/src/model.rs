@@ -53,7 +53,9 @@ impl ModelSystem {
 
     fn parent_ok(&self, path: &Path) -> SysResult<()> {
         match path.parent() {
-            Some(p) if !p.as_os_str().is_empty() && !self.dirs.contains(p) => {
+            Some(p)
+                if p.parent().is_some() && !p.as_os_str().is_empty() && !self.dirs.contains(p) =>
+            {
                 Err(SystemError::NotFound(p.display().to_string()))
             }
             _ => Ok(()),
