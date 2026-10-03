@@ -1,0 +1,8 @@
+msrv = "1.98"
+# anstream's print macros bypass the std print lints; only render.rs may print.
+disallowed-macros = [
+  { path = "anstream::println", reason = "print through crate::render" },
+  { path = "anstream::eprintln", reason = "print through crate::render" },
+  { path = "anstream::print", reason = "print through crate::render" },
+  { path = "anstream::eprint", reason = "print through crate::render" },
+]

@@ -1,0 +1,31 @@
+[workspace]
+# Glob membership: a new crates/<name>/Cargo.toml joins with no root edit.
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.98"
+authors = ["lognd"]
+publish = false
+
+[workspace.lints.rust]
+missing_docs = "deny"
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# All output goes through crates/goway/src/render.rs (the only allow site).
+print_stdout = "deny"
+print_stderr = "deny"
+dbg_macro = "deny"
+missing_errors_doc = "allow"       # errors are typed enums documented at the type
+module_name_repetitions = "allow"  # crate-prefixed type names read better at call sites
+must_use_candidate = "allow"       # blanket #[must_use] on every getter is noise
+
+[profile.release]
+lto = "thin"
+strip = true

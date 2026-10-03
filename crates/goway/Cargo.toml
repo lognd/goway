@@ -1,0 +1,23 @@
+[package]
+name = "goway"
+description = "Run a command on the least-loaded machine of a pool, natively, from the current git work tree."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+anstream = "0.6"
+anstyle = "1"
+clap = { version = "4", features = ["derive", "env", "wrap_help"] }
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3"
