@@ -1,0 +1,6 @@
+kind = "cycle"
+op = "retro"
+text = "ssh setup (journaled, exact undo), sharding via nextest partitions and host add tests landed; found and fixed two host-add bugs (swallowed rejection reasons, leading comments moved)."
+at = "2026-10-03T17:44:17Z"
+actor = "lognd"
+rev = 1
