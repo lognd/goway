@@ -17,8 +17,9 @@ use crate::cli::RunArgs;
 use crate::config::Config;
 use crate::detect::{self, Detection, ResultSplitter};
 use crate::error::{Error, Result};
-use crate::needs::{Matched, Selection};
+use crate::needs::Matched;
 use crate::pool;
+use crate::project::{self, Applied};
 use crate::render::{self, Renderer};
 use crate::repo::Repo;
 use crate::run::{self, Env};
@@ -63,6 +64,9 @@ pub struct Report {
     pub duration_secs: f64,
     /// Repository name.
     pub repo: String,
+    /// The `goway.toml` rule that applied, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule: Option<Applied>,
     /// Every shard.
     pub shards: Vec<ShardReport>,
 }
@@ -150,10 +154,14 @@ fn note_detection(renderer: Renderer, report: &ShardReport, d: &Detection, progr
 #[allow(clippy::too_many_lines)] // the shard thread is one sequence: sync, run, report
 pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16) -> Result<u8> {
     let started = Instant::now();
-    let selection = Selection::parse(&args.needs, &args.prefers)?;
     let count = usize::from(count);
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
+    let (selection, rule) =
+        project::selection_for(&repo.root, &args.command, &args.needs, &args.prefers)?;
+    if let Some(r) = &rule {
+        renderer.note(r.describe());
+    }
     let project = runners::project_for(&args.command, &args.env, &repo.root)?;
     let mut state = State::load(&env.paths.state_file())?;
     // Plan every shard first, so a command that cannot be split is refused before any host is touched.
@@ -352,6 +360,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
             exit_code: code,
             duration_secs: elapsed.as_secs_f64(),
             repo: repo.name.clone(),
+            rule,
             shards,
         };
         let text =

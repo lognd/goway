@@ -13,6 +13,7 @@ pub mod hosts;
 pub mod needs;
 pub mod paths;
 pub mod pool;
+pub mod project;
 pub mod remote;
 pub mod remotesys;
 pub mod render;

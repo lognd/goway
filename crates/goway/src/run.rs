@@ -16,9 +16,10 @@ use serde::Serialize;
 use crate::cli::RunArgs;
 use crate::config::Config;
 use crate::error::{Error, Result};
-use crate::needs::{self, Matched, Selection};
+use crate::needs::{self, Matched};
 use crate::paths::Paths;
 use crate::pool;
+use crate::project::{self, Applied};
 use crate::remote;
 use crate::render::Renderer;
 use crate::repo::Repo;
@@ -52,6 +53,9 @@ pub struct Report {
     /// The host facts that met the run's `--needs` and `--prefers`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub matched: Vec<Matched>,
+    /// The `goway.toml` rule that applied, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule: Option<Applied>,
 }
 
 /// A new run id: time plus process id, unique per client.
@@ -141,15 +145,20 @@ pub struct Env<'a> {
 }
 
 /// `goway run`.
+#[allow(clippy::too_many_lines)] // one sequence: choose, sync, run, report
 pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     if let Some(count) = args.shard {
         return crate::shard::run_sharded(env, renderer, args, count);
     }
     let started = Instant::now();
-    let selection = Selection::parse(&args.needs, &args.prefers)?;
     let env_bytes = encode_env(&args.env)?;
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
+    let (selection, rule) =
+        project::selection_for(&repo.root, &args.command, &args.needs, &args.prefers)?;
+    if let Some(r) = &rule {
+        renderer.note(r.describe());
+    }
     let mut state = State::load(&env.paths.state_file())?;
     let (host, found, probe) = pool::choose(
         &config,
@@ -239,6 +248,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
                 run_id,
                 repo: repo.name.clone(),
                 matched,
+                rule,
             },
         )?;
     }

@@ -56,6 +56,10 @@ name = "my-helper"             # the helper's computer name; also tried as my-he
 # identity = "/home/me/.config/goway/id_ed25519"   # private key to offer (see below)
 ```
 
+`labels` name hosts for `goway run --needs label=NAME` and for rules in a
+project's `goway.toml` (see [usage.md](usage.md)); they are 1-63 letters,
+digits, `-` or `_`. Labels live only in this file, never in a project.
+
 Without `identity`, ssh offers every key in your agent and default key
 files to the helper, one after another, so the helper learns their
 fingerprints and comments and a full agent can exhaust the helper's

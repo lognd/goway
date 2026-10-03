@@ -236,6 +236,38 @@ need and preference the chosen host met and the fact that met it (GPU model
 and memory, RAM, cores), so a result says what it was measured on. The
 `running on` line shows them too.
 
+#### Project rules: `goway.toml`
+
+A `goway.toml` at the repository root (a normal tracked file; it is synced
+like any other) can say what a command needs, so nobody has to remember the
+flags:
+
+```toml
+[[rule]]
+command = "cargo nextest*"      # glob over the whole command line
+needs = ["mem>=8G"]
+prefers = ["cpu=avx2"]
+
+[[rule]]
+command = "pytest*"
+needs = ["label=gpu-box"]
+```
+
+The command is a glob (`*` any run of characters, `?` one character) matched
+against the command line with its words joined by single spaces, so end it
+with `*` to allow arguments. The **first** rule that matches applies, and goway
+says so (`goway.toml rule 1 (command = "cargo nextest*") applies: needs
+mem>=8G ...`; the `--report` file records it as `rule`). The terms are merged
+with `--needs` and `--prefers`, and the command line wins: a command-line term
+replaces the rule's term of the same key in the same list (`--needs mem>=16G`
+replaces the rule's `mem>=8G`; `cpu=` and `label=` terms with different values
+add up). The file has no keys for host names or secrets; an unknown key or a
+bad term is an error naming the file and line, and nothing runs. goway never
+infers a rule from a project's dependencies.
+
+`label=NAME` matches the `labels = [...]` of a `[[host]]` in your own config
+(see [config.md](config.md)); only hosts with the label qualify.
+
 ### Exit codes
 
 | Code | Meaning |

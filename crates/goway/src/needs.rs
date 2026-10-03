@@ -404,6 +404,26 @@ impl Term {
         }
     }
 
+    /// What makes two terms conflict when a command-line term overrides a
+    /// rule's: the key (`mem`), plus the value for the keys that may repeat
+    /// (`cpu=avx2`, `label=gpu-box`).
+    pub fn key(&self) -> String {
+        match self {
+            Self::Gpu(_) => "gpu".to_owned(),
+            Self::GpuMem(_) => "gpu-mem".to_owned(),
+            Self::Cuda(_) => "cuda".to_owned(),
+            Self::Mem(_) => "mem".to_owned(),
+            Self::Cores(_) => "cores".to_owned(),
+            Self::Arch(_) => "arch".to_owned(),
+            Self::Os(_) => "os".to_owned(),
+            Self::Cpu(c) => format!("cpu={c}"),
+            Self::Kvm => "kvm".to_owned(),
+            Self::Docker => "docker".to_owned(),
+            Self::Disk(_) => "disk".to_owned(),
+            Self::Label(l) => format!("label={l}"),
+        }
+    }
+
     /// Whether judging this term needs the free-disk probe.
     pub fn needs_disk(&self) -> bool {
         matches!(self, Self::Disk(_))

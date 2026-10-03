@@ -269,6 +269,17 @@ impl Config {
                     ),
                 });
             }
+            for label in &host.labels {
+                if !valid_name(label) {
+                    return Err(Error::Config {
+                        path: origin.to_owned(),
+                        message: format!(
+                            "label `{label}` of host `{}` must be 1-63 letters, digits, `-` or `_`",
+                            host.name
+                        ),
+                    });
+                }
+            }
             if !seen.insert(host.name.to_ascii_lowercase()) {
                 return Err(Error::Config {
                     path: origin.to_owned(),
