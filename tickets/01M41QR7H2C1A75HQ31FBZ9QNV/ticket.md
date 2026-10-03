@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:37:08Z"
-updated = "2026-10-03T20:38:56Z"
+updated = "2026-10-03T20:38:57Z"
 scope = ["scripts/install.sh", "crates/goway/tests/install_scripts.rs", "docs/install-linux.md"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given GOWAY_RELEASE_URL with http://, When install.sh runs, Then it refuses"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a journal left by an aborted install with no binary, When install.sh runs, Then it clears the stale journal and installs"
