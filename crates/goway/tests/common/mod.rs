@@ -4,7 +4,107 @@
 
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+/// Longest any condition wait lasts: generous, because loaded machines are slow.
+pub const WAIT: Duration = Duration::from_secs(120);
+
+/// Poll `cond` every 20 ms until it holds, panicking after [`WAIT`].
+pub fn wait_for(what: &str, mut cond: impl FnMut() -> bool) {
+    let deadline = Instant::now() + WAIT;
+    while !cond() {
+        assert!(Instant::now() < deadline, "timed out waiting for {what}");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// Collect everything `from` yields into the shared buffer, on a thread.
+fn drain(mut from: impl std::io::Read + Send + 'static) -> Arc<Mutex<Vec<u8>>> {
+    let buf = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&buf);
+    std::thread::spawn(move || {
+        let mut chunk = [0u8; 4096];
+        while let Ok(n) = from.read(&mut chunk) {
+            if n == 0 {
+                break;
+            }
+            sink.lock().unwrap().extend_from_slice(&chunk[..n]);
+        }
+    });
+    buf
+}
+
+/// A goway run whose command holds its slot (and GPU) until released, so a
+/// test never guesses how long to sleep: it waits for the run to have started,
+/// does its work, then releases it.
+pub struct Held {
+    child: Child,
+    started: PathBuf,
+    release: PathBuf,
+    stdout: Arc<Mutex<Vec<u8>>>,
+    stderr: Arc<Mutex<Vec<u8>>>,
+}
+
+static HELD: AtomicUsize = AtomicUsize::new(0);
+
+impl Held {
+    /// Wait until the command is running (it holds its slot from then on).
+    pub fn wait_started(&self) {
+        wait_for("the held run to start", || self.started.exists());
+    }
+
+    /// Wait until the run's stderr so far contains `text`.
+    pub fn wait_stderr(&self, text: &str) {
+        wait_for(&format!("stderr to contain {text:?}"), || {
+            self.stderr().contains(text)
+        });
+    }
+
+    /// Everything the run has written to stderr so far.
+    pub fn stderr(&self) -> String {
+        String::from_utf8_lossy(&self.stderr.lock().unwrap()).into_owned()
+    }
+
+    /// Let the command finish.
+    pub fn release(&self) {
+        std::fs::write(&self.release, "").unwrap();
+    }
+
+    /// Kill goway itself (the remote command keeps running until released).
+    pub fn kill_client(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+
+    /// Release, wait for the run to end and return what it printed.
+    pub fn finish(mut self) -> Output {
+        self.release();
+        let status = self.child.wait().unwrap();
+        // The pipes close with the process; give the readers a moment.
+        let (stdout, stderr) = (Arc::clone(&self.stdout), Arc::clone(&self.stderr));
+        wait_for("the output readers", || {
+            Arc::strong_count(&stdout) == 1 && Arc::strong_count(&stderr) == 1
+        });
+        let out = stdout.lock().unwrap().clone();
+        let err = stderr.lock().unwrap().clone();
+        Output {
+            status,
+            stdout: out,
+            stderr: err,
+        }
+    }
+}
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        // A failed test must not leave the remote shell polling forever.
+        let _ = std::fs::write(&self.release, "");
+        let _ = self.child.kill();
+    }
+}
 
 /// Ignores ssh options and runs the remote command line with `sh -c`.
 pub const FAKE_SSH: &str = r#"#!/bin/sh
@@ -55,6 +155,11 @@ pub fn world_with_ssh(script: &str) -> World {
     let ssh = bin.join("ssh");
     std::fs::write(&ssh, script).unwrap();
     std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o755)).unwrap();
+    // The fake remote is this machine: on WSL its first static probe would
+    // otherwise run the real powershell.exe (seconds, unbounded under load).
+    let powershell = bin.join("powershell.exe");
+    std::fs::write(&powershell, "#!/bin/sh\nexit 0\n").unwrap();
+    std::fs::set_permissions(&powershell, std::fs::Permissions::from_mode(0o755)).unwrap();
     let remote = root.join("goway-remote");
     let config = root.join("config");
     std::fs::create_dir(&config).unwrap();
@@ -114,6 +219,37 @@ impl World {
             .env_remove("GOWAY_SHARD")
             .env_remove("GOWAY_SHARD_COUNT");
         cmd
+    }
+
+    /// Start `goway run <run_args> -- sh -c '<body>; wait for release'` with
+    /// piped output; the command touches a marker when it starts running.
+    pub fn hold(&self, run_args: &[&str], body: &str) -> Held {
+        let id = HELD.fetch_add(1, Ordering::Relaxed);
+        let started = self.root.join(format!("held-{id}.started"));
+        let release = self.root.join(format!("held-{id}.release"));
+        let script = format!(
+            "{body}; : > '{}'; while [ ! -e '{}' ]; do sleep 0.05; done",
+            started.display(),
+            release.display()
+        );
+        let mut args = vec!["run"];
+        args.extend_from_slice(run_args);
+        args.extend(["--", "sh", "-c", &script]);
+        let mut child = self
+            .goway(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stdout = drain(child.stdout.take().unwrap());
+        let stderr = drain(child.stderr.take().unwrap());
+        Held {
+            child,
+            started,
+            release,
+            stdout,
+            stderr,
+        }
     }
 
     pub fn run(&self, args: &[&str]) -> Output {
