@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:37:08Z"
-updated = "2026-10-03T20:39:00Z"
+updated = "2026-10-03T20:39:02Z"
 scope = ["scripts/install.sh", "crates/goway/tests/install_scripts.rs", "docs/install-linux.md"]
 
 [[acceptance]]
@@ -25,5 +25,5 @@ bound = true
 
 [[acceptance]]
 text = "Given install.sh adds the PATH line, When ~/.profile is read, Then the goway bin directory is appended after the existing PATH"
-bound = false
+bound = true
 +++
