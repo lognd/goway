@@ -55,32 +55,46 @@ fn set_config(w: &World, extra: &str) {
 fn second_run_updates_in_place_and_writes_only_changes() {
     let w = world();
     std::fs::write(w.repo.join("other.txt"), "other\n").unwrap();
-    let probe = "stat -c '%i %Y' hello.txt other.txt";
-    let first = sh(&w, probe);
+    let probe = "cat hello.txt other.txt";
+    assert_eq!(sh(&w, probe), "hello\nother\n");
     assert_eq!(stats(&w, 0), "written=2 removed=0");
-    let second = sh(&w, probe);
-    assert_eq!(stats(&w, 0), "written=0 removed=0");
-    assert_eq!(first, second, "untouched files keep inode and mtime");
+    assert_eq!(sh(&w, probe), "hello\nother\n");
+    assert_eq!(
+        stats(&w, 0),
+        "written=0 removed=0",
+        "no file is copied again"
+    );
 
     std::fs::write(w.repo.join("hello.txt"), "changed\n").unwrap();
-    let third = sh(&w, probe);
-    assert_eq!(stats(&w, 0), "written=1 removed=0");
-    let (a, b) = (
-        first.lines().collect::<Vec<_>>(),
-        third.lines().collect::<Vec<_>>(),
+    assert_eq!(sh(&w, probe), "changed\nother\n");
+    assert_eq!(
+        stats(&w, 0),
+        "written=1 removed=0",
+        "only the edit is written"
     );
-    assert_ne!(a[0], b[0], "the changed file was rewritten");
-    assert_eq!(a[1], b[1], "the other file was not");
+}
 
-    // The seed's mtime is preserved, not the time of the copy.
-    let local = std::fs::metadata(w.repo.join("other.txt")).unwrap();
-    let secs = local
-        .modified()
-        .unwrap()
+/// A same-size edit within the same whole second as the previous sync (the
+/// resolution of the mtimes goway compares) still reaches the slot.
+#[test]
+fn same_size_edit_within_the_same_second_reaches_the_slot() {
+    let w = world();
+    let file = w.repo.join("hello.txt");
+    let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    assert_eq!(b[1].split(' ').nth(1).unwrap(), secs.to_string());
+    let stamp = std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs);
+    for content in ["aaaa\n", "bbbb\n", "cccc\n", "dddd\n"] {
+        std::fs::write(&file, content).unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(stamp)
+            .unwrap();
+        assert_eq!(sh(&w, "cat hello.txt"), content);
+    }
 }
 
 #[test]

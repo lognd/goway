@@ -483,12 +483,27 @@ pub fn diff(local: &[LocalFile], remote: &BTreeMap<String, RemoteEntry>) -> Plan
 }
 
 /// Write the selected files as a tar stream, preserving mtime and exec bit.
-pub fn write_tar<W: std::io::Write>(root: &Path, files: &[&LocalFile], out: W) -> Result<W> {
+///
+/// Mtimes are whole seconds, so two same-size edits within one second look
+/// identical. A file whose mtime is at or after `racy_from` (it may still
+/// change within that second) is stored one second older than it is: the
+/// next sync then sees a different mtime and compares content, so a later
+/// same-second edit is never missed (the same rule git applies to its index).
+pub fn write_tar<W: std::io::Write>(
+    root: &Path,
+    files: &[&LocalFile],
+    racy_from: u64,
+    out: W,
+) -> Result<W> {
     let mut builder = tar::Builder::new(out);
     builder.mode(tar::HeaderMode::Deterministic);
     for f in files {
         let mut header = tar::Header::new_gnu();
-        header.set_mtime(f.mtime);
+        header.set_mtime(if f.mtime >= racy_from {
+            f.mtime.saturating_sub(1)
+        } else {
+            f.mtime
+        });
         header.set_uid(0);
         header.set_gid(0);
         match &f.kind {
@@ -844,6 +859,9 @@ fn sync_once(
     snapshot: Option<&Snapshot>,
 ) -> Result<Stats> {
     let started = std::time::Instant::now();
+    // Taken before the files are read: a file modified at or after this
+    // second may still be modified again within the same second.
+    let racy_from = crate::state::now_secs().saturating_sub(1);
     let set = file_set(&repo.root, secrets)?;
     let local = set.files;
     let seed = repo.seed_key();
@@ -899,6 +917,12 @@ fn sync_once(
             &nul_list(plan.delete.iter().map(String::as_str)),
         )?;
     }
+    if !to_send.is_empty() {
+        transport.exchange(
+            &remote::invocation("changes", &[remote_root, &seed, &attempt]),
+            &nul_list(to_send.iter().map(|f| f.path.as_str())),
+        )?;
+    }
     let label = Label {
         kind: "seed",
         repo: &repo.name,
@@ -930,7 +954,7 @@ fn sync_once(
         ],
     );
     transport.feed(&cmd, &mut |w| {
-        write_tar(&repo.root, &to_send, w).map(|_| ())
+        write_tar(&repo.root, &to_send, racy_from, w).map(|_| ())
     })?;
     tracing::info!(?stats, elapsed = ?started.elapsed(), "synced");
     Ok(stats)
@@ -1246,7 +1270,7 @@ mod tests {
                 target: "a".to_owned(),
             },
         };
-        let bytes = write_tar(dir.path(), &[&f, &l], Vec::new()).unwrap();
+        let bytes = write_tar(dir.path(), &[&f, &l], u64::MAX, Vec::new()).unwrap();
         let mut archive = tar::Archive::new(bytes.as_slice());
         let entries: Vec<(String, u64, u32)> = archive
             .entries()
@@ -1373,7 +1397,21 @@ mod tests {
         let mut local = tree(&root);
         local.remove(".env");
         local.retain(|k, _| !k.starts_with(".git/") && k != ".git");
-        assert_eq!(tree(&seed_tree), local, "content and mtimes match");
+        // Files modified within the last second are stored one second
+        // older (see write_tar), so mtimes match to within that second.
+        let seeded = tree(&seed_tree);
+        assert_eq!(
+            seeded.keys().collect::<Vec<_>>(),
+            local.keys().collect::<Vec<_>>()
+        );
+        for (path, (content, mtime)) in &local {
+            let (got, got_mtime) = &seeded[path];
+            assert_eq!(got, content, "{path}");
+            assert!(
+                *got_mtime == *mtime || got_mtime + 1 == *mtime,
+                "{path}: {got_mtime} vs {mtime}"
+            );
+        }
 
         let again = sync(
             &LocalTransport,

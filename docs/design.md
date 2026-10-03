@@ -89,6 +89,20 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       Markers anchor their dirs next to themselves; kept dirs are not
       scanned. A tracked file under a kept dir is still rewritten when it
       differs; one deleted from the work tree stays in a kept dir.
+      Same-size edits: mtimes are whole seconds, so metadata alone cannot
+      tell two same-size edits made within one second apart. Two rules
+      close that. (1) The client stores a file whose mtime is within the
+      last second of the sync one second older than it is (git's racy
+      rule), so the next sync sees a different mtime and compares content.
+      (2) The client sends the paths it writes (`changes` verb) and
+      `receive` appends them to the seed's numbered change log (last 64
+      kept); the slot records `seed key, generation, change number` in
+      `tree-<k>.state`, and entries the log names since then are compared
+      by SHA-256 even when size, mtime and mode match. A slot with no
+      matching state compares every equal-metadata file by content. An
+      edit that also restores the old size and mtime by hand
+      (`touch -r`) is not detectable without hashing the whole tree and
+      is not covered.
       Why not hard-link slot files to the seed: a job writing in place
       would change the seed and sibling worktrees. `tree-<k>.stats`
       records the last update's written and removed counts.

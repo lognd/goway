@@ -60,6 +60,9 @@ lock_dir() {
   die "cannot lock $dir (kept vanishing)"
 }
 
+# Change-log entries a seed keeps.
+LOG_KEEP=64
+
 new_generation() { printf '%s-%s-%s\n' "$(date +%s%N)" "$$" "$RANDOM"; }
 
 # Start a new worktree's seed as a hard-link copy of the most recently used
@@ -123,6 +126,19 @@ deletions() {
   cat >"$seed/deletions.$3"
 }
 
+# changes ROOT SEED ATTEMPT: NUL-separated paths on stdin that the receive of
+# the same sync ATTEMPT will write. receive appends them to the seed's change
+# log, which tells a slot exactly which files may differ although their size
+# and mtime (whole seconds) match.
+changes() {
+  local root seed
+  root=$(root_dir "$1"); seed="$root/seed/$2"
+  case "$3" in *[!A-Za-z0-9-]* | "") die "changes: bad attempt id" ;; esac
+  mark_root "$root"
+  lock_dir 8 "$seed" -x
+  cat >"$seed/changes.$3"
+}
+
 # receive ROOT SEED META_B64 GENERATION RUN_ID WORK_META_B64 KEEP ATTEMPT:
 # under the seed's exclusive lock, check that the seed is still the one the
 # manifest described (GENERATION, empty for "no tree yet"), apply pending
@@ -140,7 +156,7 @@ receive() {
   local attempt=${8:-}
   case "$attempt" in *[!A-Za-z0-9-]*) die "receive: bad attempt id" ;; esac
   if [ "$gen" != "$4" ]; then
-    rm -f "$seed"/deletions.*
+    rm -f "$seed"/deletions.* "$seed"/changes.*
     printf 'goway-remote: seed changed (have "%s", expected "%s")\n' "$gen" "$4" >&2
     cat >/dev/null
     exit 75
@@ -154,6 +170,19 @@ receive() {
     (cd "$seed/tree" && xargs -0 -r rm -f -- <"$seed/deletions.$attempt")
   fi
   rm -f "$seed"/deletions.*
+  # The change log: one numbered file per sync that wrote files (the last
+  # LOG_KEEP are kept). A slot reconciled up to number n only needs the
+  # entries after n to know which files to compare by content.
+  mkdir -p "$seed/changes"
+  local seq
+  seq=$(cat "$seed/seq" 2>/dev/null || echo 0)
+  if [ -n "$attempt" ] && [ -f "$seed/changes.$attempt" ]; then
+    seq=$((seq + 1))
+    mv "$seed/changes.$attempt" "$seed/changes/$seq"
+    printf '%s' "$seq" >"$seed/seq"
+    (cd "$seed/changes" && ls | sort -n | head -n -"$LOG_KEEP" | xargs -r rm -f --)
+  fi
+  rm -f "$seed"/changes.*
   tar -x --unlink-first --recursive-unlink --no-same-owner -C "$seed/tree" -f -
   find "$seed/tree" -mindepth 1 -depth -type d -empty -delete
   if [ -n "${5:-}" ]; then
@@ -162,6 +191,8 @@ receive() {
     printf '%s' "$6" | base64 -d >"$work/meta.json"
     if [ "${7:-0}" = 1 ]; then : >"$work/keep"; fi
     printf '%s' "$2" >"$work/seed"
+    printf '%s %s' "$(cat "$seed/generation")" "$seq" >"$work/seqinfo"
+    cp -al "$seed/changes" "$work/changes"
     # A hard-link snapshot: no data is copied. The seed is only ever
     # changed by unlink and recreate (above and in seed_from_sibling), so a
     # later sync never changes what this snapshot holds, and nothing writes
@@ -210,6 +241,41 @@ detect_keep() {
     -printf "%f\\001%P\\0")
 }
 
+# racy_paths FARM SLOT WORK SEEDKEY TMP: write TMP/differs, the regular files
+# whose size, mtime and mode match between FARM and SLOT but whose content
+# does not. Size and whole-second mtime cannot tell two same-size edits made
+# within one second apart, so equal metadata is trusted only for files the
+# seed's change log does not name since the slot's last reconcile
+# (SLOT.state: seed key, generation, change number). A slot without
+# matching state (new, or last used for another seed, or older than the
+# log) compares every file with equal metadata by SHA-256 instead.
+racy_paths() {
+  local farm=$1 slot=$2 work=$3 seedkey=$4 tmp=$5
+  local have_key="" have_gen="" have_seq="" cur_gen="" cur_seq="" n full=1
+  : >"$tmp/differs"
+  comm -z -12 "$tmp/snap" "$tmp/slot" | { grep -z '^f' || true; } | rec_paths | sort -z >"$tmp/same.p"
+  [ -s "$tmp/same.p" ] || return 0
+  if [ -f "$slot.state" ]; then read -r have_key have_gen have_seq <"$slot.state" || true; fi
+  if [ -f "$work/seqinfo" ]; then read -r cur_gen cur_seq <"$work/seqinfo" || true; fi
+  if [ -n "$seedkey" ] && [ "$have_key" = "$seedkey" ] && [ "$have_gen" = "$cur_gen" ] &&
+    [[ "$have_seq" =~ ^[0-9]+$ ]] && [[ "$cur_seq" =~ ^[0-9]+$ ]]; then
+    : >"$tmp/chg"
+    full=0
+    for ((n = have_seq + 1; n <= cur_seq; n++)); do
+      if [ -f "$work/changes/$n" ]; then cat "$work/changes/$n" >>"$tmp/chg"; else full=1; break; fi
+    done
+  fi
+  if [ $full = 1 ]; then
+    cp "$tmp/same.p" "$tmp/cand"
+  else
+    sort -zu "$tmp/chg" | comm -z -12 - "$tmp/same.p" >"$tmp/cand"
+  fi
+  [ -s "$tmp/cand" ] || return 0
+  (cd "$farm" && xargs -0 -r sha256sum -z -- <"$tmp/cand" 2>/dev/null || true) | sort -z >"$tmp/h.farm"
+  (cd "$slot" && xargs -0 -r sha256sum -z -- <"$tmp/cand" 2>/dev/null || true) | sort -z >"$tmp/h.slot"
+  comm -z -23 "$tmp/h.farm" "$tmp/h.slot" | sed -z 's/^.\{66\}//' >"$tmp/differs"
+}
+
 # sync_slot FARM SLOT WORK KEEP_IGNORED KEEP_B64: update SLOT in place so it
 # holds exactly the files of FARM (the run's snapshot) plus what the keep
 # set preserves. Only files that are missing or differ (type, size, mtime,
@@ -220,7 +286,7 @@ detect_keep() {
 # KEEP_IGNORED is 1 and git exists) every path the tree's .gitignore rules
 # ignore. Prints "written=N removed=M" to the file SLOT.stats.
 sync_slot() {
-  local farm=$1 slot=$2 work=$3 keepignored=$4 keepb64=$5
+  local farm=$1 slot=$2 work=$3 keepignored=$4 keepb64=$5 seedkey=${6:-}
   local tmp="$work/reconcile" e kexpr=() prune=() written removed
   export LC_ALL=C
   rm -rf "$tmp"; mkdir -p "$tmp" "$slot"
@@ -244,6 +310,7 @@ sync_slot() {
   find "$slot" -mindepth 1 "${prune[@]}" \( -type f -o -type l \) -printf "$REC" | sort -z >"$tmp/slot"
   # Records only in the snapshot: files missing from the slot or different.
   comm -z -23 "$tmp/snap" "$tmp/slot" >"$tmp/todo"
+  racy_paths "$farm" "$slot" "$work" "$seedkey" "$tmp"
   rec_paths <"$tmp/snap" | sort -z >"$tmp/snap.p"
   # Slot paths the snapshot does not have at all.
   comm -z -13 "$tmp/snap" "$tmp/slot" | rec_paths | sort -z | comm -z -23 - "$tmp/snap.p" >"$tmp/stale"
@@ -256,7 +323,8 @@ sync_slot() {
     mv "$tmp/stale" "$tmp/stale.final"
   fi
   removed=$(tr -cd '\0' <"$tmp/stale.final" | wc -c)
-  written=$(tr -cd '\0' <"$tmp/todo" | wc -c)
+  rec_paths <"$tmp/todo" | cat - "$tmp/differs" | sort -zu >"$tmp/todo.p"
+  written=$(tr -cd '\0' <"$tmp/todo.p" | wc -c)
   (cd "$slot" && xargs -0 -r rm -f -- <"$tmp/stale.final")
   # Directories left empty (not the kept ones) go too, innermost first.
   while :; do
@@ -265,8 +333,9 @@ sync_slot() {
     xargs -0 -r rmdir -- <"$tmp/empty"
   done
   # Write the differing files, keeping mtime and mode, replacing by unlink.
-  rec_paths <"$tmp/todo" | (cd "$farm" && xargs -0 -r cp --no-dereference \
-    --preserve=mode,timestamps --parents --remove-destination --reflink=auto -t "$slot" --)
+  (cd "$farm" && xargs -0 -r cp --no-dereference \
+    --preserve=mode,timestamps --parents --remove-destination --reflink=auto -t "$slot" -- <"$tmp/todo.p")
+  printf '%s %s' "$seedkey" "$(cat "$work/seqinfo" 2>/dev/null)" >"$slot.state"
   printf 'written=%s removed=%s\n' "$written" "$removed" >"$slot.stats"
   rm -rf "$tmp"
 }
@@ -635,7 +704,7 @@ run() {
   # file!()), and cargo reuses them when only the workspace moved. So a
   # slot's binaries always run against a tree at the same path: tree-<slot>.
   rundir="$cache/tree-$slot"
-  sync_slot "$work/tree" "$rundir" "$work" "$keepignored" "$keepb64"
+  sync_slot "$work/tree" "$rundir" "$work" "$keepignored" "$keepb64" "$(cat "$work/seed" 2>/dev/null || true)"
   # The snapshot has done its job; its links hold no data of their own.
   rm -rf "$work/tree"
   if [ -z "${CARGO_TARGET_DIR:-}" ]; then
@@ -932,6 +1001,7 @@ case "$verb" in
   receive) receive "$@" ;;
   hashes) hashes "$@" ;;
   deletions) deletions "$@" ;;
+  changes) changes "$@" ;;
   run) run "$@" ;;
   envfile) envfile "$@" ;;
   probe) probe "$@" ;;
