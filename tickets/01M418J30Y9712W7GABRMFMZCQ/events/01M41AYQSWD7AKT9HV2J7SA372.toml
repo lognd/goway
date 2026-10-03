@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T16:53:30Z"
+digest = "1cde8f015f002ba318f16c4568b4d504764e9b93d6627b149df5cae362b50a94"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8ca2c5fa-644d-4b41-be04-686db35dc49a with nextest profile: default
+    Starting 1 test across 15 binaries (114 tests skipped)
+        PASS [   3.399s] goway::run_local status_shows_load_jobs_and_disk_and_marks_unreachable
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   3.400s] 1 test run: 1 passed, 114 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(status_shows_load_jobs_and_disk_and_marks_unreachable)'"
+size = 564
+status = "measured"
+tests = ["status_shows_load_jobs_and_disk_and_marks_unreachable"]
+at = "2026-10-03T16:53:30Z"
+actor = "lognd"
+rev = 1
