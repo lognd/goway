@@ -2,13 +2,13 @@
 id = "01M418J2SVQ1TDSVW4Y3K8SFYY"
 title = "Sync work tree to a remote seed mirror with tar deltas"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:25:18Z"
+updated = "2026-10-03T16:25:19Z"
 scope = ["crates/goway/**"]
 
 [[acceptance]]
