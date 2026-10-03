@@ -58,6 +58,12 @@ curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | 
 .\goway-setup.exe install --host
 ```
 
+From v0.1.0 goway is also on crates.io (any platform with a Rust toolchain):
+
+```bash
+cargo install --locked goway   # available from v0.1.0
+```
+
 Each download is checked against the release's published checksums.
 The helpers do the building, so they need the toolchain for your
 project, such as Rust. `goway add` installs it for you. The main laptop

@@ -18,6 +18,27 @@ It publishes:
 
 The Linux binaries are static (musl), so they run on any distribution.
 
+## Publishing to crates.io
+
+After the GitHub release succeeds, the `crates-io` job publishes
+`goway-journal` and then `goway` (in dependency order, in one
+`cargo publish --workspace --exclude goway-setup`). `goway-setup` is
+never published: it carries `publish = false`. CI runs the same command
+with `--dry-run` on every push, so packaging problems show up before a
+tag does.
+
+The job runs in the GitHub environment `crates-io`, whose secret
+`CARGO_REGISTRY_TOKEN` is passed to cargo as an environment variable.
+The token is needed only for the first publish of each crate. Once the
+crates exist, configure crates.io trusted publishing for this repository
+and workflow, switch the job to it, and delete the token and the secret.
+
+To withdraw a bad version, yank it (existing lockfiles keep working, new
+resolutions skip it), then publish a fixed patch version:
+
+    cargo yank --version 0.1.1 goway
+    cargo yank --version 0.1.1 goway-journal
+
 ## Verifying a download
 
 `install.sh` checks the archive against `SHA256SUMS` before installing,

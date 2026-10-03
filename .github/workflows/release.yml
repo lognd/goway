@@ -1,7 +1,7 @@
 # Builds the release on a version tag (vX.Y.Z): static Linux binaries for
 # x86_64 and aarch64, goway-setup.exe for x64 and ARM64 Windows (each with
 # goway.exe embedded), SHA256SUMS, install.sh, and build provenance
-# attestations, then publishes them as a GitHub release.
+# attestations, then publishes them as a GitHub release, and then to crates.io.
 name: release
 on:
   push:
@@ -77,3 +77,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "${GITHUB_REF_NAME}" dist/* --title "goway ${GITHUB_REF_NAME}" --generate-notes
+  crates-io:
+    needs: [publish]
+    runs-on: ubuntu-24.04
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - name: Publish goway-journal, then goway (goway-setup is publish = false)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --workspace --exclude goway-setup --locked
