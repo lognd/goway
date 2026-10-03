@@ -2,7 +2,8 @@
 id = "01M41G48SYNXD0DAT528YMQWGV"
 title = "M1: a stale deletions file must never delete files on a later sync"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
