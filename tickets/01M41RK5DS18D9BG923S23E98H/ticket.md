@@ -2,7 +2,8 @@
 id = "01M41RK5DS18D9BG923S23E98H"
 title = "Windows installer: elevate a locked, hashed private copy of the setup exe (audit F6)"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
