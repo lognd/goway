@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:36:41Z"
+digest = "7dcad1b74d9542e3e7cceb4db72877a5d2ce39fa8ad6f72cf06ea08508534320"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 56a28f38-a686-42a7-9852-65b36dab0d8b with nextest profile: default
+    Starting 1 test across 26 binaries (275 tests skipped)
+        PASS [   0.006s] goway::publishing ci_builds_a_wheel_and_runs_goway_version_from_a_venv
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.008s] 1 test run: 1 passed, 275 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(ci_builds_a_wheel_and_runs_goway_version_from_a_venv)'"
+size = 564
+status = "measured"
+tests = ["ci_builds_a_wheel_and_runs_goway_version_from_a_venv"]
+at = "2026-10-03T20:36:41Z"
+actor = "lognd"
+rev = 1
