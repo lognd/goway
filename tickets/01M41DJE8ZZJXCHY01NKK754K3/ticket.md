@@ -2,7 +2,8 @@
 id = "01M41DJE8ZZJXCHY01NKK754K3"
 title = "Test goway host add end to end (port fallback, Linux and hostname checks, key pinning)"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
