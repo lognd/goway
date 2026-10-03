@@ -8,7 +8,9 @@
 //! `done:`, `info:`, `next:`), so color is never the only signal.
 #![allow(clippy::print_stdout, clippy::print_stderr, clippy::disallowed_macros)]
 
-use std::fmt::Display;
+use std::fmt::{Display, Write as _};
+use std::io::Write as _;
+use std::sync::Mutex;
 
 use anstream::{AutoStream, ColorChoice};
 use anstyle::{AnsiColor, Style};
@@ -63,92 +65,97 @@ impl Renderer {
         self
     }
 
-    fn err(self) -> AutoStream<std::io::Stderr> {
-        AutoStream::new(std::io::stderr(), self.choice)
+    /// Write `text` to goway's stderr (colors stripped when not coloring)
+    /// as one unit under the global output lock.
+    fn emit_err(self, text: &str) {
+        let _guard = lock_output();
+        let mut stream = AutoStream::new(std::io::stderr().lock(), self.choice);
+        let _ = stream.write_all(text.as_bytes());
+        let _ = stream.flush();
     }
 
-    fn out(self) -> AutoStream<std::io::Stdout> {
-        AutoStream::new(std::io::stdout(), self.choice)
+    /// Like [`Self::emit_err`] for stdout.
+    fn emit_out(self, text: &str) {
+        let _guard = lock_output();
+        let mut stream = AutoStream::new(std::io::stdout().lock(), self.choice);
+        let _ = stream.write_all(text.as_bytes());
+        let _ = stream.flush();
+    }
+
+    /// One styled `goway: <label>:` line on stderr, assembled whole.
+    fn tagged(self, style: Style, label: &str, message: &dyn Display) {
+        self.emit_err(&tagged_text(style, label, message));
     }
 
     /// Report a goway failure on stderr.
     pub fn error(self, error: &Error) {
-        use std::io::Write as _;
-        let error = clean(&error.to_string());
-        let _ = writeln!(self.err(), "{ERROR}goway: error:{ERROR:#} {error}");
+        self.tagged(ERROR, "error", &error);
     }
 
     /// Report a non-fatal problem on stderr.
     pub fn warn(self, message: impl Display) {
-        use std::io::Write as _;
-        let message = clean(&message.to_string());
-        let _ = writeln!(self.err(), "{WARN}goway: warning:{WARN:#} {message}");
+        self.tagged(WARN, "warning", &message);
     }
 
     /// A progress or status note on stderr.
     pub fn note(self, message: impl Display) {
-        use std::io::Write as _;
-        let message = clean(&message.to_string());
-        let _ = writeln!(self.err(), "{DIM}goway: note:{DIM:#} {message}");
+        self.tagged(DIM, "note", &message);
     }
 
     /// A success line on stderr.
     pub fn ok(self, message: impl Display) {
-        use std::io::Write as _;
-        let message = clean(&message.to_string());
-        let _ = writeln!(self.err(), "{GOOD}goway: done:{GOOD:#} {message}");
+        self.tagged(GOOD, "done", &message);
     }
 
     /// An accented headline on stderr, such as where a run is going.
     pub fn headline(self, message: impl Display) {
-        use std::io::Write as _;
-        let message = clean(&message.to_string());
-        let _ = writeln!(self.err(), "{ACCENT}goway: info:{ACCENT:#} {message}");
+        self.tagged(ACCENT, "info", &message);
     }
 
     /// A command that ran but failed (not a goway error), on stderr.
     pub fn failed(self, message: impl Display) {
-        use std::io::Write as _;
-        let message = clean(&message.to_string());
-        let _ = writeln!(self.err(), "{WARN}goway: failed:{WARN:#} {message}");
+        self.tagged(WARN, "failed", &message);
     }
 
     /// What the user should do next, on stderr.
     pub fn next(self, message: impl Display) {
-        use std::io::Write as _;
-        let message = clean(&message.to_string());
-        let _ = writeln!(self.err(), "{ACCENT}goway: next:{ACCENT:#} {message}");
+        self.tagged(ACCENT, "next", &message);
     }
 
     /// A line of primary output on stdout (tables, paths, lists).
     pub fn line(self, message: impl Display) {
-        use std::io::Write as _;
         let message = clean(&message.to_string());
-        let _ = writeln!(self.out(), "{message}");
+        self.emit_out(&format!("{message}\n"));
     }
 
     /// Render rows as an aligned table on stdout; the first row is the header.
     pub fn table(self, rows: &[Vec<String>]) {
-        use std::io::Write as _;
-        let mut out = self.out();
         let rows: Vec<Vec<String>> = rows
             .iter()
             .map(|r| r.iter().map(|c| clean(c)).collect())
             .collect();
+        let mut text = String::new();
         if self.plain {
             for line in plain_table(&rows) {
-                let _ = writeln!(out, "{line}");
+                let _ = writeln!(text, "{line}");
             }
-            return;
+        } else {
+            for (i, row) in format_table(&rows).iter().enumerate() {
+                let _ = if i == 0 {
+                    writeln!(text, "{ACCENT}{row}{ACCENT:#}")
+                } else {
+                    writeln!(text, "{row}")
+                };
+            }
         }
-        for (i, row) in format_table(&rows).iter().enumerate() {
-            let _ = if i == 0 {
-                writeln!(out, "{ACCENT}{row}{ACCENT:#}")
-            } else {
-                writeln!(out, "{row}")
-            };
-        }
+        self.emit_out(&text);
     }
+}
+
+/// One whole message line, styled, cleaned and newline-terminated, ready for a single write.
+fn tagged_text(style: Style, label: &str, message: &dyn Display) -> String {
+    let message = clean(&message.to_string());
+    format!("{style}goway: {label}:{style:#} {message}\n")
 }
 
 /// Most characters of one host-derived message goway prints.
@@ -220,35 +227,138 @@ pub fn ask(prompt: &str) -> Option<String> {
     Some(line)
 }
 
-/// Write one line of a remote command's output with a `[host] ` prefix
-/// (sharded runs, where several hosts stream at once). The line's bytes
-/// pass through unchanged; the stream is locked so lines never interleave.
-pub fn prefixed_line(to_stderr: bool, prefix: &str, line: &[u8]) {
-    use std::io::Write as _;
-    if to_stderr {
-        let mut err = std::io::stderr().lock();
-        let _ = err.write_all(prefix.as_bytes());
-        let _ = err.write_all(line);
-    } else {
-        let mut out = std::io::stdout().lock();
-        let _ = out.write_all(prefix.as_bytes());
-        let _ = out.write_all(line);
+/// The one lock every writer takes (goway's messages, prefixed lines,
+/// pass-through bytes), so no write from one stream can land inside another.
+static OUTPUT: Mutex<()> = Mutex::new(());
+
+/// Take the global output lock; a panic in another writer must not silence output.
+fn lock_output() -> std::sync::MutexGuard<'static, ()> {
+    OUTPUT.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Write `bytes` to `sink` as one unit under the global output lock, then flush.
+pub fn write_locked(sink: &mut impl std::io::Write, bytes: &[u8]) {
+    let _guard = lock_output();
+    if let Err(e) = sink.write_all(bytes).and_then(|()| sink.flush()) {
+        tracing::debug!(error = %e, "output write failed");
     }
+}
+
+/// Write `bytes` of remote output to our stdout or stderr (one locked write, flushed).
+fn write_stream(to_stderr: bool, bytes: &[u8]) {
+    if bytes.is_empty() {
+        return;
+    }
+    if to_stderr {
+        write_locked(&mut std::io::stderr().lock(), bytes);
+    } else {
+        write_locked(&mut std::io::stdout().lock(), bytes);
+    }
+}
+
+/// Longest line (bytes, prefix excluded) relayed whole; longer lines are
+/// split, each continuation starting with the `[host]+ ` prefix.
+pub const MAX_LINE: usize = 64 * 1024;
+
+/// Turns a stream of remote bytes into prefixed lines: each line (or
+/// 64 KiB piece of a longer one) is prefixed and complete, so a batch can
+/// be written in one call. Holds at most one partial line (bounded).
+#[derive(Debug)]
+pub struct LineFramer {
+    prefix: String,
+    cont_prefix: String,
+    pending: Vec<u8>,
+    continued: bool,
+}
+
+/// Where to cut `bytes` (at most 3 bytes may be an unfinished UTF-8 tail) so no character is split.
+fn char_safe_cut(bytes: &[u8]) -> usize {
+    let len = bytes.len();
+    for back in 1..=len.min(4) {
+        let b = bytes[len - back];
+        if b & 0xC0 == 0x80 {
+            continue; // continuation byte: keep looking for its lead
+        }
+        let need = match b {
+            0xF0..=0xF7 => 4,
+            0xE0..=0xEF => 3,
+            0xC0..=0xDF => 2,
+            _ => 1,
+        };
+        return if need > back { len - back } else { len };
+    }
+    len
+}
+
+impl LineFramer {
+    /// A framer prefixing lines with `prefix` (such as `[helios] `).
+    pub fn new(prefix: &str) -> Self {
+        let cont_prefix = match prefix.strip_suffix("] ") {
+            Some(head) => format!("{head}]+ "),
+            None => format!("{prefix}+ "),
+        };
+        Self {
+            prefix: prefix.to_owned(),
+            cont_prefix,
+            pending: Vec::new(),
+            continued: false,
+        }
+    }
+
+    fn emit(&self, piece: &[u8], out: &mut Vec<u8>) {
+        let prefix = if self.continued { &self.cont_prefix } else { &self.prefix };
+        out.extend_from_slice(prefix.as_bytes());
+        out.extend_from_slice(piece);
+    }
+
+    /// Frame `data` into `out`: every completed line (and every full 64 KiB
+    /// piece) is appended; the trailing partial line is kept for the next call.
+    pub fn push(&mut self, mut data: &[u8], out: &mut Vec<u8>) {
+        while !data.is_empty() {
+            let room = MAX_LINE - self.pending.len();
+            let window = &data[..data.len().min(room)];
+            if let Some(i) = window.iter().position(|&b| b == b'\n') {
+                self.pending.extend_from_slice(&window[..=i]);
+                let line = std::mem::take(&mut self.pending);
+                self.emit(&line, out);
+                self.continued = false;
+                data = &data[i + 1..];
+            } else {
+                self.pending.extend_from_slice(window);
+                data = &data[window.len()..];
+                if self.pending.len() >= MAX_LINE {
+                    let cut = char_safe_cut(&self.pending);
+                    let rest = self.pending.split_off(cut);
+                    let piece = std::mem::replace(&mut self.pending, rest);
+                    self.emit(&piece, out);
+                    out.push(b'\n');
+                    self.continued = true;
+                }
+            }
+        }
+    }
+
+    /// End of stream: terminate a partial last line so the next writer starts fresh.
+    pub fn finish(&mut self, out: &mut Vec<u8>) {
+        if !self.pending.is_empty() {
+            let line = std::mem::take(&mut self.pending);
+            self.emit(&line, out);
+            out.push(b'\n');
+            self.continued = false;
+        }
+    }
+}
+
+/// Write a batch of already-framed lines of a remote command's output to
+/// our stdout or stderr: one write under the global lock.
+pub fn prefixed_batch(to_stderr: bool, framed: &[u8]) {
+    write_stream(to_stderr, framed);
 }
 
 /// Write already-filtered bytes of a remote command's output to our stdout
 /// or stderr and flush, so a prompt without a newline appears at once.
 pub fn passthrough(to_stderr: bool, bytes: &[u8]) {
-    use std::io::Write as _;
-    if to_stderr {
-        let mut err = std::io::stderr().lock();
-        let _ = err.write_all(bytes);
-        let _ = err.flush();
-    } else {
-        let mut out = std::io::stdout().lock();
-        let _ = out.write_all(bytes);
-        let _ = out.flush();
-    }
+    write_stream(to_stderr, bytes);
 }
 
 /// One line per data row of "label: value" pairs (empty cells and "-"
@@ -358,6 +468,83 @@ mod tests {
             vec!["helios".to_owned(), "0.40".to_owned(), "-".to_owned()],
         ];
         assert_eq!(plain_table(&rows), ["host: helios, load: 0.40"]);
+    }
+
+    // frob:tests crates/goway/src/render.rs::LineFramer
+    #[test]
+    fn framer_never_splits_a_multibyte_character() {
+        let mut f = LineFramer::new("[h] ");
+        let mut input = "x".repeat(MAX_LINE - 1).into_bytes();
+        input.extend_from_slice("\u{e9}tail\n".as_bytes());
+        let mut out = Vec::new();
+        f.push(&input, &mut out);
+        let text = String::from_utf8(out).expect("every piece is valid UTF-8");
+        assert!(text.contains("\n[h]+ \u{e9}tail\n"), "{}", &text[text.len() - 20..]);
+    }
+
+    /// A sink that accepts a few bytes per call and yields, as a slow
+    /// pipe does, and records the bytes it was given in arrival order.
+    struct SlowSink(std::sync::Arc<Mutex<Vec<u8>>>);
+
+    impl std::io::Write for SlowSink {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            let n = buf.len().min(5);
+            self.0.lock().unwrap().extend_from_slice(&buf[..n]);
+            std::thread::yield_now();
+            Ok(n)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    // frob:tests crates/goway/src/render.rs::write_locked
+    // frob:tests crates/goway/src/render.rs::prefixed_batch
+    // frob:tests crates/goway/src/render.rs::LineFramer
+    #[test]
+    fn many_writers_never_split_or_interleave_a_line() {
+        let sink = std::sync::Arc::new(Mutex::new(Vec::new()));
+        std::thread::scope(|s| {
+            for w in 0..8u8 {
+                let sink = sink.clone();
+                s.spawn(move || {
+                    let mut sink = SlowSink(sink);
+                    let mut lines = LineFramer::new(&format!("[w{w}] "));
+                    for n in 0..200 {
+                        let mut framed = Vec::new();
+                        if n % 3 == 0 {
+                            // goway's own message shape, one buffer
+                            framed.extend_from_slice(format!("goway: note: {w} {n}\n").as_bytes());
+                        } else {
+                            lines.push(format!("line {n} from {w}\nand more {n}\n").as_bytes(), &mut framed);
+                        }
+                        write_locked(&mut sink, &framed);
+                    }
+                });
+            }
+        });
+        let bytes = sink.lock().unwrap().clone();
+        let text = String::from_utf8(bytes).unwrap();
+        let mut count = 0;
+        for line in text.lines() {
+            count += 1;
+            let ok = (line.starts_with("goway: note: ") && line.split(' ').count() == 4)
+                || (line.starts_with("[w") && (line.contains("] line ") || line.contains("] and more ")));
+            assert!(ok, "torn or interleaved line: {line:?}");
+        }
+        assert_eq!(count, 8 * (67 + 133 * 2));
+    }
+
+    // frob:tests crates/goway/src/render.rs::Renderer.warn
+    // frob:tests crates/goway/src/render.rs::Renderer.error
+    #[test]
+    fn a_message_is_one_whole_buffer_with_one_trailing_newline() {
+        let text = tagged_text(WARN, "warning", &"two\nlines\r\nhere");
+        assert_eq!(text.matches('\n').count(), 3, "{text:?}");
+        assert!(text.ends_with("here\n"));
+        assert!(text.starts_with(&format!("{WARN}goway: warning:")));
+        // multi-line host text is indented so it cannot pass for a goway line
+        assert!(text.contains("\n  | lines"));
     }
 
     #[test]

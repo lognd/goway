@@ -74,6 +74,12 @@ pub struct Defaults {
     /// Skip hosts whose 1-minute load per core is above this (unless pinned).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_load: Option<f64>,
+    /// Extra paths that stay in a build slot's tree between runs, on top of
+    /// the detected dependency and build directories (a name matches at
+    /// any depth; a path with `/` is relative to the tree root).
+    pub keep: Vec<String>,
+    /// Also keep every path the tree's `.gitignore` rules ignore (needs git on the host).
+    pub keep_ignored: bool,
 }
 
 const DAY: u64 = 24 * 60 * 60;
@@ -91,6 +97,8 @@ impl Default for Defaults {
             port: 2222,
             priority: Priority::Low,
             max_load: None,
+            keep: Vec::new(),
+            keep_ignored: true,
         }
     }
 }
@@ -171,6 +179,24 @@ pub fn check_remote_root(root: &str) -> std::result::Result<(), &'static str> {
     Ok(())
 }
 
+/// A `keep` entry is a relative name or glob the remote script matches
+/// against a slot tree: never empty, absolute, or climbing out with `..`.
+pub fn check_keep_entry(entry: &str) -> std::result::Result<(), &'static str> {
+    if entry.trim().is_empty() {
+        return Err("is empty");
+    }
+    if entry.chars().any(char::is_control) {
+        return Err("must not contain control characters");
+    }
+    if entry.starts_with('/') || entry.starts_with('~') {
+        return Err("must be relative to the tree root, without a leading / or ~");
+    }
+    if entry.split('/').any(|c| c == "..") {
+        return Err("must not contain `..`");
+    }
+    Ok(())
+}
+
 /// Host names become file and alias components, so keep them plain.
 pub fn valid_name(name: &str) -> bool {
     !name.is_empty()
@@ -215,6 +241,14 @@ impl Config {
                 message: format!("remote_root `{}` {why}", self.defaults.remote_root),
             });
         }
+        for entry in &self.defaults.keep {
+            if let Err(why) = check_keep_entry(entry) {
+                return Err(Error::Config {
+                    path: origin.to_owned(),
+                    message: format!("keep entry `{entry}` {why}"),
+                });
+            }
+        }
         let mut seen = std::collections::BTreeSet::new();
         for host in &self.hosts {
             if !valid_name(&host.name) {
@@ -242,6 +276,18 @@ impl Config {
             .iter()
             .find(|h| h.name.eq_ignore_ascii_case(name))
             .ok_or_else(|| Error::UnknownHost(name.to_owned()))
+    }
+
+    /// The keep set as the remote `run` verb takes it: the `.gitignore`
+    /// switch (`1`/`0`) and the base64 of the newline-joined entries.
+    pub fn keep_words(&self) -> (&'static str, String) {
+        use base64::Engine as _;
+        let ignored = if self.defaults.keep_ignored { "1" } else { "0" };
+        let list = self.defaults.keep.join("\n");
+        (
+            ignored,
+            base64::engine::general_purpose::STANDARD.encode(list),
+        )
     }
 
     /// The effective job priority on `host`.
@@ -443,6 +489,23 @@ user = "user"
         assert_eq!(c.port_of(q), 2222);
         assert_eq!(c.port_of(c.host("orion-notebook").unwrap()), 22);
         assert_eq!(q.key_alias(), "goway-helios");
+    }
+
+    #[test]
+    fn keep_entries_are_validated_and_encoded() {
+        for bad in ["", "/abs", "~/x", "a/../b", "a\nb"] {
+            assert!(check_keep_entry(bad).is_err(), "{bad:?}");
+        }
+        let c = Config::parse(
+            "[defaults]\nkeep = [\"node_modules\", \"out/cache\"]\nkeep_ignored = false\n",
+            Path::new("c.toml"),
+        )
+        .unwrap();
+        let (ignored, b64) = c.keep_words();
+        assert_eq!(ignored, "0");
+        assert!(!b64.is_empty());
+        assert!(Config::parse("[defaults]\nkeep = [\"../x\"]\n", Path::new("c.toml")).is_err());
+        assert_eq!(Config::default().keep_words().0, "1");
     }
 
     #[test]

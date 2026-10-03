@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T21:12:02Z"
+digest = "add2d7f94557113363f9be4d90acd7aaf42c1cd9599659fe092ead648f349508"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e7276609-d2a9-48fe-ae2c-6950110518a7 with nextest profile: default
+    Starting 1 test across 28 binaries (321 tests skipped)
+        PASS [   0.858s] goway::slot_trees deleted_files_and_leftovers_go_but_dependency_dirs_stay
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.863s] 1 test run: 1 passed, 321 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(deleted_files_and_leftovers_go_but_dependency_dirs_stay)'"
+size = 567
+status = "measured"
+tests = ["deleted_files_and_leftovers_go_but_dependency_dirs_stay"]
+at = "2026-10-03T21:12:02Z"
+actor = "lognd"
+rev = 1

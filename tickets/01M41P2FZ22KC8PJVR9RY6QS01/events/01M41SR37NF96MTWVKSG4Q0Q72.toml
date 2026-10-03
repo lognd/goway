@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T21:12:01Z"
+digest = "95b3c5efed4d0d34e8e97b2c27612b0447102b0c7e0f98f3c4a823612291ba23"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID a30b5910-29ce-4772-a9b1-9ef476fb9b22 with nextest profile: default
+    Starting 2 tests across 28 binaries (320 tests skipped)
+        PASS [   0.890s] goway::slot_trees deleted_files_and_leftovers_go_but_dependency_dirs_stay
+        PASS [   1.102s] goway::slot_trees gitignored_paths_stay_unless_switched_off_and_config_keep_list_stays
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.106s] 2 tests run: 2 passed, 320 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(deleted_files_and_leftovers_go_but_dependency_dirs_stay) | test(gitignored_paths_stay_unless_switched_off_and_config_keep_list_stays)'"
+size = 681
+status = "measured"
+tests = ["deleted_files_and_leftovers_go_but_dependency_dirs_stay", "gitignored_paths_stay_unless_switched_off_and_config_keep_list_stays"]
+at = "2026-10-03T21:12:01Z"
+actor = "lognd"
+rev = 1

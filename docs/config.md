@@ -37,6 +37,8 @@ kept_ttl = "3d"                # work dirs kept with `goway run --keep`
 target_slots = 4               # most cargo target dirs per repository per host
 send_secret_files = false      # secret-looking files are never sent unless true
 secret_allow = []              # ...or send these anyway, e.g. ["tests/fixtures/*.pem"]
+keep = []                      # extra paths that stay in a build slot's tree between runs (below)
+keep_ignored = true            # also keep every path the tree's .gitignore rules ignore (needs git on the host)
 port = 2222                    # ssh port when a host does not set one (WSL sshd)
 priority = "low"               # "low": jobs run under nice 10 with idle-class I/O; "normal"
 # max_load = 0.8               # skip hosts whose 1-minute load per core is above this
@@ -58,6 +60,27 @@ fingerprints and comments and a full agent can exhaust the helper's
 `MaxAuthTries`. With `identity` set, goway offers only that key
 (`IdentitiesOnly=yes`). `goway ssh setup` sets it when it creates goway's
 own key; for a host you set up yourself, set it to the key you chose.
+
+### Slot trees and `keep`
+
+A build slot's source tree persists between runs and is updated in place,
+so dependency and build directories stay warm. Before each run, files that
+are in neither your work tree nor the keep set are removed. The keep set is:
+
+- detected directories: `node_modules`, `.next`, `.nuxt` (package.json);
+  `.venv`, `venv`, `.tox`, `.nox`, `__pycache__`, `.pytest_cache`,
+  `.mypy_cache`, `.ruff_cache` (pyproject.toml, requirements*.txt);
+  `build`, `cmake-build-*` (CMakeLists.txt); `target` (pom.xml);
+  `.gradle`, `build` (build.gradle, build.gradle.kts). Cargo adds nothing,
+  because the cargo target dir is separate.
+- your `keep` list. An entry without `/` is a name or glob matched at any
+  depth (`node_modules`); one with `/` is a path glob relative to the tree
+  root (`out/cache.bin`; write `./build` to anchor a single name).
+  Absolute entries and `..` are rejected.
+- unless `keep_ignored = false`: every path ignored by the tree's
+  `.gitignore` files (checked with `git check-ignore --no-index`, using
+  only the ignore files in your work tree). This matches what you see
+  locally.
 
 Durations use humantime syntax: `90s`, `30m`, `12h`, `7d`.
 

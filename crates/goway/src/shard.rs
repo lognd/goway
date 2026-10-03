@@ -83,24 +83,40 @@ pub struct Report {
 /// through one stateful terminal filter per stream, so a sequence cannot be
 /// hidden across lines; a line the filter empties entirely prints nothing.
 fn pump(reader: impl std::io::Read, to_stderr: bool, prefix: &str, filter: bool) {
-    let mut reader = std::io::BufReader::new(reader);
-    let mut line = Vec::new();
-    let mut filtered = Vec::new();
+    pump_with(reader, prefix, filter, |bytes| render::prefixed_batch(to_stderr, bytes));
+}
+
+/// [`pump`] with the destination as a closure, so tests can capture each batch.
+fn pump_with(reader: impl std::io::Read, prefix: &str, filter: bool, mut write: impl FnMut(&[u8])) {
+    let mut reader = std::io::BufReader::with_capacity(render::MAX_LINE, reader);
+    let mut lines = render::LineFramer::new(prefix);
     let mut state = termfilter::Filter::new();
+    let mut filtered = Vec::new();
+    let mut framed = Vec::new();
     loop {
-        line.clear();
-        match reader.read_until(b'\n', &mut line) {
-            Ok(0) | Err(_) => break,
-            Ok(_) if filter => {
-                filtered.clear();
-                state.push(&line, &mut filtered);
-                if !filtered.is_empty() {
-                    render::prefixed_line(to_stderr, prefix, &filtered);
+        // Everything already buffered is framed and written as one batch;
+        // while the write blocks (slow terminal) nothing more is read, so
+        // the remote command is held back instead of memory growing.
+        let n = match reader.fill_buf() {
+            Ok([]) | Err(_) => break,
+            Ok(data) => {
+                framed.clear();
+                if filter {
+                    filtered.clear();
+                    state.push(data, &mut filtered);
+                    lines.push(&filtered, &mut framed);
+                } else {
+                    lines.push(data, &mut framed);
                 }
+                data.len()
             }
-            Ok(_) => render::prefixed_line(to_stderr, prefix, &line),
-        }
+        };
+        reader.consume(n);
+        write(&framed);
     }
+    framed.clear();
+    lines.finish(&mut framed);
+    write(&framed);
 }
 
 /// `goway run --shard N`.
@@ -269,6 +285,66 @@ mod tests {
 
     fn words(s: &str) -> Vec<String> {
         s.split_whitespace().map(str::to_owned).collect()
+    }
+
+    fn pumped(input: &[u8], filter: bool) -> Vec<Vec<u8>> {
+        let mut batches = Vec::new();
+        pump_with(input, "[h1] ", filter, |b| {
+            if !b.is_empty() {
+                batches.push(b.to_vec());
+            }
+        });
+        batches
+    }
+
+    // frob:tests crates/goway/src/shard.rs::pump
+    #[test]
+    fn complete_buffered_lines_go_out_in_one_batch() {
+        let batches = pumped(b"a\nb\nc\n", false);
+        assert_eq!(batches, vec![b"[h1] a\n[h1] b\n[h1] c\n".to_vec()]);
+    }
+
+    // frob:tests crates/goway/src/shard.rs::pump
+    #[test]
+    fn a_partial_last_line_gets_a_newline_at_eof() {
+        let batches = pumped(b"one\ntwo", false);
+        let all: Vec<u8> = batches.concat();
+        assert_eq!(all, b"[h1] one\n[h1] two\n");
+    }
+
+    // frob:tests crates/goway/src/shard.rs::pump
+    #[test]
+    fn a_long_line_is_split_with_a_continuation_prefix() {
+        let mut input = vec![b'x'; render::MAX_LINE * 2 + 10];
+        input.push(b'\n');
+        input.extend_from_slice(b"next\n");
+        let all: Vec<u8> = pumped(&input, false).concat();
+        let lines: Vec<&[u8]> = all.split(|&b| b == b'\n').filter(|l| !l.is_empty()).collect();
+        assert_eq!(lines.len(), 4);
+        assert!(lines[0].starts_with(b"[h1] x"));
+        assert!(lines[1].starts_with(b"[h1]+ x"));
+        assert!(lines[2].starts_with(b"[h1]+ x"));
+        assert_eq!(lines[3], b"[h1] next");
+        assert!(lines.iter().all(|l| l.len() <= render::MAX_LINE + 6));
+        let x: usize = lines[..3].iter().map(|l| l.len() - l.iter().position(|&b| b == b'x').unwrap()).sum();
+        assert_eq!(x, render::MAX_LINE * 2 + 10);
+    }
+
+    // frob:tests crates/goway/src/shard.rs::pump
+    #[test]
+    fn lines_split_across_reads_stay_whole_and_filtered_output_is_framed() {
+        struct Dribble<'a>(&'a [u8]);
+        impl std::io::Read for Dribble<'_> {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                let n = self.0.len().min(3).min(buf.len());
+                buf[..n].copy_from_slice(&self.0[..n]);
+                self.0 = &self.0[n..];
+                Ok(n)
+            }
+        }
+        let mut out = Vec::new();
+        pump_with(Dribble(b"hello\nwor\x1b]0;t\x07ld\n"), "[h1] ", true, |b| out.extend_from_slice(b));
+        assert_eq!(out, b"[h1] hello\n[h1] world\n");
     }
 
     #[test]

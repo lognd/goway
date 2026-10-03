@@ -30,7 +30,7 @@ All of them must be on the same network.
 
 | Operating system | As your main laptop | As a helper laptop |
 |---|---|---|
-| Windows 10/11 **with WSL** | yes: install inside WSL ([Linux and WSL](#main-laptop-linux-or-wsl)) | Windows 11 22H2 or newer: one installer ([Windows with WSL](#helper-windows-with-wsl)); Windows 10: no |
+| Windows 10 (21H2 or newer) and 11 **with WSL** | yes: install inside WSL ([Linux and WSL](#main-laptop-linux-or-wsl)) | Windows 10 (21H2 or newer) and Windows 11, with WSL: one installer ([Windows with WSL](#helper-windows-with-wsl)). Windows 11 22H2 or newer uses mirrored networking; Windows 10, and Windows 11 in WSL's default NAT mode, use a port relay that goway sets up and keeps current (Windows 10 and NAT mode: untested by the maintainer on real hardware; the relay was verified on Windows 11 by simulation) |
 | Windows 10/11 **without WSL** | yes: `goway-setup.exe install` ([Windows](#main-laptop-windows-without-wsl)) | no: a helper needs Linux; install WSL first |
 | **Linux** (Ubuntu, Debian, Fedora, Arch, ...) | yes: one command ([Linux and WSL](#main-laptop-linux-or-wsl)) | yes: a few manual steps ([Linux](#helper-linux)) |
 | **macOS** | experimental: build from source ([macOS](#main-laptop-macos-experimental)) | no: goway's helper side needs Linux tools macOS lacks |
@@ -115,9 +115,10 @@ Read top to bottom:
 
 <details><summary>What this changes on the helper laptop, and why</summary>
 
-- **Linux (WSL) networking set to "mirrored"** in
-  `%USERPROFILE%\.wslconfig`, so your main laptop can reach the Linux
-  inside this laptop.
+- **Mirrored networking** (Windows 11 22H2+) or, on Windows 10 and
+  Windows 11 in NAT mode, **the port relay** goway-setup installs, so
+  your main laptop can reach the Linux inside this laptop. You do not
+  set either by hand.
 - **An ssh server inside WSL on port 2222.** ssh is the secure way one
   computer logs into another. Password logins are turned off once a key
   is set up, so only your main laptop's key gets in.
@@ -297,9 +298,16 @@ A Mac cannot be a helper: goway's helper side needs Linux tools
 ### Helper: Windows with WSL
 
 See step 1 of the [quick start](#1-on-each-helper-laptop-once). The
-helper must run Windows 11 22H2 or newer, with WSL 2 and Ubuntu. Windows 10
-cannot be a helper, because WSL there lacks the "mirrored networking" that
-lets other computers reach it.
+helper needs WSL 2 and Ubuntu. Windows 10 (21H2 or newer) and Windows 11
+both work. With Windows 11 22H2 or newer, goway-setup uses WSL's mirrored
+networking. On Windows 10, or with WSL in NAT mode (`networkingMode=nat`),
+it instead sets up a Windows port relay (`netsh interface portproxy`) on
+the helper's port; a scheduled task re-points the relay whenever WSL's
+internal address changes. The firewall rules still limit who can connect,
+the `goway add` line is the same, and `goway-setup uninstall --host`
+removes the relay and the task. `--network mirrored|nat|auto` overrides
+the choice. Windows 10 and NAT mode are untested by the maintainer on real
+hardware.
 If WSL is missing, the installer stops and tells you how to add it.
 
 ### Helper: Linux

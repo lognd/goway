@@ -8,8 +8,10 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
 
 - Hosts are Windows laptops with WSL2 (Ubuntu, x86_64, systemd on). sshd in
   WSL listens on 2222; the Windows OpenSSH server on 22 lands in cmd.exe.
-- WSL uses `networkingMode = mirrored`, so the Windows Wi-Fi address reaches
-  the WSL sshd. A scheduled task keeps the distro alive; a Windows firewall
+- WSL uses `networkingMode = mirrored` (Windows 11 22H2+), so the Windows
+  Wi-Fi address reaches the WSL sshd. On Windows 10, or WSL in NAT mode, a
+  Windows port relay (`netsh interface portproxy`) forwards the port to WSL
+  and a scheduled task re-points it when WSL's address changes. A scheduled task keeps the distro alive; a Windows firewall
   rule and the Hyper-V firewall allow inbound 2222.
 - Addresses are DHCP leases in a /13 (192.0.2.0/13). They change, and the
   subnet is far too large to scan.
@@ -55,18 +57,50 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
    2. Remote seed mirror per (repo, worktree); the remote reports its
       manifest (path, size, mtime); goway sends a tar of changed files and
       a list of deletions. No rsync, so Windows clients work.
-   3. The run's work directory is a real copy of the seed
-      (`cp -a --reflink=auto`), made under the seed lock in the same step
-      as the upload. A job's writes never reach the seed or other runs.
-      Seeds of sibling worktrees may share inodes; only `receive` changes
-      a seed, and it replaces files by unlink and recreate.
+   3. The run's work directory holds a hard-link snapshot of the seed
+      (`cp -al`: no data copied), made under the seed lock in the same
+      step as the upload. Only `receive` changes a seed, and it replaces
+      files by unlink and recreate, so a later sync never changes what a
+      snapshot holds; seeds of sibling worktrees may share inodes the
+      same way. Nothing runs in or writes through the snapshot: the job
+      runs in a slot tree (4.1), whose files are separate copies, so a
+      job's writes never reach the seed or other runs.
 4. Run (`run`)
    1. Remote layout under `~/.cache/goway/`:
       `work/<run-id>/{tree,meta.json,lock}`,
       `seed/<repo-id>/<worktree-id>/{tree,meta.json,lock}`,
-      `cache/<repo-id>/{target-<k>,tree-<k>,sccache,meta.json}`.
-      A run holding target slot k runs in `tree-<k>`: binaries reused
-      from that slot bake that path, so it must hold the current tree.
+      `cache/<repo-id>/{target-<k>,tree-<k>,tree-<k>.stats,affinity-<worktree>,sccache,meta.json}`.
+      A run holding slot k runs in `tree-<k>`: binaries reused from that
+      slot bake that path, so it must hold the current tree.
+      `tree-<k>` persists between runs (persistent slot trees). Under the
+      slot lock, `sync_slot` updates it in place from the run's snapshot:
+      files missing or different (type, size, mtime, mode, link target)
+      are copied with the seed's mtime, so cargo, make and ninja
+      fingerprints stay valid; files in neither the snapshot nor the keep
+      set are removed, so no run sees another's leftovers; emptied
+      directories go. It uses only find, sort, comm, xargs and cp (git
+      when present, for the ignore rules). The keep set is detected
+      dependency and build dirs (package.json: node_modules, .next,
+      .nuxt; pyproject.toml and requirements*.txt: .venv, venv, .tox,
+      .nox, __pycache__, caches; CMakeLists.txt: build, cmake-build-*;
+      pom.xml: target; build.gradle(.kts): .gradle, build), plus the
+      `keep` config list, plus every path the snapshot's .gitignore rules
+      ignore (`git check-ignore --no-index`, switch `keep_ignored`).
+      Markers anchor their dirs next to themselves; kept dirs are not
+      scanned. A tracked file under a kept dir is still rewritten when it
+      differs; one deleted from the work tree stays in a kept dir.
+      Why not hard-link slot files to the seed: a job writing in place
+      would change the seed and sibling worktrees. `tree-<k>.stats`
+      records the last update's written and removed counts.
+      Slot affinity: `affinity-<worktree>` names the slot that worktree
+      used last; it is tried first, then the others in order.
+      `--keep` copies the finished tree to `work/<run-id>/tree` (the slot
+      stays in use by later runs). Slot trees live in the cache entry, so
+      they expire with it (6.2) and purge removes them.
+      Locks: gc may remove an expired entry at any time, so lock
+      acquisition (`lock_dir`, the slot locks) creates the directory,
+      locks, and retries unless the held lock file is the one the
+      directory currently has.
    2. Every directory has `meta.json` (kind, repo, worktree, client,
       created, last_used) and is held by `flock` while in use; a free lock
       means nobody uses it.
@@ -90,7 +124,8 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
 6. Cleanup (`gc`)
    1. Work directories are removed when the run ends unless `--keep`.
    2. Expiry: caches and seeds 7 days idle, orphaned work dirs (lock free,
-      no `--keep`) 1 day, kept work dirs 3 days. Configurable.
+      no `--keep`) 1 day, kept work dirs 3 days. Configurable. A
+      cache entry's slot trees go with it.
    3. Every run triggers a cheap gc of expired entries on the host it used.
    4. `goway gc [--older-than D] [--repo R] [--host H] [--all] [--dry-run]`.
 7. Status and doctor (`status`, `doctor`)
@@ -107,7 +142,7 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
    1. Linux: `scripts/install.sh` and `scripts/uninstall.sh` (user-local).
    2. Windows: `goway-setup.exe`, components `client` (goway.exe, user
       PATH, Add/Remove Programs entry) and `host` (firewall rule, Hyper-V
-      firewall, keepalive task, .wslconfig mirrored, WSL sshd on 2222).
+      firewall, keepalive task, .wslconfig mirrored or, in NAT mode, the port relay and its refresh task, WSL sshd on 2222).
    3. Every change is a journal entry recording the prior state; the
       uninstaller replays the journal backwards. Proven by a property test
       over a model system (uninstall after install restores the state) and
@@ -149,6 +184,18 @@ keys, environment), docs/install-windows.md (installer) and
 docs/positioning.md (niche and coexistence rules). This page keeps the
 problem tree and the measured facts behind the design.
 
+### Output integrity
+
+`render.rs` owns one static output lock. Every writer takes it: the
+`Renderer` messages (built whole, then written once), `write_locked` for
+pass-through bytes and `LineFramer` batches for sharded runs. The framer
+holds at most one partial line (64 KiB) per stream, splits longer lines
+with a `[host]+ ` continuation prefix, and terminates a partial last line
+at EOF. `shard::pump` reads with a 64 KiB `BufReader`, frames everything
+buffered and writes it as one batch; a blocked write stops further reads,
+which is the back-pressure. `tracing` diagnostics still go to stderr
+unlocked; they are developer output and off by default.
+
 ## 4. Configuration
 
 `~/.config/goway/config.toml` (Windows: `%LOCALAPPDATA%\goway\config.toml`):
@@ -161,6 +208,8 @@ orphan_ttl = "1d"
 kept_ttl = "3d"
 target_slots = 4
 send_env_files = false
+keep = []                # extra paths kept in slot trees
+keep_ignored = true      # also keep .gitignore'd paths
 
 [[host]]
 name = "helios"          # identity; ssh HostKeyAlias goway-helios

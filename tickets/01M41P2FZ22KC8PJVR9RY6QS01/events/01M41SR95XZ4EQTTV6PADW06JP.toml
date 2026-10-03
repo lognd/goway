@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-03T21:12:07Z"
+digest = "01747f09aa3a1ea55d546f6db85e8470673b544904d046fa2e43c4e2d5b80fa7"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID f5375584-1ff9-4650-9c87-ff047a7b1fba with nextest profile: default
+    Starting 3 tests across 28 binaries (319 tests skipped)
+        PASS [   0.649s] goway::slot_trees keep_copies_the_tree_out_and_the_slot_stays_usable
+        PASS [   2.662s] goway::slot_trees a_run_prefers_the_slot_its_worktree_used_last
+        PASS [   3.442s] goway::slot_trees overlapping_runs_use_different_slots_and_the_seed_is_not_shared
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   3.446s] 3 tests run: 3 passed, 319 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(overlapping_runs_use_different_slots_and_the_seed_is_not_shared) | test(keep_copies_the_tree_out_and_the_slot_stays_usable) | test(a_run_prefers_the_slot_its_worktree_used_last)'"
+size = 760
+status = "measured"
+tests = ["keep_copies_the_tree_out_and_the_slot_stays_usable", "a_run_prefers_the_slot_its_worktree_used_last", "overlapping_runs_use_different_slots_and_the_seed_is_not_shared"]
+at = "2026-10-03T21:12:07Z"
+actor = "lognd"
+rev = 1

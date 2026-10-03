@@ -322,6 +322,7 @@ pub(crate) fn run_invocation(
         d.orphan_ttl.as_secs(),
         d.kept_ttl.as_secs()
     );
+    let (keep_ignored, keep_list) = config.keep_words();
     let mut words: Vec<&str> = vec![
         &config.defaults.remote_root,
         run_id,
@@ -331,6 +332,8 @@ pub(crate) fn run_invocation(
         &cache_meta,
         &ttls,
         priority,
+        keep_ignored,
+        &keep_list,
         "--",
     ];
     words.extend(command.iter().map(String::as_str));

@@ -53,9 +53,8 @@ What happens:
    reading its manifest and uploading, the upload is refused and the
    sync starts over, so a delta never lands on the wrong base.
 3. **Snapshot.** In the same locked step as the upload, the run gets a
-   fresh work dir that is a copy of the seed (reflinked where the
-   filesystem supports it), so nothing the job writes reaches the seed
-   or another run.
+   fresh work dir holding a hard-link snapshot of the seed (no data is
+   copied), so a later sync never changes what the run sees.
    Concurrent runs from the same or other worktrees never
    see each other's files, and a later sync never changes a running
    snapshot.
@@ -63,13 +62,19 @@ What happens:
    and stderr passed through (see "Terminal output" below). `CARGO_TARGET_DIR` points at
    the first free per-repository target slot (a new one when all are
    busy, up to `target_slots`). While it holds slot k, the job runs in
-   the tree at `cache/<repo>/tree-k` (its snapshot, moved there). Builds
+   the tree at `cache/<repo>/tree-k`. That tree persists: each run updates
+   it in place from its snapshot (only changed files are written, deleted
+   files are removed, leftovers from earlier runs are removed) and keeps
+   detected dependency and build directories such as `node_modules`,
+   `.venv` and `build/`, your `keep` list and `.gitignore`d paths (see
+   docs/config.md). A worktree prefers the slot it used last. Builds
    bake absolute source paths into binaries (`CARGO_MANIFEST_DIR`,
    `file!()`), and cargo reuses binaries when only the path changed, so
    a slot's binaries always find the current tree where they expect it. `~/.cargo/env` is sourced. sccache is
    used if installed. With `priority = "low"` (the default) the job
    runs under `nice -n 10` with idle-class I/O.
-5. **Finish.** The work dir is removed unless `--keep` is given, a
+5. **Finish.** The work dir is removed unless `--keep` is given (then
+   the finished tree is copied into it for inspection), a
    cheap gc of expired entries runs in the background, and goway exits
    with the command's exit code.
 
@@ -125,6 +130,27 @@ reads are handled. With `--output=raw` (or `GOWAY_OUTPUT=raw`) every byte
 passes through. When a stream is a pipe or a file (`goway run ... > log`,
 frob evidence), the output is never touched, byte for byte. Sharded runs
 (`--shard`) follow the same rules per `[host]`-prefixed stream.
+
+#### Output integrity
+
+Everything goway writes to your terminal or pipe goes through one global
+output lock: goway's own messages (info, note, warning, error), the
+`[host]`-prefixed lines of sharded runs, and the pass-through of a
+single-host run. Each logical line, prefix included, is assembled in one
+buffer and written with one write call, so a line from the other stream
+or another host can never land inside it. In a sharded run:
+
+- all complete lines already read are written as one batch per lock;
+- a line longer than 64 KiB is split, each continuation starting with
+  `[host]+ ` instead of `[host] `, and no memory beyond one such line is
+  held per stream;
+- a last line with no newline is terminated, so the next host's line
+  never joins it;
+- a slow terminal blocks the writer while it holds the lock, which
+  stops reading from the remote command (ssh back-pressure); there is no
+  unbounded queue anywhere.
+
+A single-host run to a pipe stays byte-identical to the command's output.
 
 ## Status
 
