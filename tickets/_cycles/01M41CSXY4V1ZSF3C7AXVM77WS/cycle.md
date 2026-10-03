@@ -4,7 +4,7 @@ start = "2026-10-03"
 end = "2026-10-04"
 goal = "Guided reversible ssh setup and multi-host test sharding"
 state = "planned"
-tickets = ["01M418J34BQHTC06ZJD3P6E2E9", "01M41AV1JM5RCN804G0D4TJVJS"]
+tickets = ["01M418J34BQHTC06ZJD3P6E2E9", "01M41AV1JM5RCN804G0D4TJVJS", "01M41DJE8ZZJXCHY01NKK754K3"]
 created = "2026-10-03T17:25:49Z"
-updated = "2026-10-03T17:25:58Z"
+updated = "2026-10-03T17:39:14Z"
 +++
