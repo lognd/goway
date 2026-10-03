@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [5]
+captured_at = "2026-10-03T20:33:31Z"
+digest = "1d80ee602975cbd29d79d263a02f52bc94db524de52d0069a4c5eab6f8e0342d"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.21s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 63eba07a-2eac-4b04-8a0b-75e9f17f1c52 with nextest profile: default
+    Starting 1 test across 25 binaries (272 tests skipped)
+        PASS [   0.008s] goway doctor::tests::cargo_undo_spares_a_cargo_home_that_existed_before
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.012s] 1 test run: 1 passed, 272 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(cargo_undo_spares_a_cargo_home_that_existed_before)'"
+size = 617
+status = "measured"
+tests = ["doctor::tests::cargo_undo_spares_a_cargo_home_that_existed_before"]
+at = "2026-10-03T20:33:31Z"
+actor = "lognd"
+rev = 1

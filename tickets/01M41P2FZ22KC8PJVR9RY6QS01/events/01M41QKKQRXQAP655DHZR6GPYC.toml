@@ -1,0 +1,7 @@
+kind = "field"
+field = "title"
+old = "Warm dependency directories per build slot (node_modules, .venv, build/, ...)"
+new = "Persistent slot trees: update each build slot in place instead of copy-then-delete; dependency dirs stay warm"
+at = "2026-10-03T20:34:36Z"
+actor = "lognd"
+rev = 1

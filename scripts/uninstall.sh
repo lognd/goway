@@ -14,6 +14,10 @@ state="${XDG_STATE_HOME:-$HOME/.local/state}/goway"
 journal="$state/install-journal"
 [ -f "$journal" ] || { say "not installed (no journal at $journal)"; exit 0; }
 
+# The journal is a plain file, so it is not trusted: only a file named goway
+# under $HOME, $HOME/.profile and directories under $HOME are ever touched.
+in_home() { case "$1" in "$HOME"/*/../* | */.. | "$HOME"/../*) return 1 ;; "$HOME"/*) return 0 ;; *) return 1 ;; esac; }
+
 mapfile -t entries <"$journal"
 dirs=()
 for ((i = ${#entries[@]} - 1; i >= 0; i--)); do
@@ -23,7 +27,9 @@ for ((i = ${#entries[@]} - 1; i >= 0; i--)); do
   case "$kind" in
     file)
       path=${rest% *}; sum=${rest##* }
-      if [ ! -e "$path" ]; then
+      if ! in_home "$path" || [ "${path##*/}" != goway ]; then
+        say "skipped journal entry for $path: not a file the install makes"
+      elif [ ! -e "$path" ]; then
         say "$path already gone"
       elif [ "$(sha256sum "$path" | cut -d' ' -f1)" = "$sum" ]; then
         rm -f "$path"; say "removed $path"
@@ -34,7 +40,9 @@ for ((i = ${#entries[@]} - 1; i >= 0; i--)); do
     line)
       existed=${rest%% *}; rest=${rest#* }
       profile=${rest%% *}; line=${rest#* }
-      if [ -f "$profile" ] && grep -qxF "$line" "$profile"; then
+      if [ "$profile" != "$HOME/.profile" ]; then
+        say "skipped journal entry for $profile: not the profile the install edits"
+      elif [ -f "$profile" ] && grep -qxF "$line" "$profile"; then
         tmp="$profile.goway-uninstall.$$"
         grep -vxF "$line" "$profile" >"$tmp" || true
         if [ "$existed" = 0 ] && [ ! -s "$tmp" ]; then
@@ -48,11 +56,13 @@ for ((i = ${#entries[@]} - 1; i >= 0; i--)); do
       ;;
     newline)
       profile=$rest
-      if [ -f "$profile" ] && [ "$(tail -c 1 "$profile" | od -An -c | tr -d ' ')" = '\n' ]; then
+      if [ "$profile" = "$HOME/.profile" ] && [ -f "$profile" ] && [ "$(tail -c 1 "$profile" | od -An -c | tr -d ' ')" = '\n' ]; then
         truncate -s -1 "$profile"
       fi
       ;;
-    dir) dirs+=("$rest") ;;
+    dir)
+      if in_home "$rest"; then dirs+=("$rest"); else say "skipped journal entry for $rest: not a directory the install makes"; fi
+      ;;
     *) say "unknown journal entry: $entry" ;;
   esac
 done

@@ -62,8 +62,10 @@ fall into one of these areas:
   administrator rights and reads its state only from an
   administrator-only directory. Any way for a non-administrator to
   influence what it does is in scope, and is treated as high severity.
-- **Output.** goway strips control characters from everything it prints
-  itself. Terminal escape injection through goway's own lines is in
+- **Output.** goway strips control and invisible format characters
+  (including bidi controls) from everything it prints itself, indents the
+  continuation lines of host-supplied text so none can pass for a
+  `goway:` line, and caps its length; helper answers are size-capped. Terminal escape injection through goway's own lines is in
   scope. The output of the command you run is passed through byte for byte
   when it goes to a pipe or file; on a terminal goway strips OSC, DCS,
   APC, PM and SOS strings, every CSI except colors, and other control

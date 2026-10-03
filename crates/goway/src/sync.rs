@@ -587,14 +587,88 @@ impl SshTransport<'_> {
     }
 }
 
+/// Most stdout bytes goway keeps from one helper call (a manifest of a big
+/// tree is the largest legitimate answer).
+pub const MAX_HELPER_STDOUT: usize = 64 << 20;
+/// Most stderr bytes goway keeps from one helper call.
+pub const MAX_HELPER_STDERR: usize = 64 << 10;
+
+/// What a helper call printed, bounded: a hostile or broken helper cannot
+/// exhaust this machine's memory.
+#[derive(Debug)]
+pub struct Captured {
+    /// Exit status of the child.
+    pub status: std::process::ExitStatus,
+    /// Stdout, at most `stdout_cap` bytes.
+    pub stdout: Vec<u8>,
+    /// Stderr, at most `stderr_cap` bytes.
+    pub stderr: Vec<u8>,
+    /// Stdout had more than `stdout_cap` bytes (the rest was discarded).
+    pub stdout_overflow: bool,
+}
+
+/// Read at most `cap` bytes of `reader`, then discard the rest so the child
+/// never blocks on a full pipe. Returns the bytes and whether any were cut.
+fn read_capped(reader: Option<impl std::io::Read>, cap: usize) -> (Vec<u8>, bool) {
+    use std::io::Read as _;
+    let Some(mut reader) = reader else {
+        return (Vec::new(), false);
+    };
+    let mut kept = Vec::new();
+    let _ = (&mut reader).take(cap as u64).read_to_end(&mut kept);
+    let over = std::io::copy(&mut reader, &mut std::io::sink()).is_ok_and(|n| n > 0);
+    (kept, over)
+}
+
+/// Wait for `child` (stdout and stderr piped), keeping at most the given
+/// number of bytes of each. Like `Child::wait_with_output`, but bounded.
+pub fn capture(
+    mut child: std::process::Child,
+    stdout_cap: usize,
+    stderr_cap: usize,
+) -> std::io::Result<Captured> {
+    let out = child.stdout.take();
+    let err = child.stderr.take();
+    let ((stdout, stdout_overflow), (stderr, _)) = std::thread::scope(|s| {
+        let o = s.spawn(|| read_capped(out, stdout_cap));
+        let e = s.spawn(|| read_capped(err, stderr_cap));
+        (o.join().unwrap_or_default(), e.join().unwrap_or_default())
+    });
+    let status = child.wait()?;
+    if stdout_overflow {
+        tracing::warn!(
+            cap = stdout_cap,
+            "helper stdout exceeded the cap and was cut"
+        );
+    }
+    Ok(Captured {
+        status,
+        stdout,
+        stderr,
+        stdout_overflow,
+    })
+}
+
+/// The failure text for a helper call: its stderr, trimmed (already capped).
+fn stderr_text(c: &Captured) -> String {
+    String::from_utf8_lossy(&c.stderr).trim().to_owned()
+}
+
 impl Transport for SshTransport<'_> {
     fn output(&self, cmd: &str) -> Result<Vec<u8>> {
-        let out = ssh::command(self.target, self.settings, KeyPolicy::Strict, cmd)
+        let child = ssh::command(self.target, self.settings, KeyPolicy::Strict, cmd)
             .stdin(Stdio::null())
-            .output()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| self.fail(format!("cannot run ssh: {e}")))?;
+        let out = capture(child, MAX_HELPER_STDOUT, MAX_HELPER_STDERR)
             .map_err(|e| self.fail(format!("cannot run ssh: {e}")))?;
         if !out.status.success() {
-            return Err(self.fail(String::from_utf8_lossy(&out.stderr).trim().to_owned()));
+            return Err(self.fail(stderr_text(&out)));
+        }
+        if out.stdout_overflow {
+            return Err(self.fail("the helper's answer is larger than goway accepts".to_owned()));
         }
         Ok(out.stdout)
     }
@@ -646,13 +720,19 @@ pub fn exchange_child(mut cmd: std::process::Command, input: &[u8]) -> Result<Ve
                 let _ = w.write_all(input);
             }
         });
-        child.wait_with_output()
+        capture(child, MAX_HELPER_STDOUT, MAX_HELPER_STDERR)
     })
     .map_err(spawn_err)?;
     if !out.status.success() {
         return Err(Error::Ssh {
             host: String::new(),
-            message: String::from_utf8_lossy(&out.stderr).trim().to_owned(),
+            message: stderr_text(&out),
+        });
+    }
+    if out.stdout_overflow {
+        return Err(Error::Ssh {
+            host: String::new(),
+            message: "the helper's answer is larger than goway accepts".to_owned(),
         });
     }
     Ok(out.stdout)
@@ -713,14 +793,14 @@ pub fn feed_child(
                 .map_err(|e| Error::io("send", PathBuf::from("<remote>"), e))
         })
     });
-    let out = child.wait_with_output().map_err(|e| Error::Ssh {
+    let out = capture(child, 0, MAX_HELPER_STDERR).map_err(|e| Error::Ssh {
         host: String::new(),
         message: format!("wait failed: {e}"),
     })?;
     if !out.status.success() {
         return Err(Error::Ssh {
             host: String::new(),
-            message: String::from_utf8_lossy(&out.stderr).trim().to_owned(),
+            message: stderr_text(&out),
         });
     }
     if let Some(Err(e)) = written {
@@ -939,6 +1019,34 @@ mod tests {
         std::fs::write(dir.path().join(name), "x").unwrap();
         let e = file_set(dir.path(), &Secrets::default()).unwrap_err();
         assert!(e.to_string().contains("not valid UTF-8"), "{e}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_flooding_helper_is_captured_within_the_caps() {
+        let child = std::process::Command::new("sh")
+            .args([
+                "-c",
+                "head -c 200000 /dev/zero; head -c 300000 /dev/zero >&2",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let out = capture(child, 1000, 100).unwrap();
+        assert!(out.status.success());
+        assert_eq!(out.stdout.len(), 1000);
+        assert!(out.stdout_overflow);
+        assert_eq!(out.stderr.len(), 100);
+        let child = std::process::Command::new("sh")
+            .args(["-c", "printf abc"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let out = capture(child, 1000, 100).unwrap();
+        assert_eq!(out.stdout, b"abc");
+        assert!(!out.stdout_overflow);
     }
 
     /// Credential files that must never be sent by default (gitleaks and

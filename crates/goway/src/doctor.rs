@@ -493,16 +493,56 @@ fn report(
     }
 }
 
-/// Tell the user what `--fix` did and which root fixes still need sudo.
-/// Something `doctor --fix` installed on a host, and how to take it back.
+/// Something `doctor --fix` installed on a host. Only the name of the check
+/// is stored: the undo command is derived from it when needed, never read
+/// from the record, so a tampered record cannot make goway run its text.
+/// (Older records also carried `undo` and `root`; they are ignored.)
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Installed {
     /// The check it fixed (`cargo`, `cargo-nextest`, ...).
     pub check: String,
-    /// The command that removes it again, if goway removes it.
-    pub undo: Option<String>,
-    /// Whether the undo needs root.
-    pub root: bool,
+    /// For `cargo`: whether `~/.cargo` existed before goway installed
+    /// rustup. `None` (an older record) counts as "existed".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cargo_home_existed: Option<bool>,
+}
+
+/// What uninstall does about one recorded install.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Undo {
+    /// Run this command (as root when `root`).
+    Run {
+        /// The command text, from [`undo_of`].
+        command: String,
+        /// Whether it needs administrator rights.
+        root: bool,
+    },
+    /// A system package: listed, not removed.
+    KeepPackage,
+    /// rustup was set up on top of a `~/.cargo` that existed before.
+    KeepCargo,
+    /// Not a check goway knows; ignored.
+    Unknown,
+}
+
+/// System-package checks: their installs are listed, never undone.
+const PACKAGE_CHECKS: &[&str] = &["bash", "tar", "flock", "setsid", "curl", "cc (linker)"];
+
+impl Installed {
+    /// The action that takes this install back, derived from the check name.
+    pub fn undo(&self) -> Undo {
+        if self.check == "cargo" && self.cargo_home_existed != Some(false) {
+            return Undo::KeepCargo;
+        }
+        if let Some((command, root)) = undo_of(&self.check) {
+            return Undo::Run { command, root };
+        }
+        if PACKAGE_CHECKS.contains(&self.check.as_str()) {
+            Undo::KeepPackage
+        } else {
+            Undo::Unknown
+        }
+    }
 }
 
 /// How to take back the fix of `check`; `None` for system packages, which
@@ -548,17 +588,22 @@ pub fn load_installed(paths: &Paths, host: &str) -> Vec<Installed> {
 }
 
 /// Add the checks whose fixes just ran to the host's record.
-fn record_installed(paths: &Paths, host: &str, checks: &[Check], done: &[String]) -> Result<()> {
+fn record_installed(
+    paths: &Paths,
+    host: &str,
+    facts: &BTreeMap<String, String>,
+    checks: &[Check],
+    done: &[String],
+) -> Result<()> {
     let mut items = load_installed(paths, host);
     let before = items.len();
     for c in checks {
         let ran = c.fix.as_ref().is_some_and(|f| done.contains(&f.command));
         if ran && !items.iter().any(|i| i.check == c.name) {
-            let (undo, root) = undo_of(&c.name).map_or((None, false), |(u, r)| (Some(u), r));
             items.push(Installed {
                 check: c.name.clone(),
-                undo,
-                root,
+                cargo_home_existed: (c.name == "cargo")
+                    .then(|| facts.get("cargo_home").is_none_or(|v| v != "0")),
             });
         }
     }
@@ -687,7 +732,7 @@ pub fn doctor(
             let confirm = |fixes: &[Fix]| confirm_root(renderer, &host.name, fixes, args.yes);
             let applied = apply_fixes(&checks, args.rsudo, &confirm, &runner);
             show_applied(renderer, host, &applied);
-            if let Err(e) = record_installed(paths, &host.name, &checks, &applied.done) {
+            if let Err(e) = record_installed(paths, &host.name, &facts, &checks, &applied.done) {
                 renderer.warn(format_args!(
                     "cannot record what was installed on {}: {e}",
                     host.name
@@ -790,6 +835,34 @@ mod tests {
             .unwrap();
         assert!(ok.success());
         assert!(bin.join("cargo").exists(), "other tools stay");
+    }
+
+    #[test]
+    fn records_never_supply_the_command_uninstall_runs() {
+        // A hostile or legacy record: the stored undo and root are ignored.
+        let items: Vec<Installed> = serde_json::from_str(
+            r#"[{"check":"evil","undo":"touch /tmp/pwned","root":true},
+                {"check":"sccache","undo":"touch /tmp/pwned","root":true},
+                {"check":"tar","undo":"touch /tmp/pwned","root":false}]"#,
+        )
+        .unwrap();
+        assert_eq!(items[0].undo(), Undo::Unknown);
+        let (command, root) = undo_of("sccache").unwrap();
+        assert_eq!(items[1].undo(), Undo::Run { command, root });
+        assert_eq!(items[2].undo(), Undo::KeepPackage);
+        let text = serde_json::to_string(&items[1]).unwrap();
+        assert!(!text.contains("undo") && !text.contains("pwned"), "{text}");
+    }
+
+    #[test]
+    fn cargo_undo_spares_a_cargo_home_that_existed_before() {
+        let item = |existed| Installed {
+            check: "cargo".to_owned(),
+            cargo_home_existed: existed,
+        };
+        assert_eq!(item(Some(true)).undo(), Undo::KeepCargo);
+        assert_eq!(item(None).undo(), Undo::KeepCargo, "old records are safe");
+        assert!(matches!(item(Some(false)).undo(), Undo::Run { .. }));
     }
 
     #[test]

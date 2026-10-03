@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T20:33:30Z"
+digest = "c525a5bd47bfeead4b428cce8f93f2c0c3474203801315bd920e8723a113cf24"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID bb37d70a-7340-469e-afd6-15ad2632d4e4 with nextest profile: default
+    Starting 1 test across 25 binaries (272 tests skipped)
+        PASS [   0.013s] goway uninstall::tests::journal_entries_outside_the_install_scope_are_skipped
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.014s] 1 test run: 1 passed, 272 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(journal_entries_outside_the_install_scope_are_skipped)'"
+size = 571
+status = "measured"
+tests = ["uninstall::tests::journal_entries_outside_the_install_scope_are_skipped"]
+at = "2026-10-03T20:33:30Z"
+actor = "lognd"
+rev = 1
