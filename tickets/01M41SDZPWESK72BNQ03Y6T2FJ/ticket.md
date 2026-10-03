@@ -8,8 +8,12 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:06:29Z"
-updated = "2026-10-03T21:06:29Z"
+updated = "2026-10-03T21:06:33Z"
 scope = ["crates/goway/src/shard.rs", "crates/goway/src/runners.rs", "crates/goway/src/pool.rs", "crates/goway/tests/**", "docs/usage.md"]
+
+[[links]]
+kind = "blocked-by"
+target = "01M41P2FWVAT5AP3XD121HE9YF"
 
 [[acceptance]]
 text = "Given hosts with different free capacity (cores minus load), when a run is sharded, then each host receives a share of the tests proportional to its capacity (nextest and splitting adapters via weighted partitions), and together the shards still run every test exactly once"
