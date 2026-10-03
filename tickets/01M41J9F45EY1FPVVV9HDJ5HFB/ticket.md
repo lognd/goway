@@ -2,7 +2,8 @@
 id = "01M41J9F45EY1FPVVV9HDJ5HFB"
 title = "Helper laptop one command: install --host prints the fingerprint and the exact next command, owns its uninstall entry"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
