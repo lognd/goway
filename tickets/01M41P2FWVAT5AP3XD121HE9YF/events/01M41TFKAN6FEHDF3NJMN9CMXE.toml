@@ -1,0 +1,47 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T21:24:51Z"
+digest = "9141e9e5a08a8e5c486fc495828ca53afe5f849477835cc374a422f9e33d21d9"
+exit_code = 0
+inline = '''
+   Compiling regex-syntax v0.8.11
+   Compiling getrandom v0.3.4
+   Compiling zerocopy v0.8.59
+   Compiling autocfg v1.5.1
+   Compiling wait-timeout v0.2.1
+   Compiling fnv v1.0.7
+   Compiling quick-error v1.2.3
+   Compiling bit-vec v0.8.0
+   Compiling unarray v0.1.4
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling rusty-fork v0.3.1
+   Compiling bit-set v0.8.0
+   Compiling num-traits v0.2.19
+   Compiling rand_core v0.9.5
+   Compiling rand_xorshift v0.4.0
+   Compiling rand v0.9.5
+   Compiling regex-automata v0.4.18
+   Compiling matchers v0.2.0
+   Compiling tracing-subscriber v0.3.23
+   Compiling ppv-lite86 v0.2.21
+   Compiling rand_chacha v0.9.0
+   Compiling proptest v1.11.0
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 23.43s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8acb432c-e5db-4ad8-92fa-829dd7a2feb5 with nextest profile: default
+    Starting 1 test across 29 binaries (343 tests skipped)
+        PASS [   0.006s] goway runners::tests::js_runners_get_the_shard_flag
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.007s] 1 test run: 1 passed, 343 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "js_runners_get_the_shard_flag"
+size = 1376
+status = "measured"
+tests = ["runners::tests::js_runners_get_the_shard_flag"]
+at = "2026-10-03T21:24:51Z"
+actor = "lognd"
+rev = 1
