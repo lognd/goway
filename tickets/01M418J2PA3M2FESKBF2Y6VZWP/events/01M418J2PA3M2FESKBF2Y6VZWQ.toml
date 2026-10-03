@@ -1,0 +1,12 @@
+kind = "create"
+title = "Config file and host identity: TOML config, state file, pinned host keys via HostKeyAlias"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/**", "docs/**"]
+acceptance = ["Given a config.toml with hosts, when goway loads it, then hosts, defaults and durations parse and unknown keys are rejected", "Given a host, when goway builds an ssh command, then it uses HostKeyAlias goway-NAME, StrictHostKeyChecking yes and goway's known_hosts file"]
+at = "2026-10-03T16:11:38Z"
+actor = "lognd"
+rev = 1
