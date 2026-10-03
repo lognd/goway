@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:32:48Z"
-updated = "2026-10-03T23:04:47Z"
+updated = "2026-10-03T23:17:49Z"
 scope = ["crates/goway/src/run.rs", "crates/goway/src/remote.sh", "crates/goway/src/lib.rs", "crates/goway/src/error.rs", "crates/goway/tests/**", "docs/usage.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given goway's own background work (auto-gc, the watchdog), when it runs, then it never starts another goway run and holds a lock so at most one auto-gc per host root runs at a time"
-bound = false
+bound = true
 +++
