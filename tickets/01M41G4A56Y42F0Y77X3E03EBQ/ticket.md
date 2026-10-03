@@ -8,9 +8,9 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:55Z"
-updated = "2026-10-03T18:23:55Z"
+updated = "2026-10-03T18:46:56Z"
 labels = ["security"]
-scope = ["crates/goway/**"]
+scope = ["crates/goway/**", "docs/usage.md", "docs/config.md", "docs/positioning.md"]
 
 [[acceptance]]
 text = "Given a work tree with .ENV, .envrc, .npmrc, id_rsa and a file under a symlinked directory, when goway computes the file set, then none of them is sent unless explicitly allowed"
