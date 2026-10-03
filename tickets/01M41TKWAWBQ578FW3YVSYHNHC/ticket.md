@@ -8,7 +8,7 @@ points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T21:27:11Z"
-updated = "2026-10-03T21:47:52Z"
+updated = "2026-10-03T21:47:53Z"
 scope = ["crates/goway/src/runners.rs", "crates/goway/src/shard.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/usage.md", "crates/goway/src/detect.rs", "crates/goway/src/run.rs", "crates/goway/src/gc.rs", "crates/goway/src/state.rs", "crates/goway/src/lib.rs"]
 
 [[acceptance]]
@@ -41,5 +41,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a Catch2 shard that is rejected again after its rerun without shard flags, when it ends, then goway stops (that rerun is the only one, enforced by an explicit attempt argument, never by environment or helper output) and reports the failure; a test with a binary that always rejects proves exactly one rerun"
-bound = false
+bound = true
 +++
