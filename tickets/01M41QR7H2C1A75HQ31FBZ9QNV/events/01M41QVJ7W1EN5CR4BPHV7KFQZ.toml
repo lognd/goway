@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:38:57Z"
+digest = "2d8016bed4c8149d4000a9b5dab72e0101ddf597c14a800b9f42538b9e1ff02d"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 449c0575-4041-473b-8d55-f625ad3c3c81 with nextest profile: default
+    Starting 1 test across 26 binaries (285 tests skipped)
+        PASS [   0.019s] goway::install_scripts a_plain_http_release_url_is_refused
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.021s] 1 test run: 1 passed, 285 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_plain_http_release_url_is_refused)'"
+size = 552
+status = "measured"
+tests = ["a_plain_http_release_url_is_refused"]
+at = "2026-10-03T20:38:57Z"
+actor = "lognd"
+rev = 1
