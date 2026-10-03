@@ -2,13 +2,13 @@
 id = "01M41Q6CX4RRFZT58EE995C0C6"
 title = "Host kinds: windows over interop (powershell.exe, no ssh) and windows over OpenSSH, behind one transport"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:23Z"
-updated = "2026-10-03T20:27:23Z"
+updated = "2026-10-03T22:48:01Z"
 scope = ["crates/goway/src/config.rs", "crates/goway/src/ssh.rs", "crates/goway/src/transport.rs", "crates/goway/src/interop.rs", "crates/goway/src/hosts.rs", "crates/goway/tests/**", "docs/config.md", "docs/hosts.md"]
 
 [[acceptance]]
