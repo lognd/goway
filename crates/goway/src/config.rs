@@ -158,7 +158,7 @@ pub fn check_remote_root(root: &str) -> std::result::Result<(), &'static str> {
 }
 
 /// Host names become file and alias components, so keep them plain.
-fn valid_name(name: &str) -> bool {
+pub fn valid_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 63
         && name

@@ -175,3 +175,21 @@ fn nothing_is_pinned_without_a_confirmed_fingerprint() {
         "# my pool\n"
     );
 }
+
+#[test]
+fn a_bad_name_touches_nothing() {
+    let w = empty_world();
+    let out = add_raw(&w, "x", &["host", "add", "bad*", "--address", "127.0.0.1"]);
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "rejected by the argument parser"
+    );
+    assert!(!w.config.join("known_hosts").exists());
+    let out = w.run(&["ssh", "setup", "../x"]);
+    assert_eq!(out.status.code(), Some(2));
+    assert!(
+        std::fs::read_dir(&w.config).unwrap().count() == 1,
+        "only config.toml"
+    );
+}
