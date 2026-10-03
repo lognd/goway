@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:51:28Z"
-updated = "2026-10-03T17:06:57Z"
+updated = "2026-10-03T17:07:00Z"
 scope = ["crates/goway/**", "docs/positioning.md", "docs/config.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a goway run, when it finishes, then goway left no file outside its remote root and no process behind"
-bound = false
+bound = true
 +++
