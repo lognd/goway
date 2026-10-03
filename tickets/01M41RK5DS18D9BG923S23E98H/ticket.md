@@ -2,13 +2,13 @@
 id = "01M41RK5DS18D9BG923S23E98H"
 title = "Windows installer: elevate a locked, hashed private copy of the setup exe (audit F6)"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:51:50Z"
-updated = "2026-10-03T20:51:50Z"
+updated = "2026-10-03T20:53:45Z"
 scope = ["crates/goway-setup/**", "crates/goway-journal/**", "docs/**", "scripts/windows/**", "changelog.d/**"]
 
 [[acceptance]]
