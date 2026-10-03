@@ -276,3 +276,80 @@ fn the_public_network_warning_explains_in_plain_words_and_gives_the_fix() {
     assert!(w.contains("Set-NetConnectionProfile -Name 'Cafe''s WiFi' -NetworkCategory Private"));
     assert!(w.contains("administrator"));
 }
+
+// frob:tests crates/goway-setup/src/helper.rs::next_steps
+#[test]
+fn a_hostile_linux_user_never_reaches_the_command_line() {
+    for bad in [
+        "a b",
+        "x;y",
+        "x\ny",
+        "$(id)",
+        "me;touch INJECTED;#",
+        "-x",
+        "Root",
+        "",
+        "a`b`",
+        "x\u{1b}[31m",
+    ] {
+        let mut i = info(Some(FP));
+        i.user = bad.into();
+        let text = next_steps(&i);
+        let command = text
+            .lines()
+            .find(|l| l.trim_start().starts_with("goway add"))
+            .unwrap_or_else(|| panic!("no command for {bad:?}: {text}"));
+        assert!(
+            command.ends_with("--user YOUR-LINUX-USER"),
+            "{bad:?} reached {command}"
+        );
+        assert!(
+            text.lines()
+                .all(|l| !l.contains('\u{1b}') && !l.contains("INJECTED") && !l.contains("$(id)")),
+            "{bad:?} leaked into the block"
+        );
+        assert!(text.contains("could not read a usable Linux user"));
+    }
+}
+
+// frob:tests crates/goway-setup/src/helper.rs::valid_linux_user
+#[test]
+fn only_names_useradd_accepts_are_valid_linux_users() {
+    use goway_setup::helper::valid_linux_user;
+    for ok in [
+        "user",
+        "a",
+        "_x",
+        "dev-ops_1",
+        "machine$",
+        "a23456789012345678901234567890_",
+    ] {
+        assert!(valid_linux_user(ok), "{ok}");
+    }
+    for bad in [
+        "",
+        "A",
+        "1a",
+        "-a",
+        "a b",
+        "a;b",
+        "a\n",
+        "$",
+        "a$b",
+        "a23456789012345678901234567890123",
+    ] {
+        assert!(!valid_linux_user(bad), "{bad}");
+    }
+}
+
+// frob:tests crates/goway-setup/src/helper.rs::add_command
+#[test]
+fn the_add_command_is_shell_quoted() {
+    assert_eq!(
+        add_command("n", "SHA256:a+/=", "u", 2222),
+        "goway add n --fingerprint SHA256:a+/= --user u"
+    );
+    let cmd = add_command("n; id", "SHA256:x", "a b", 2222);
+    assert!(cmd.contains("'n; id'"));
+    assert!(cmd.contains("'a b'"));
+}

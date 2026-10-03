@@ -86,6 +86,49 @@ fn show_value(value: &RegValue) -> String {
     }
 }
 
+/// Longest system-derived fragment a single output line carries.
+const MAX_LINE_CHARS: usize = 1024;
+
+/// Whether `c` could steer a terminal or disguise text: control characters (ESC, C1, NUL, ...)
+/// and the Unicode bidi and zero-width format characters `char::is_control` lets through.
+fn is_unsafe_char(c: char) -> bool {
+    c.is_control()
+        || matches!(
+            c,
+            '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{2064}'
+                | '\u{2066}'..='\u{206f}' | '\u{feff}' | '\u{061c}'
+        )
+}
+
+/// Make text derived from the system (distro, user and host names, fingerprints, `netsh` and
+/// PowerShell output) safe to print on one line: control and bidi characters become `?`, line
+/// breaks become ` / ` (so it cannot forge a line of its own) and the length is capped.
+pub fn clean_line(text: &str) -> String {
+    let flattened = text.replace("\r\n", " / ").replace(['\n', '\r'], " / ");
+    let mut out: String = flattened
+        .chars()
+        .map(|c| if is_unsafe_char(c) { '?' } else { c })
+        .collect();
+    if out.chars().count() > MAX_LINE_CHARS {
+        out = out.chars().take(MAX_LINE_CHARS - 3).collect::<String>() + "...";
+    }
+    out
+}
+
+/// Like [`clean_line`] for multi-line text: line breaks and tabs stay, everything else unsafe
+/// becomes `?`.
+pub fn clean_text(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            if matches!(c, '\n' | '\t') || !is_unsafe_char(c) {
+                c
+            } else {
+                '?'
+            }
+        })
+        .collect()
+}
+
 /// Prints goway-setup's own messages with consistent styling.
 #[derive(Debug, Clone, Copy)]
 pub struct Renderer {
@@ -112,12 +155,16 @@ impl Renderer {
     }
 
     fn line(self, style: Style, tag: &str, text: &str) {
-        let _ = writeln!(self.out(), "{style}{tag:>10}{style:#} {text}");
+        let _ = writeln!(self.out(), "{style}{tag:>10}{style:#} {}", clean_line(text));
     }
 
     /// Report a failure on stderr.
     pub fn error(self, error: &SetupError) {
-        let _ = writeln!(self.err(), "{ERROR}error{ERROR:#}: {error}");
+        let _ = writeln!(
+            self.err(),
+            "{ERROR}error{ERROR:#}: {}",
+            clean_line(&error.to_string())
+        );
     }
 
     /// Print the plan of a dry run.
@@ -132,7 +179,11 @@ impl Renderer {
             ),
         );
         for (i, c) in plan.iter().enumerate() {
-            let _ = writeln!(self.out(), "  {DIM}{i:>2}{DIM:#} {}", describe(c));
+            let _ = writeln!(
+                self.out(),
+                "  {DIM}{i:>2}{DIM:#} {}",
+                clean_line(&describe(c))
+            );
         }
     }
 
@@ -194,9 +245,10 @@ impl Renderer {
         self.line(GOOD, "removed", &format!("{label} {}", layout.profile));
     }
 
-    /// Print text produced by another process (an elevated run's captured output) unchanged.
+    /// Print text produced by another process (an elevated run's captured output); control and
+    /// bidi characters are replaced, line breaks are kept.
     pub fn passthrough(self, text: &str) {
-        let _ = write!(self.out(), "{text}");
+        let _ = write!(self.out(), "{}", clean_text(text));
     }
 
     /// Announce that the installer asks Windows for administrator rights.
@@ -210,13 +262,13 @@ impl Renderer {
 
     /// Print a multi-line block of plain text (the next-steps hand-over) after a blank line.
     pub fn block(self, text: &str) {
-        let _ = writeln!(self.out(), "\n{text}");
+        let _ = writeln!(self.out(), "\n{}", clean_text(text));
     }
 
     /// Print a question without a trailing newline so the answer follows it on the same line.
     pub fn prompt(self, text: &str) {
         let mut out = self.out();
-        let _ = write!(out, "{text}");
+        let _ = write!(out, "{}", clean_text(text));
         let _ = out.flush();
     }
 
@@ -227,7 +279,7 @@ impl Renderer {
 
     /// A loud warning about a security-relevant state the user must fix.
     pub fn warning(self, text: &str) {
-        let _ = writeln!(self.err(), "{ERROR}WARNING{ERROR:#}: {text}");
+        let _ = writeln!(self.err(), "{ERROR}WARNING{ERROR:#}: {}", clean_line(text));
     }
 
     /// Announce a finished host install.
@@ -260,7 +312,11 @@ impl Renderer {
                 Some(false) => format!("{WARN}will do {WARN:#} "),
                 None => String::new(),
             };
-            let _ = writeln!(self.out(), "  {DIM}{i:>2}{DIM:#} {mark}{}", describe(c));
+            let _ = writeln!(
+                self.out(),
+                "  {DIM}{i:>2}{DIM:#} {mark}{}",
+                clean_line(&describe(c))
+            );
         }
     }
 
