@@ -1,0 +1,12 @@
+kind = "create"
+title = "Address resolution without static IPs: cache, resolver, mDNS, WSL interop"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 5
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/**", "docs/**"]
+acceptance = ["Given a host whose cached address fails, when goway resolves it, then it tries the next candidates in order and caches the first that passes the host key check", "Given goway runs under WSL in NAT mode, when NAME.local does not resolve natively, then goway asks Windows via interop and parses the answer"]
+at = "2026-10-03T16:11:38Z"
+actor = "lognd"
+rev = 1
