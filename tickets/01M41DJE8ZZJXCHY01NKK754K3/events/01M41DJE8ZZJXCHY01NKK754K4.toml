@@ -1,0 +1,12 @@
+kind = "create"
+title = "Test goway host add end to end (port fallback, Linux and hostname checks, key pinning)"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 1
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/tests/**"]
+acceptance = ["Given a fake sshd, when goway host add runs, then it skips a non-Linux port, refuses a machine whose hostname does not match, and pins the key of the right machine under goway-NAME"]
+at = "2026-10-03T17:39:12Z"
+actor = "lognd"
+rev = 1
