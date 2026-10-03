@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T17:33:35Z"
+updated = "2026-10-03T17:33:36Z"
 scope = ["crates/goway/**", "crates/goway-journal/**", "docs/ssh-setup.md", "docs/usage.md", "README.md", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/render.rs"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a host whose key authentication does not work yet, when goway ssh setup runs, then it authorizes goway's key over one password login and goway's own key-only calls work afterwards"
-bound = false
+bound = true
 +++
