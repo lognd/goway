@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/**", "docs/**", "Cargo.toml", "Cargo.lock", "clippy.toml", "rustfmt.toml"]
+new = ["crates/goway/**", "docs/**", "Cargo.toml", "Cargo.lock", "clippy.toml", "rustfmt.toml", "rust-toolchain.toml"]
+at = "2026-10-03T16:11:55Z"
+actor = "lognd"
+rev = 1
