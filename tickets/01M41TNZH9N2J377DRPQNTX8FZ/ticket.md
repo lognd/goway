@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:28:20Z"
-updated = "2026-10-03T22:26:24Z"
+updated = "2026-10-03T22:26:25Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/sync.rs", "crates/goway/tests/**", "docs/design.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given the slot_trees tests, when they run fast or slow, then they check content, not inode numbers or whole-second times, and CI run 37155069651's failure (second_run_updates_in_place_and_writes_only_changes) cannot recur"
-bound = false
+bound = true
 +++
