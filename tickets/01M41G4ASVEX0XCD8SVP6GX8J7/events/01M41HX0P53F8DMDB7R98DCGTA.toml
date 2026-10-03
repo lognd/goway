@@ -1,7 +1,7 @@
 kind = "transition"
 from = "todo"
 to = "in-progress"
-reason = "lease: lognd in /home/user/projects/goway-wt/P6GX8J7; scope: crates/goway/**, scripts/install.sh, scripts/uninstall.sh, docs/ssh-setup.md, docs/usage.md; ttl 7200s"
+reason = "lease: lognd in ~other/projects/goway-wt/P6GX8J7; scope: crates/goway/**, scripts/install.sh, scripts/uninstall.sh, docs/ssh-setup.md, docs/usage.md; ttl 7200s"
 at = "2026-10-03T18:54:53Z"
 actor = "lognd"
 rev = 1

@@ -4,7 +4,7 @@ captured_at = "2026-10-03T19:21:23Z"
 digest = "748c4392b5771507807276fe8eec526e1a18d4b3c7efd55275361c53dd8d38f0"
 exit_code = 0
 inline = '''
-   Compiling goway v0.1.0 (/home/user/projects/goway-wt/0MWPSWG/crates/goway)
+   Compiling goway v0.1.0 (~other/projects/goway-wt/0MWPSWG/crates/goway)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 5.41s
 \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
  Nextest run ID 0defadb3-d319-4236-8375-98bed5f357c7 with nextest profile: default

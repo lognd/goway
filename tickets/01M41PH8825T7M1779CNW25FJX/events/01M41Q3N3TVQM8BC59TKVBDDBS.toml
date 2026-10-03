@@ -1,7 +1,7 @@
 kind = "transition"
 from = "todo"
 to = "in-progress"
-reason = "lease: lognd in /home/logan/projects/goway-wt/NW25FJX; scope: Cargo.toml, crates/*/Cargo.toml, .github/workflows/release.yml, .github/workflows/ci.yml, docs/release.md, README.md, pyproject.toml; ttl 7200s"
+reason = "lease: lognd in goway-wt/NW25FJX; scope: Cargo.toml, crates/*/Cargo.toml, .github/workflows/release.yml, .github/workflows/ci.yml, docs/release.md, README.md, pyproject.toml; ttl 7200s"
 at = "2026-10-03T20:25:54Z"
 actor = "lognd"
 rev = 1

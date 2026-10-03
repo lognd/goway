@@ -1,7 +1,7 @@
 kind = "evidence"
 accepts = [1]
 captured_at = "2026-10-03T20:24:51Z"
-digest = "dc831b4192fbe15fac74322240c4057399b49adbd36633eb3a7a585b04244f83"
+digest = "3f6a7758dafe2966e0f59db264c70ebed6a9fc4c7d03d33461ee5053278ca21f"
 exit_code = 0
 inline = '''
    Compiling libc v0.2.190
@@ -75,7 +75,7 @@ inline = '''
    Compiling bit-set v0.8.0
    Compiling rusty-fork v0.3.1
    Compiling unarray v0.1.4
-   Compiling goway-setup v0.1.0 (/home/logan/projects/goway-wt/V529TMA/crates/goway-setup)
+   Compiling goway-setup v0.1.0 (goway-wt/V529TMA/crates/goway-setup)
    Compiling cfg_aliases v0.2.2
    Compiling winnow v1.0.4
    Compiling nix v0.31.3
@@ -106,9 +106,9 @@ inline = '''
    Compiling proptest v1.11.0
    Compiling tracing-subscriber v0.3.23
    Compiling clap v4.6.7
-   Compiling goway-journal v0.1.0 (/home/logan/projects/goway-wt/V529TMA/crates/goway-journal)
+   Compiling goway-journal v0.1.0 (goway-wt/V529TMA/crates/goway-journal)
    Compiling humantime-serde v1.1.1
-   Compiling goway v0.1.0 (/home/logan/projects/goway-wt/V529TMA/crates/goway)
+   Compiling goway v0.1.0 (goway-wt/V529TMA/crates/goway)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 47.36s
 \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
  Nextest run ID 8570cbce-7ec4-4b72-8a7a-bd7bc6b06ccb with nextest profile: default
@@ -124,7 +124,7 @@ inline = '''
 passed = true
 provider = "nextest"
 ref = "-E 'binary(relay) & (test(the_relay_script_and_task) | test(the_portproxy_resource) | test(a_foreign_portproxy) | test(the_networking_mode) | test(networking_mode_is))'"
-size = 4493
+size = 4430
 status = "measured"
 tests = ["the_portproxy_resource_runs_netsh_with_the_distros_current_address", "a_foreign_portproxy_rule_on_the_port_refuses_a_nat_install_and_explains", "the_networking_mode_follows_the_flag_the_build_and_an_explicit_nat_setting", "the_relay_script_and_task_appear_only_in_nat_mode_and_nat_leaves_wslconfig_alone", "networking_mode_is_read_from_the_wsl2_section_only"]
 at = "2026-10-03T20:24:51Z"

@@ -41,9 +41,9 @@ inline = '''
    Compiling proptest v1.11.0
    Compiling thiserror v2.0.21
    Compiling clap v4.6.7
-   Compiling goway v0.1.0 (/home/user/projects/goway-wt/QQRVXW2/crates/goway)
+   Compiling goway v0.1.0 (~other/projects/goway-wt/QQRVXW2/crates/goway)
    Compiling serde v1.0.229
-   Compiling goway-journal v0.1.0 (/home/user/projects/goway-wt/QQRVXW2/crates/goway-journal)
+   Compiling goway-journal v0.1.0 (~other/projects/goway-wt/QQRVXW2/crates/goway-journal)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 15.84s
 \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
  Nextest run ID 24c77cfd-214e-49d5-a660-64b4bc809e2f with nextest profile: default

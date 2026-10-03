@@ -1,7 +1,7 @@
 kind = "evidence"
 accepts = [1]
 captured_at = "2026-10-03T20:38:56Z"
-digest = "17bc813f4c0582f7f642a2732178c1cfdaae767c8e9168502459712b4285ef3b"
+digest = "0142da152c77bd7c90dbe445c7cd472726911abdca061e963e102834f04ed015"
 exit_code = 0
 inline = '''
     Blocking waiting for file lock on package cache
@@ -12,7 +12,7 @@ inline = '''
    Compiling quick-error v1.2.3
    Compiling fnv v1.0.7
    Compiling unarray v0.1.4
-   Compiling goway-setup v0.1.0 (/home/logan/projects/goway-wt/FBZ9QNV/crates/goway-setup)
+   Compiling goway-setup v0.1.0 (goway-wt/FBZ9QNV/crates/goway-setup)
    Compiling getrandom v0.3.4
    Compiling zerocopy v0.8.59
    Compiling num-traits v0.2.19
@@ -27,8 +27,8 @@ inline = '''
    Compiling ppv-lite86 v0.2.21
    Compiling rand_chacha v0.9.0
    Compiling proptest v1.11.0
-   Compiling goway v0.1.0 (/home/logan/projects/goway-wt/FBZ9QNV/crates/goway)
-   Compiling goway-journal v0.1.0 (/home/logan/projects/goway-wt/FBZ9QNV/crates/goway-journal)
+   Compiling goway v0.1.0 (goway-wt/FBZ9QNV/crates/goway)
+   Compiling goway-journal v0.1.0 (goway-wt/FBZ9QNV/crates/goway-journal)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 17.49s
 \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
  Nextest run ID 70cab66d-a548-4287-89ee-9dabd31f37a5 with nextest profile: default
@@ -40,7 +40,7 @@ inline = '''
 passed = true
 provider = "nextest"
 ref = "-E 'test(a_truncated_download_leaves_no_state)'"
-size = 1541
+size = 1478
 status = "measured"
 tests = ["a_truncated_download_leaves_no_state"]
 at = "2026-10-03T20:38:56Z"
