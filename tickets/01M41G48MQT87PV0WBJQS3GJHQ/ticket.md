@@ -2,7 +2,7 @@
 id = "01M41G48MQT87PV0WBJQS3GJHQ"
 title = "H3: confirm host key fingerprints before pinning; never send a password to an unpinned host"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
