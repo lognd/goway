@@ -428,10 +428,73 @@ run() {
   exit "$rc"
 }
 
-# probe ROOT [disk]: key=value facts for scheduling and status.
+# Run "$@" for at most 10 seconds when timeout exists (a hung driver tool
+# must never hang a probe).
+bounded() {
+  if command -v timeout >/dev/null 2>&1; then timeout 10 "$@"; else "$@"; fi
+}
+
+# static_facts: facts that change rarely (GPUs, CPU features, KVM, Docker,
+# WSL), as key=value lines; "static=1" marks that they were probed. GPU
+# lines are "gpu.N=vendor|name|mem_mib|driver|cuda". Nothing here executes
+# anything but the vendor query tools, docker info and powershell.exe (WSL
+# only, to list the video adapters Windows has).
+static_facts() {
+  local n=0 pat cuda="" flags="" f kvm=0 docker=0 wsl=0 win=""
+  printf 'static=1\n'
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    cuda=$(bounded nvidia-smi 2>/dev/null | grep -o 'CUDA Version: [0-9.]*' | head -1 | cut -d' ' -f3 || true)
+    while IFS=, read -r name mem drv; do
+      [ -n "$name" ] || continue
+      name=$(printf '%s' "$name" | tr -d '|' | sed 's/^ *//;s/ *$//')
+      mem=$(printf '%s' "$mem" | tr -dc '0-9')
+      drv=$(printf '%s' "$drv" | tr -d ' ')
+      printf 'gpu.%s=nvidia|%s|%s|%s|%s\n' "$n" "$name" "$mem" "$drv" "$cuda"
+      n=$((n + 1))
+    done < <(bounded nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits 2>/dev/null || true)
+  fi
+  if command -v rocm-smi >/dev/null 2>&1; then
+    while IFS=, read -r card series _; do
+      case "$card" in card[0-9]*) ;; *) continue ;; esac
+      series=$(printf '%s' "$series" | tr -d '|' | sed 's/^ *//;s/ *$//')
+      printf 'gpu.%s=amd|%s|||\n' "$n" "${series:-AMD GPU}"
+      n=$((n + 1))
+    done < <(bounded rocm-smi --showproductname --csv 2>/dev/null || true)
+  fi
+  if [ -r /proc/cpuinfo ]; then
+    # aarch64 reports NEON as asimd.
+    for f in avx2 avx512f neon; do
+      pat=$f; [ "$f" = neon ] && pat='(neon|asimd)'
+      if grep -m1 -E "^(flags|Features)[[:space:]]*:.*[[:space:]]$pat([[:space:]]|\$)" /proc/cpuinfo >/dev/null 2>&1; then
+        flags="$flags${flags:+,}$f"
+      fi
+    done
+  fi
+  printf 'cpu_flags=%s\n' "$flags"
+  if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then kvm=1; fi
+  printf 'kvm=%s\n' "$kvm"
+  if command -v docker >/dev/null 2>&1 && bounded docker info >/dev/null 2>&1; then docker=1; fi
+  printf 'docker=%s\n' "$docker"
+  if grep -qi microsoft /proc/version 2>/dev/null; then
+    wsl=1
+    if command -v powershell.exe >/dev/null 2>&1; then
+      win=$(bounded powershell.exe -NoProfile -NonInteractive -Command '(Get-CimInstance Win32_VideoController).Name -join ";"' 2>/dev/null | tr -d '\r' | head -1 || true)
+    fi
+  fi
+  printf 'wsl=%s\nwinvideo=%s\n' "$wsl" "$win"
+}
+
+# probe ROOT [disk] [static]: key=value facts for scheduling and status.
+# RAM is always reported; "static" adds the rarely changing hardware facts.
 probe() {
-  local root jobs=0 l
+  local root jobs=0 l a want_disk=0 want_static=0
   root=$(root_dir "$1")
+  shift
+  for a in "$@"; do
+    case "$a" in disk) want_disk=1 ;; static) want_static=1 ;; esac
+  done
+  awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {if (t) printf "mem_total=%.0f\n", t*1024; if (a) printf "mem_avail=%.0f\n", a*1024}' /proc/meminfo 2>/dev/null || true
+  if [ "$want_static" = 1 ]; then static_facts; fi
   printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(uname -m)" "$(uname -n)" "$(nproc)"
   read -r l1 l5 l15 _ </proc/loadavg
   printf 'load1=%s\nload5=%s\nload15=%s\n' "$l1" "$l5" "$l15"
@@ -442,7 +505,7 @@ probe() {
     done
   fi
   printf 'jobs=%s\n' "$jobs"
-  if [ "${2:-}" = disk ]; then
+  if [ "$want_disk" = 1 ]; then
     printf 'disk_used=%s\n' "$(du -sb "$root" 2>/dev/null | cut -f1 || true)"
     printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
   fi
@@ -566,6 +629,7 @@ doctor() {
   fi
   printf 'password_auth=%s\n' "${pa:-default-yes}"
   printf 'home=%s\n' "$HOME"
+  static_facts
   # Whether a cargo home existed before any goway fix (so uninstall never removes it).
   if [ -e "${CARGO_HOME:-$HOME/.cargo}" ]; then printf 'cargo_home=1\n'; else printf 'cargo_home=0\n'; fi
 }

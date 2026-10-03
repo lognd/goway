@@ -6,6 +6,7 @@ pub mod cli;
 pub mod config;
 pub mod doctor;
 pub mod error;
+pub mod facts;
 pub mod gc;
 pub mod hosts;
 pub mod paths;
@@ -111,13 +112,14 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
             };
             run::run(&env, renderer, args)
         }
-        Command::Status => {
+        Command::Status { refresh } => {
             let settings = ssh::Settings::from_paths(&paths);
             status::status(
                 &paths,
                 renderer,
                 &resolve::SystemLookup,
                 &resolve::SshProber { settings },
+                *refresh,
             )
         }
         Command::Gc(args) => {

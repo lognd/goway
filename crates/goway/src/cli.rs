@@ -50,7 +50,11 @@ pub enum Command {
     /// Sync the work tree and run a command on a pool host.
     Run(RunArgs),
     /// Show hosts, load, running jobs and disk used by goway.
-    Status,
+    Status {
+        /// Probe static host facts (GPUs, features) again instead of using the daily cache.
+        #[arg(long)]
+        refresh: bool,
+    },
     /// Remove stale remote work directories and caches.
     Gc(GcArgs),
     /// Check ssh, the remote toolchain and disk; print exact fixes.
@@ -73,7 +77,7 @@ impl Command {
             Self::Add(_) => "add",
             Self::Uninstall(_) => "uninstall",
             Self::Run(_) => "run",
-            Self::Status => "status",
+            Self::Status { .. } => "status",
             Self::Gc(_) => "gc",
             Self::Doctor(_) => "doctor",
             Self::Host(_) => "host",

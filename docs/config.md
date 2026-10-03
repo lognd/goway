@@ -42,6 +42,7 @@ keep_ignored = true            # also keep every path the tree's .gitignore rule
 port = 2222                    # ssh port when a host does not set one (WSL sshd)
 priority = "low"               # "low": jobs run under nice 10 with idle-class I/O; "normal"
 # max_load = 0.8               # skip hosts whose 1-minute load per core is above this
+# mem_per_core = 0.5           # GiB of free RAM per core below which a host scores worse (0 = off)
 
 [[host]]
 name = "my-helper"             # the helper's computer name; also tried as my-helper.local

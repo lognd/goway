@@ -338,6 +338,26 @@ fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
         ),
         None => {}
     }
+    if let Some(hw) = crate::facts::parse_static(facts) {
+        if let Some(name) = crate::facts::gpu_invisible_to_wsl(&hw) {
+            push(
+                "gpu",
+                Level::Warn,
+                format!(
+                    "Windows has {name}, but WSL cannot see it (no nvidia-smi or rocm-smi GPU). \
+                     Fix on Windows, not in WSL: install the current NVIDIA (or AMD) Windows driver \
+                     with WSL support, do not install a Linux GPU driver inside WSL, run \
+                     `wsl --shutdown`, reopen WSL and check that `nvidia-smi` lists the GPU"
+                ),
+                None,
+            );
+        } else if hw.gpus.is_empty() {
+            tracing::debug!("host has no GPU visible");
+        } else {
+            let list: Vec<String> = hw.gpus.iter().map(crate::facts::Gpu::summary).collect();
+            push("gpu", Level::Ok, list.join(", "), None);
+        }
+    }
     match facts.get("password_auth").map(String::as_str) {
         Some("no") => push("sshd password login", Level::Ok, "disabled (keys only)".to_owned(), None),
         Some(other) => push(
@@ -923,6 +943,25 @@ mod tests {
                 .0
                 .contains("reload sshd")
         );
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::host_checks
+    #[test]
+    fn doctor_flags_a_gpu_invisible_to_wsl() {
+        let mut f = facts(&[]);
+        f.insert("static".to_owned(), "1".to_owned());
+        f.insert("wsl".to_owned(), "1".to_owned());
+        f.insert("winvideo".to_owned(), "NVIDIA GeForce RTX 3060".to_owned());
+        let gpu = assess(&f).into_iter().find(|c| c.name == "gpu").unwrap();
+        assert_eq!(gpu.level, Level::Warn);
+        assert!(gpu.detail.contains("cannot see"), "{}", gpu.detail);
+        assert!(gpu.detail.contains("wsl --shutdown"), "{}", gpu.detail);
+        f.insert(
+            "gpu.0".to_owned(),
+            "nvidia|RTX 3060|12288|555.1|12.5".to_owned(),
+        );
+        let gpu = assess(&f).into_iter().find(|c| c.name == "gpu").unwrap();
+        assert_eq!(gpu.level, Level::Ok);
     }
 
     #[test]

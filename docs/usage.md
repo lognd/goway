@@ -185,11 +185,28 @@ A single-host run to a pipe stays byte-identical to the command's output.
 `goway status` prints for every host:
 - the current address and how it was found
 - arch and cores
+- RAM (available/total), GPUs (model, memory, driver, CUDA), and notable
+  features (`avx2`, `avx512f`, `neon`, `kvm`, `docker`), with the age of
+  those facts
 - load averages
 - running goway jobs (against `max_jobs` if set)
 - disk used by goway and disk free
 
 Unreachable hosts are marked.
+
+RAM and disk are probed live on every run. The rest (GPUs through
+`nvidia-smi` or `rocm-smi`, CPU features, `/dev/kvm` readable and writable,
+a working `docker info`) costs more on the host, so goway caches it per host
+in its state file and probes it again daily or on `goway status --refresh`.
+Values a host reports are bounds-checked before they are used.
+
+Scheduling takes RAM into account: a host with less than
+`defaults.mem_per_core` GiB (default 0.5) of available RAM per core scores
+worse, by up to 1.0 in proportion to the shortfall, so a 16-core host with
+3 GiB loses to a 12-core host with 7 GiB but is still used when it is the
+only one. Set `mem_per_core = 0` to turn it off. `goway doctor` says when
+Windows has an NVIDIA or AMD GPU that WSL cannot see (the fix is the
+Windows driver with WSL support, never a Linux driver inside WSL).
 
 ## Clean up
 
