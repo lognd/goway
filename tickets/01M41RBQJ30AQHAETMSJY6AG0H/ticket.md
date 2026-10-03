@@ -8,8 +8,8 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:47:47Z"
-updated = "2026-10-03T23:28:22Z"
-scope = ["crates/goway/tests/**"]
+updated = "2026-10-03T23:32:29Z"
+scope = ["crates/goway/tests/common/mod.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/ssh_setup.rs", "crates/goway/tests/gpu_slots.rs"]
 
 [[acceptance]]
 text = "Given a fully loaded machine (the suite run with many parallel builds), when the suite runs ten times, then ssh_setup::uninstall_everywhere_removes_goway_from_helper_and_laptop, run_local::shards_run_on_n_hosts_and_any_failure_fails_the_run, run_local::cargo_target_dir_is_a_free_per_repo_slot and run_local::gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones never fail; waits are on conditions, not on fixed sleeps"
