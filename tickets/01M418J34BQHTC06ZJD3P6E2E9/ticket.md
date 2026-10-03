@@ -2,13 +2,13 @@
 id = "01M418J34BQHTC06ZJD3P6E2E9"
 title = "Guided, reversible ssh setup: keys, authorized_keys, permissions, icacls"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T17:26:20Z"
+updated = "2026-10-03T17:26:21Z"
 scope = ["crates/goway/**", "crates/goway-journal/**", "docs/ssh-setup.md", "docs/usage.md", "README.md"]
 
 [[acceptance]]
