@@ -1,0 +1,1 @@
+Security: every ssh call goway makes disables agent, X11 and port forwarding, credential delegation, local commands and host key updates regardless of the user's ssh config, and ssh runs with a minimal environment so no local variable can be forwarded to a host.

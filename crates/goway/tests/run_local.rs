@@ -574,3 +574,20 @@ fn gc_never_removes_unlabelled_entries_or_anything_under_an_unmarked_root() {
     assert!(out.status.success());
     assert_eq!(w.work_dirs().len(), kept, "gc touched an unmarked root");
 }
+
+#[test]
+fn local_environment_never_travels_to_the_host() {
+    let w = world();
+    let out = w
+        .goway(&["run", "--", "sh", "-c", "env"])
+        .env("MY_API_TOKEN", "s3cret-sentinel")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let remote_env = String::from_utf8_lossy(&out.stdout);
+    assert!(!remote_env.contains("s3cret-sentinel"), "{remote_env}");
+}
