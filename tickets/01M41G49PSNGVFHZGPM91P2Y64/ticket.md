@@ -2,13 +2,13 @@
 id = "01M41G49PSNGVFHZGPM91P2Y64"
 title = "M5: --env values never in remote argv, logs or reports"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:55Z"
-updated = "2026-10-03T18:23:55Z"
+updated = "2026-10-03T18:43:12Z"
 labels = ["security"]
 scope = ["crates/goway/**"]
 
