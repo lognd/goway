@@ -2,13 +2,13 @@
 id = "01M41PH8AS2GRS0FJ5PEQP9WA8"
 title = "Publish goway wheels to PyPI (maturin bin bindings) with trusted publishing"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:15:51Z"
-updated = "2026-10-03T20:15:51Z"
+updated = "2026-10-03T20:31:37Z"
 scope = ["Cargo.toml", "crates/*/Cargo.toml", ".github/workflows/release.yml", ".github/workflows/ci.yml", "docs/release.md", "README.md", "pyproject.toml"]
 
 [[acceptance]]
