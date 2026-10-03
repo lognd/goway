@@ -1,0 +1,12 @@
+kind = "create"
+title = "CI: unix-only test helpers unused on Windows; purge races the post-run gc"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 1
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/src/**"]
+acceptance = ["Given the CI workflow, when it runs on Linux and Windows, then both jobs pass", "Given goway uninstall right after a run, when the post-run gc still holds a lock briefly, then purge waits for it instead of reporting a run in progress"]
+at = "2026-10-03T19:30:23Z"
+actor = "lognd"
+rev = 1
