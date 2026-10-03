@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T17:09:37Z"
+digest = "2322163856f128df65c22b07f97c73c8f04f2f6a877f7ee0bf378dc65ea9b646"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID be2181a3-1c2c-4e50-b5da-0b4d782c1f0c with nextest profile: default
+    Starting 2 tests across 15 binaries (130 tests skipped)
+        PASS [   0.009s] goway pool::tests::pinned_host_ignores_max_load
+        PASS [   0.009s] goway pool::tests::hosts_above_max_load_are_skipped_unless_pinned
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.011s] 2 tests run: 2 passed, 130 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(hosts_above_max_load_are_skipped_unless_pinned) | test(pinned_host_ignores_max_load)'"
+size = 634
+status = "measured"
+tests = ["pool::tests::pinned_host_ignores_max_load", "pool::tests::hosts_above_max_load_are_skipped_unless_pinned"]
+at = "2026-10-03T17:09:37Z"
+actor = "lognd"
+rev = 1
