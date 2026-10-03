@@ -5,7 +5,7 @@ use std::io::Write as _;
 
 use anstream::{AutoStream, ColorChoice};
 use anstyle::{AnsiColor, Style};
-use goway_journal::{Change, Outcome, RegValue};
+use goway_journal::{Change, Outcome, RegValue, ResourceKind};
 
 use crate::app::{StatusRow, UninstallReport};
 use crate::error::SetupError;
@@ -58,7 +58,21 @@ pub fn describe(change: &Change) -> String {
         }
         Change::SetUnixMode { path, mode } => format!("chmod {mode:o} {}", path.display()),
         Change::SetAcl { path, .. } => format!("set ACL of {}", path.display()),
-        Change::EnsureResource { kind, name, .. } => format!("ensure {kind:?} {name}"),
+        Change::EnsureResource { kind, name, .. } => {
+            format!("ensure {} {name}", describe_kind(*kind))
+        }
+    }
+}
+
+/// Human name of a resource kind.
+pub fn describe_kind(kind: ResourceKind) -> &'static str {
+    match kind {
+        ResourceKind::FirewallRule => "Windows Firewall rule",
+        ResourceKind::HyperVFirewallRule => "Hyper-V firewall rule",
+        ResourceKind::ScheduledTask => "scheduled task",
+        ResourceKind::Service => "service",
+        ResourceKind::WslPackage => "WSL package",
+        ResourceKind::WslUnit => "enabled WSL systemd unit",
     }
 }
 
@@ -158,8 +172,13 @@ impl Renderer {
         );
     }
 
-    /// Print the outcome of an uninstall.
+    /// Print the outcome of an uninstall of the whole profile.
     pub fn uninstalled(self, layout: &Layout, report: &UninstallReport) {
+        self.uninstalled_component(layout, "profile", report);
+    }
+
+    /// Print the outcome of an uninstall of one component (`label` names what was removed).
+    pub fn uninstalled_component(self, layout: &Layout, label: &str, report: &UninstallReport) {
         for (index, outcome) in &report.outcomes {
             let change = &report.journal.entries[*index].change;
             let (style, tag, extra) = match outcome {
@@ -170,7 +189,60 @@ impl Renderer {
             };
             self.line(style, tag, &format!("{}{extra}", describe(change)));
         }
-        self.line(GOOD, "removed", &format!("profile {}", layout.profile));
+        self.line(GOOD, "removed", &format!("{label} {}", layout.profile));
+    }
+
+    /// Print text produced by another process (an elevated run's captured output) unchanged.
+    pub fn passthrough(self, text: &str) {
+        let _ = write!(self.out(), "{text}");
+    }
+
+    /// Announce that the installer asks Windows for administrator rights.
+    pub fn elevating(self, what: &str) {
+        self.line(
+            WARN,
+            "elevating",
+            &format!("{what} needs administrator rights; accept the Windows prompt"),
+        );
+    }
+
+    /// A follow-up the user must act on or should know about.
+    pub fn notice(self, text: &str) {
+        self.line(WARN, "note", text);
+    }
+
+    /// Announce a finished host install.
+    pub fn host_installed(self, layout: &Layout, distro: &str, port: u16, applied: usize) {
+        self.line(
+            GOOD,
+            "installed",
+            &format!(
+                "host component of profile {} ({applied} changes; WSL distro {distro}, sshd port {port})",
+                layout.profile
+            ),
+        );
+        self.line(
+            DIM,
+            "journal",
+            &layout.host_journal_path.display().to_string(),
+        );
+    }
+
+    /// Print the plan of a dry run for one component; `holds[i]` says entry `i` is already in place.
+    pub fn plan_component(self, label: &str, plan: &[Change], holds: Option<&[bool]>) {
+        self.line(
+            WARN,
+            "dry run",
+            &format!("{label} would apply {} changes:", plan.len()),
+        );
+        for (i, c) in plan.iter().enumerate() {
+            let mark = match holds.and_then(|h| h.get(i)) {
+                Some(true) => format!("{GOOD}in place{GOOD:#} "),
+                Some(false) => format!("{WARN}will do {WARN:#} "),
+                None => String::new(),
+            };
+            let _ = writeln!(self.out(), "  {DIM}{i:>2}{DIM:#} {mark}{}", describe(c));
+        }
     }
 
     /// Print `status` rows.

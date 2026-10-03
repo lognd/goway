@@ -2,16 +2,17 @@
 id = "01M418J39QGM7X2XQ32RN5XHS5"
 title = "Windows installer: host component (firewall, Hyper-V firewall, keepalive, wslconfig, WSL sshd)"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 8
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T17:18:27Z"
+updated = "2026-10-03T17:22:59Z"
 scope = ["crates/goway-setup/**", "docs/install-windows.md", "scripts/windows/**", "crates/goway-journal/**", "frob.toml"]
 
 [[acceptance]]
 text = "Given a Windows host, when goway-setup install --host then uninstall run in a test profile, then firewall rules, scheduled tasks, .wslconfig and WSL sshd config equal the snapshot from before"
-bound = false
+bound = true
 +++

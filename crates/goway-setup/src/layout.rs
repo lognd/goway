@@ -31,6 +31,10 @@ pub struct Layout {
     pub journal_path: PathBuf,
     /// The Add/Remove Programs key for this profile.
     pub uninstall_key: String,
+    /// `<state_dir>\host-journal.json`, the host component's journal (one journal per component).
+    pub host_journal_path: PathBuf,
+    /// `<state_dir>\host-settings.json`, the distro and port the host install used.
+    pub host_settings_path: PathBuf,
 }
 
 /// Accept only names that are safe as a directory name and as a registry key name.
@@ -63,11 +67,25 @@ impl Layout {
             setup_exe: install_root.join("goway-setup.exe"),
             journal_path: state_dir.join("install-journal.json"),
             uninstall_key: format!(r"{UNINSTALL_ROOT}\{profile}"),
+            host_journal_path: state_dir.join("host-journal.json"),
+            host_settings_path: state_dir.join("host-settings.json"),
             programs_dir,
             install_root,
             bin_dir,
             state_dir,
         })
+    }
+
+    /// This layout with the host component's journal in place of the client's.
+    ///
+    /// `app::install`, `uninstall` and `load_journal` act on `journal_path`, so the host
+    /// component reuses them unchanged through this view.
+    #[must_use]
+    pub fn host_view(&self) -> Self {
+        Self {
+            journal_path: self.host_journal_path.clone(),
+            ..self.clone()
+        }
     }
 
     /// Derive the layout under the real per-user local application data directory.

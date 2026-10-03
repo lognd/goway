@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T17:24:09Z"
+digest = "f2e85f118c394cdde33115165d518546004c766876310047e22fa036fb2e6b90"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 5b6486a2-496e-46a5-944c-587f48d656f8 with nextest profile: default
+    Starting 4 tests across 1 binary (15 binaries skipped)
+        PASS [   0.501s] goway::install_scripts a_changed_binary_is_kept_and_a_second_install_is_refused
+        PASS [   0.792s] goway::install_scripts install_then_uninstall_keeps_existing_profile_and_dirs
+        PASS [   0.817s] goway::install_scripts bin_already_on_path_means_no_profile_edit
+        PASS [   0.831s] goway::install_scripts install_then_uninstall_restores_an_empty_home
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.837s] 4 tests run: 4 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(install_scripts)'"
+size = 911
+status = "measured"
+tests = ["a_changed_binary_is_kept_and_a_second_install_is_refused", "install_then_uninstall_keeps_existing_profile_and_dirs", "bin_already_on_path_means_no_profile_edit", "install_then_uninstall_restores_an_empty_home"]
+at = "2026-10-03T17:24:09Z"
+actor = "lognd"
+rev = 1

@@ -387,6 +387,8 @@ dependencies = [
  "dirs",
  "goway-journal",
  "proptest",
+ "serde",
+ "serde_json",
  "tempfile",
  "thiserror",
  "tracing",

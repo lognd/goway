@@ -32,7 +32,12 @@ fn a_dry_run_install_succeeds_and_changes_nothing() {
     ])
     .unwrap();
     run(&cli, Renderer::new(ColorWhen::Never)).unwrap();
-    assert_eq!(selected_components(false), vec![Component::Client]);
+    assert_eq!(selected_components(false, false), vec![Component::Client]);
+    assert_eq!(selected_components(false, true), vec![Component::Host]);
+    assert_eq!(
+        selected_components(true, true),
+        vec![Component::Client, Component::Host]
+    );
     let layout = Layout::from_environment("dry-run-test").unwrap();
     assert!(!layout.journal_path.exists());
 }
@@ -100,5 +105,131 @@ fn platform_helpers_are_harmless_off_windows() {
     let mut cmd = std::process::Command::new("true");
     if let Ok(mut child) = spawn_detached(&mut cmd) {
         child.wait().unwrap();
+    }
+}
+
+// frob:tests crates/goway-setup/src/cli.rs::run
+#[test]
+fn a_host_dry_run_prints_the_plan_and_a_real_host_install_needs_windows() {
+    let r = Renderer::new(ColorWhen::Never);
+    let dry = Cli::try_parse_from([
+        "goway-setup",
+        "install",
+        "--host",
+        "--dry-run",
+        "--port",
+        "2299",
+        "--distro",
+        "Ubuntu",
+        "--keepalive",
+        "boot",
+        "--harden",
+        "--no-activate",
+        "--no-elevate",
+        "--profile",
+        "host-dry-run-test",
+    ])
+    .unwrap();
+    run(&dry, r).unwrap();
+    let layout = Layout::from_environment("host-dry-run-test").unwrap();
+    assert!(!layout.host_journal_path.exists());
+
+    let bad = Cli::try_parse_from([
+        "goway-setup",
+        "install",
+        "--host",
+        "--dry-run",
+        "--distro",
+        "a b",
+    ])
+    .unwrap();
+    assert!(run(&bad, r).is_err());
+
+    if !cfg!(windows) {
+        let real = Cli::try_parse_from([
+            "goway-setup",
+            "install",
+            "--host",
+            "--profile",
+            "host-dry-run-test",
+        ])
+        .unwrap();
+        let err = run(&real, r).unwrap_err();
+        assert!(
+            matches!(err, goway_setup::error::SetupError::HostNeedsWindows),
+            "{err}"
+        );
+    }
+}
+
+// frob:tests crates/goway-setup/src/cli.rs::run
+#[test]
+fn status_and_uninstall_of_an_unknown_profile_report_nothing_to_do() {
+    let r = Renderer::new(ColorWhen::Never);
+    for sub in ["status", "uninstall"] {
+        let cli =
+            Cli::try_parse_from(["goway-setup", sub, "--profile", "never-installed-test"]).unwrap();
+        run(&cli, r).unwrap();
+    }
+}
+
+// frob:tests crates/goway-setup/src/render.rs::Renderer.passthrough
+// frob:tests crates/goway-setup/src/render.rs::Renderer.elevating
+// frob:tests crates/goway-setup/src/render.rs::Renderer.notice
+// frob:tests crates/goway-setup/src/render.rs::Renderer.host_installed
+// frob:tests crates/goway-setup/src/render.rs::Renderer.plan_component
+// frob:tests crates/goway-setup/src/render.rs::Renderer.uninstalled_component
+// frob:tests crates/goway-setup/src/render.rs::describe_kind
+#[test]
+fn host_messages_render_without_panicking() {
+    use goway_journal::ResourceKind;
+    let r = Renderer::new(ColorWhen::Never);
+    let layout = Layout::new(Path::new("/l"), "p").unwrap();
+    r.passthrough("child output\n");
+    r.elevating("the host install");
+    r.notice("restart WSL");
+    r.host_installed(&layout, "Ubuntu", 2299, 11);
+    let change = Change::EnsureResource {
+        kind: ResourceKind::WslUnit,
+        name: "ssh.socket".into(),
+        spec: String::new(),
+    };
+    r.plan_component("host component", std::slice::from_ref(&change), None);
+    r.plan_component(
+        "host component",
+        std::slice::from_ref(&change),
+        Some(&[true]),
+    );
+    r.plan_component(
+        "host component",
+        std::slice::from_ref(&change),
+        Some(&[false]),
+    );
+    let mut journal = Journal::new("j");
+    journal.entries.push(goway_journal::Entry {
+        change: change.clone(),
+        prior: goway_journal::Prior::ResourceCreated,
+        reverted: true,
+    });
+    r.uninstalled_component(
+        &layout,
+        "host component of profile",
+        &UninstallReport {
+            journal,
+            outcomes: vec![(0, Outcome::Restored)],
+        },
+    );
+    assert_eq!(
+        goway_setup::render::describe(&change),
+        "ensure enabled WSL systemd unit ssh.socket"
+    );
+    for kind in [
+        ResourceKind::FirewallRule,
+        ResourceKind::HyperVFirewallRule,
+        ResourceKind::ScheduledTask,
+        ResourceKind::Service,
+        ResourceKind::WslPackage,
+    ] {
+        assert!(!goway_setup::render::describe_kind(kind).is_empty());
     }
 }

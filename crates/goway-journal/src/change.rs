@@ -28,6 +28,10 @@ pub enum ResourceKind {
     ScheduledTask,
     /// A system service.
     Service,
+    /// A distro package (exists while installed); managed inside a WSL distro.
+    WslPackage,
+    /// A systemd unit enabled at boot (exists while enabled); managed inside a WSL distro.
+    WslUnit,
 }
 
 /// Where a new list entry goes.

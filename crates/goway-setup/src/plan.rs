@@ -12,6 +12,8 @@ use crate::layout::Layout;
 pub enum Component {
     /// goway.exe, the user PATH entry and the Add/Remove Programs entry (per-user, no admin).
     Client,
+    /// Firewall rules, keepalive task, `.wslconfig` and the WSL sshd (see [`crate::host`]; needs administrator rights).
+    Host,
 }
 
 /// Where the bytes to install come from, and what they hash to.
@@ -66,7 +68,10 @@ pub fn client_plan(layout: &Layout, src: &Sources, version: &str) -> Vec<Change>
     plan
 }
 
-/// The full plan for the selected components.
+/// The client plan when the client is selected.
+///
+/// The host plan needs probed facts and parameters, so it is built by [`crate::host::host_plan`]
+/// and journaled separately (one journal per component).
 pub fn build(
     layout: &Layout,
     components: &[Component],
@@ -80,6 +85,7 @@ pub fn build(
         .into_iter()
         .flat_map(|c| match c {
             Component::Client => client_plan(layout, src, version),
+            Component::Host => Vec::new(),
         })
         .collect()
 }
