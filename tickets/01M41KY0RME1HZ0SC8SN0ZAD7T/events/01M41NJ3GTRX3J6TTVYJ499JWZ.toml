@@ -1,0 +1,33 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T19:58:50Z"
+digest = "8297659543570d82dce5a3ee140f704967140c0eeaa2a334411337fcf6a1a1d2"
+exit_code = 0
+inline = '''
+
+\u{2713} ci-fix-check ci \u{b7} 37149687896
+Triggered via push about 2 minutes ago
+
+JOBS
+\u{2713} linux in 58s (ID 111280705883)
+\u{2713} windows in 1m53s (ID 111280706009)
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+linux: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+windows: .github#3
+
+
+For more information about a job, try: gh run view --job=<job-id>
+View this run on GitHub: https://github.com/lognd/goway/actions/runs/37149687896
+'''
+passed = true
+provider = "command"
+ref = "gh run view 37149687896 --exit-status"
+size = 871
+status = "measured"
+at = "2026-10-03T19:58:50Z"
+actor = "lognd"
+rev = 1
