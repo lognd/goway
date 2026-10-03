@@ -356,7 +356,6 @@ fn find_tool(tool: &str) -> PathBuf {
         .unwrap_or_else(|| panic!("{tool} not on PATH"))
 }
 
-// frob:tests scripts/install.sh
 #[test]
 fn macos_machines_get_the_apple_darwin_archive_for_their_cpu() {
     for (arch, target) in [
@@ -385,7 +384,6 @@ fn macos_machines_get_the_apple_darwin_archive_for_their_cpu() {
     }
 }
 
-// frob:tests scripts/install.sh
 #[test]
 fn shasum_verifies_the_download_when_sha256sum_is_missing() {
     let home = tempfile::tempdir().unwrap();
