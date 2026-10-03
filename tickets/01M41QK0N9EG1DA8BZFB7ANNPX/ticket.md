@@ -2,7 +2,8 @@
 id = "01M41QK0N9EG1DA8BZFB7ANNPX"
 title = "Host-derived text cannot forge goway lines; helper output is size-capped"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
