@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:28:11Z"
-updated = "2026-10-03T20:33:28Z"
+updated = "2026-10-03T20:33:29Z"
 scope = ["crates/goway/src/uninstall.rs", "crates/goway/src/doctor.rs", "crates/goway/src/remote.sh", "crates/goway/tests/uninstall_records.rs", "crates/goway/tests/install_scripts.rs", "scripts/uninstall.sh", "docs/usage.md"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a legacy record with undo and root fields, When it is loaded, Then those fields are ignored and the undo is derived from the check name"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a journal naming a file outside the install prefix or a profile outside HOME, When the journal is reverted, Then those entries are skipped"
