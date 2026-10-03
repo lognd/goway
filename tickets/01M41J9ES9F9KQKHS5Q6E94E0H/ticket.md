@@ -2,7 +2,8 @@
 id = "01M41J9ES9F9KQKHS5Q6E94E0H"
 title = "goway uninstall: remove everything goway added, here and on every helper"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
