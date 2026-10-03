@@ -1,0 +1,1 @@
+Fixed: warm cargo runs could execute test binaries whose baked CARGO_MANIFEST_DIR pointed at a previous, deleted work directory; a run holding target slot k now runs in a stable per-slot tree, so reused binaries always see the current sources.

@@ -35,7 +35,11 @@ What happens:
 4. **Run.** The command starts in its own session, with stdin, stdout
    and stderr passed through untouched. `CARGO_TARGET_DIR` points at
    the first free per-repository target slot (a new one when all are
-   busy, up to `target_slots`). `~/.cargo/env` is sourced. sccache is
+   busy, up to `target_slots`). While it holds slot k, the job runs in
+   the tree at `cache/<repo>/tree-k` (its snapshot, moved there). Builds
+   bake absolute source paths into binaries (`CARGO_MANIFEST_DIR`,
+   `file!()`), and cargo reuses binaries when only the path changed, so
+   a slot's binaries always find the current tree where they expect it. `~/.cargo/env` is sourced. sccache is
    used if installed. With `priority = "low"` (the default) the job
    runs under `nice -n 10` with idle-class I/O.
 5. **Finish.** The work dir is removed unless `--keep` is given, a
