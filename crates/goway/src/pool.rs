@@ -256,6 +256,7 @@ mod tests {
             max_jobs,
             priority: None,
             max_load: None,
+            identity: None,
         }
     }
 
@@ -266,6 +267,7 @@ mod tests {
                 address: "10.0.0.1".to_owned(),
                 port: 2222,
                 user: None,
+                identity: None,
             },
             source: resolve::Source::Cached,
             output: String::new(),

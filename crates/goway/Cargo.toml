@@ -13,6 +13,7 @@ anstream = "0.6"
 anstyle = "1"
 base64 = "0.22"
 dirs = "6"
+goway-journal = { path = "../goway-journal" }
 humantime = "2"
 humantime-serde = "1"
 serde = { version = "1", features = ["derive"] }

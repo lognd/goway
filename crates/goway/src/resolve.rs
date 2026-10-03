@@ -190,6 +190,7 @@ pub fn resolve(
                 address: address.clone(),
                 port,
                 user: host.user.clone(),
+                identity: host.identity.as_ref().map(std::path::PathBuf::from),
             };
             match prober.probe(&target, policy, remote) {
                 Ok(output) => {
@@ -394,6 +395,7 @@ mod tests {
             max_jobs: None,
             priority: None,
             max_load: None,
+            identity: None,
         }
     }
 

@@ -27,6 +27,32 @@ fn io_or_missing(path: &Path, source: std::io::Error) -> SystemError {
     }
 }
 
+/// The public key file of a private key path.
+fn public_key(private: &Path) -> std::path::PathBuf {
+    let mut name = private.as_os_str().to_owned();
+    name.push(".pub");
+    std::path::PathBuf::from(name)
+}
+
+/// Create an unencrypted ed25519 key pair with `ssh-keygen`.
+fn create_key_pair(private: &Path, comment: &str) -> SysResult<()> {
+    tracing::info!(key = %private.display(), comment, "local: create ssh key pair");
+    let out = std::process::Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", comment, "-f"])
+        .arg(private)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|e| io(private, e))?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(SystemError::InvalidState(format!(
+            "ssh-keygen failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        )))
+    }
+}
+
 impl System for LocalSystem {
     fn read_file(&self, path: &Path) -> SysResult<Option<String>> {
         match std::fs::read_to_string(path) {
@@ -223,15 +249,38 @@ impl System for LocalSystem {
         Err(SystemError::Unsupported("ACLs"))
     }
 
-    fn resource_exists(&self, _kind: ResourceKind, _name: &str) -> SysResult<bool> {
-        Err(SystemError::Unsupported("external resources"))
+    fn resource_exists(&self, kind: ResourceKind, name: &str) -> SysResult<bool> {
+        match kind {
+            ResourceKind::SshKeyPair => {
+                let private = Path::new(name);
+                Ok(private.is_file() && public_key(private).is_file())
+            }
+            _ => Err(SystemError::Unsupported("external resources")),
+        }
     }
 
-    fn resource_create(&mut self, _kind: ResourceKind, _name: &str, _spec: &str) -> SysResult<()> {
-        Err(SystemError::Unsupported("external resources"))
+    fn resource_create(&mut self, kind: ResourceKind, name: &str, spec: &str) -> SysResult<()> {
+        match kind {
+            ResourceKind::SshKeyPair => create_key_pair(Path::new(name), spec),
+            _ => Err(SystemError::Unsupported("external resources")),
+        }
     }
 
-    fn resource_delete(&mut self, _kind: ResourceKind, _name: &str) -> SysResult<()> {
-        Err(SystemError::Unsupported("external resources"))
+    fn resource_delete(&mut self, kind: ResourceKind, name: &str) -> SysResult<()> {
+        match kind {
+            ResourceKind::SshKeyPair => {
+                let private = Path::new(name);
+                tracing::info!(key = %private.display(), "local: delete ssh key pair");
+                for path in [private.to_path_buf(), public_key(private)] {
+                    match std::fs::remove_file(&path) {
+                        Ok(()) => {}
+                        Err(e) if e.kind() == ErrorKind::NotFound => {}
+                        Err(e) => return Err(io(&path, e)),
+                    }
+                }
+                Ok(())
+            }
+            _ => Err(SystemError::Unsupported("external resources")),
+        }
     }
 }

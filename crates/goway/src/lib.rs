@@ -10,12 +10,14 @@ pub mod hosts;
 pub mod paths;
 pub mod pool;
 pub mod remote;
+pub mod remotesys;
 pub mod render;
 pub mod repo;
 pub mod resolve;
 pub mod run;
 pub mod ssh;
 pub mod sshenv;
+pub mod sshsetup;
 pub mod state;
 pub mod status;
 pub mod sync;
@@ -114,7 +116,9 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
         Command::Host(HostCommand::Add(args)) => {
             hosts::add(&paths, renderer, args, &resolve::SystemLookup)
         }
-        Command::Ssh(_) => Err(Error::NotImplemented("ssh")),
+        Command::Ssh(cli::SshCommand::Setup(args)) => {
+            sshsetup::setup(&paths, renderer, args, &resolve::SystemLookup)
+        }
         Command::Config(ConfigCommand::Path) => {
             renderer.table(&[
                 vec!["what".to_owned(), "path".to_owned()],

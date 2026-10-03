@@ -23,6 +23,8 @@ pub struct Target {
     pub port: u16,
     /// The remote user, if not left to ssh config.
     pub user: Option<String>,
+    /// A private key to offer, if not left to ssh config.
+    pub identity: Option<PathBuf>,
 }
 
 /// How to treat a host key not yet in goway's `known_hosts`.
@@ -110,6 +112,10 @@ pub fn args(target: &Target, settings: &Settings, policy: KeyPolicy) -> Vec<OsSt
         out.push("-o".into());
         out.push(o.into());
     }
+    if let Some(identity) = &target.identity {
+        out.push("-o".into());
+        out.push(format!("IdentityFile={}", option_value(identity)).into());
+    }
     out.push("-p".into());
     out.push(target.port.to_string().into());
     if let Some(user) = &target.user {
@@ -137,6 +143,23 @@ pub fn command(target: &Target, settings: &Settings, policy: KeyPolicy, remote: 
     cmd.args(args(target, settings, policy)).arg(remote);
     tracing::debug!(host = %target.name, address = %target.address, port = target.port, ?policy, "ssh");
     cmd
+}
+
+/// Let `cmd` (built by [`command`]) ask for a password: `BatchMode=no`.
+pub fn allow_password(cmd: &mut Command) {
+    let args: Vec<OsString> = cmd
+        .get_args()
+        .map(|a| {
+            if a == "BatchMode=yes" {
+                OsString::from("BatchMode=no")
+            } else {
+                OsString::from(a)
+            }
+        })
+        .collect();
+    let mut rebuilt = Command::new(cmd.get_program());
+    rebuilt.args(args);
+    *cmd = rebuilt;
 }
 
 /// Make `cmd` (built by [`command`]) allocate a remote tty, for commands
@@ -222,6 +245,7 @@ mod tests {
             address: "192.0.2.10".to_owned(),
             port: 2222,
             user: Some("user".to_owned()),
+            identity: None,
         }
     }
 

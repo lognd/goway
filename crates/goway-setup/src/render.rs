@@ -73,6 +73,7 @@ pub fn describe_kind(kind: ResourceKind) -> &'static str {
         ResourceKind::Service => "service",
         ResourceKind::WslPackage => "WSL package",
         ResourceKind::WslUnit => "enabled WSL systemd unit",
+        ResourceKind::SshKeyPair => "ssh key pair",
     }
 }
 

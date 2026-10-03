@@ -349,6 +349,7 @@ dependencies = [
  "clap",
  "ctrlc",
  "dirs",
+ "goway-journal",
  "humantime",
  "humantime-serde",
  "serde",

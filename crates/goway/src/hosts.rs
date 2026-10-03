@@ -105,7 +105,7 @@ impl Prober for AddProber<'_> {
 }
 
 /// Remove `alias` from a `known_hosts` file (no-op if absent).
-fn forget_key(known_hosts: &Path, alias: &str) {
+pub fn forget_key(known_hosts: &Path, alias: &str) {
     if !known_hosts.exists() {
         return;
     }
@@ -193,6 +193,7 @@ pub fn add(
             max_jobs: args.max_jobs,
             priority: None,
             max_load: None,
+            identity: None,
         };
         let prober = AddProber {
             inner: SshProber {

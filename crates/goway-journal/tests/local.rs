@@ -142,3 +142,33 @@ fn install_file_copies_binary_bytes_and_reverts_on_disk() {
     assert!(!root.join("dest.bin").exists());
     assert!(root.join("src.bin").exists());
 }
+
+// frob:tests crates/goway-journal/src/local.rs::LocalSystem.resource_create
+// frob:tests crates/goway-journal/src/local.rs::LocalSystem.resource_exists
+// frob:tests crates/goway-journal/src/local.rs::LocalSystem.resource_delete
+#[test]
+fn ssh_key_pair_is_created_and_reverted_on_disk() {
+    use goway_journal::{Change, LocalSystem, ResourceKind, apply, revert};
+    let dir = tempfile::tempdir().unwrap();
+    let key = dir.path().join("id_test");
+    let name = key.to_string_lossy().into_owned();
+    let mut sys = LocalSystem;
+    let plan = [Change::EnsureResource {
+        kind: ResourceKind::SshKeyPair,
+        name: name.clone(),
+        spec: "goway test".to_owned(),
+    }];
+    let mut journal = apply(&plan, &mut sys).unwrap();
+    assert!(key.is_file());
+    let public = std::fs::read_to_string(dir.path().join("id_test.pub")).unwrap();
+    assert!(public.starts_with("ssh-ed25519 ") && public.trim_end().ends_with("goway test"));
+    revert(&mut journal, &mut sys).unwrap();
+    assert!(std::fs::read_dir(dir.path()).unwrap().next().is_none());
+
+    // A key that existed before is never deleted by revert.
+    std::fs::write(&key, "pre-existing").unwrap();
+    std::fs::write(dir.path().join("id_test.pub"), "pre-existing").unwrap();
+    let mut journal = apply(&plan, &mut sys).unwrap();
+    revert(&mut journal, &mut sys).unwrap();
+    assert_eq!(std::fs::read_to_string(&key).unwrap(), "pre-existing");
+}

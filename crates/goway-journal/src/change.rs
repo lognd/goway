@@ -32,6 +32,10 @@ pub enum ResourceKind {
     WslPackage,
     /// A systemd unit enabled at boot (exists while enabled); managed inside a WSL distro.
     WslUnit,
+    /// An ssh key pair: `name` is the private key path (the public key is `name.pub`),
+    /// the spec is the key comment. Created with `ssh-keygen`; private key contents are
+    /// never read or journaled.
+    SshKeyPair,
 }
 
 /// Where a new list entry goes.

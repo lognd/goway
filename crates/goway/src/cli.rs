@@ -136,14 +136,28 @@ pub struct HostAddArgs {
 /// `goway ssh` verbs.
 #[derive(Debug, Subcommand)]
 pub enum SshCommand {
-    /// Create or pick a key and authorize it on a host.
-    Setup {
-        /// The host name.
-        host: String,
-        /// Undo exactly what a previous setup changed.
-        #[arg(long)]
-        undo: bool,
-    },
+    /// Make key login to a host work: pick or create a key, authorize it
+    /// with one password login, fix permissions; reversible with --undo.
+    Setup(SshSetupArgs),
+}
+
+/// Arguments of `goway ssh setup`.
+#[derive(Debug, Args)]
+pub struct SshSetupArgs {
+    /// The host name (configured or new).
+    pub host: String,
+    /// Undo exactly what a previous setup of this host changed.
+    #[arg(long)]
+    pub undo: bool,
+    /// For a new host: an address to try first (name or IP).
+    #[arg(long, conflicts_with = "undo")]
+    pub address: Option<String>,
+    /// For a new host: the ssh port (default: the configured default, 2222).
+    #[arg(long, conflicts_with = "undo")]
+    pub port: Option<u16>,
+    /// For a new host: the remote user.
+    #[arg(long, conflicts_with = "undo")]
+    pub user: Option<String>,
 }
 
 /// `goway config` verbs.

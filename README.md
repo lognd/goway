@@ -4,6 +4,7 @@
 git work tree.
 
 ```
+goway ssh setup helios                     # key login, once, reversibly
 goway host add helios                      # find it by name, pin its ssh key
 goway run -- cargo nextest run --workspace # least-loaded host, warm caches
 goway status                               # hosts, load, jobs, disk
@@ -35,6 +36,7 @@ and coreutils. goway installs nothing on it and runs no daemon.
 
 - docs/usage.md: run, status, gc and doctor; exit codes; what is sent
 - docs/hosts.md: host identity, address resolution, `host add`
+- docs/ssh-setup.md: guided, reversible ssh key setup
 - docs/config.md: config file, paths, environment variables
 - docs/install-linux.md, docs/install-windows.md: installers and
   uninstallers

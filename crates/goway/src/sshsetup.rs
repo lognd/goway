@@ -1,0 +1,499 @@
+//! `goway ssh setup HOST [--undo]`: make key login to a host work, reversibly.
+//!
+//! The walk-through:
+//! 1. Find the host (same resolution as every other verb). If key login
+//!    already works, nothing changes.
+//! 2. Pick a public key: the agent's first key, else a default identity
+//!    that has a `.pub`, else create goway's own key in goway's config dir
+//!    (never in `~/.ssh`; on Windows its ACL is reduced to the user).
+//! 3. Log in once with a password, check the machine is the intended Linux
+//!    host, and ensure `~/.ssh` (700) and the key line in
+//!    `authorized_keys` (600), tagged `goway:<id>`.
+//! 4. Verify key-only login, record goway's own key in the host config,
+//!    and add the host to the pool if it was not there.
+//!
+//! Every change goes through the install journal (local and remote), and
+//! the record is kept in the config dir, so `--undo` reverts exactly these
+//! changes: the tagged line, modes and directories it created, goway's key
+//! if it created it, and the config entries it added.
+
+use std::path::{Path, PathBuf};
+
+use goway_journal::{Change, Journal, LocalSystem, ResourceKind, revert};
+use serde::{Deserialize, Serialize};
+
+use crate::cli::SshSetupArgs;
+use crate::config::{self, Config, HostConfig};
+use crate::error::{Error, Result};
+use crate::hosts;
+use crate::paths::Paths;
+use crate::remotesys::RemoteSystem;
+use crate::render::Renderer;
+use crate::resolve::{self, Lookup, ProbeResult, Prober, SshProber};
+use crate::ssh::{self, Failure, KeyPolicy, Target};
+use crate::state::State;
+
+/// What one setup changed, kept for `--undo`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Record {
+    /// Host name.
+    pub host: String,
+    /// Address used.
+    pub address: String,
+    /// Port used.
+    pub port: u16,
+    /// User, if given.
+    pub user: Option<String>,
+    /// Private key goway offers for this host, when it created one.
+    pub identity: Option<String>,
+    /// Local changes (goway's key).
+    pub local: Journal,
+    /// Changes on the host (`~/.ssh`, `authorized_keys`).
+    pub remote: Journal,
+    /// Whether setup set `identity` in the host config.
+    pub identity_set: bool,
+    /// Whether setup added the host to the pool.
+    pub host_added: bool,
+}
+
+/// Where the record of `host` lives.
+pub fn record_path(paths: &Paths, host: &str) -> PathBuf {
+    paths
+        .config_dir
+        .join(format!("ssh-setup-{}.json", host.to_ascii_lowercase()))
+}
+
+fn setup_err(host: &str, reason: impl Into<String>) -> Error {
+    Error::HostAdd {
+        name: host.to_owned(),
+        reason: reason.into(),
+    }
+}
+
+fn sys_err(host: &str, e: impl std::fmt::Display) -> Error {
+    setup_err(host, e.to_string())
+}
+
+/// Treats "key refused" as "found": the host answered with a host key.
+struct Reach(SshProber);
+
+impl Prober for Reach {
+    fn probe(&self, target: &Target, policy: KeyPolicy, remote: &str) -> ProbeResult {
+        match self.0.probe(target, policy, remote) {
+            Err((Failure::AuthRefused, _)) => Ok(String::new()),
+            other => other,
+        }
+    }
+}
+
+/// The public key line to authorize: the agent's first key, else the first
+/// default identity with a `.pub` next to it.
+pub fn existing_public_key(address: &str, port: u16) -> Option<String> {
+    if let Ok(out) = std::process::Command::new("ssh-add").arg("-L").output()
+        && out.status.success()
+        && let Some(line) = String::from_utf8_lossy(&out.stdout).lines().next()
+        && line.starts_with("ssh-")
+    {
+        return Some(line.trim().to_owned());
+    }
+    let eff = crate::sshenv::effective(address, port)?;
+    eff.identity_files.iter().find_map(|private| {
+        let mut public = private.as_os_str().to_owned();
+        public.push(".pub");
+        std::fs::read_to_string(PathBuf::from(public))
+            .ok()
+            .map(|s| s.trim().to_owned())
+            .filter(|s| s.starts_with("ssh-") || s.starts_with("ecdsa-"))
+    })
+}
+
+/// The `icacls` arguments that leave only `user` on a private key.
+pub fn icacls_args(path: &Path, user: &str) -> Vec<String> {
+    vec![
+        path.display().to_string(),
+        "/inheritance:r".to_owned(),
+        "/grant:r".to_owned(),
+        format!("{user}:F"),
+    ]
+}
+
+/// On Windows, OpenSSH refuses a private key others can read: keep only
+/// the current user on goway's key.
+fn restrict_key_acl(path: &Path, renderer: Renderer) {
+    if !cfg!(windows) {
+        return;
+    }
+    let user = std::env::var("USERNAME").unwrap_or_default();
+    let ok = std::process::Command::new("icacls")
+        .args(icacls_args(path, &user))
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if ok {
+        tracing::info!(key = %path.display(), "key ACL restricted to the user");
+    } else {
+        renderer.warn(format_args!(
+            "could not restrict the ACL of {}; run: icacls {}",
+            path.display(),
+            icacls_args(path, &user).join(" ")
+        ));
+    }
+}
+
+/// The plan on the host: `~/.ssh` 700, the tagged key line, the file 600.
+pub fn remote_plan(home: &str, key: &str, marker: &str, already: bool) -> Vec<Change> {
+    let dir = PathBuf::from(home).join(".ssh");
+    let file = dir.join("authorized_keys");
+    let mut plan = vec![
+        Change::EnsureDir { path: dir.clone() },
+        Change::SetUnixMode {
+            path: dir,
+            mode: 0o700,
+        },
+    ];
+    if !already {
+        plan.push(Change::EnsureLine {
+            path: file.clone(),
+            line: key.to_owned(),
+            marker: marker.to_owned(),
+        });
+    }
+    plan.push(Change::SetUnixMode {
+        path: file,
+        mode: 0o600,
+    });
+    plan
+}
+
+/// The key's type and base64 blob, the part `authorized_keys` matches on.
+fn key_blob(line: &str) -> String {
+    line.split_whitespace()
+        .take(2)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// `goway ssh setup` (or `--undo`).
+#[allow(clippy::too_many_lines)] // one linear walk-through, easier to audit in one place
+pub fn setup(
+    paths: &Paths,
+    renderer: Renderer,
+    args: &SshSetupArgs,
+    lookup: &dyn Lookup,
+) -> Result<u8> {
+    if args.undo {
+        return undo(paths, renderer, &args.host);
+    }
+    let name = args.host.as_str();
+    let record_file = record_path(paths, name);
+    if record_file.exists() {
+        return Err(setup_err(
+            name,
+            format!(
+                "already set up (record {}); run `goway ssh setup {name} --undo` first",
+                record_file.display()
+            ),
+        ));
+    }
+    let config = Config::load(&paths.config_file())?;
+    let configured = config.host(name).ok().cloned();
+    let host = configured.clone().unwrap_or_else(|| HostConfig {
+        name: name.to_owned(),
+        address: args.address.clone(),
+        port: args.port,
+        user: args.user.clone(),
+        max_jobs: None,
+        priority: None,
+        max_load: None,
+        identity: None,
+    });
+    // A configured host is pinned: check its key strictly. A new one is
+    // reached with a scratch known_hosts and verified by hostname below.
+    let scratch = paths
+        .state_dir
+        .join(format!("known_hosts.setup.{}", std::process::id()));
+    let mut settings = ssh::Settings::from_paths(paths);
+    let policy = if configured.is_some() {
+        KeyPolicy::Strict
+    } else {
+        settings.known_hosts.clone_from(&scratch);
+        KeyPolicy::AcceptNew
+    };
+    let mut state = State::load(&paths.state_file())?;
+    let found = resolve::resolve(
+        &config,
+        &host,
+        &mut state,
+        lookup,
+        &Reach(SshProber {
+            settings: settings.clone(),
+        }),
+        policy,
+        "echo goway-key-login-ok",
+    )?;
+    let target = found.target.clone();
+    if found.output.contains("goway-key-login-ok") {
+        renderer.ok(format_args!(
+            "key login to {name} at {} already works; nothing to change",
+            target.address
+        ));
+        let _ = std::fs::remove_file(&scratch);
+        if configured.is_none() {
+            add_host(paths, renderer, &host, &target)?;
+        }
+        return Ok(0);
+    }
+    renderer.headline(format_args!(
+        "{name} at {}:{} answers but refuses key login; setting it up",
+        target.address, target.port
+    ));
+
+    // 1. The key.
+    let mut local = Journal::generate();
+    let (public_key, identity) =
+        if let Some(key) = existing_public_key(&target.address, target.port) {
+            renderer.note(format_args!("using your existing key {}", key_blob(&key)));
+            (key, None)
+        } else {
+            let private = paths.config_dir.join("id_ed25519");
+            let comment = format!("goway@{}", crate::repo::client_name());
+            let plan = [
+                Change::EnsureDir {
+                    path: paths.config_dir.clone(),
+                },
+                Change::EnsureResource {
+                    kind: ResourceKind::SshKeyPair,
+                    name: private.to_string_lossy().into_owned(),
+                    spec: comment,
+                },
+            ];
+            local = goway_journal::apply(&plan, &mut LocalSystem).map_err(|e| sys_err(name, e))?;
+            restrict_key_acl(&private, renderer);
+            renderer.note(format_args!(
+                "created goway's own key {}",
+                private.display()
+            ));
+            let mut public = private.as_os_str().to_owned();
+            public.push(".pub");
+            let key = std::fs::read_to_string(PathBuf::from(public))
+                .map_err(|e| Error::io("read", &private, e))?
+                .trim()
+                .to_owned();
+            (key, Some(private.to_string_lossy().into_owned()))
+        };
+
+    // 2. One password login: check the machine, then authorize the key.
+    renderer.note(format_args!(
+        "logging in to {name} with a password once (ssh will ask) to authorize the key"
+    ));
+    let mut remote_sys = RemoteSystem {
+        target: target.clone(),
+        settings: settings.clone(),
+        password: true,
+    };
+    let facts = remote_sys
+        .output("uname -s; uname -n; printf '%s\\n' \"$HOME\"; cat ~/.ssh/authorized_keys 2>/dev/null || true")
+        .map_err(|e| sys_err(name, e))?;
+    let mut lines = facts.lines();
+    let (os, hostname, home) = (
+        lines.next().unwrap_or_default(),
+        lines.next().unwrap_or_default(),
+        lines.next().unwrap_or_default().to_owned(),
+    );
+    let trusted_address = configured.is_some()
+        || args
+            .address
+            .as_deref()
+            .is_some_and(|a| a.parse::<std::net::IpAddr>().is_ok());
+    if os != "Linux" {
+        return Err(setup_err(
+            name,
+            format!("{} is {os}, not Linux", target.address),
+        ));
+    }
+    if !trusted_address && !hosts::hostname_matches(hostname, name, args.address.as_deref()) {
+        return Err(setup_err(
+            name,
+            format!(
+                "{} is `{hostname}`, not `{name}` (pass --address with its IP to trust it)",
+                target.address
+            ),
+        ));
+    }
+    let blob = key_blob(&public_key);
+    let already = lines.any(|l| key_blob(l) == blob);
+    let marker = format!("goway:{}", local_marker());
+    let plan = remote_plan(&home, &public_key, &marker, already);
+    let remote = match goway_journal::apply(&plan, &mut remote_sys) {
+        Ok(journal) => journal,
+        Err(e) => {
+            let mut partial = e.journal.clone();
+            let _ = revert(&mut partial, &mut remote_sys);
+            let _ = revert(&mut local, &mut LocalSystem);
+            return Err(sys_err(
+                name,
+                format!("authorizing the key failed and was rolled back: {e}"),
+            ));
+        }
+    };
+
+    // 3. Verify key-only login.
+    let check_target = Target {
+        identity: identity.as_ref().map(PathBuf::from),
+        ..target.clone()
+    };
+    let verified = SshProber {
+        settings: settings.clone(),
+    }
+    .probe(&check_target, KeyPolicy::Strict, "true")
+    .is_ok();
+
+    // 4. Config: identity and pool membership.
+    let mut record = Record {
+        host: name.to_owned(),
+        address: target.address.clone(),
+        port: target.port,
+        user: target.user.clone(),
+        identity: identity.clone(),
+        local,
+        remote,
+        identity_set: false,
+        host_added: false,
+    };
+    if configured.is_none() {
+        let mut stored = host.clone();
+        stored.identity.clone_from(&identity);
+        add_host(paths, renderer, &stored, &check_target)?;
+        record.host_added = true;
+    } else if identity.is_some() {
+        config::set_host_identity(&paths.config_file(), name, identity.as_deref())?;
+        record.identity_set = true;
+    }
+    let _ = std::fs::remove_file(&scratch);
+    let text = serde_json::to_string_pretty(&record).map_err(|e| sys_err(name, e))?;
+    config::write_atomic(&record_file, text.as_bytes())?;
+    if verified {
+        renderer.ok(format_args!(
+            "key login to {name} works; undo with `goway ssh setup {name} --undo`"
+        ));
+        Ok(0)
+    } else {
+        renderer.warn(format_args!(
+            "the key is authorized but key login still fails; check `goway doctor {name}` (undo with --undo)"
+        ));
+        Ok(1)
+    }
+}
+
+fn local_marker() -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    format!("{}-{}", now.as_secs(), std::process::id())
+}
+
+/// Pin and add a host found during setup, through the normal `host add`.
+fn add_host(paths: &Paths, renderer: Renderer, host: &HostConfig, target: &Target) -> Result<()> {
+    let args = crate::cli::HostAddArgs {
+        name: host.name.clone(),
+        address: Some(
+            host.address
+                .clone()
+                .unwrap_or_else(|| target.address.clone()),
+        ),
+        port: Some(target.port),
+        user: host.user.clone(),
+        max_jobs: host.max_jobs,
+    };
+    hosts::add(paths, renderer, &args, &resolve::SystemLookup)?;
+    if host.identity.is_some() {
+        config::set_host_identity(&paths.config_file(), &host.name, host.identity.as_deref())?;
+    }
+    Ok(())
+}
+
+/// Revert a recorded setup: host side first (while the key still works),
+/// then goway's key, then the config entries.
+fn undo(paths: &Paths, renderer: Renderer, name: &str) -> Result<u8> {
+    let record_file = record_path(paths, name);
+    let text = std::fs::read_to_string(&record_file).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            setup_err(name, "no ssh setup recorded for this host")
+        } else {
+            Error::io("read", &record_file, e)
+        }
+    })?;
+    let mut record: Record = serde_json::from_str(&text).map_err(|e| sys_err(name, e))?;
+    let mut remote_sys = RemoteSystem {
+        target: Target {
+            name: record.host.clone(),
+            address: record.address.clone(),
+            port: record.port,
+            user: record.user.clone(),
+            identity: record.identity.as_ref().map(PathBuf::from),
+        },
+        settings: ssh::Settings::from_paths(paths),
+        // The tagged line goes first in reverse order; later steps may
+        // need a password on clients without ssh multiplexing.
+        password: true,
+    };
+    let report = revert(&mut record.remote, &mut remote_sys).map_err(|e| sys_err(name, e))?;
+    tracing::info!(?report, "remote changes reverted");
+    revert(&mut record.local, &mut LocalSystem).map_err(|e| sys_err(name, e))?;
+    if record.host_added {
+        if Config::load(&paths.config_file())?.host(name).is_ok() {
+            config::remove_host(&paths.config_file(), name)?;
+            let mut state = State::load(&paths.state_file())?;
+            state.forget(name);
+            state.save(&paths.state_file())?;
+            hosts::forget_key(&paths.known_hosts(), &config::key_alias(name));
+        }
+    } else if record.identity_set && Config::load(&paths.config_file())?.host(name).is_ok() {
+        config::set_host_identity(&paths.config_file(), name, None)?;
+    }
+    std::fs::remove_file(&record_file).map_err(|e| Error::io("remove", &record_file, e))?;
+    renderer.ok(format_args!("undid the ssh setup of {name}"));
+    Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plan_tags_the_line_and_fixes_modes() {
+        let plan = remote_plan("/home/u", "ssh-ed25519 AAAA c", "goway:1", false);
+        assert_eq!(plan.len(), 4);
+        assert!(matches!(&plan[2], Change::EnsureLine { marker, .. } if marker == "goway:1"));
+        assert!(matches!(&plan[3], Change::SetUnixMode { mode: 0o600, .. }));
+        let present = remote_plan("/home/u", "ssh-ed25519 AAAA c", "goway:1", true);
+        assert!(
+            !present
+                .iter()
+                .any(|c| matches!(c, Change::EnsureLine { .. }))
+        );
+    }
+
+    #[test]
+    fn windows_key_acl_keeps_only_the_user() {
+        assert_eq!(
+            icacls_args(
+                Path::new(r"C:\Users\user\AppData\Roaming\goway\id_ed25519"),
+                "user"
+            ),
+            [
+                r"C:\Users\user\AppData\Roaming\goway\id_ed25519",
+                "/inheritance:r",
+                "/grant:r",
+                "user:F"
+            ]
+        );
+    }
+
+    #[test]
+    fn key_blob_ignores_comments() {
+        assert_eq!(
+            key_blob("ssh-ed25519 AAAA me@x goway:1"),
+            "ssh-ed25519 AAAA"
+        );
+    }
+}

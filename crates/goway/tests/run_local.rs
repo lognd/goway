@@ -3,105 +3,12 @@
 //! remote script and the real sync protocol are exercised.
 #![cfg(unix)]
 
-use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Command;
 
-/// Ignores ssh options and runs the remote command line with `sh -c`.
-const FAKE_SSH: &str = r#"#!/bin/sh
-while [ $# -gt 0 ]; do
-  case "$1" in
-    -o|-p|-l) shift 2 ;;
-    --) shift; shift; break ;;
-    *) shift ;;
-  esac
-done
-exec sh -c "$1"
-"#;
+mod common;
 
-struct World {
-    _dir: tempfile::TempDir,
-    root: PathBuf,
-    bin: PathBuf,
-    config: PathBuf,
-    repo: PathBuf,
-    remote: PathBuf,
-}
-
-fn git(dir: &Path, args: &[&str]) {
-    let ok = Command::new("git")
-        .arg("-C")
-        .arg(dir)
-        .args(args)
-        .status()
-        .unwrap();
-    assert!(ok.success(), "git {args:?}");
-}
-
-fn world() -> World {
-    let dir = tempfile::tempdir().unwrap();
-    let root = dir.path().to_path_buf();
-    let bin = root.join("bin");
-    std::fs::create_dir(&bin).unwrap();
-    let ssh = bin.join("ssh");
-    std::fs::write(&ssh, FAKE_SSH).unwrap();
-    std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let remote = root.join("remote");
-    let config = root.join("config");
-    std::fs::create_dir(&config).unwrap();
-    std::fs::write(
-        config.join("config.toml"),
-        format!(
-            "[defaults]\nremote_root = \"{}\"\ntarget_slots = 2\n\n[[host]]\nname = \"local\"\naddress = \"127.0.0.1\"\n",
-            remote.display()
-        ),
-    )
-    .unwrap();
-    let repo = root.join("proj");
-    std::fs::create_dir(&repo).unwrap();
-    git(&repo, &["init", "-q", "-b", "main"]);
-    std::fs::write(repo.join("hello.txt"), "hello\n").unwrap();
-    World {
-        _dir: dir,
-        root,
-        bin,
-        config,
-        repo,
-        remote,
-    }
-}
-
-impl World {
-    fn goway(&self, args: &[&str]) -> Command {
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_goway"));
-        let path = format!(
-            "{}:{}",
-            self.bin.display(),
-            std::env::var("PATH").unwrap_or_default()
-        );
-        cmd.args(["--color", "never"])
-            .args(args)
-            .current_dir(&self.repo)
-            .env("PATH", path)
-            .env("GOWAY_CONFIG_DIR", &self.config)
-            .env("GOWAY_STATE_DIR", self.root.join("state"))
-            .env_remove("RUSTC_WRAPPER");
-        cmd
-    }
-
-    fn run(&self, args: &[&str]) -> Output {
-        self.goway(args).output().unwrap()
-    }
-
-    fn work_dirs(&self) -> Vec<String> {
-        std::fs::read_dir(self.remote.join("work"))
-            .map(|d| {
-                d.map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-}
+use common::{FAKE_SSH, world};
 
 #[test]
 fn exit_code_passes_through_and_work_dir_is_removed() {

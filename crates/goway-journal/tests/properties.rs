@@ -64,6 +64,7 @@ fn kind() -> impl Strategy<Value = ResourceKind> {
         Just(ResourceKind::Service),
         Just(ResourceKind::WslPackage),
         Just(ResourceKind::WslUnit),
+        Just(ResourceKind::SshKeyPair),
     ]
 }
 

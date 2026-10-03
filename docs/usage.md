@@ -126,6 +126,11 @@ silently. goway lists each one with the reason and asks you to rerun
 with `--sudo`, which runs them over an interactive ssh session so sudo
 can ask for your password.
 
+## First-time ssh setup
+
+`goway ssh setup HOST` makes key login work with one password login and
+is undone by `goway ssh setup HOST --undo`; see docs/ssh-setup.md.
+
 ## What is sent to the remote
 
 - The git-visible work tree (see Sync above), without `.git` and

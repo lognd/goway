@@ -113,6 +113,10 @@ pub struct HostConfig {
     /// Skip this host above this load per core (default: `defaults.max_load`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_load: Option<f64>,
+    /// Private key to offer (set by `goway ssh setup` when it created
+    /// goway's own key); default: whatever ssh would use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<String>,
 }
 
 impl HostConfig {
@@ -254,6 +258,44 @@ pub fn add_host(path: &Path, host: &HostConfig) -> Result<()> {
     Ok(())
 }
 
+/// Set or clear the `identity` of host `name`; other text is untouched.
+pub fn set_host_identity(path: &Path, name: &str, identity: Option<&str>) -> Result<()> {
+    let text = std::fs::read_to_string(path).map_err(|e| Error::io("read", path, e))?;
+    Config::parse(&text, path)?.host(name)?;
+    let mut doc: toml_edit::DocumentMut =
+        text.parse()
+            .map_err(|e: toml_edit::TomlError| Error::Config {
+                path: path.to_owned(),
+                message: e.to_string(),
+            })?;
+    if let Some(array) = doc
+        .get_mut("host")
+        .and_then(toml_edit::Item::as_array_of_tables_mut)
+    {
+        for table in array.iter_mut() {
+            let matches = table
+                .get("name")
+                .and_then(toml_edit::Item::as_str)
+                .is_some_and(|n| n.eq_ignore_ascii_case(name));
+            if matches {
+                match identity {
+                    Some(i) => {
+                        table.insert("identity", toml_edit::value(i));
+                    }
+                    None => {
+                        table.remove("identity");
+                    }
+                }
+            }
+        }
+    }
+    let out = doc.to_string();
+    Config::parse(&out, path)?;
+    write_atomic(path, out.as_bytes())?;
+    tracing::info!(host = name, ?identity, "host identity updated");
+    Ok(())
+}
+
 /// Remove the `[[host]]` table named `name`; other text is untouched.
 pub fn remove_host(path: &Path, name: &str) -> Result<()> {
     let text = std::fs::read_to_string(path).map_err(|e| Error::io("read", path, e))?;
@@ -367,6 +409,7 @@ user = "user"
             max_jobs: None,
             priority: None,
             max_load: None,
+            identity: None,
         };
         add_host(&path, &host).unwrap();
         assert!(add_host(&path, &host).is_err());
@@ -397,6 +440,7 @@ user = "user"
             max_jobs: Some(1),
             priority: None,
             max_load: None,
+            identity: None,
         };
         add_host(&path, &host).unwrap();
         assert_eq!(Config::load(&path).unwrap().hosts, vec![host]);

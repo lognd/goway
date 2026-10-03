@@ -623,6 +623,7 @@ impl<R: Runner> System for HostSystem<R> {
                 })
             }
             ResourceKind::Service => Err(SystemError::Unsupported("generic services")),
+            ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
         }
     }
 
@@ -665,6 +666,7 @@ impl<R: Runner> System for HostSystem<R> {
             }
             ResourceKind::WslUnit => self.wsl(&["systemctl", "enable", name]).map(drop),
             ResourceKind::Service => Err(SystemError::Unsupported("generic services")),
+            ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
         }
     }
 
@@ -694,6 +696,7 @@ impl<R: Runner> System for HostSystem<R> {
             }
             ResourceKind::WslUnit => self.wsl(&["systemctl", "disable", name]).map(drop),
             ResourceKind::Service => Err(SystemError::Unsupported("generic services")),
+            ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
         }
     }
 }
