@@ -1338,6 +1338,10 @@ mod tests {
     // frob:tests crates/goway/src/sync.rs::feed_child
     #[cfg(unix)]
     #[test]
+    #[cfg_attr(
+        target_os = "macos",
+        ignore = "runs the Linux helper script (flock); macOS is not a helper"
+    )]
     fn protocol_converges_and_keeps_snapshots_isolated() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("proj");
@@ -1465,6 +1469,10 @@ mod tests {
     // frob:tests crates/goway/src/sync.rs::parse_hashes
     #[cfg(unix)]
     #[test]
+    #[cfg_attr(
+        target_os = "macos",
+        ignore = "runs the Linux helper script (flock); macOS is not a helper"
+    )]
     fn a_second_worktree_only_sends_what_differs() {
         let dir = tempfile::tempdir().unwrap();
         let main = dir.path().join("proj");
@@ -1529,6 +1537,10 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[cfg_attr(
+        target_os = "macos",
+        ignore = "runs the Linux helper script (flock); macOS is not a helper"
+    )]
     fn deleting_more_paths_than_one_argument_holds_works() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("proj");
@@ -1603,6 +1615,10 @@ mod tests {
     // frob:tests crates/goway/src/sync.rs::manifest_generation
     #[cfg(unix)]
     #[test]
+    #[cfg_attr(
+        target_os = "macos",
+        ignore = "runs the Linux helper script (flock); macOS is not a helper"
+    )]
     fn a_seed_replaced_mid_sync_is_detected_and_resynced_fully() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("proj");
@@ -1684,6 +1700,10 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[cfg_attr(
+        target_os = "macos",
+        ignore = "runs the Linux helper script (flock); macOS is not a helper"
+    )]
     fn a_stale_deletion_list_never_deletes_restored_files() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("proj");

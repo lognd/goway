@@ -24,12 +24,29 @@ A tag push publishes:
 |---|---|
 | `goway-x86_64-unknown-linux-musl.tar.gz` | Linux and WSL on Intel/AMD |
 | `goway-aarch64-unknown-linux-musl.tar.gz` | Linux and WSL on ARM |
+| `goway-aarch64-apple-darwin.tar.gz` | macOS on Apple Silicon (goway only) |
+| `goway-x86_64-apple-darwin.tar.gz` | macOS on Intel (goway only) |
 | `goway-setup.exe` | Windows x64 (also runs on Windows on ARM) |
 | `goway-setup-arm64.exe` | Windows on ARM, native |
-| `install.sh` | the Linux/WSL installer (`curl ... \| bash`) |
+| `install.sh` | the Linux, WSL and macOS installer (`curl ... \| bash`) |
 | `SHA256SUMS` | checksums of all of the above |
 
 The Linux binaries are static (musl), so they run on any distribution.
+The macOS binaries link only the system libraries. `install.sh` picks the
+archive from `uname`, verifies it with `sha256sum` or, on macOS, `shasum -a
+256`, and runs on the bash 3.2 and BSD tools that macOS ships.
+
+## What is tested where
+
+| Platform | Built | Tested |
+|---|---|---|
+| Linux x86_64, aarch64 | release workflow | `ci` workflow: fmt, clippy, the whole suite (and the helpers) |
+| macOS Apple Silicon | release workflow (`macos-14`) | `ci` `macos` job: client unit tests and the install script tests; never run by the maintainer on a real Mac |
+| macOS Intel | release workflow (`macos-15-intel`) | built only |
+| Windows x64 | release workflow | `ci` `windows` job |
+| Windows ARM64 | release workflow (`windows-11-arm`) | built only |
+
+Only Linux can be a helper; macOS is a main laptop only.
 
 ## Publishing to crates.io
 
@@ -65,13 +82,12 @@ to take the version from Cargo.
 | manylinux, x86_64 and aarch64 | glibc systems (most distributions) |
 | musllinux, x86_64 and aarch64 | Alpine and other musl systems (static binary) |
 | Windows x86_64 | Windows |
+| macOS arm64 and x86_64 | macOS (Apple Silicon and Intel) |
 | source distribution (sdist) | everything else, built with cargo |
 
 A musllinux wheel is not accepted by pip on a glibc system, which is why
-both Linux families are built. There are no macOS wheels yet: goway's
-macOS support is experimental (see the README), so macOS users get the
-sdist and need a Rust toolchain. Add the macOS targets to the `wheels`
-matrix in `release.yml` once macOS is supported.
+both Linux families are built. The macOS wheels carry the main-laptop
+client only (macOS is not a helper).
 
 The `pypi` job runs after the GitHub release succeeds, in the GitHub
 environment `pypi`, with `permissions: id-token: write`. It uses PyPI

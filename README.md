@@ -33,7 +33,7 @@ All of them must be on the same network.
 | Windows 10 (21H2 or newer) and 11 **with WSL** | yes: install inside WSL ([Linux and WSL](#main-laptop-linux-or-wsl)) | Windows 10 (21H2 or newer) and Windows 11, with WSL: one installer ([Windows with WSL](#helper-windows-with-wsl)). Windows 11 22H2 or newer uses mirrored networking; Windows 10, and Windows 11 in WSL's default NAT mode, use a port relay that goway sets up and keeps current (Windows 10 and NAT mode: untested by the maintainer on real hardware; the relay was verified on Windows 11 by simulation) |
 | Windows 10/11 **without WSL** | yes: `goway-setup.exe install` ([Windows](#main-laptop-windows-without-wsl)) | no: a helper needs Linux; install WSL first |
 | **Linux** (Ubuntu, Debian, Fedora, Arch, ...) | yes: one command ([Linux and WSL](#main-laptop-linux-or-wsl)) | yes: a few manual steps ([Linux](#helper-linux)) |
-| **macOS** | experimental: build from source ([macOS](#main-laptop-macos-experimental)) | no: goway's helper side needs Linux tools macOS lacks |
+| **macOS** (Apple Silicon and Intel) | yes: release binaries and one command ([macOS](#main-laptop-macos)); untested by the maintainer, CI-built and CI-tested only | no: goway's helper side needs Linux tools macOS lacks |
 
 **Downloads:** every version's ready-made files (`goway-setup.exe`,
 the Linux programs, `install.sh` and the checksums) are on the
@@ -284,11 +284,19 @@ Remove it in Settings > Apps > goway, or with
 `goway-setup.exe uninstall`. Details:
 [docs/install-windows.md](docs/install-windows.md).
 
-### Main laptop: macOS (experimental)
+### Main laptop: macOS
 
-macOS has no prebuilt goway yet, and goway has not been tested on it.
-The main-laptop side uses only portable tools (git, ssh), so it is
-expected to work. With Rust installed (https://rustup.rs):
+The release has goway binaries for Apple Silicon (`aarch64-apple-darwin`)
+and Intel (`x86_64-apple-darwin`). The same one-line installer as on Linux
+picks the right one, verifies it against `SHA256SUMS` with `shasum -a 256`,
+and installs it to `~/.local/bin`:
+
+    curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | bash
+
+The installer and `goway uninstall` use only what macOS ships (bash 3.2 and
+the BSD tools). The maintainer has no Mac: the binaries are built, and the
+client tests and installer scripts are run, on GitHub's macOS runners only.
+Without the release, build from source with Rust (https://rustup.rs):
 
     cargo install --locked --git https://github.com/lognd/goway goway
 
