@@ -2,7 +2,8 @@
 id = "01M418J34BQHTC06ZJD3P6E2E9"
 title = "Guided, reversible ssh setup: keys, authorized_keys, permissions, icacls"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
