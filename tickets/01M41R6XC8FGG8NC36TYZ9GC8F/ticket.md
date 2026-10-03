@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:45:09Z"
-updated = "2026-10-03T21:12:59Z"
-scope = ["crates/goway/src/render.rs", "crates/goway/src/shard.rs", "crates/goway/src/termfilter.rs", "crates/goway/src/run.rs", "crates/goway/tests/**", "docs/usage.md"]
+updated = "2026-10-03T21:17:14Z"
+scope = ["crates/goway/src/render.rs", "crates/goway/src/shard.rs", "crates/goway/src/termfilter.rs", "crates/goway/src/run.rs", "crates/goway/tests/**", "docs/usage.md", "docs/design.md"]
 
 [[acceptance]]
 text = "Given a sharded run where many hosts stream stdout and stderr to the same terminal or pipe, when lines arrive concurrently, then every output line is written by one write call under one lock shared by both streams, so no line is ever split or interleaved with another (a stress test with many writer threads checks every line arrives whole)"
