@@ -444,7 +444,7 @@ impl<R: Runner> HostSystem<R> {
         let adapters = self.wsl_adapter_addresses()?;
         if adapters.is_empty() {
             return Err(SystemError::InvalidState(
-                "the WSL virtual network adapter (vEthernet (WSL)) has no IPv4 address; start the distro once and retry".to_owned(),
+                "the WSL virtual network adapter (vEthernet (WSL)) has no IPv4 address: this machine is probably in mirrored mode, where no relay is needed (use --network mirrored), or the distro has not started yet (start it once and retry)".to_owned(),
             ));
         }
         let out = self.wsl(&["hostname", "-I"])?;

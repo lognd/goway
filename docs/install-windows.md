@@ -143,8 +143,8 @@ the relay, placed right after the keepalive task so it is reverted before it:
 
 | What | Value |
 |---|---|
-| refresh script | `%ProgramData%\goway\P\relay-refresh.ps1`, a `write file` entry in the host journal, in the administrator-only directory. It reads the IPv4 of the distro (`wsl.exe -d D --exec hostname -I`, first address), accepts only a dotted quad that is not 0.x, 127.x or 169.254.x, reads the relay's current target with `netsh interface portproxy show v4tov4` and runs `netsh interface portproxy set v4tov4 listenaddress=0.0.0.0 listenport=N connectaddress=<ip> connectport=N` only when it differs. `wsl.exe` and `netsh.exe` are started by absolute System32 path. Distro and port are literals from the validated settings |
-| relay | `netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=N connectaddress=<WSL IPv4> connectport=N`, journaled as resource `0.0.0.0:N` (created only when absent; uninstall deletes only the rule it created). The Defender rule above (Private and Domain, `LocalSubnet` plus `--allow-from`) decides who can reach port `N` |
+| refresh script | `%ProgramData%\goway\P\relay-refresh.ps1`, a `write file` entry in the host journal, in the administrator-only directory. It reads the IPv4 of the distro (`wsl.exe -d D --exec hostname -I`, first address), accepts only a dotted quad in a private (RFC 1918) range that lies inside the subnet of the WSL virtual adapter (`vEthernet (WSL...)`, read with .NET, not a module) and is not the adapter's own address, reads the relay's current target with `netsh interface portproxy show v4tov4` and runs `netsh interface portproxy set v4tov4 listenaddress=0.0.0.0 listenport=N connectaddress=<ip> connectport=N` only when it differs. `wsl.exe` and `netsh.exe` are started by absolute path under the directory Windows reports as the system directory (never `%SystemRoot%`, which a user-level variable could override), and `PSModulePath` is reset first. Distro and port are literals from the validated settings |
+| relay | `netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=N connectaddress=<WSL IPv4> connectport=N`, journaled as resource `0.0.0.0:N` (created only when absent; uninstall deletes only a rule that still looks like the relay, one listening on `0.0.0.0:N` and forwarding to port `N` on a private address, and leaves any other alone). The Defender rule above (Private and Domain, `LocalSubnet` plus `--allow-from`) decides who can reach port `N` |
 | scheduled task | `WSL Relay` (`P WSL Relay`; `WSL Relay (boot)` with `--keepalive boot`): runs `conhost.exe --headless <System32>\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%ProgramData%\goway\P\relay-refresh.ps1"` at logon of the invoking user (so after the keepalive has started WSL) and then every 5 minutes, for at most 5 minutes per run, one instance. It runs as the invoking user (only that user can see the distro) with the highest privileges (netsh needs administrator rights); `Interactive` logon type for the logon variant and `S4U` for the boot variant, so no password is ever stored |
 
 If another portproxy rule (one goway did not create) already listens on port `N`, a nat install
@@ -197,6 +197,36 @@ terminal. The interactive UAC path is built but was not exercised end to end (th
 only reachable over SSH). How the elevated step is kept safe is described next.
 
 </details>
+
+## Hardening notes (elevation, relay, user names)
+
+* **The UAC relaunch elevates a locked copy, not the download.** Before asking Windows for
+  administrator rights, the install copies its own exe into a fresh, randomly named directory under the
+  user's temp folder (owner-only ACL), reopens the copy with a share mode that denies writing,
+  renaming and deleting for the whole elevated run, hashes it through that handle and passes the
+  SHA-256 on the elevated command line; the elevated side hashes its own image and refuses to continue on
+  a mismatch. Another process of the same account can therefore no longer swap the file between
+  the start of goway-setup and the UAC prompt. The remaining window is between process start
+  and the copy (the first thing the install does); telling a swapped download from the real one before
+  that needs a code signature.
+* **Elevated edits do not follow links.** `.wslconfig` is a file the user controls; the elevated child
+  opens it without following symbolic links or reparse points and refuses one (so a link to an
+  administrator-only file cannot be written through). The journal's recorded prior values are
+  checked against the change that produced them before an uninstall replays them.
+* **Names printed for you to paste are validated.** The WSL user shown in the `goway add` command must be
+  a name `useradd` accepts; otherwise the command shows `YOUR-LINUX-USER` and a warning. All
+  system-derived text (distro and user names, fingerprints, netsh and PowerShell output) has control and
+  bidi characters replaced before it is printed.
+* **The relay's forward target is checked twice** (by goway-setup when it creates the relay and by the
+  refresh script every five minutes): a private address, inside the WSL adapter's subnet, not the
+  gateway. Anyone with root in the distro can make `hostname -I` print anything; none of it can steer the
+  relay to a public address or another machine. On a mirrored machine (no WSL adapter) a forced
+  `--network nat` install is refused and rolled back.
+* **Known limit of the relay task.** It runs elevated as you, in your environment, because only
+  your user can see the distro. The script and every path it uses are administrator-only or
+  absolute, but a process of your own account that can set user-level environment variables
+  (`COR_PROFILER` and friends for the .NET runtime inside PowerShell) is not stopped by that.
+  Treat the helper's Windows account as you treat any administrator account.
 
 ## Security of the elevated host steps
 
