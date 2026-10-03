@@ -1,0 +1,13 @@
+kind = "create"
+title = "M9: per-user sccache endpoint instead of a predictable shared TCP port"
+type = "security"
+category = "todo"
+priority = "medium"
+points = 1
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+labels = ["security"]
+scope = ["crates/goway/**"]
+acceptance = ["Given a run with sccache, when it starts the cache server, then the server is reachable only by the owning user"]
+at = "2026-10-03T18:23:55Z"
+actor = "lognd"
+rev = 1
