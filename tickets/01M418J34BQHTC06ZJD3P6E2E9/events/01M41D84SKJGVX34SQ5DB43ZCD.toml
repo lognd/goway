@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T17:33:35Z"
+digest = "e791ff2f12fa4240e9caeb0193f20d9c8e43167e99b1c8b4f198eea468702f02"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c5ed7928-26b1-4513-a806-0377444d4e94 with nextest profile: default
+    Starting 3 tests across 20 binaries (170 tests skipped)
+        PASS [   0.023s] goway-journal::local ssh_key_pair_is_created_and_reverted_on_disk
+        PASS [   0.135s] goway::ssh_setup existing_ssh_dir_and_keys_are_restored_exactly_by_undo
+        PASS [   0.294s] goway::ssh_setup setup_authorizes_a_key_with_one_password_login_and_undo_restores_everything
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.295s] 3 tests run: 3 passed, 170 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(ssh_setup) | test(ssh_key_pair_is_created_and_reverted_on_disk)'"
+size = 776
+status = "measured"
+tests = ["ssh_key_pair_is_created_and_reverted_on_disk", "existing_ssh_dir_and_keys_are_restored_exactly_by_undo", "setup_authorizes_a_key_with_one_password_login_and_undo_restores_everything"]
+at = "2026-10-03T17:33:35Z"
+actor = "lognd"
+rev = 1
