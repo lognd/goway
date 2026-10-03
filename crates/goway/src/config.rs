@@ -131,6 +131,32 @@ pub fn key_alias(name: &str) -> String {
     format!("goway-{name}")
 }
 
+/// `remote_root` is where gc deletes things: it must name a dedicated
+/// directory, never the home directory, `/`, or anything outside via `..`.
+pub fn check_remote_root(root: &str) -> std::result::Result<(), &'static str> {
+    let trimmed = root.trim_end_matches('/');
+    if trimmed.is_empty() || trimmed == "." || trimmed == "~" {
+        return Err("must name a dedicated directory, not the home directory or /");
+    }
+    if root.chars().any(char::is_control) {
+        return Err("must not contain control characters");
+    }
+    if root.starts_with('~') {
+        return Err("is relative to the remote home already; drop the leading ~");
+    }
+    if trimmed.split('/').any(|c| c == "..") {
+        return Err("must not contain `..`");
+    }
+    let depth = trimmed
+        .split('/')
+        .filter(|c| !c.is_empty() && *c != ".")
+        .count();
+    if depth == 0 || (root.starts_with('/') && depth < 2) {
+        return Err("is too shallow; use a directory like .cache/goway");
+    }
+    Ok(())
+}
+
 /// Host names become file and alias components, so keep them plain.
 fn valid_name(name: &str) -> bool {
     !name.is_empty()
@@ -169,6 +195,12 @@ impl Config {
     }
 
     fn validate(&self, origin: &Path) -> Result<()> {
+        if let Err(why) = check_remote_root(&self.defaults.remote_root) {
+            return Err(Error::Config {
+                path: origin.to_owned(),
+                message: format!("remote_root `{}` {why}", self.defaults.remote_root),
+            });
+        }
         let mut seen = std::collections::BTreeSet::new();
         for host in &self.hosts {
             if !valid_name(&host.name) {
@@ -387,6 +419,19 @@ user = "user"
             let e = Config::parse(text, Path::new("c.toml")).unwrap_err();
             assert!(e.to_string().contains("unknown field"), "{e}");
         }
+    }
+
+    #[test]
+    fn remote_root_must_be_a_dedicated_directory() {
+        for bad in ["", ".", "./", "/", "~", "~/x", "a/../..", "/tmp", "x\ny"] {
+            assert!(check_remote_root(bad).is_err(), "{bad:?}");
+        }
+        for good in [".cache/goway", "/srv/goway", "work/goway-state"] {
+            assert!(check_remote_root(good).is_ok(), "{good:?}");
+        }
+        let e =
+            Config::parse("[defaults]\nremote_root = \".\"\n", Path::new("c.toml")).unwrap_err();
+        assert!(e.to_string().contains("remote_root"), "{e}");
     }
 
     #[test]

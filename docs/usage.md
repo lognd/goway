@@ -119,7 +119,9 @@ goway gc --host helios --all          # everything not in use
 ```
 
 Locked entries (a run in progress) are reported `busy` and never
-touched.
+touched. gc removes only entries goway labelled itself, and only under a
+root that carries goway's `.goway-root` marker. Anything else you put
+there is left alone and reported as `unlabelled`.
 
 ## Doctor
 

@@ -62,7 +62,7 @@ pub fn parse(text: &str) -> Vec<Entry> {
                 return None;
             };
             let action = match *action {
-                "keep" => Action::Keep,
+                "keep" | "unlabelled" => Action::Keep,
                 "remove" => Action::Remove,
                 "busy" => Action::Busy,
                 _ => return None,

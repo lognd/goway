@@ -547,3 +547,30 @@ fn in_place_writes_by_a_job_never_reach_the_seed() {
         "the job's in-place append leaked into the seed"
     );
 }
+
+#[test]
+fn gc_never_removes_unlabelled_entries_or_anything_under_an_unmarked_root() {
+    let w = world();
+    assert!(w.run(&["run", "--", "true"]).status.success());
+    // An old directory goway did not create, inside goway's root.
+    let stray = w.remote.join("work/not-goways");
+    std::fs::create_dir_all(&stray).unwrap();
+    std::fs::write(stray.join("precious"), "x").unwrap();
+    backdate(&stray, 30);
+    let out = w.run(&["gc", "--all"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(stray.join("precious").exists(), "unlabelled entry removed");
+
+    // Without the root marker, gc removes nothing at all.
+    std::fs::remove_file(w.remote.join(".goway-root")).unwrap();
+    assert!(w.run(&["run", "--keep", "--", "true"]).status.success());
+    std::fs::remove_file(w.remote.join(".goway-root")).unwrap();
+    let kept = w.work_dirs().len();
+    let out = w.run(&["gc", "--all"]);
+    assert!(out.status.success());
+    assert_eq!(w.work_dirs().len(), kept, "gc touched an unmarked root");
+}

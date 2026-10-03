@@ -18,6 +18,12 @@ root_dir() {
   esac
 }
 
+# Mark ROOT as goway's (gc refuses to remove anything under an unmarked root).
+mark_root() {
+  mkdir -p "$1"
+  [ -e "$1/.goway-root" ] || printf 'goway state; safe to delete with goway gc --all\n' >"$1/.goway-root"
+}
+
 new_generation() { printf '%s-%s-%s\n' "$(date +%s%N)" "$$" "$RANDOM"; }
 
 # Start a new worktree's seed as a hard-link copy of the most recently used
@@ -79,6 +85,7 @@ deletions() {
   local root seed
   root=$(root_dir "$1"); seed="$root/seed/$2"
   case "$3" in *[!A-Za-z0-9-]* | "") die "deletions: bad attempt id" ;; esac
+  mark_root "$root"
   mkdir -p "$seed"
   exec 8>"$seed/lock"
   flock -x 8
@@ -95,6 +102,7 @@ deletions() {
 receive() {
   local root seed gen work
   root=$(root_dir "$1"); seed="$root/seed/$2"
+  mark_root "$root"
   mkdir -p "$seed"
   exec 8>"$seed/lock"
   flock -x 8
@@ -168,6 +176,7 @@ run() {
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
   rundir="$work/tree"
 
+  mark_root "$root"
   mkdir -p "$cache"
   exec 9>"$work/lock"
   flock -x 9
@@ -297,6 +306,11 @@ gc_entry() {
     cache) for l in "$dir"/target-*.lock; do [ -e "$l" ] && locks+=("$l"); done ;;
     *) locks=("$dir/lock") ;;
   esac
+  # Only entries goway labelled as this kind are ever removed.
+  if ! grep -q "\"kind\":\"$kind\"" "$dir/meta.json" 2>/dev/null; then
+    printf 'unlabelled\t%s\t0\t0\t-\t-\t%s\n' "$kind" "$dir"
+    return 0
+  fi
   # Take every lock of the entry first, then read its age: a sync or run
   # that refreshed the entry just before cannot be raced.
   action=keep
@@ -324,6 +338,10 @@ gc() {
   root=$(root_dir "$1"); now=$2; cache_ttl=$3; orphan_ttl=$4; kept_ttl=$5
   mode=$6; repo=$7; older=$8
   [ -d "$root" ] || return 0
+  if [ ! -e "$root/.goway-root" ]; then
+    printf 'goway-remote: %s is not marked as goway state; gc removes nothing there\n' "$root" >&2
+    return 0
+  fi
   for d in "$root"/work/*/; do
     [ -d "$d" ] || continue
     d=${d%/}
