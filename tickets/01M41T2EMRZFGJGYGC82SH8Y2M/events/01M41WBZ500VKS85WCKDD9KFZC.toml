@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T21:57:49Z"
+digest = "415ffafec783a743ab858a70b10b800e7554d432b98564903549acb939b78045"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 80ddc486-82d0-486f-91cd-9ccba7b16155 with nextest profile: default
+    Starting 1 test across 33 binaries (394 tests skipped)
+        PASS [   0.015s] goway project::tests::an_oversized_file_is_refused
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.018s] 1 test run: 1 passed, 394 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "an_oversized_file"
+size = 544
+status = "measured"
+tests = ["project::tests::an_oversized_file_is_refused"]
+at = "2026-10-03T21:57:49Z"
+actor = "lognd"
+rev = 1

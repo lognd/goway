@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T21:57:29Z"
+digest = "63562dd1e508765a57c58d888b79f617149d8892bbfc3943e2fd8dcaa48a4d27"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1d1fddf9-68c5-4e6a-852c-d3481f150fe6 with nextest profile: default
+    Starting 1 test across 33 binaries (394 tests skipped)
+        PASS [   0.005s] goway project::tests::globs_match_the_whole_command_line
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 394 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "globs_match_the_whole"
+size = 550
+status = "measured"
+tests = ["project::tests::globs_match_the_whole_command_line"]
+at = "2026-10-03T21:57:29Z"
+actor = "lognd"
+rev = 1
