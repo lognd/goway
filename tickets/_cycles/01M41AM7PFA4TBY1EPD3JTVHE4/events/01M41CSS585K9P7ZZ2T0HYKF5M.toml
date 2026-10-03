@@ -1,0 +1,6 @@
+kind = "cycle"
+op = "retro"
+text = "Pool, status, gc, doctor, docs, positioning, coexistence, good-neighbor, sibling seeds and both installers landed. Incident: the host-installer test purged openssh-server on Helios (half-configured dpkg state misread as absent); repaired, keys re-pinned, guards added (never purge, refuse odd dpkg states). Found and fixed a sync/gc race that could run on a partial tree."
+at = "2026-10-03T17:25:44Z"
+actor = "lognd"
+rev = 1
