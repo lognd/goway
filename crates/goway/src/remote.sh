@@ -18,33 +18,109 @@ root_dir() {
   esac
 }
 
+new_generation() { printf '%s-%s-%s\n' "$(date +%s%N)" "$$" "$RANDOM"; }
+
+# Start a new worktree's seed as a hard-link copy of the most recently used
+# seed of the same repository, so its first sync only sends differences.
+# Safe because receive replaces files by unlink and recreate.
+seed_from_sibling() {
+  local seed=$1 m d sib=""
+  for m in $(ls -t "$(dirname "$seed")"/*/meta.json 2>/dev/null); do
+    d=$(dirname "$m")
+    if [ "$d" != "$seed" ] && [ -d "$d/tree" ]; then sib=$d; break; fi
+  done
+  [ -n "$sib" ] || return 0
+  exec 6>"$sib/lock"
+  flock -s 6
+  rm -rf "$seed/tree.new"
+  cp -al "$sib/tree" "$seed/tree.new"
+  new_generation >"$seed/generation"
+  mv "$seed/tree.new" "$seed/tree"
+  exec 6>&-
+}
+
 # manifest ROOT SEED: print the seed tree as NUL-terminated records
 #   type TAB size TAB mtime TAB mode TAB linktarget TAB path
 manifest() {
   local root seed
   root=$(root_dir "$1"); seed="$root/seed/$2"
-  [ -d "$seed/tree" ] || return 0
+  mkdir -p "$seed"
   exec 8>"$seed/lock"
+  if [ ! -d "$seed/tree" ]; then
+    flock -x 8
+    [ -d "$seed/tree" ] || seed_from_sibling "$seed"
+  fi
   flock -s 8
+  [ -d "$seed/tree" ] || return 0
+  # The generation names this incarnation of the tree; receive refuses to
+  # patch a tree whose generation changed since this manifest (gc removed
+  # and something recreated it), so a delta never lands on the wrong base.
+  printf 'G\t0\t0\t0\t\t%s\0' "$(cat "$seed/generation" 2>/dev/null || true)"
   find "$seed/tree" -mindepth 1 \( -type f -o -type l \) \
     -printf '%y\t%s\t%T@\t%m\t%l\t%P\0'
 }
 
-# receive ROOT SEED META_B64 DELETES_B64: apply deletions, then extract
-# the tar on stdin into the seed tree. Files are replaced by unlink and
-# recreate, so hard-linked work directories keep their snapshot.
-receive() {
+# hashes ROOT SEED: NUL-separated paths on stdin; print "sha256  path\0"
+# for each regular file (goway compares content when only mtimes differ).
+hashes() {
   local root seed
   root=$(root_dir "$1"); seed="$root/seed/$2"
-  mkdir -p "$seed/tree"
+  exec 8>"$seed/lock"
+  flock -s 8
+  cd "$seed/tree"
+  xargs -0 -r sha256sum -z -- 2>/dev/null || true
+}
+
+# deletions ROOT SEED: NUL-separated paths on stdin to delete at the next
+# receive (stdin, not an argument: one argument is limited to 128 KiB).
+deletions() {
+  local root seed
+  root=$(root_dir "$1"); seed="$root/seed/$2"
+  mkdir -p "$seed"
   exec 8>"$seed/lock"
   flock -x 8
+  cat >"$seed/deletions"
+}
+
+# receive ROOT SEED META_B64 GENERATION RUN_ID WORK_META_B64 KEEP:
+# under the seed's exclusive lock, check that the seed is still the one the
+# manifest described (GENERATION, empty for "no tree yet"), apply pending
+# deletions, extract the tar on stdin, and (when RUN_ID is given) snapshot
+# the tree into the run's fresh work dir in the same critical section.
+# Files are replaced by unlink and recreate, so hard-linked snapshots keep
+# their content. Exit 75 with "seed changed" when the generation differs.
+receive() {
+  local root seed gen work
+  root=$(root_dir "$1"); seed="$root/seed/$2"
+  mkdir -p "$seed"
+  exec 8>"$seed/lock"
+  flock -x 8
+  gen=$(cat "$seed/generation" 2>/dev/null || true)
+  if [ ! -d "$seed/tree" ]; then gen=""; fi
+  if [ "$gen" != "$4" ]; then
+    rm -f "$seed/deletions"
+    printf 'goway-remote: seed changed (have "%s", expected "%s")\n' "$gen" "$4" >&2
+    cat >/dev/null
+    exit 75
+  fi
+  if [ ! -d "$seed/tree" ]; then
+    mkdir -p "$seed/tree"
+    new_generation >"$seed/generation"
+  fi
   printf '%s' "$3" | base64 -d >"$seed/meta.json"
-  if [ -n "$4" ]; then
-    (cd "$seed/tree" && printf '%s' "$4" | base64 -d | xargs -0 -r rm -f --)
+  if [ -f "$seed/deletions" ]; then
+    (cd "$seed/tree" && xargs -0 -r rm -f -- <"$seed/deletions")
+    rm -f "$seed/deletions"
   fi
   tar -x --unlink-first --recursive-unlink --no-same-owner -C "$seed/tree" -f -
   find "$seed/tree" -mindepth 1 -depth -type d -empty -delete
+  if [ -n "${5:-}" ]; then
+    work="$root/work/$5"
+    mkdir -p "$work"
+    printf '%s' "$6" | base64 -d >"$work/meta.json"
+    if [ "${7:-0}" = 1 ]; then : >"$work/keep"; fi
+    cp -al "$seed/tree" "$work/tree"
+  fi
 }
 
 # Kill the job's process group when the ssh session that started it dies
@@ -68,33 +144,25 @@ watchdog() {
   fi
 }
 
-# run ROOT SEED RUN_ID REPO_ID KEEP SLOTS META_B64 CACHE_META_B64 ENV_B64 TTLS PRIORITY -- CMD...
+# run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 ENV_B64 TTLS PRIORITY -- CMD...
+# The work dir was created by receive (snapshot of the seed).
 # TTLS is "cache:orphan:kept" in seconds, for the automatic gc afterwards.
 # Snapshot the seed into a fresh work dir, pick a free cargo target slot,
 # run CMD in its own process group with stdio passed through, clean up,
 # and exit with CMD's status (128+N when killed by signal N).
 run() {
-  local root seed work cache slot="" k rc=0 wd
-  root=$(root_dir "$1"); seed="$root/seed/$2"; work="$root/work/$3"
-  cache="$root/cache/$4"
-  local root_arg=$1 run_id=$3 repo_id=$4 keep=$5 slots=$6 meta=$7 cache_meta=$8 envb=$9
-  local ttls=${10} priority=${11} nicer=()
-  shift 11
+  local root work cache slot="" k rc=0 wd
+  root=$(root_dir "$1"); work="$root/work/$2"; cache="$root/cache/$3"
+  local root_arg=$1 run_id=$2 repo_id=$3 keep=$4 slots=$5 cache_meta=$6 envb=$7
+  local ttls=$8 priority=$9 nicer=()
+  shift 9
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
-  [ -d "$seed/tree" ] || die "run: no synced tree at $seed"
+  [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
 
-  mkdir -p "$work" "$cache"
+  mkdir -p "$cache"
   exec 9>"$work/lock"
   flock -x 9
-  printf '%s' "$meta" | base64 -d >"$work/meta.json"
-  if [ "$keep" = 1 ]; then : >"$work/keep"; fi
-
-  exec 8>"$seed/lock"
-  flock -s 8
-  cp -al "$seed/tree" "$work/tree"
-  touch "$seed/meta.json"
-  exec 8>&-
 
   [ -f "$cache/meta.json" ] || printf '%s' "$cache_meta" | base64 -d >"$cache/meta.json"
   touch "$cache/meta.json"
@@ -207,14 +275,13 @@ gc_entry() {
   if [ -n "$repo_filter" ] && [ "${repo%%$'\t'*}" != "$repo_filter" ] && [ "${repo##*$'\t'}" != "$repo_filter" ]; then
     return 0
   fi
-  age=$(age_of "$dir" "$now")
   case "$kind" in
     cache) for l in "$dir"/target-*.lock; do [ -e "$l" ] && locks+=("$l"); done ;;
     *) locks=("$dir/lock") ;;
   esac
+  # Take every lock of the entry first, then read its age: a sync or run
+  # that refreshed the entry just before cannot be raced.
   action=keep
-  if [ "$age" -ge "$ttl" ]; then action=remove; fi
-  # Hold every lock of the entry while deciding and removing.
   fd=20
   for l in "${locks[@]}"; do
     [ -e "$l" ] || continue
@@ -222,6 +289,8 @@ gc_entry() {
     if ! flock -n "$fd"; then action=busy; fi
     fd=$((fd + 1))
   done
+  age=$(age_of "$dir" "$now")
+  if [ "$action" = keep ] && [ "$age" -ge "$ttl" ]; then action=remove; fi
   bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$action" "$kind" "$age" "${bytes:-0}" "$repo" "$dir"
   if [ "$action" = remove ] && [ "$mode" = apply ]; then
@@ -285,6 +354,8 @@ shift
 case "$verb" in
   manifest) manifest "$@" ;;
   receive) receive "$@" ;;
+  hashes) hashes "$@" ;;
+  deletions) deletions "$@" ;;
   run) run "$@" ;;
   probe) probe "$@" ;;
   gc) gc "$@" ;;

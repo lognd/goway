@@ -18,11 +18,18 @@ What happens:
 2. **Sync.** The file set is exactly what git shows:
    `git ls-files -co --exclude-standard`, minus files deleted from the
    work tree, minus `.env`/`.env.*`. It goes to a per-worktree seed on
-   the host. Only files whose size, mtime, exec bit or link target
-   changed are sent (as a tar stream), and files gone locally are
-   deleted. mtimes are kept, so cargo stays warm.
-3. **Snapshot.** The run gets a fresh work dir that is a hard-link copy
-   of the seed. Concurrent runs from the same or other worktrees never
+   the host. Only files whose size, exec bit or link target changed are
+   sent (as a tar stream), plus files whose mtime changed and whose
+   content (sha256) differs. Files gone locally are deleted. mtimes are
+   kept, so cargo stays warm. A worktree's first sync starts from a
+   hard-link copy of the most recently used seed of the same
+   repository, so a new worktree only sends what differs.
+   Each seed has a generation token. If gc replaced the seed between
+   reading its manifest and uploading, the upload is refused and the
+   sync starts over, so a delta never lands on the wrong base.
+3. **Snapshot.** In the same locked step as the upload, the run gets a
+   fresh work dir that is a hard-link copy of the seed.
+   Concurrent runs from the same or other worktrees never
    see each other's files, and a later sync never changes a running
    snapshot.
 4. **Run.** The command starts in its own session, with stdin, stdout

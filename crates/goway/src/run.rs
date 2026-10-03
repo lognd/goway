@@ -142,18 +142,24 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         settings: env.settings,
     };
     let remote_root = config.defaults.remote_root.as_str();
+    let run_id = new_run_id();
+    let snapshot = sync::Snapshot {
+        run_id: run_id.clone(),
+        meta_b64: label_b64(&repo, "work"),
+        keep: args.keep,
+    };
     let synced = sync::sync(
         &transport,
         remote_root,
         &repo,
         config.defaults.send_env_files,
+        Some(&snapshot),
     )?;
     renderer.note(format_args!(
         "synced {} files ({} sent, {} bytes, {} deleted)",
         synced.files, synced.sent, synced.bytes, synced.deleted
     ));
 
-    let run_id = new_run_id();
     let cmd = run_invocation(
         &config,
         config.priority_of(&host).as_str(),
@@ -211,7 +217,20 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     Ok(code)
 }
 
-/// The remote `run` invocation for this run.
+/// A base64 `meta.json` label of `kind` for this repository.
+fn label_b64(repo: &Repo, kind: &str) -> String {
+    let label = Label {
+        kind,
+        repo: &repo.name,
+        repo_id: &repo.id,
+        worktree: repo.root.to_string_lossy().into_owned(),
+        client: &repo.client,
+        updated: crate::state::now_secs(),
+    };
+    base64::engine::general_purpose::STANDARD.encode(serde_json::to_vec(&label).unwrap_or_default())
+}
+
+/// The remote `run` invocation for this run (its work dir already exists).
 fn run_invocation(
     config: &Config,
     priority: &str,
@@ -220,19 +239,8 @@ fn run_invocation(
     args: &RunArgs,
     env_b64: &str,
 ) -> String {
-    let b64 = base64::engine::general_purpose::STANDARD;
-    let label = |kind| Label {
-        kind,
-        repo: &repo.name,
-        repo_id: &repo.id,
-        worktree: repo.root.to_string_lossy().into_owned(),
-        client: &repo.client,
-        updated: crate::state::now_secs(),
-    };
-    let meta = b64.encode(serde_json::to_vec(&label("work")).unwrap_or_default());
-    let cache_meta = b64.encode(serde_json::to_vec(&label("cache")).unwrap_or_default());
+    let cache_meta = label_b64(repo, "cache");
     let slots = config.defaults.target_slots.max(1).to_string();
-    let seed = repo.seed_key();
     let keep = if args.keep { "1" } else { "0" };
     let d = &config.defaults;
     let ttls = format!(
@@ -243,12 +251,10 @@ fn run_invocation(
     );
     let mut words: Vec<&str> = vec![
         &config.defaults.remote_root,
-        &seed,
         run_id,
         &repo.id,
         keep,
         &slots,
-        &meta,
         &cache_meta,
         env_b64,
         &ttls,

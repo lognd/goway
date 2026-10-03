@@ -1,0 +1,1 @@
+A new worktree's first sync starts from a sibling seed of the same repository and skips files whose content is unchanged, so only real differences cross the network; deletions travel over stdin (no 128 KiB argument limit), and a seed replaced by gc mid-sync is detected and resynced instead of producing a partial tree.
