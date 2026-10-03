@@ -1,0 +1,12 @@
+kind = "create"
+title = "goway-setup install --host --native: a Windows helper without WSL over OpenSSH, journaled"
+type = "story"
+category = "todo"
+priority = "medium"
+points = 5
+parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
+scope = ["crates/goway-setup/src/native.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/src/helper.rs", "crates/goway-journal/src/change.rs", "crates/goway-setup/tests/**", "scripts/windows/roundtrip-host.sh", "docs/install-windows.md"]
+acceptance = ["Given a Windows laptop, when goway-setup install --host --native runs, then it enables the OpenSSH Server capability (recorded so uninstall removes it only if it was absent), starts sshd on boot, opens the port to local networks only, sets PowerShell as the default shell, and prints the goway add line with the host key fingerprint", '''Given the installing account is an administrator, when the key is installed, then it goes to ProgramData\ssh\administrators_authorized_keys with the required ACL (SYSTEM and Administrators only); otherwise to the user's authorized_keys with a user-only ACL; both journaled''', "Given goway-setup uninstall --host --native, when it runs, then every change is reverted exactly (snapshot test on a real machine in a test profile, never touching an existing sshd setup the user made)"]
+at = "2026-10-03T21:18:48Z"
+actor = "lognd"
+rev = 1

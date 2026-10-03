@@ -2,14 +2,14 @@
 id = "01M41P2FTWWZGR0Q5JTNW5SF9B"
 title = "macOS main laptop: release binaries and install.sh for Apple Silicon and Intel"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-03T20:07:47Z"
-scope = ["scripts/install.sh", ".github/workflows/release.yml", "crates/goway/tests/install_scripts.rs", "docs/release.md"]
+updated = "2026-10-03T21:18:42Z"
+scope = ["scripts/install.sh", ".github/workflows/release.yml", "crates/goway/tests/install_scripts.rs", "docs/release.md", "scripts/uninstall.sh", ".github/workflows/ci.yml", "README.md"]
 
 [[acceptance]]
 text = "Given a version tag, when the release workflow runs, then it publishes static-enough goway binaries for aarch64-apple-darwin and x86_64-apple-darwin with checksums"
