@@ -550,15 +550,8 @@ mod tests {
     fn host(labels: &[&str]) -> HostConfig {
         HostConfig {
             name: "helios".to_owned(),
-            address: None,
-            port: None,
-            user: None,
-            max_jobs: None,
-            priority: None,
-            max_load: None,
-            identity: None,
             labels: labels.iter().map(|s| (*s).to_owned()).collect(),
-            gpu_jobs: None,
+            ..HostConfig::default()
         }
     }
 

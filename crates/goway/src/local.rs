@@ -49,15 +49,10 @@ pub fn host(config: &Config) -> HostConfig {
     let l = settings(config);
     HostConfig {
         name: NAME.to_owned(),
-        address: None,
-        port: None,
-        user: None,
         max_jobs: Some(l.max_jobs),
         priority: l.priority,
-        max_load: None,
-        identity: None,
         labels: vec![NAME.to_owned()],
-        gpu_jobs: None,
+        ..HostConfig::default()
     }
 }
 

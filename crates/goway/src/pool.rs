@@ -519,15 +519,8 @@ mod tests {
     fn host(name: &str, max_jobs: Option<u32>) -> HostConfig {
         HostConfig {
             name: name.to_owned(),
-            address: None,
-            port: None,
-            user: None,
             max_jobs,
-            priority: None,
-            max_load: None,
-            identity: None,
-            labels: Vec::new(),
-            gpu_jobs: None,
+            ..HostConfig::default()
         }
     }
 

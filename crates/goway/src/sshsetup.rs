@@ -298,12 +298,7 @@ pub fn setup(
         address: args.address.clone(),
         port: args.port,
         user: args.user.clone(),
-        max_jobs: None,
-        priority: None,
-        max_load: None,
-        identity: None,
-        labels: Vec::new(),
-        gpu_jobs: None,
+        ..HostConfig::default()
     });
     // A configured host is pinned: check its key strictly. A new one is
     // reached with a scratch known_hosts and verified by hostname below.
