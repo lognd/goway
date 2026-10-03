@@ -1,0 +1,1 @@
+New: goway add HELPER registers a helper laptop in one command (local check, confirmed host key, key login with one password, toolchain), --rsudo runs the helper's administrator changes after one confirmation in a single sudo session, --lsudo installs missing tools on this laptop, and rerunning it changes nothing; goway doctor --sudo is now --rsudo.

@@ -400,6 +400,25 @@ doctor() {
   printf 'home=%s\n' "$HOME"
 }
 
+# purge ROOT: remove all of goway's state on this host (goway uninstall).
+# Refuses an unmarked root and a root with a run in progress.
+purge() {
+  local root l s
+  root=$(root_dir "$1")
+  if [ ! -d "$root" ]; then printf 'absent\n'; return 0; fi
+  [ -e "$root/.goway-root" ] || die "$root is not marked as goway state; not removing it"
+  for l in "$root"/work/*/lock "$root"/cache/*/target-*.lock; do
+    [ -e "$l" ] || continue
+    flock -n "$l" true || die "a goway run is in progress on this host; try again when it ends"
+  done
+  for s in "$root"/cache/*/sccache.sock; do
+    [ -S "$s" ] || continue
+    SCCACHE_SERVER_UDS="$s" sccache --stop-server >/dev/null 2>&1 || true
+  done
+  rm -rf "$root"
+  printf 'removed\n'
+}
+
 verb=${1:-}
 [ -n "$verb" ] || die "no verb"
 shift
@@ -413,6 +432,7 @@ case "$verb" in
   probe) probe "$@" ;;
   gc) gc "$@" ;;
   doctor) doctor "$@" ;;
+  purge) purge "$@" ;;
   ping) printf 'goway-remote ok\n' ;;
   *) die "unknown verb: $verb" ;;
 esac

@@ -1,6 +1,7 @@
 //! goway: run a command on another machine, natively, from the current git
 //! work tree. See docs/design.md for the problem tree.
 
+pub mod add;
 pub mod cli;
 pub mod config;
 pub mod doctor;
@@ -22,6 +23,7 @@ pub mod sshsetup;
 pub mod state;
 pub mod status;
 pub mod sync;
+pub mod uninstall;
 
 use std::process::ExitCode;
 
@@ -51,7 +53,7 @@ pub fn init_tracing(verbose: u8) {
 /// Run a parsed command line and turn the outcome into the process exit code.
 pub fn main_with(cli: &Cli) -> ExitCode {
     init_tracing(cli.verbose);
-    let renderer = Renderer::new(cli.color);
+    let renderer = Renderer::new(cli.color).with_plain(cli.plain);
     // Only the verb: arguments can carry --env values.
     tracing::debug!(verb = cli.command.verb(), "dispatch");
     match dispatch(&cli.command, renderer) {
@@ -67,6 +69,32 @@ pub fn main_with(cli: &Cli) -> ExitCode {
 fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
     let paths = Paths::from_env();
     match command {
+        Command::Add(args) => {
+            let settings = ssh::Settings::from_paths(&paths);
+            add::add(
+                &paths,
+                renderer,
+                args,
+                &resolve::SystemLookup,
+                &resolve::SshProber {
+                    settings: settings.clone(),
+                },
+                &settings,
+            )
+        }
+        Command::Uninstall(args) => {
+            let settings = ssh::Settings::from_paths(&paths);
+            uninstall::uninstall(
+                &paths,
+                renderer,
+                args,
+                &resolve::SystemLookup,
+                &resolve::SshProber {
+                    settings: settings.clone(),
+                },
+                &settings,
+            )
+        }
         Command::Run(args) => {
             let settings = ssh::Settings::from_paths(&paths);
             let cwd = std::env::current_dir().map_err(|e| Error::io("read", ".", e))?;

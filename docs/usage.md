@@ -1,5 +1,27 @@
 # Using goway
 
+## Add a helper laptop
+
+```
+goway add HELPER --fingerprint SHA256:... --user LINUXUSER
+goway add HELPER --rsudo        # also make the administrator changes there
+```
+
+The helper's installer prints this exact command, fingerprint included.
+`goway add` does the following:
+1. Checks that this laptop has ssh and git. With `--lsudo` it installs
+   what is missing here.
+2. Sets up key login with one password prompt (docs/ssh-setup.md).
+3. Pins the helper's identity, and adds it to the pool.
+4. Installs its toolchain (cargo-nextest, sccache).
+5. With `--rsudo`, it lists the changes that need administrator rights
+   on the helper, with the reason for each, asks once, and runs them
+   all in one sudo session. You type the helper's password into its own
+   sudo; goway never sees it.
+
+Running `goway add` again changes nothing that is already in place.
+
+
 ## Run a command
 
 ```
@@ -123,6 +145,33 @@ Locked entries (a run in progress) are reported `busy` and never
 touched. gc removes only entries goway labelled itself, and only under a
 root that carries goway's `.goway-root` marker. Anything else you put
 there is left alone and reported as `unlabelled`.
+
+## Uninstall
+
+```
+goway uninstall                 # lists what it would remove everywhere, then asks
+goway uninstall --everywhere    # does it without asking
+goway uninstall --dry-run       # only lists
+```
+
+On every helper this removes:
+- goway's state directory (refused while a run is in progress)
+- the tools goway installed there (cargo-nextest, sccache, and rustup if
+  goway installed it)
+- goway's key line in `~/.ssh/authorized_keys`, with the previous modes
+  restored
+
+Administrator-level changes (the "no password login" setting) are
+undone with `--rsudo`, after one question. System packages goway
+installed, such as the C compiler, stay, because other software may
+use them; goway lists them with their removal command. If a helper is
+off, nothing on this laptop is removed, so you can run it again later.
+
+On this laptop it then removes goway's config, keys and state, and
+finally the goway program and its PATH line, using the install record.
+On Windows, remove the program in Settings > Apps. On each helper
+laptop, its own uninstall entry in Settings > Apps removes the helper
+setup.
 
 ## Doctor
 

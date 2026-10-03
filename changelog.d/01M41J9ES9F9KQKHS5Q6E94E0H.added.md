@@ -1,0 +1,1 @@
+New: goway uninstall removes everything goway added on every helper (state, the tools it installed, its key line; administrator changes with --rsudo; system packages are listed, not removed) and then on this laptop (config, keys, state, and the program via the install record); without --everywhere it lists everything and asks first, and --dry-run only lists.

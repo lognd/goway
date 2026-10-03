@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T19:19:05Z"
+digest = "3f881cf81d3b790c6ef97900c146206bb62dfcc765548dd0663614b34e1b1336"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b950c055-d498-42b5-be8d-d47ff43413b0 with nextest profile: default
+    Starting 3 tests across 23 binaries (233 tests skipped)
+        PASS [   0.007s] goway-setup::host_plan on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall_keeps_it_all
+        PASS [   0.028s] goway-setup::host_plan the_host_plan_registers_its_own_add_remove_programs_entry_running_the_protected_copy
+        PASS [   0.028s] goway-setup::elevated the_elevated_validator_accepts_exactly_the_host_arp_entry
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.038s] 3 tests run: 3 passed, 233 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_host_plan_registers_its_own_add_remove_programs_entry) | test(the_elevated_validator_accepts_exactly_the_host_arp_entry) | test(on_a_machine_set_up_by_hand_the_default_install)'"
+size = 847
+status = "measured"
+tests = ["on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall_keeps_it_all", "the_host_plan_registers_its_own_add_remove_programs_entry_running_the_protected_copy", "the_elevated_validator_accepts_exactly_the_host_arp_entry"]
+at = "2026-10-03T19:19:05Z"
+actor = "lognd"
+rev = 1

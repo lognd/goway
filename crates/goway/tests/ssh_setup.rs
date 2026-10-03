@@ -248,3 +248,115 @@ fn a_new_host_is_confirmed_before_any_password_and_pinned_once() {
             .contains("newbox")
     );
 }
+
+// frob:tests crates/goway/src/add.rs::add
+#[test]
+fn add_registers_a_new_helper_in_one_command_and_is_idempotent() {
+    let s = setup_world();
+    let fp = fake_fingerprint();
+    let out = s.run(&[
+        "add",
+        "newbox",
+        "--address",
+        "127.0.0.1",
+        "--fingerprint",
+        &fp,
+    ]);
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(stderr.contains("key login to newbox works"), "{stderr}");
+    assert!(stderr.contains("goway: next:"), "{stderr}");
+    let ran = s.run(&["run", "--host", "newbox", "--", "true"]);
+    assert_eq!(
+        ran.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&ran.stderr)
+    );
+
+    let before = (snapshot(&s.home), snapshot(&s.w.config));
+    let again = s.run(&[
+        "add",
+        "newbox",
+        "--address",
+        "127.0.0.1",
+        "--fingerprint",
+        &fp,
+    ]);
+    let stderr = String::from_utf8_lossy(&again.stderr).into_owned();
+    assert!(stderr.contains("set up before"), "{stderr}");
+    let after = (snapshot(&s.home), snapshot(&s.w.config));
+    assert_eq!(before.0, after.0, "the helper is not touched again");
+    assert_eq!(
+        before.1.get("config.toml"),
+        after.1.get("config.toml"),
+        "the config is not touched again"
+    );
+}
+
+// frob:tests crates/goway/src/uninstall.rs::uninstall
+#[test]
+fn uninstall_everywhere_removes_goway_from_helper_and_laptop() {
+    let s = setup_world();
+    // A pool with no hosts yet, as a newcomer starts.
+    let remote = s.w.remote.display().to_string();
+    std::fs::write(
+        s.w.config.join("config.toml"),
+        format!("[defaults]\nremote_root = \"{remote}\"\n"),
+    )
+    .unwrap();
+    let home_before = snapshot(&s.home);
+    let fp = fake_fingerprint();
+    let added = s.run(&[
+        "add",
+        "newbox",
+        "--address",
+        "127.0.0.1",
+        "--fingerprint",
+        &fp,
+    ]);
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+    assert!(
+        s.run(&["run", "--host", "newbox", "--", "true"])
+            .status
+            .success()
+    );
+    assert!(s.w.remote.join(".goway-root").exists());
+
+    // Without --everywhere and without a terminal: list, remove nothing.
+    let asked = s.run(&["uninstall"]);
+    let listing = String::from_utf8_lossy(&asked.stdout).into_owned();
+    assert!(
+        listing.contains("on newbox:") && listing.contains("on this laptop:"),
+        "{listing}"
+    );
+    assert!(String::from_utf8_lossy(&asked.stderr).contains("nothing was removed"));
+    assert!(s.w.remote.exists());
+
+    let out = s.run(&["uninstall", "--everywhere"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!s.w.remote.exists(), "goway's remote state is gone");
+    // The fake helper shares this laptop's PATH, so the doctor's version
+    // probe runs the local rustup with an empty home and it creates
+    // ~/.rustup; a real helper has its own toolchain. Not goway's change.
+    let mut home_after = snapshot(&s.home);
+    home_after.retain(|k, _| !k.starts_with(".rustup"));
+    assert_eq!(home_after, home_before, "the helper's ~/.ssh is as before");
+    let left: Vec<String> = std::fs::read_dir(&s.w.config)
+        .map(|d| {
+            d.map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(
+        left.is_empty(),
+        "goway files left in its config dir: {left:?}"
+    );
+}

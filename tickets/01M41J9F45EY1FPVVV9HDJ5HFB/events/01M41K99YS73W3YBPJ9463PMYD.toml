@@ -1,0 +1,29 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T19:19:04Z"
+digest = "47fe0a7cfc55f5e65d4f3e25b5b5e228dbaf73b847cfffb467c8f1bad95cb518"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 30b2a0a2-835f-4d9c-9026-ea9f56b4a526 with nextest profile: default
+    Starting 7 tests across 23 binaries (229 tests skipped)
+        PASS [   0.021s] goway-setup::hostsys the_fingerprint_comes_from_the_ed25519_key_as_root_and_the_user_from_the_default_user
+        PASS [   0.021s] goway-setup::helper a_missing_host_key_is_said_plainly_and_gives_no_command
+        PASS [   0.021s] goway-setup::helper the_public_network_warning_explains_in_plain_words_and_gives_the_fix
+        PASS [   0.021s] goway-setup::helper a_needed_wsl_restart_is_asked_on_a_console_and_printed_otherwise
+        PASS [   0.022s] goway-setup::helper the_fingerprint_is_read_from_ssh_keygen_output
+        PASS [   0.025s] goway-setup::helper windows_device_names_become_names_goway_accepts
+        PASS [   0.025s] goway-setup::helper the_block_names_the_helper_its_fingerprint_its_user_and_the_exact_command
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.030s] 7 tests run: 7 passed, 229 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_block_names_the_helper) | test(a_missing_host_key_is_said_plainly) | test(the_fingerprint_is_read_from_ssh_keygen_output) | test(the_fingerprint_comes_from_the_ed25519_key) | test(windows_device_names_become) | test(a_needed_wsl_restart_is_asked) | test(the_public_network_warning_explains)'"
+size = 1231
+status = "measured"
+tests = ["the_fingerprint_comes_from_the_ed25519_key_as_root_and_the_user_from_the_default_user", "a_missing_host_key_is_said_plainly_and_gives_no_command", "the_public_network_warning_explains_in_plain_words_and_gives_the_fix", "a_needed_wsl_restart_is_asked_on_a_console_and_printed_otherwise", "the_fingerprint_is_read_from_ssh_keygen_output", "windows_device_names_become_names_goway_accepts", "the_block_names_the_helper_its_fingerprint_its_user_and_the_exact_command"]
+at = "2026-10-03T19:19:04Z"
+actor = "lognd"
+rev = 1

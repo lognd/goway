@@ -355,28 +355,59 @@ pub struct Applied {
     pub need_sudo: Vec<Fix>,
 }
 
-/// Run the fixes `--fix` allows: user fixes always, root fixes only with
-/// `sudo`. Each distinct command runs once.
-pub fn apply_fixes(checks: &[Check], sudo: bool, runner: &dyn FixRunner) -> Applied {
+/// Run the fixes `--fix` allows: user fixes always; root fixes only with
+/// `sudo` and only after `confirm` approves the whole list, and then all
+/// together in ONE sudo session (one password, typed into sudo itself).
+/// Each distinct command runs once.
+pub fn apply_fixes(
+    checks: &[Check],
+    sudo: bool,
+    confirm: &dyn Fn(&[Fix]) -> bool,
+    runner: &dyn FixRunner,
+) -> Applied {
     let mut applied = Applied::default();
     let mut seen = std::collections::BTreeSet::new();
-    // Root fixes first: they provide what user fixes need (curl, cc).
-    let mut fixes: Vec<&Fix> = checks
+    let mut root = Vec::new();
+    let mut user = Vec::new();
+    for fix in checks
         .iter()
         .filter(|c| c.level != Level::Ok)
         .filter_map(|c| c.fix.as_ref())
-        .collect();
-    fixes.sort_by_key(|f| !f.root);
-    for fix in fixes {
-        if !seen.insert(fix.command.clone()) {
-            continue;
+    {
+        if seen.insert(fix.command.clone()) {
+            if fix.root {
+                root.push(fix.clone());
+            } else {
+                user.push(fix.clone());
+            }
         }
-        if fix.root && !sudo {
-            applied.need_sudo.push(fix.clone());
-            continue;
+    }
+    // Root fixes first: they provide what user fixes need (curl, cc).
+    if !root.is_empty() {
+        if sudo && confirm(&root) {
+            let script = format!(
+                "set -e\n{}",
+                root.iter()
+                    .map(|f| f.command.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+            tracing::info!(fixes = root.len(), "running root fixes in one sudo session");
+            let ok = runner.run(&script, true);
+            for f in &root {
+                if ok {
+                    applied.done.push(f.command.clone());
+                } else {
+                    applied.failed.push(f.command.clone());
+                }
+            }
+        } else {
+            applied.need_sudo = root;
         }
-        tracing::info!(command = %fix.command, root = fix.root, "running fix");
-        if runner.run(&fix.command, fix.root) {
+    }
+    for fix in user {
+        tracing::info!(command = %fix.command, "running fix");
+        if runner.run(&fix.command, false) {
             applied.done.push(fix.command.clone());
         } else {
             applied.failed.push(fix.command.clone());
@@ -386,9 +417,9 @@ pub fn apply_fixes(checks: &[Check], sudo: bool, runner: &dyn FixRunner) -> Appl
 }
 
 /// Real fix runner: ssh to the found host, `sudo` with a tty when needed.
-struct SshFixRunner<'a> {
-    found: &'a Found,
-    settings: &'a ssh::Settings,
+pub(crate) struct SshFixRunner<'a> {
+    pub(crate) found: &'a Found,
+    pub(crate) settings: &'a ssh::Settings,
 }
 
 impl FixRunner for SshFixRunner<'_> {
@@ -463,6 +494,92 @@ fn report(
 }
 
 /// Tell the user what `--fix` did and which root fixes still need sudo.
+/// Something `doctor --fix` installed on a host, and how to take it back.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Installed {
+    /// The check it fixed (`cargo`, `cargo-nextest`, ...).
+    pub check: String,
+    /// The command that removes it again, if goway removes it.
+    pub undo: Option<String>,
+    /// Whether the undo needs root.
+    pub root: bool,
+}
+
+/// How to take back the fix of `check`; `None` for system packages, which
+/// other software may have come to rely on (they are listed instead).
+pub fn undo_of(check: &str) -> Option<(String, bool)> {
+    match check {
+        "cargo" => Some((format!("{CARGO_BIN}/rustup self uninstall -y"), false)),
+        "cargo-nextest" => Some((format!("rm -f {CARGO_BIN}/cargo-nextest"), false)),
+        "sccache" => Some((format!("rm -f {CARGO_BIN}/sccache"), false)),
+        "sshd password login" => Some((
+            "rm -f /etc/ssh/sshd_config.d/10-goway-keys-only.conf && systemctl reload ssh"
+                .to_owned(),
+            true,
+        )),
+        _ => None,
+    }
+}
+
+/// Where the record of what goway installed on `host` lives.
+pub fn installed_path(paths: &Paths, host: &str) -> std::path::PathBuf {
+    paths
+        .config_dir
+        .join(format!("installed-{}.json", host.to_ascii_lowercase()))
+}
+
+/// Load the record of what goway installed on `host` (empty if none).
+pub fn load_installed(paths: &Paths, host: &str) -> Vec<Installed> {
+    std::fs::read_to_string(installed_path(paths, host))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+/// Add the checks whose fixes just ran to the host's record.
+fn record_installed(paths: &Paths, host: &str, checks: &[Check], done: &[String]) -> Result<()> {
+    let mut items = load_installed(paths, host);
+    let before = items.len();
+    for c in checks {
+        let ran = c.fix.as_ref().is_some_and(|f| done.contains(&f.command));
+        if ran && !items.iter().any(|i| i.check == c.name) {
+            let (undo, root) = undo_of(&c.name).map_or((None, false), |(u, r)| (Some(u), r));
+            items.push(Installed {
+                check: c.name.clone(),
+                undo,
+                root,
+            });
+        }
+    }
+    if items.len() == before {
+        return Ok(());
+    }
+    let text = serde_json::to_string_pretty(&items).map_err(|e| Error::Usage(e.to_string()))?;
+    crate::config::write_atomic(&installed_path(paths, host), text.as_bytes())?;
+    tracing::info!(host, items = items.len(), "recorded what doctor installed");
+    Ok(())
+}
+
+/// List the root fixes with their reasons and ask once (or accept with --yes).
+pub(crate) fn confirm_root(renderer: Renderer, host: &str, fixes: &[Fix], yes: bool) -> bool {
+    renderer.headline(format_args!(
+        "{} change(s) on {host} need administrator rights:",
+        fixes.len()
+    ));
+    for f in fixes {
+        renderer.line(format_args!("  {}\n    why: {}", f.display(), f.why));
+    }
+    if yes {
+        return true;
+    }
+    match crate::render::ask(&format!(
+        "Run them on {host} now? sudo there asks for {host}'s password once [y/N]: "
+    )) {
+        Some(answer) => matches!(answer.trim(), "y" | "Y" | "yes" | "Yes" | "YES"),
+        None => false,
+    }
+}
+
 fn show_applied(renderer: Renderer, host: &HostConfig, applied: &Applied) {
     for c in &applied.done {
         renderer.ok(format_args!("{}: fixed: {c}", host.name));
@@ -472,7 +589,7 @@ fn show_applied(renderer: Renderer, host: &HostConfig, applied: &Applied) {
     }
     if !applied.need_sudo.is_empty() {
         renderer.warn(format_args!(
-            "{}: {} fix(es) need root and were not run. Rerun `goway doctor {} --fix --sudo` to run them (sudo will ask for your password on {}), or run them yourself:",
+            "{}: {} fix(es) need root and were not run. Rerun `goway doctor {} --fix --rsudo` to run them (sudo on {} asks for its password once; goway never sees it), or run them yourself:",
             host.name,
             applied.need_sudo.len(),
             host.name,
@@ -493,9 +610,10 @@ pub fn doctor(
     prober: &(dyn Prober + Sync),
     settings: &ssh::Settings,
 ) -> Result<u8> {
-    if args.sudo && !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+    if args.rsudo && !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
         return Err(Error::Usage(
-            "--sudo needs an interactive terminal so sudo can ask for the password".to_owned(),
+            "--rsudo needs an interactive terminal so the host's sudo can ask for the password"
+                .to_owned(),
         ));
     }
     let config = Config::load(&paths.config_file())?;
@@ -555,8 +673,15 @@ pub fn doctor(
                 found: &found,
                 settings,
             };
-            let applied = apply_fixes(&checks, args.sudo, &runner);
+            let confirm = |fixes: &[Fix]| confirm_root(renderer, &host.name, fixes, args.yes);
+            let applied = apply_fixes(&checks, args.rsudo, &confirm, &runner);
             show_applied(renderer, host, &applied);
+            if let Err(e) = record_installed(paths, &host.name, &checks, &applied.done) {
+                renderer.warn(format_args!(
+                    "cannot record what was installed on {}: {e}",
+                    host.name
+                ));
+            }
             if !applied.done.is_empty() || !applied.failed.is_empty() {
                 // Re-check after fixing.
                 let mut local = state.clone();
@@ -678,7 +803,7 @@ mod tests {
     fn root_fixes_never_run_without_sudo() {
         let checks = assess(&facts(&["cc", "cargo-nextest", "sccache"]));
         let rec = Recorder(RefCell::new(Vec::new()));
-        let applied = apply_fixes(&checks, false, &rec);
+        let applied = apply_fixes(&checks, false, &|_| true, &rec);
         assert_eq!(applied.done.len(), 2, "nextest and sccache run as the user");
         assert!(rec.0.borrow().iter().all(|(_, sudo)| !sudo));
         assert_eq!(applied.need_sudo.len(), 1);
@@ -686,11 +811,31 @@ mod tests {
         assert!(applied.need_sudo[0].why.contains("root"));
 
         let rec = Recorder(RefCell::new(Vec::new()));
-        let applied = apply_fixes(&checks, true, &rec);
+        let applied = apply_fixes(&checks, true, &|_| true, &rec);
         assert!(applied.need_sudo.is_empty());
         let calls = rec.0.borrow();
         assert!(calls[0].1, "root fixes first, under sudo");
         assert_eq!(calls.len(), 3);
+    }
+
+    #[test]
+    fn root_fixes_need_confirmation_and_share_one_sudo_session() {
+        let mut f = facts(&["cc", "curl"]);
+        f.insert("password_auth".to_owned(), "default-yes".to_owned());
+        let checks = assess(&f);
+        let rec = Recorder(RefCell::new(Vec::new()));
+        let declined = apply_fixes(&checks, true, &|_| false, &rec);
+        assert!(
+            rec.0.borrow().is_empty(),
+            "nothing runs when the user says no"
+        );
+        assert_eq!(declined.need_sudo.len(), 3);
+        let applied = apply_fixes(&checks, true, &|_| true, &rec);
+        let calls = rec.0.borrow();
+        let sudo_calls: Vec<&(String, bool)> = calls.iter().filter(|(_, s)| *s).collect();
+        assert_eq!(sudo_calls.len(), 1, "one sudo session for all root fixes");
+        assert!(sudo_calls[0].0.starts_with("set -e"));
+        assert_eq!(applied.done.len(), 3);
     }
 
     #[test]
