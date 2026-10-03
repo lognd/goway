@@ -1,0 +1,8 @@
+kind = "create"
+object = "cycle"
+goal = "Windows hosts complete; macOS helpers"
+start = "2026-10-07"
+end = "2026-10-08"
+at = "2026-10-03T20:34:42Z"
+actor = "lognd"
+rev = 1

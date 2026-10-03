@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T20:36:30Z"
+digest = "ad01215c960929a34055f80938c5f7052809889a9ef9fc93e29408db5082d60a"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 5db921bc-3372-4736-8a09-e7614f18f48a with nextest profile: default
+    Starting 1 test across 26 binaries (279 tests skipped)
+        PASS [   0.015s] goway sync::tests::a_flooding_helper_is_captured_within_the_caps
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.017s] 1 test run: 1 passed, 279 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_flooding_helper_is_captured_within_the_caps)'"
+size = 558
+status = "measured"
+tests = ["sync::tests::a_flooding_helper_is_captured_within_the_caps"]
+at = "2026-10-03T20:36:30Z"
+actor = "lognd"
+rev = 1
