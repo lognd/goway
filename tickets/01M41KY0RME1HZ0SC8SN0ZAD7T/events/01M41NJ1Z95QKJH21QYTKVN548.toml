@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/src/**", "crates/goway-journal/tests/**", "crates/goway-setup/tests/**", ".github/workflows/ci.yml"]
+new = ["crates/goway/src/**", "crates/goway-journal/tests/**", "crates/goway-setup/tests/**", ".github/workflows/ci.yml", "frob.toml"]
+at = "2026-10-03T19:58:48Z"
+actor = "lognd"
+rev = 1
