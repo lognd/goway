@@ -164,6 +164,23 @@ fn pinned_install(table: &[(&str, Pinned)], arch: &str) -> Option<String> {
     ))
 }
 
+/// Reload sshd whatever the distribution calls the unit (`ssh` on Debian and
+/// Ubuntu, `sshd` on Fedora and Arch). Failing to reload is reported but
+/// does not stop the root fixes that follow: the file is already in place
+/// and sshd reads it at its next start.
+const RELOAD_SSHD: &str = "{ systemctl reload ssh || systemctl reload sshd || echo 'goway: could not reload sshd; the change applies at its next restart' >&2; }";
+
+/// The sshd drop-in goway writes (and removes again on uninstall).
+const SSHD_DROPIN: &str = "/etc/ssh/sshd_config.d/10-goway-keys-only.conf";
+
+/// Write the keys-only drop-in, check the whole sshd configuration with
+/// `sshd -t` (removing the drop-in again if it does not pass), then reload.
+fn sshd_keys_only_command() -> String {
+    format!(
+        "printf 'PasswordAuthentication no\\nKbdInteractiveAuthentication no\\n' > {SSHD_DROPIN} && {{ \"$(command -v sshd || echo /usr/sbin/sshd)\" -t || {{ rm -f {SSHD_DROPIN}; echo 'goway: sshd rejected the change; it was removed' >&2; false; }}; }} && {RELOAD_SSHD}"
+    )
+}
+
 const CARGO_BIN: &str = "\"${CARGO_HOME:-$HOME/.cargo}/bin\"";
 const MIN_FREE: u64 = 10 * 1024 * 1024 * 1024;
 
@@ -328,7 +345,7 @@ fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
             Level::Warn,
             format!("allowed ({other}); goway needs keys only"),
             Some(Fix {
-                command: "printf 'PasswordAuthentication no\\nKbdInteractiveAuthentication no\\n' > /etc/ssh/sshd_config.d/10-goway-keys-only.conf && systemctl reload ssh".to_owned(),
+                command: sshd_keys_only_command(),
                 root: true,
                 why: "password logins widen the attack surface and goway only uses keys; sshd config is owned by root (undo: remove /etc/ssh/sshd_config.d/10-goway-keys-only.conf)".to_owned(),
             }),
@@ -563,11 +580,7 @@ pub fn undo_of(check: &str) -> Option<(String, bool)> {
             ),
             false,
         )),
-        "sshd password login" => Some((
-            "rm -f /etc/ssh/sshd_config.d/10-goway-keys-only.conf && systemctl reload ssh"
-                .to_owned(),
-            true,
-        )),
+        "sshd password login" => Some((format!("rm -f {SSHD_DROPIN} && {RELOAD_SSHD}"), true)),
         _ => None,
     }
 }
@@ -863,6 +876,53 @@ mod tests {
         assert_eq!(item(Some(true)).undo(), Undo::KeepCargo);
         assert_eq!(item(None).undo(), Undo::KeepCargo, "old records are safe");
         assert!(matches!(item(Some(false)).undo(), Undo::Run { .. }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn sshd_reload_falls_back_to_the_sshd_unit_and_never_aborts() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("log");
+        let fake = dir.path().join("systemctl");
+        std::fs::write(
+            &fake,
+            format!(
+                "#!/bin/sh\necho \"$@\" >> {}\n[ \"$2\" = sshd ]\n",
+                log.display()
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let run = |script: &str| {
+            std::process::Command::new("sh")
+                .args(["-c", script])
+                .env("PATH", format!("{}:/usr/bin:/bin", dir.path().display()))
+                .output()
+                .unwrap()
+        };
+        assert!(run(RELOAD_SSHD).status.success());
+        assert_eq!(
+            std::fs::read_to_string(&log).unwrap(),
+            "reload ssh\nreload sshd\n"
+        );
+        // A host where neither unit reloads still lets `set -e` scripts go on.
+        std::fs::write(&fake, "#!/bin/sh\nexit 1\n").unwrap();
+        let out = run(&format!("set -e\n{RELOAD_SSHD}\necho later"));
+        assert!(out.status.success());
+        assert!(String::from_utf8_lossy(&out.stdout).contains("later"));
+        // The write command checks the configuration before reloading.
+        let fix = sshd_keys_only_command();
+        assert!(
+            fix.find("-t").unwrap() < fix.find("systemctl reload").unwrap(),
+            "{fix}"
+        );
+        assert!(
+            undo_of("sshd password login")
+                .unwrap()
+                .0
+                .contains("reload sshd")
+        );
     }
 
     #[test]

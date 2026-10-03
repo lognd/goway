@@ -6,7 +6,7 @@
 //! address is free to change. A wrong address fails the host key check.
 
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::config::key_alias;
@@ -145,18 +145,54 @@ pub fn args(target: &Target, settings: &Settings, policy: KeyPolicy) -> Vec<OsSt
     out
 }
 
+/// Create the control socket directory and check it is private to this
+/// user: a real directory (not a symlink), mode 0700, owned by the same user
+/// as the home directory. Anything else could let another account host the
+/// `ControlPath` sockets, so multiplexing is turned off instead.
+fn prepare_control_dir(dir: &Path) -> bool {
+    if let Err(e) = std::fs::create_dir_all(dir) {
+        tracing::warn!(dir = %dir.display(), error = %e, "cannot create ssh control dir");
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+        let Ok(meta) = std::fs::symlink_metadata(dir) else {
+            return false;
+        };
+        if !meta.is_dir() {
+            return false;
+        }
+        if meta.permissions().mode() & 0o777 != 0o700
+            && std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).is_err()
+        {
+            return false;
+        }
+        let me = dirs::home_dir().and_then(|h| std::fs::metadata(h).ok());
+        let mode_ok =
+            std::fs::symlink_metadata(dir).is_ok_and(|m| m.permissions().mode() & 0o777 == 0o700);
+        mode_ok && me.is_some_and(|h| h.uid() == meta.uid())
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
 /// An ssh command running `remote` (a shell command line) on `target`.
 pub fn command(target: &Target, settings: &Settings, policy: KeyPolicy, remote: &str) -> Command {
-    if let Some(dir) = &settings.control_dir {
-        if let Err(e) = std::fs::create_dir_all(dir) {
-            tracing::warn!(dir = %dir.display(), error = %e, "cannot create ssh control dir");
+    let checked;
+    let settings = match &settings.control_dir {
+        Some(dir) if !prepare_control_dir(dir) => {
+            tracing::warn!(dir = %dir.display(), "ssh control dir is not private to this user; multiplexing off");
+            checked = Settings {
+                control_dir: None,
+                ..settings.clone()
+            };
+            &checked
         }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt as _;
-            let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
-        }
-    }
+        _ => settings,
+    };
     if let Some(dir) = settings.known_hosts.parent()
         && let Err(e) = std::fs::create_dir_all(dir)
     {
@@ -333,6 +369,44 @@ mod tests {
         args.iter()
             .map(|a| a.to_string_lossy().into_owned())
             .collect()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_control_dir_that_is_not_private_turns_multiplexing_off() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let tmp = tempfile::tempdir().unwrap();
+        let mux = |dir: &Path| {
+            let s = Settings {
+                control_dir: Some(dir.to_owned()),
+                ..settings()
+            };
+            let cmd = command(&target(), &s, KeyPolicy::Strict, "true");
+            let a: Vec<String> = cmd
+                .get_args()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect();
+            a.contains(&"ControlMaster=auto".to_owned())
+        };
+        // A fresh directory is made private and used, even if it was loose.
+        let ok = tmp.path().join("ok");
+        std::fs::create_dir(&ok).unwrap();
+        std::fs::set_permissions(&ok, std::fs::Permissions::from_mode(0o777)).unwrap();
+        assert!(mux(&ok));
+        assert_eq!(
+            std::fs::metadata(&ok).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        // A symlink (to a directory someone else may control) is refused.
+        let real = tmp.path().join("real");
+        std::fs::create_dir(&real).unwrap();
+        let link = tmp.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        assert!(!mux(&link));
+        // So is a plain file in its place.
+        let file = tmp.path().join("file");
+        std::fs::write(&file, "x").unwrap();
+        assert!(!mux(&file));
     }
 
     // frob:tests crates/goway/src/ssh.rs::command

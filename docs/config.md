@@ -45,7 +45,15 @@ name = "my-helper"             # the helper's computer name; also tried as my-he
 # max_jobs = 2                 # skip this host while it runs this many goway jobs
 # priority = "normal"          # override defaults.priority for this host
 # max_load = 0.5               # override defaults.max_load for this host
+# identity = "/home/me/.config/goway/id_ed25519"   # private key to offer (see below)
 ```
+
+Without `identity`, ssh offers every key in your agent and default key
+files to the helper, one after another, so the helper learns their
+fingerprints and comments and a full agent can exhaust the helper's
+`MaxAuthTries`. With `identity` set, goway offers only that key
+(`IdentitiesOnly=yes`). `goway ssh setup` sets it when it creates goway's
+own key; for a host you set up yourself, set it to the key you chose.
 
 Durations use humantime syntax: `90s`, `30m`, `12h`, `7d`.
 

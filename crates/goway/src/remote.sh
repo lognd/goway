@@ -408,7 +408,13 @@ doctor() {
   printf 'os=%s\n' "$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}")"
   printf 'arch=%s\n' "$(uname -m)"
   printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
-  pa=$(grep -rhiE '^\s*PasswordAuthentication\s' /etc/ssh/sshd_config.d/ /etc/ssh/sshd_config 2>/dev/null | head -1 | awk '{print tolower($2)}' || true)
+  # sshd's effective value when we may ask (root), else its first-match order:
+  # drop-ins in lexical order, then the main file.
+  pa=$( { sshd -T 2>/dev/null || true; } | awk 'tolower($1) == "passwordauthentication" { print tolower($2); exit }')
+  if [ -z "$pa" ]; then
+    # shellcheck disable=SC2046
+    pa=$(cat $(ls /etc/ssh/sshd_config.d/*.conf 2>/dev/null | sort) /etc/ssh/sshd_config 2>/dev/null | grep -iE '^\s*PasswordAuthentication\s' | head -1 | awk '{print tolower($2)}' || true)
+  fi
   printf 'password_auth=%s\n' "${pa:-default-yes}"
   printf 'home=%s\n' "$HOME"
   # Whether a cargo home existed before any goway fix (so uninstall never removes it).

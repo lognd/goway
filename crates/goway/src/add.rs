@@ -9,6 +9,8 @@
 //! goway never sees a password: ssh and sudo ask for them on the terminal
 //! themselves, over ssh's encrypted connection for the helper.
 
+use std::path::Path;
+
 use crate::cli::{AddArgs, DoctorArgs, SshSetupArgs};
 use crate::error::{Error, Result};
 use crate::paths::Paths;
@@ -69,8 +71,14 @@ fn local_check(renderer: Renderer, lsudo: bool, yes: bool) -> Result<()> {
     if !approved {
         return Err(Error::Usage("local tools not installed".to_owned()));
     }
-    let ok = std::process::Command::new("sudo")
-        .args(["bash", "-c", &command])
+    let Some(sudo) = system_sudo() else {
+        return Err(Error::Usage(
+            "sudo was not found in /usr/bin, /bin or /usr/local/bin; install the tools yourself"
+                .to_owned(),
+        ));
+    };
+    let ok = std::process::Command::new(sudo)
+        .args(["/bin/bash", "-c", &command])
         .status()
         .is_ok_and(|s| s.success());
     if ok {
@@ -82,6 +90,16 @@ fn local_check(renderer: Renderer, lsudo: bool, yes: bool) -> Result<()> {
             packages.join(" ")
         )))
     }
+}
+
+/// Root-owned system directories searched for sudo, in order. A PATH lookup
+/// would let a user-writable directory early in PATH (such as `~/.local/bin`)
+/// stand in for sudo and capture the password.
+const SUDO_PATHS: &[&str] = &["/usr/bin/sudo", "/bin/sudo", "/usr/local/bin/sudo"];
+
+/// The first existing system sudo, never found through PATH.
+fn system_sudo() -> Option<&'static str> {
+    SUDO_PATHS.iter().copied().find(|p| Path::new(p).is_file())
 }
 
 /// `goway add`.
@@ -151,6 +169,14 @@ pub fn add(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sudo_is_only_ever_a_root_owned_absolute_path() {
+        assert!(SUDO_PATHS.iter().all(|p| Path::new(p).is_absolute()));
+        if let Some(sudo) = system_sudo() {
+            assert!(SUDO_PATHS.contains(&sudo));
+        }
+    }
 
     #[test]
     fn missing_local_tools_map_to_packages() {
