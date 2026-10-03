@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given the workflows, when they run, then no action reports the Node 20 deprecation warning"
-bound = false
+bound = true
 +++
