@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:06:29Z"
-updated = "2026-10-03T22:19:37Z"
+updated = "2026-10-03T22:19:39Z"
 scope = ["crates/goway/src/shard.rs", "crates/goway/src/runners.rs", "crates/goway/src/pool.rs", "crates/goway/tests/**", "docs/usage.md"]
 
 [[links]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a sharded run, when it reports, then each shard's host, architecture and share are listed"
-bound = false
+bound = true
 +++
