@@ -2,7 +2,8 @@
 id = "01M41R5BZDA7D7SDB9W96778YV"
 title = "ssh setup pins only the confirmed host key, restricts the authorized key and prefers goway's own key"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
