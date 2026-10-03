@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T20:18:18Z"
+digest = "8f613219dde827f43fedaf94958527cffacf23523dfb758e0ec4832e83e3a0d1"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1821599d-a1db-4a14-9cbb-d90e01e64b88 with nextest profile: default
+    Starting 1 test across 24 binaries (247 tests skipped)
+        PASS [   0.027s] goway::remote_root receive_refuses_a_foreign_directory
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.031s] 1 test run: 1 passed, 247 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(receive_refuses_a_foreign_directory)'"
+size = 548
+status = "measured"
+tests = ["receive_refuses_a_foreign_directory"]
+at = "2026-10-03T20:18:18Z"
+actor = "lognd"
+rev = 1

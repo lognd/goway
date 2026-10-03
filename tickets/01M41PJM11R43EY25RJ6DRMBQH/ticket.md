@@ -8,12 +8,12 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:16:35Z"
-updated = "2026-10-03T20:16:37Z"
+updated = "2026-10-03T20:18:18Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/config.rs", "crates/goway/tests/remote_root.rs", "docs/config.md"]
 
 [[acceptance]]
 text = "Given a root directory holding a foreign file and no marker, When goway receives into it, Then it refuses and the file survives"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a marked root that also holds a foreign file, When purge runs, Then only work, seed, cache and the marker are removed and the foreign file stays"
