@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T20:46:41Z"
+digest = "5f9a1625ba083e2788cb614a7e18aa0751da6acead69046da0a01e5bcf82695a"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8318db63-68bf-43bc-bb20-bfdec9e84146 with nextest profile: default
+    Starting 1 test across 26 binaries (293 tests skipped)
+        PASS [   0.037s] goway hosts::tests::only_the_confirmed_key_is_kept_for_pinning
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.039s] 1 test run: 1 passed, 293 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(only_the_confirmed_key_is_kept_for_pinning)'"
+size = 556
+status = "measured"
+tests = ["hosts::tests::only_the_confirmed_key_is_kept_for_pinning"]
+at = "2026-10-03T20:46:41Z"
+actor = "lognd"
+rev = 1

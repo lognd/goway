@@ -8,12 +8,12 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:44:18Z"
-updated = "2026-10-03T20:46:02Z"
+updated = "2026-10-03T20:46:41Z"
 scope = ["crates/goway/src/sshsetup.rs", "crates/goway/src/hosts.rs", "docs/ssh-setup.md", "crates/goway/tests/ssh_setup.rs"]
 
 [[acceptance]]
 text = "Given a scratch known_hosts with several keys, When one fingerprint is confirmed, Then only that key line is pinned"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a stale scratch file with the same name, When ssh setup starts, Then it is removed first"
