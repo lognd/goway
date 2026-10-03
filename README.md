@@ -1,21 +1,32 @@
+<p align="center"><img src="https://raw.githubusercontent.com/lognd/goway/main/docs/assets/goway-banner.svg" alt="goway: run it on your other laptops. Your build or test command runs natively on the least busy laptop on your network, from your git work tree." width="100%"/></p>
+
 # goway
 
-goway lets you type a build or test command on your main laptop and
-have one of your other laptops do the work. It is for software projects
-kept in git, for example Rust projects. goway:
-- copies your project to the least busy helper laptop
-- runs the command there
-- shows you the output as if the command ran on your main laptop
+goway lets you type a build or test command on your main laptop and have
+your other laptops do the work.
+- It copies the files git shows for your project, including uncommitted
+  changes, to the least busy helper laptop on your network.
+- It runs the command there natively, with a warm build cache, at low
+  priority, so the person using that laptop is not slowed down.
+- It streams the output back and exits with the command's own result.
 
-You need:
-- a **main laptop**: the one you type on
-- one or more **helper laptops**: the ones that do the work
-- all of them on the **same network**
+Helpers are found by name, not by fixed address, so laptops on changing
+Wi-Fi addresses keep working. A test run can also be split across
+several helpers. goway is built for Rust projects worked on from many git
+worktrees at once, and it runs any command. Every change goway makes to
+a machine is journaled, so uninstalling restores it exactly.
 
-Words you have not seen before are explained in
-[docs/glossary.md](docs/glossary.md).
+[![CI](https://github.com/lognd/goway/actions/workflows/ci.yml/badge.svg)](https://github.com/lognd/goway/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/lognd/goway?include_prereleases&sort=semver)](https://github.com/lognd/goway/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
+[![MSRV 1.98](https://img.shields.io/badge/MSRV-1.98-orange.svg)](#versioning-and-compatibility)
+[![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20windows%20%7C%20wsl-lightgrey.svg)](#install)
 
-## Which computers can do what
+## Install
+
+goway runs on two kinds of computer: your **main laptop**, the one you
+type on, and one or more **helper laptops**, the ones that do the work.
+All of them must be on the same network.
 
 | Operating system | As your main laptop | As a helper laptop |
 |---|---|---|
@@ -24,11 +35,55 @@ Words you have not seen before are explained in
 | **Linux** (Ubuntu, Debian, Fedora, Arch, ...) | yes: one command ([Linux and WSL](#main-laptop-linux-or-wsl)) | yes: a few manual steps ([Linux](#helper-linux)) |
 | **macOS** | experimental: build from source ([macOS](#main-laptop-macos-experimental)) | no: goway's helper side needs Linux tools macOS lacks |
 
+On your main laptop, one command installs goway:
+
+```bash
+# Linux, or WSL on Windows
+curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | bash
+```
+
+```powershell
+# Windows without WSL (download goway-setup.exe from the latest release first)
+.\goway-setup.exe install
+```
+
+```powershell
+# a Windows helper laptop with WSL (one command; it prints what to run next)
+.\goway-setup.exe install --host
+```
+
+Each download is checked against the release's published checksums.
 The helpers do the building, so they need the toolchain for your
 project, such as Rust. `goway add` installs it for you. The main laptop
 needs only goway, git and ssh.
+Words you have not seen before are explained in
+[docs/glossary.md](docs/glossary.md).
 
-## Quick start
+## Sixty-second tour
+
+```bash
+goway add <YOUR-COMPUTER-NAME-HERE> ...     # once per helper: the line its installer printed
+goway status                                 # are the helpers reachable, how busy are they?
+goway run -- cargo nextest run --workspace   # run on the least busy helper
+goway run --shard 2 -- cargo nextest run     # split one test run across two helpers
+goway doctor --fix                           # check everything, fix what it can
+goway uninstall                              # remove goway everywhere, exactly
+```
+
+<p align="center"><img src="https://raw.githubusercontent.com/lognd/goway/main/docs/assets/goway-tour.svg" alt="A goway session: goway status lists two idle helper laptops, then goway run --shard 2 splits a cargo nextest run across both, 118 and 127 tests pass, and goway finishes with exit 0." width="800"/></p>
+
+Read top to bottom:
+
+- **status**: each helper's current address and how goway found it,
+  its processor type and cores, its load, and goway's jobs on it.
+- **run --shard 2**: goway picks the two least busy helpers. It copies
+  only what changed since the last run and gives each helper half of
+  the tests (nextest's own `--partition`). Each output line is
+  prefixed with the helper it came from.
+- **done / note**: every goway line says its kind in words, and goway
+  exits with the first failing shard's code, or 0.
+
+## Quick start: your first helper
 
 ### 1. On each helper laptop (once)
 
@@ -186,10 +241,7 @@ disappears on its own after 7 idle days. Details:
 [docs/usage.md](docs/usage.md).
 </details>
 
-## Installing on each operating system
-
-The quick start above covers the common case: Windows helpers with WSL
-and a Linux or WSL main laptop. Here is every supported combination.
+## Install details for each operating system
 
 ### Main laptop: Linux or WSL
 
@@ -390,26 +442,73 @@ folder.
   side (`crates/goway/tests/ssh_setup.rs`).
 </details>
 
+## What goway does
+
+| Command | Purpose | Docs |
+|---------|---------|------|
+| `goway add HOST` | register a helper: confirmed identity, key login with one password, its toolchain | [docs/ssh-setup.md](docs/ssh-setup.md) |
+| `goway run -- CMD` | run a command on the least busy helper; `--host`, `--shard N`, `--keep`, `--report` | [docs/usage.md](docs/usage.md) |
+| `goway status` | address, cores, load, jobs and disk of every helper (`--plain` for screen readers) | [docs/usage.md](docs/usage.md#status) |
+| `goway doctor [HOST] --fix` | check helpers and this laptop; fix what it can, root fixes with `--rsudo` | [docs/usage.md](docs/usage.md#doctor) |
+| `goway gc` | remove stale state on helpers (it also happens on its own) | [docs/usage.md](docs/usage.md#clean-up) |
+| `goway uninstall` | remove everything goway added, here and on every helper | [docs/usage.md](docs/usage.md#uninstall) |
+| `goway host add/list/remove` | manage the pool by hand | [docs/hosts.md](docs/hosts.md) |
+| `goway-setup.exe install [--host]` | Windows installer, main laptop or helper; journaled, exact uninstall | [docs/install-windows.md](docs/install-windows.md) |
+| `install.sh` | Linux and WSL installer; checksum-verified download | [docs/install-linux.md](docs/install-linux.md) |
+
+More: [config](docs/config.md), [how helpers are found](docs/hosts.md),
+[troubleshooting](docs/troubleshooting.md), [glossary](docs/glossary.md),
+[goway versus other build systems](docs/positioning.md),
+[design](docs/design.md), [releases](docs/release.md).
+
 ## Something went wrong?
 
 See [docs/troubleshooting.md](docs/troubleshooting.md). Every goway
-error ends with a `next:` line saying what to try.
+error ends with a `next:` line saying what to try, and `goway doctor`
+checks everything at once.
 
-## Reference
+## Development
 
-- [docs/usage.md](docs/usage.md): every command, exit codes, what is
-  sent
-- [docs/hosts.md](docs/hosts.md): how goway finds helpers without
-  fixed addresses
-- [docs/ssh-setup.md](docs/ssh-setup.md): the key setup in detail
-- [docs/config.md](docs/config.md): settings
-- [docs/install-linux.md](docs/install-linux.md) and
-  [docs/install-windows.md](docs/install-windows.md): what the
-  installers change
-- [docs/glossary.md](docs/glossary.md): words explained
+```bash
+git clone https://github.com/lognd/goway.git && cd goway
+cargo nextest run --workspace                                # the test suite (Linux or WSL)
+cargo clippy --workspace --all-targets -- -D warnings        # lints, warnings are errors
+cargo clippy --target x86_64-pc-windows-gnu --workspace --all-targets -- -D warnings
+```
 
-For developers:
-- [docs/positioning.md](docs/positioning.md): goway versus other
-  build systems
-- [docs/design.md](docs/design.md): the design
-- [docs/prior-art.md](docs/prior-art.md): related tools
+The suite never touches a real remote machine: a fake `ssh` runs
+goway's remote side locally. The workspace has three crates:
+- `goway`: the command-line tool
+- `goway-journal`: the reversible change journal
+- `goway-setup`: the Windows installer
+
+The work itself is tracked with frob, a work-accounting tool: its
+tickets and evidence live in `tickets/`, and the changelog fragments
+live in `changelog.d/`.
+
+## Versioning and compatibility
+
+goway follows [Semantic Versioning](https://semver.org). Before 1.0, a
+minor version may change flags, output layout or the config file; the
+config file rejects unknown keys, so a renamed setting is reported
+rather than ignored. The minimum supported Rust version is 1.98, pinned
+in `rust-toolchain.toml` and checked in CI. Releases are cut as
+described in [docs/release.md](docs/release.md).
+
+## Contributing
+
+Contributions are welcome, from a typo fix to a new feature. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request; it
+covers the local setup, the gate, the commit format and the
+[AI-assisted contributions policy](CONTRIBUTING.md#ai-assisted-contributions).
+Everyone taking part is expected to follow the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for how to report a vulnerability;
+please do not open a public issue for one.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -1,0 +1,1 @@
+The README now follows the house style (banner, badges, install matrix, sixty-second tour with a terminal image, command table, development, versioning, contributing, security and license sections), and the repository has LICENSE (MIT), SECURITY.md (private vulnerability reporting), CONTRIBUTING.md and CODE_OF_CONDUCT.md.
