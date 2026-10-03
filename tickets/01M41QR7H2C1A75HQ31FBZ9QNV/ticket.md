@@ -2,7 +2,8 @@
 id = "01M41QR7H2C1A75HQ31FBZ9QNV"
 title = "install.sh runs only when fully downloaded, uses https only, appends to PATH and heals a stuck journal"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
