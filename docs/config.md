@@ -57,7 +57,7 @@ name = "my-helper"             # the helper's computer name; also tried as my-he
 # address = "my-helper"        # optional: a DNS name or IP to try first
 # port = 22
 # user = "user"               # default: whatever ssh config says
-# max_jobs = 2                 # skip this host while it runs this many goway jobs
+# max_jobs = 2                 # skip this host while it runs this many goway jobs (default: half its cores, at least 1)
 # priority = "normal"          # override defaults.priority for this host
 # max_load = 0.5               # override defaults.max_load for this host
 # gpu_jobs = 2                 # override defaults.gpu_jobs for this host
@@ -104,6 +104,26 @@ are in neither your work tree nor the keep set are removed. The keep set is:
   `.gitignore` files (checked with `git check-ignore --no-index`, using
   only the ignore files in your work tree). This matches what you see
   locally.
+
+### Disk and memory on helpers
+
+Each repository costs a helper one seed (a copy of the tree, hard-linked
+into runs), one source tree per build slot, and one cargo target dir per
+slot (`target_slots`, default 2). A large Rust workspace can need several
+GiB per slot, so a repository on a helper costs roughly
+`target_slots` x (tree + target). Memory is whatever the commands use: a
+parallel build uses a few GiB per core.
+
+Caps, all on the laptop side:
+
+- `max_jobs` (per host, default half its cores, at least 1) bounds the
+  goway jobs at once, which bounds concurrent memory use. Set it lower on a
+  small helper and higher on a big one.
+- `max_load` skips a host whose load per core is above the limit, and
+  `mem_per_core` scores hosts with little free RAM worse.
+- `target_slots` bounds the target dirs per repository; `cache_ttl` and
+  `goway gc` (see usage) remove idle caches, `goway status` shows the disk
+  goway uses on each host.
 
 Durations use humantime syntax: `90s`, `30m`, `12h`, `7d`.
 

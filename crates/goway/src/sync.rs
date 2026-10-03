@@ -247,13 +247,50 @@ fn under_symlink(root: &Path, path: &str, checked: &mut BTreeMap<String, bool>) 
         }
         dir.push_str(part);
         let linked = *checked.entry(dir.clone()).or_insert_with(|| {
-            std::fs::symlink_metadata(root.join(&dir)).is_ok_and(|m| m.file_type().is_symlink())
+            std::fs::symlink_metadata(root.join(&dir)).is_ok_and(|m| is_link_like(&m))
         });
         if linked {
             return true;
         }
     }
     false
+}
+
+/// Whether `meta` is a link or an NTFS reparse point (junction, mount
+/// point): neither is ever followed out of the work tree.
+fn is_link_like(meta: &std::fs::Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt as _;
+        const REPARSE_POINT: u32 = 0x400;
+        if meta.file_attributes() & REPARSE_POINT != 0 {
+            return true;
+        }
+    }
+    meta.file_type().is_symlink()
+}
+
+/// Open `full` for archiving and prove the handle is the regular file
+/// the listing saw: not swapped for a link since, and not reached through
+/// a link. (The handle's own metadata is compared with the path's, so a
+/// swap between the listing and the open cannot read outside the tree.)
+fn open_regular(root: &Path, rel: &str, full: &Path) -> std::io::Result<(std::fs::File, u64)> {
+    let file = std::fs::File::open(full)?;
+    let meta = file.metadata()?;
+    let by_path = std::fs::symlink_metadata(full)?;
+    let mut checked = BTreeMap::new();
+    let swapped = || std::io::Error::other("changed while syncing: not the regular file listed");
+    if !meta.is_file() || is_link_like(&by_path) || under_symlink(root, rel, &mut checked) {
+        return Err(swapped());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt as _;
+        if (meta.dev(), meta.ino()) != (by_path.dev(), by_path.ino()) {
+            return Err(swapped());
+        }
+    }
+    Ok((file, meta.len()))
 }
 
 /// The work tree's file set: what git shows, minus deleted files, secrets
@@ -517,11 +554,8 @@ pub fn write_tar<W: std::io::Write>(
             }
             Kind::File { exec } => {
                 let full = root.join(&f.path);
-                let file = std::fs::File::open(&full).map_err(|e| Error::io("open", &full, e))?;
-                let len = file
-                    .metadata()
-                    .map_err(|e| Error::io("stat", &full, e))?
-                    .len();
+                let (file, len) =
+                    open_regular(root, &f.path, &full).map_err(|e| Error::io("open", &full, e))?;
                 header.set_entry_type(tar::EntryType::Regular);
                 header.set_size(len);
                 header.set_mode(if *exec { 0o755 } else { 0o644 });
@@ -1528,6 +1562,33 @@ mod tests {
         std::fs::write(dir.path().join("b"), "changed later, longer").unwrap();
         let c = compare_claims(dir.path(), &manifest, &claims[1..2]);
         assert_eq!((c.checked, c.skipped, c.mismatches.len()), (0, 1, 0));
+    }
+
+    // frob:tests crates/goway/src/sync.rs::write_tar
+    #[cfg(unix)]
+    #[test]
+    fn a_file_swapped_for_a_link_after_listing_is_never_archived() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("secret"), "top secret").unwrap();
+        std::fs::create_dir(dir.path().join("d")).unwrap();
+        std::fs::write(dir.path().join("a"), "x").unwrap();
+        std::fs::write(dir.path().join("d/b"), "y").unwrap();
+        let a = file("a", 1, 1_700_000_000);
+        let b = file("d/b", 1, 1_700_000_000);
+        assert!(write_tar(dir.path(), &[&a, &b], u64::MAX, Vec::new()).is_ok());
+        // The file becomes a link to a file outside the tree.
+        std::fs::remove_file(dir.path().join("a")).unwrap();
+        std::os::unix::fs::symlink(outside.path().join("secret"), dir.path().join("a")).unwrap();
+        let err = write_tar(dir.path(), &[&a], u64::MAX, Vec::new()).unwrap_err();
+        assert!(err.to_string().contains("changed while syncing"), "{err}");
+        // The parent directory becomes a link to a directory outside it.
+        std::fs::remove_file(dir.path().join("a")).unwrap();
+        std::fs::write(outside.path().join("b"), "top secret").unwrap();
+        std::fs::remove_dir_all(dir.path().join("d")).unwrap();
+        std::os::unix::fs::symlink(outside.path(), dir.path().join("d")).unwrap();
+        let err = write_tar(dir.path(), &[&b], u64::MAX, Vec::new()).unwrap_err();
+        assert!(err.to_string().contains("changed while syncing"), "{err}");
     }
 
     // frob:tests crates/goway/src/sync.rs::write_tar

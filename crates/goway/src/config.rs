@@ -260,6 +260,12 @@ impl HostConfig {
         Ok(())
     }
 
+    /// Most goway jobs at once on this host: `max_jobs`, else half its
+    /// cores (at least 1), so helpers shared by many agents are not swamped.
+    pub fn job_limit(&self, cores: u32) -> u32 {
+        self.max_jobs.unwrap_or_else(|| (cores / 2).max(1))
+    }
+
     /// The ssh `HostKeyAlias` that pins this host's key.
     pub fn key_alias(&self) -> String {
         key_alias(&self.name)
@@ -817,6 +823,17 @@ user = "user"
             std::fs::metadata(&shared).unwrap().permissions().mode() & 0o777,
             0o644
         );
+    }
+
+    // frob:tests crates/goway/src/config.rs::job_limit
+    #[test]
+    fn job_limit_defaults_to_half_the_cores_and_honours_max_jobs() {
+        let mut host: HostConfig = toml::from_str("name = \"h\"").unwrap();
+        assert_eq!(host.job_limit(16), 8);
+        assert_eq!(host.job_limit(3), 1);
+        assert_eq!(host.job_limit(0), 1);
+        host.max_jobs = Some(5);
+        assert_eq!(host.job_limit(16), 5);
     }
 
     #[test]

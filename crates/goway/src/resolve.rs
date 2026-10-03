@@ -235,15 +235,9 @@ pub fn resolve(
                             .unwrap_or_default()
                             .to_owned(),
                     };
-                    // An unpinned key or refused auth will not get better at
-                    // another address of the same machine; stop early.
-                    if matches!(failure, Failure::HostKeyUnknown | Failure::AuthRefused) {
-                        misses.push(miss);
-                        return Err(Error::HostNotFound {
-                            name: host.name.clone(),
-                            misses,
-                        });
-                    }
+                    // An unpinned key or refused auth at one address says
+                    // nothing about the next: a LAN host may answer first
+                    // for the name with a key we do not know, so keep going.
                     misses.push(miss);
                 }
             }
@@ -454,6 +448,40 @@ mod tests {
             "link-local skipped, order kept"
         );
         assert_eq!(state.get("helios").unwrap().address, "192.0.2.10");
+    }
+
+    // frob:tests crates/goway/src/resolve.rs::resolve
+    #[test]
+    fn an_unpinned_key_or_refused_auth_does_not_stop_the_search() {
+        struct Refusing(RefCell<Vec<String>>);
+        impl Prober for Refusing {
+            fn probe(&self, target: &Target, _: KeyPolicy, _: &str) -> ProbeResult {
+                self.0.borrow_mut().push(target.address.clone());
+                match target.address.as_str() {
+                    "10.0.0.1" => Err((Failure::HostKeyUnknown, String::new())),
+                    "10.0.0.2" => Err((Failure::AuthRefused, String::new())),
+                    _ => Ok("ok\n".to_owned()),
+                }
+            }
+        }
+        let mut lookup = FakeLookup::default();
+        lookup.system.insert(
+            "helios".to_owned(),
+            vec![ip("10.0.0.1"), ip("10.0.0.2"), ip("10.0.0.3")],
+        );
+        let prober = Refusing(RefCell::new(Vec::new()));
+        let found = resolve(
+            &Config::default(),
+            &host(),
+            &mut State::default(),
+            &lookup,
+            &prober,
+            KeyPolicy::Strict,
+            "true",
+        )
+        .unwrap();
+        assert_eq!(found.target.address, "10.0.0.3");
+        assert_eq!(*prober.0.borrow(), ["10.0.0.1", "10.0.0.2", "10.0.0.3"]);
     }
 
     #[test]
