@@ -2,7 +2,8 @@
 id = "01M41Q6CX4RRFZT58EE995C0C6"
 title = "Host kinds: windows over interop (powershell.exe, no ssh) and windows over OpenSSH, behind one transport"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
