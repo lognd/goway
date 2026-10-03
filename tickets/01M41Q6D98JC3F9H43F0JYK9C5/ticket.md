@@ -8,7 +8,7 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-03T20:34:37Z"
+updated = "2026-10-03T22:55:59Z"
 scope = ["crates/goway/src/sync.rs", "crates/goway/src/interop.rs", "crates/goway/tests/**", "docs/design.md", "crates/goway/src/gc.rs"]
 
 [[links]]
@@ -33,5 +33,9 @@ bound = false
 
 [[acceptance]]
 text = "Given repeated runs on a Windows host, when they reuse a slot, then the slot tree is updated in place like on Linux (persistent slot trees), not copied and deleted per run"
+bound = false
+
+[[acceptance]]
+text = "Given a [[host]] with os = windows (interop or ssh), when goway run, status, gc or a sharded run picks it, then the host kind is wired through the whole run, sync and pool pipeline (sync.rs Transport, run.rs), not only config and host add"
 bound = false
 +++

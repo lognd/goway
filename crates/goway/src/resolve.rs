@@ -417,15 +417,7 @@ mod tests {
     fn host() -> HostConfig {
         HostConfig {
             name: "helios".to_owned(),
-            address: None,
-            port: None,
-            user: None,
-            max_jobs: None,
-            priority: None,
-            max_load: None,
-            identity: None,
-            labels: Vec::new(),
-            gpu_jobs: None,
+            ..HostConfig::default()
         }
     }
 

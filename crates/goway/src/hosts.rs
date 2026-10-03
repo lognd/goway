@@ -22,6 +22,10 @@ use crate::state::State;
 /// The probe `host add` runs: OS, hostname, arch, one per line.
 pub const IDENTIFY: &str = "uname -s; uname -n; uname -m";
 
+/// The probe for a Windows OpenSSH server (whose shell is cmd.exe or
+/// PowerShell and has no `uname`): the same three lines, `Windows` first.
+pub const IDENTIFY_WINDOWS: &str = "powershell -NoProfile -NonInteractive -Command \"'Windows'; $env:COMPUTERNAME; $env:PROCESSOR_ARCHITECTURE\"";
+
 /// What a probed machine says about itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Identity {
@@ -39,8 +43,17 @@ pub fn parse_identity(text: &str) -> Option<Identity> {
     Some(Identity {
         os: lines.next()?.to_owned(),
         hostname: lines.next()?.to_owned(),
-        arch: lines.next()?.to_owned(),
+        arch: normalize_arch(lines.next()?),
     })
+}
+
+/// `uname -m` spelling for the names Windows uses (`AMD64`, `ARM64`).
+fn normalize_arch(arch: &str) -> String {
+    match arch.to_ascii_uppercase().as_str() {
+        "AMD64" => "x86_64".to_owned(),
+        "ARM64" => "aarch64".to_owned(),
+        _ => arch.to_owned(),
+    }
 }
 
 /// Whether `hostname` is the machine the user means by `name` / `address`.
@@ -57,6 +70,50 @@ struct AddProber<'a> {
     name: &'a str,
     address: Option<&'a str>,
     trust_address: bool,
+    /// Accept a Windows OpenSSH server (second pass: no Linux machine answered).
+    accept_windows: bool,
+    /// A Windows server answered as the intended machine and was passed over.
+    windows_seen: std::cell::Cell<bool>,
+}
+
+impl AddProber<'_> {
+    /// Identify a Windows sshd with PowerShell; accept it only on the
+    /// second pass and only if it is the intended machine, so the Windows
+    /// side of a machine is never taken for its WSL host (or the reverse).
+    fn windows(&self, target: &Target, policy: KeyPolicy, stderr: &str) -> ProbeResult {
+        let reject = |why: String| {
+            forget_key(
+                &self.inner.settings.known_hosts,
+                &config::key_alias(self.name),
+            );
+            Err((Failure::Other, why))
+        };
+        let Ok(text) = self.inner.probe(target, policy, IDENTIFY_WINDOWS) else {
+            return reject(format!(
+                "{} is Windows and gave no identity: {stderr}",
+                target.address
+            ));
+        };
+        match parse_identity(&text) {
+            Some(id) if id.os == "Windows" => {
+                if !self.trust_address && !hostname_matches(&id.hostname, self.name, self.address) {
+                    return reject(format!(
+                        "{} is `{}`, not `{}` (pass --address with its IP to trust it anyway)",
+                        target.address, id.hostname, self.name
+                    ));
+                }
+                if !self.accept_windows {
+                    self.windows_seen.set(true);
+                    return reject(format!(
+                        "{} is Windows, not Linux; kept as a fallback",
+                        target.address
+                    ));
+                }
+                Ok(text)
+            }
+            _ => reject(format!("{} gave no usable identity", target.address)),
+        }
+    }
 }
 
 impl Prober for AddProber<'_> {
@@ -91,13 +148,12 @@ impl Prober for AddProber<'_> {
                     &self.inner.settings.known_hosts,
                     &config::key_alias(self.name),
                 );
-                // A Windows sshd runs `uname` in cmd.exe and fails with 1.
-                let failure = if failure == Failure::Other && stderr.contains("not recognized") {
+                // A Windows sshd runs `uname` in cmd.exe and fails with 1:
+                // ask it again in PowerShell.
+                if failure == Failure::Other && stderr.contains("not recognized") {
                     tracing::info!(address = %target.address, port = target.port, "Windows sshd answered");
-                    Failure::Other
-                } else {
-                    failure
-                };
+                    return self.windows(target, policy, &stderr);
+                }
                 Err((failure, stderr))
             }
         }
@@ -256,7 +312,11 @@ pub fn register(
     let _ = std::fs::remove_file(scratch);
     let config = Config::load(&paths.config_file())?;
     let mut stored = host.clone();
-    stored.port = (port != config.defaults.port).then_some(port);
+    let unset = HostConfig {
+        port: None,
+        ..stored.clone()
+    };
+    stored.port = (port != config.port_of(&unset)).then_some(port);
     config::add_host(&paths.config_file(), &stored)?;
     let mut state = State::load(&paths.state_file())?;
     state.remember(&host.name, address, port, crate::state::now_secs());
@@ -282,6 +342,7 @@ fn adopt_key(scratch: &Path, known_hosts: &Path, alias: &str) -> Result<()> {
 }
 
 /// `goway host add`.
+#[allow(clippy::too_many_lines)] // one sequence: probe each port, confirm the key, register
 pub fn add(
     paths: &Paths,
     renderer: Renderer,
@@ -307,73 +368,90 @@ pub fn add(
         .state_dir
         .join(format!("known_hosts.pending.{}", std::process::id()));
     let mut problems = Vec::new();
-    for port in ports {
-        let _ = std::fs::remove_file(&scratch);
-        let candidate = HostConfig {
-            name: args.name.clone(),
-            address: args.address.clone(),
-            port: Some(port),
-            user: args.user.clone(),
-            max_jobs: args.max_jobs,
-            priority: None,
-            max_load: None,
-            identity: None,
-            labels: Vec::new(),
-            gpu_jobs: None,
+    let mut windows_ports: Vec<u16> = Vec::new();
+    // Pass 0 looks for the Linux machine (its WSL sshd) on every port; only
+    // when none answers does pass 1 accept a Windows OpenSSH server that
+    // answered as the same machine, so the two are never confused.
+    for pass in 0..2u8 {
+        let accept_windows = pass == 1;
+        let list = if accept_windows {
+            std::mem::take(&mut windows_ports)
+        } else {
+            ports.clone()
         };
-        let prober = AddProber {
-            inner: SshProber {
-                settings: ssh::Settings {
-                    known_hosts: scratch.clone(),
-                    control_dir: None,
-                    connect_timeout_secs: 5,
+        for port in list {
+            let _ = std::fs::remove_file(&scratch);
+            let candidate = HostConfig {
+                name: args.name.clone(),
+                address: args.address.clone(),
+                port: Some(port),
+                user: args.user.clone(),
+                max_jobs: args.max_jobs,
+                ..HostConfig::default()
+            };
+            let prober = AddProber {
+                inner: SshProber {
+                    settings: ssh::Settings {
+                        known_hosts: scratch.clone(),
+                        control_dir: None,
+                        connect_timeout_secs: 5,
+                    },
                 },
-            },
-            name: &args.name,
-            address: args.address.as_deref(),
-            trust_address,
-        };
-        renderer.note(format_args!("looking for {} on port {port}", args.name));
-        let mut scratch_state = State::default();
-        match resolve::resolve(
-            &config,
-            &candidate,
-            &mut scratch_state,
-            lookup,
-            &prober,
-            KeyPolicy::AcceptNew,
-            IDENTIFY,
-        ) {
-            Ok(found) => {
-                let id = parse_identity(&found.output).unwrap_or(Identity {
-                    os: "Linux".to_owned(),
-                    hostname: String::new(),
-                    arch: String::new(),
-                });
-                for finding in sshenv::check(&found.target.address, port) {
-                    renderer.warn(finding);
+                name: &args.name,
+                address: args.address.as_deref(),
+                trust_address,
+                accept_windows,
+                windows_seen: std::cell::Cell::new(false),
+            };
+            renderer.note(format_args!("looking for {} on port {port}", args.name));
+            let mut scratch_state = State::default();
+            match resolve::resolve(
+                &config,
+                &candidate,
+                &mut scratch_state,
+                lookup,
+                &prober,
+                KeyPolicy::AcceptNew,
+                IDENTIFY,
+            ) {
+                Ok(found) => {
+                    let id = parse_identity(&found.output).unwrap_or(Identity {
+                        os: "Linux".to_owned(),
+                        hostname: String::new(),
+                        arch: String::new(),
+                    });
+                    let mut candidate = candidate;
+                    if id.os == "Windows" {
+                        candidate.os = config::Os::Windows;
+                    }
+                    for finding in sshenv::check(&found.target.address, port) {
+                        renderer.warn(finding);
+                    }
+                    let alias = config::key_alias(&args.name);
+                    if let Err(e) = confirm_key(
+                        renderer,
+                        &args.name,
+                        &found.target.address,
+                        &scratch,
+                        args.fingerprint.as_deref(),
+                    ) {
+                        let _ = std::fs::remove_file(&scratch);
+                        return Err(e);
+                    }
+                    register(paths, &candidate, &found.target.address, port, &scratch)?;
+                    renderer.ok(format_args!(
+                        "added {} ({} {}, hostname {}) at {}:{port} via {}; key pinned as {alias}",
+                        args.name, id.os, id.arch, id.hostname, found.target.address, found.source
+                    ));
+                    return Ok(0);
                 }
-                let alias = config::key_alias(&args.name);
-                if let Err(e) = confirm_key(
-                    renderer,
-                    &args.name,
-                    &found.target.address,
-                    &scratch,
-                    args.fingerprint.as_deref(),
-                ) {
-                    let _ = std::fs::remove_file(&scratch);
-                    return Err(e);
+                Err(e) => {
+                    tracing::info!(port, error = %e, "no usable sshd on this port");
+                    if !accept_windows && prober.windows_seen.get() {
+                        windows_ports.push(port);
+                    }
+                    problems.push(format!("port {port}: {e}"));
                 }
-                register(paths, &candidate, &found.target.address, port, &scratch)?;
-                renderer.ok(format_args!(
-                    "added {} ({} {}, hostname {}) at {}:{port} via {}; key pinned as {alias}",
-                    args.name, id.os, id.arch, id.hostname, found.target.address, found.source
-                ));
-                return Ok(0);
-            }
-            Err(e) => {
-                tracing::info!(port, error = %e, "no usable sshd on this port");
-                problems.push(format!("port {port}: {e}"));
             }
         }
     }

@@ -10,6 +10,7 @@ pub mod error;
 pub mod facts;
 pub mod gc;
 pub mod hosts;
+pub mod interop;
 pub mod local;
 pub mod needs;
 pub mod paths;
@@ -30,6 +31,7 @@ pub mod state;
 pub mod status;
 pub mod sync;
 pub mod termfilter;
+pub mod transport;
 pub mod uninstall;
 
 use std::process::ExitCode;

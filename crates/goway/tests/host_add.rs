@@ -28,7 +28,14 @@ done
 if [ "$accept" = yes ] && [ -n "$kh" ] && ! grep -q "^$alias " "$kh" 2>/dev/null; then
   echo "$alias ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >>"$kh"
 fi
+if [ "$port" = "${FAKE_DEAD_PORT:-none}" ]; then
+  echo "ssh: connect to host box port $port: Connection refused" >&2
+  exit 255
+fi
 if [ "$port" = "${FAKE_WINDOWS_PORT:-none}" ]; then
+  case "$1" in
+    powershell*) printf 'Windows\n%s\nAMD64\n' "$FAKE_HOSTNAME"; exit 0 ;;
+  esac
   echo "'uname' is not recognized as an internal or external command," >&2
   exit 1
 fi
@@ -66,9 +73,20 @@ fn add(w: &World, hostname: &str, args: &[&str]) -> Output {
 }
 
 fn add_raw(w: &World, hostname: &str, all: &[&str]) -> Output {
+    add_on(w, hostname, all, "2222", "none")
+}
+
+/// `host add` against a fake machine whose Windows sshd is on `windows_port`
+/// and whose dead port (nothing listening) is `dead_port`.
+fn add_on(w: &World, hostname: &str, all: &[&str], windows_port: &str, dead_port: &str) -> Output {
     w.goway(all)
         .env("FAKE_HOSTNAME", hostname)
-        .env("FAKE_WINDOWS_PORT", "2222")
+        .env("FAKE_WINDOWS_PORT", windows_port)
+        .env("FAKE_DEAD_PORT", dead_port)
+        .env(
+            "GOWAY_SSH_PASS_ENV",
+            "FAKE_HOSTNAME,FAKE_WINDOWS_PORT,FAKE_DEAD_PORT,GOWAY_WINDOWS_LOOKUP",
+        )
         .output()
         .unwrap()
 }
@@ -192,4 +210,70 @@ fn a_bad_name_touches_nothing() {
         std::fs::read_dir(&w.config).unwrap().count() == 1,
         "only config.toml"
     );
+}
+
+/// A machine with only a Windows OpenSSH server: detected, recorded as a
+/// Windows host (default port 22, so no `port` line), key pinned.
+// frob:tests crates/goway/src/hosts.rs::add
+#[test]
+fn host_add_detects_a_windows_machine_and_records_its_kind() {
+    let w = empty_world();
+    let fp = fake_fingerprint();
+    let out = add_on(
+        &w,
+        "Box",
+        &[
+            "host",
+            "add",
+            "--fingerprint",
+            &fp,
+            "box",
+            "--address",
+            "box-at-home",
+        ],
+        "22",
+        "2222",
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(out.status.success(), "{stderr}");
+    assert!(
+        stderr.contains("added box (Windows x86_64, hostname Box)"),
+        "{stderr}"
+    );
+    let config = std::fs::read_to_string(w.config.join("config.toml")).unwrap();
+    assert!(config.contains("os = \"windows\""), "{config}");
+    assert!(
+        !config.contains("port ="),
+        "Windows OpenSSH's 22 is the default: {config}"
+    );
+    let kh = std::fs::read_to_string(w.config.join("known_hosts")).unwrap();
+    assert!(kh.starts_with("goway-box ssh-ed25519 "), "{kh}");
+}
+
+/// A machine with WSL on 2222 and Windows OpenSSH on 22: `host add` records
+/// the WSL host (Linux), never the Windows side of the same machine.
+#[test]
+fn host_add_never_takes_the_windows_side_for_the_wsl_host() {
+    let w = empty_world();
+    let fp = fake_fingerprint();
+    let out = add_on(
+        &w,
+        "Box",
+        &[
+            "host",
+            "add",
+            "--fingerprint",
+            &fp,
+            "box",
+            "--address",
+            "box-at-home",
+        ],
+        "22",
+        "none",
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(out.status.success(), "{stderr}");
+    assert!(stderr.contains("added box (Linux x86_64"), "{stderr}");
+    let config = std::fs::read_to_string(w.config.join("config.toml")).unwrap();
+    assert!(!config.contains("windows"), "{config}");
 }

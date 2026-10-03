@@ -63,7 +63,15 @@ name = "my-helper"             # the helper's computer name; also tried as my-he
 # gpu_jobs = 2                 # override defaults.gpu_jobs for this host
 # labels = ["gpu-box"]         # names `--needs label=gpu-box` can ask for
 # identity = "/home/me/.config/goway/id_ed25519"   # private key to offer (see below)
+# os = "windows"               # "linux" (default; WSL helpers) or "windows" (PowerShell side)
+# transport = "interop"        # "ssh" (default) or "interop": the Windows side of this machine
+                               # from WSL through powershell.exe, no ssh (needs os = "windows";
+                               # address, port, user and identity must be unset)
 ```
+
+`os = "windows"` over ssh talks to a Windows machine's OpenSSH server (default
+port 22, not 2222) with PowerShell as its shell, under the same pinned-key
+rules as every other host. See docs/hosts.md.
 
 `labels` name hosts for `goway run --needs label=NAME` and for rules in a
 project's `goway.toml` (see [usage.md](usage.md)); they are 1-63 letters,

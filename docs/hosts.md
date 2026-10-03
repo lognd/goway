@@ -58,8 +58,14 @@ Pinning is trust on first use, so `host add` is strict about which
 machine it trusts:
 
 - Ports are tried in order: `--port`, else the default 2222 (WSL sshd),
-  then 22. The machine must report `uname -s` = Linux, so a Windows
-  OpenSSH server on 22 (which runs `cmd.exe`) is recognised and skipped.
+  then 22. goway looks for the Linux machine first (`uname -s` =
+  Linux); a Windows OpenSSH server (which runs `cmd.exe`, has no
+  `uname`, and is recognised by that) is only taken when no Linux
+  machine answered as this host, after asking it again in PowerShell.
+  It is then recorded as `os = "windows"` and never confused with the
+  same computer's WSL host. To register the Windows side of a computer
+  that also has a WSL helper, add it under another name with an explicit
+  port: `goway host add box-win --address Box --port 22`.
 - The machine's hostname must match `NAME` (or the first label of
   `--address`), ignoring case and domain. A candidate that fails this
   is rejected and its key is discarded. Giving `--address` as an
@@ -80,3 +86,22 @@ machine it trusts:
 `goway host list` shows the pool with cached addresses.
 `goway host remove NAME` deletes the host from the config, the state
 and the pinned keys.
+
+## Windows hosts
+
+A `[[host]]` has an `os` (`linux`, the default, or `windows`) and a
+`transport` (`ssh`, the default, or `interop`):
+
+- **Windows over OpenSSH** (`os = "windows"`): goway runs `powershell`
+  on the machine's OpenSSH server (port 22 by default). The script is
+  passed as an encoded command, so every argument reaches PowerShell
+  exactly as given (quotes, dollar signs and spaces included). The host
+  key is pinned like any other host's, and no password is ever used.
+- **The Windows side of this machine** (`os = "windows"`,
+  `transport = "interop"`): from WSL, goway starts `powershell.exe`
+  through WSL's interop. There is no ssh, no key, no address and no
+  network listener, and nothing of the WSL environment is handed to
+  Windows. Set it by hand in the config; it only works inside WSL.
+
+Both kinds share one transport abstraction (`crates/goway/src/transport.rs`),
+so running on this machine in place can be one more kind.

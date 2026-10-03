@@ -146,8 +146,55 @@ impl Default for Defaults {
     }
 }
 
+/// The operating system a host's work runs on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Os {
+    /// Linux (including WSL): the shell script side, `remote.sh`.
+    #[default]
+    Linux,
+    /// Windows with PowerShell: the `remote.ps1` side.
+    Windows,
+}
+
+impl Os {
+    /// The word `--needs os=` and the probe use.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Linux => "linux",
+            Self::Windows => "windows",
+        }
+    }
+}
+
+/// How goway reaches a host.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Transport {
+    /// The system `ssh` to the host (pinned key, `ControlMaster` on Unix).
+    #[default]
+    Ssh,
+    /// The Windows side of this very machine, from WSL, through
+    /// `powershell.exe`: no ssh and no network listener.
+    Interop,
+}
+
+impl Transport {
+    /// Whether this is the default (so serializing leaves it out).
+    pub fn is_default(&self) -> bool {
+        *self == Self::Ssh
+    }
+}
+
+impl Os {
+    /// Whether this is the default (so serializing leaves it out).
+    pub fn is_default(&self) -> bool {
+        *self == Self::Linux
+    }
+}
+
 /// One host of the pool. Its identity is `name` plus the pinned host key.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HostConfig {
     /// Identity and ssh `HostKeyAlias` (`goway-<name>`); also tried as `<name>.local`.
@@ -182,9 +229,37 @@ pub struct HostConfig {
     /// `defaults.gpu_jobs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gpu_jobs: Option<u32>,
+    /// The host's operating system (default: linux, which includes WSL).
+    #[serde(default, skip_serializing_if = "Os::is_default")]
+    pub os: Os,
+    /// How goway reaches the host (default: ssh; `interop` is the Windows
+    /// side of this machine from WSL, with `os = "windows"`).
+    #[serde(default, skip_serializing_if = "Transport::is_default")]
+    pub transport: Transport,
 }
 
 impl HostConfig {
+    /// A host's kind settings must agree: `interop` reaches the Windows
+    /// side of this machine, so it needs `os = "windows"` and has no
+    /// network address, port, user or key.
+    pub fn check_kind(&self) -> std::result::Result<(), &'static str> {
+        if self.transport == Transport::Interop {
+            if self.os != Os::Windows {
+                return Err("uses transport = \"interop\", which needs os = \"windows\"");
+            }
+            if self.address.is_some()
+                || self.port.is_some()
+                || self.user.is_some()
+                || self.identity.is_some()
+            {
+                return Err(
+                    "uses transport = \"interop\" (no network): drop address, port, user and identity",
+                );
+            }
+        }
+        Ok(())
+    }
+
     /// The ssh `HostKeyAlias` that pins this host's key.
     pub fn key_alias(&self) -> String {
         key_alias(&self.name)
@@ -348,6 +423,12 @@ impl Config {
                     });
                 }
             }
+            if let Err(why) = host.check_kind() {
+                return Err(Error::Config {
+                    path: origin.to_owned(),
+                    message: format!("host `{}` {why}", host.name),
+                });
+            }
             if !seen.insert(host.name.to_ascii_lowercase()) {
                 return Err(Error::Config {
                     path: origin.to_owned(),
@@ -404,9 +485,14 @@ impl Config {
         host.gpu_jobs.unwrap_or(self.defaults.gpu_jobs)
     }
 
-    /// The effective port of `host`.
+    /// The effective port of `host`: its own, else Windows OpenSSH's 22 for
+    /// a Windows host, else `defaults.port` (the WSL sshd).
     pub fn port_of(&self, host: &HostConfig) -> u16 {
-        host.port.unwrap_or(self.defaults.port)
+        host.port.unwrap_or(if host.os == Os::Windows {
+            22
+        } else {
+            self.defaults.port
+        })
     }
 }
 
@@ -674,15 +760,8 @@ user = "user"
         std::fs::write(&path, SAMPLE).unwrap();
         let host = HostConfig {
             name: "nova".to_owned(),
-            address: None,
             port: Some(2222),
-            user: None,
-            max_jobs: None,
-            priority: None,
-            max_load: None,
-            identity: None,
-            labels: Vec::new(),
-            gpu_jobs: None,
+            ..HostConfig::default()
         };
         add_host(&path, &host).unwrap();
         assert!(add_host(&path, &host).is_err());
@@ -708,15 +787,7 @@ user = "user"
         std::fs::write(&path, "# my pool\n").unwrap();
         let host = HostConfig {
             name: "q".to_owned(),
-            address: None,
-            port: None,
-            user: None,
-            max_jobs: None,
-            priority: None,
-            max_load: None,
-            identity: None,
-            labels: Vec::new(),
-            gpu_jobs: None,
+            ..HostConfig::default()
         };
         add_host(&path, &host).unwrap();
         let text = std::fs::read_to_string(&path).unwrap();
@@ -755,14 +826,8 @@ user = "user"
         let host = HostConfig {
             name: "q".to_owned(),
             address: Some("10.0.0.1".to_owned()),
-            port: None,
-            user: None,
             max_jobs: Some(1),
-            priority: None,
-            max_load: None,
-            identity: None,
-            labels: Vec::new(),
-            gpu_jobs: None,
+            ..HostConfig::default()
         };
         add_host(&path, &host).unwrap();
         assert_eq!(Config::load(&path).unwrap().hosts, vec![host]);
