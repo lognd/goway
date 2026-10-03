@@ -2,7 +2,7 @@
 id = "01M41G4AG3AFPNS7Y52RHVPGCP"
 title = "M9: per-user sccache endpoint instead of a predictable shared TCP port"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
