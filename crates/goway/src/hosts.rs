@@ -178,6 +178,7 @@ pub fn confirm_key(
         let expected = normalize_fingerprint(expected);
         return if seen.contains(&expected) {
             tracing::info!(host = name, fingerprint = %expected, "host key matches --fingerprint");
+            keep_only(scratch, &expected)?;
             Ok(expected)
         } else {
             Err(Error::HostAdd {
@@ -197,6 +198,7 @@ pub fn confirm_key(
     match crate::render::ask("Is that the same fingerprint? Pin this key [y/N]: ") {
         Some(answer) if matches!(answer.trim(), "y" | "Y" | "yes" | "YES" | "Yes") => {
             tracing::info!(host = name, fingerprint = %first, "host key confirmed by the user");
+            keep_only(scratch, &first)?;
             Ok(first)
         }
         Some(_) => Err(Error::HostAdd {
@@ -210,6 +212,34 @@ pub fn confirm_key(
             ),
         }),
     }
+}
+
+/// Cut the scratch `known_hosts` down to the lines whose key has
+/// `fingerprint`, so that pinning adopts exactly what was confirmed and not
+/// every key the host happened to present.
+fn keep_only(scratch: &Path, fingerprint: &str) -> Result<()> {
+    let text = std::fs::read_to_string(scratch).map_err(|e| Error::io("read", scratch, e))?;
+    let one = scratch.with_extension("one");
+    let mut kept = String::new();
+    for line in text.lines().filter(|l| !l.trim().is_empty()) {
+        std::fs::write(&one, format!("{line}\n")).map_err(|e| Error::io("write", &one, e))?;
+        if fingerprints(&one).iter().any(|f| f == fingerprint) {
+            kept.push_str(line);
+            kept.push('\n');
+        }
+    }
+    let _ = std::fs::remove_file(&one);
+    if kept.is_empty() {
+        return Err(Error::Usage(format!(
+            "the confirmed host key {fingerprint} is not in {}",
+            scratch.display()
+        )));
+    }
+    tracing::debug!(
+        fingerprint,
+        "scratch known_hosts narrowed to the confirmed key"
+    );
+    config::write_atomic(scratch, kept.as_bytes())
 }
 
 /// Pin the confirmed key from `scratch`, add the host to the config and
@@ -382,6 +412,36 @@ mod tests {
         ));
         assert!(!hostname_matches("Orion-Notebook", "helios", None));
         assert!(!hostname_matches("other", "helios", Some("100.1.2.3")));
+    }
+
+    #[test]
+    fn only_the_confirmed_key_is_kept_for_pinning() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut lines = Vec::new();
+        for n in 0..2 {
+            let key = dir.path().join(format!("k{n}"));
+            let ok = Command::new("ssh-keygen")
+                .args(["-q", "-t", "ed25519", "-N", "", "-f"])
+                .arg(&key)
+                .status()
+                .unwrap();
+            assert!(ok.success());
+            let public = std::fs::read_to_string(dir.path().join(format!("k{n}.pub"))).unwrap();
+            let mut parts = public.split_whitespace();
+            lines.push(format!(
+                "goway-q {} {}",
+                parts.next().unwrap(),
+                parts.next().unwrap()
+            ));
+        }
+        let scratch = dir.path().join("scratch");
+        std::fs::write(&scratch, lines.join("\n") + "\n").unwrap();
+        let fps = fingerprints(&scratch);
+        assert_eq!(fps.len(), 2);
+        let renderer = Renderer::new(crate::render::ColorWhen::Never);
+        let got = confirm_key(renderer, "q", "192.0.2.1", &scratch, Some(&fps[1])).unwrap();
+        assert_eq!(got, fps[1]);
+        assert_eq!(fingerprints(&scratch), vec![fps[1].clone()]);
     }
 
     // frob:tests crates/goway/src/hosts.rs::adopt_key

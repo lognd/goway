@@ -86,6 +86,29 @@ impl Prober for Reach {
     }
 }
 
+/// The scratch `known_hosts` of this setup run, emptied first: a leftover
+/// file (an earlier crash, a reused process id) must never seed this run's
+/// trust decision.
+fn fresh_scratch(paths: &Paths) -> PathBuf {
+    let scratch = paths
+        .state_dir
+        .join(format!("known_hosts.setup.{}", std::process::id()));
+    let _ = std::fs::remove_file(&scratch);
+    scratch
+}
+
+/// goway's own key pair in its config dir, if an earlier setup made one:
+/// the public key line and the private key's path.
+fn own_key(paths: &Paths) -> Option<(String, String)> {
+    let private = paths.config_dir.join("id_ed25519");
+    let mut public = private.as_os_str().to_owned();
+    public.push(".pub");
+    let key = std::fs::read_to_string(PathBuf::from(public)).ok()?;
+    let key = key.trim().to_owned();
+    (private.is_file() && key.starts_with("ssh-"))
+        .then(|| (key, private.to_string_lossy().into_owned()))
+}
+
 /// The public key line to authorize: the agent's first key, else the first
 /// default identity with a `.pub` next to it.
 pub fn existing_public_key(address: &str, port: u16) -> Option<String> {
@@ -163,7 +186,12 @@ fn restrict_key_acl(path: &Path, renderer: Renderer) {
     }
 }
 
-/// The plan on the host: `~/.ssh` 700, the tagged key line, the file 600.
+/// `authorized_keys` options for goway's key: it needs a shell and a tty
+/// (sudo), nothing else.
+const KEY_OPTIONS: &str = "no-agent-forwarding,no-port-forwarding,no-X11-forwarding";
+
+/// The plan on the host: `~/.ssh` 700, the tagged, restricted key line, the
+/// file 600.
 pub fn remote_plan(home: &str, key: &str, marker: &str, already: bool) -> Vec<Change> {
     let dir = PathBuf::from(home).join(".ssh");
     let file = dir.join("authorized_keys");
@@ -177,7 +205,7 @@ pub fn remote_plan(home: &str, key: &str, marker: &str, already: bool) -> Vec<Ch
     if !already {
         plan.push(Change::EnsureLine {
             path: file.clone(),
-            line: key.to_owned(),
+            line: format!("{KEY_OPTIONS} {key}"),
             marker: marker.to_owned(),
         });
     }
@@ -190,7 +218,10 @@ pub fn remote_plan(home: &str, key: &str, marker: &str, already: bool) -> Vec<Ch
 
 /// The key's type and base64 blob, the part `authorized_keys` matches on.
 fn key_blob(line: &str) -> String {
+    let is_type = |w: &&str| ["ssh-", "ecdsa-", "sk-"].iter().any(|p| w.starts_with(p));
+    // Skip any `authorized_keys` options in front of the key type.
     line.split_whitespace()
+        .skip_while(|w| !is_type(w))
         .take(2)
         .collect::<Vec<_>>()
         .join(" ")
@@ -232,9 +263,7 @@ pub fn setup(
     });
     // A configured host is pinned: check its key strictly. A new one is
     // reached with a scratch known_hosts and verified by hostname below.
-    let scratch = paths
-        .state_dir
-        .join(format!("known_hosts.setup.{}", std::process::id()));
+    let scratch = fresh_scratch(paths);
     let mut settings = ssh::Settings::from_paths(paths);
     let policy = if configured.is_some() {
         KeyPolicy::Strict
@@ -287,13 +316,22 @@ pub fn setup(
 
     // 1. The key.
     let mut local = Journal::generate();
+    // goway's own key from an earlier setup is preferred: the agent's first
+    // key may be unrelated to goway (a work or GitHub key).
+    let own = own_key(paths);
     let chosen = match &args.key {
         Some(path) => Some(read_public_key(name, path)?),
-        None => existing_public_key(&target.address, target.port),
+        None => own
+            .as_ref()
+            .map(|(key, _)| key.clone())
+            .or_else(|| existing_public_key(&target.address, target.port)),
     };
     let (public_key, identity) = if let Some(key) = chosen {
         renderer.note(format_args!("using your existing key {}", key_blob(&key)));
-        (key, None)
+        let identity = own
+            .filter(|(own_key, _)| args.key.is_none() && *own_key == key)
+            .map(|(_, private)| private);
+        (key, identity)
     } else {
         let private = paths.config_dir.join("id_ed25519");
         let comment = format!("goway@{}", crate::repo::client_name());
@@ -532,6 +570,65 @@ mod tests {
         let junk = dir.path().join("junk.pub");
         std::fs::write(&junk, "hello").unwrap();
         assert!(read_public_key("h", &junk).is_err());
+    }
+
+    #[test]
+    fn the_authorized_key_line_is_restricted_and_still_recognised() {
+        let plan = remote_plan("/home/u", "ssh-ed25519 AAAA c", "goway:1", false);
+        let Change::EnsureLine { line, .. } = &plan[2] else {
+            panic!("no line change");
+        };
+        for option in [
+            "no-agent-forwarding",
+            "no-port-forwarding",
+            "no-X11-forwarding",
+        ] {
+            assert!(
+                line.starts_with(KEY_OPTIONS) && line.contains(option),
+                "{line}"
+            );
+        }
+        assert_eq!(key_blob(line), "ssh-ed25519 AAAA");
+        assert_eq!(
+            key_blob("from=\"1.2.3.4\" ssh-ed25519 AAAA c"),
+            "ssh-ed25519 AAAA"
+        );
+    }
+
+    #[test]
+    fn a_stale_scratch_known_hosts_is_removed_before_use() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths {
+            config_dir: dir.path().to_owned(),
+            state_dir: dir.path().to_owned(),
+            runtime_dir: None,
+        };
+        let stale = dir
+            .path()
+            .join(format!("known_hosts.setup.{}", std::process::id()));
+        std::fs::write(&stale, "goway-x ssh-ed25519 AAAA\n").unwrap();
+        assert_eq!(fresh_scratch(&paths), stale);
+        assert!(!stale.exists());
+    }
+
+    #[test]
+    fn goways_own_key_is_preferred_and_becomes_the_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths {
+            config_dir: dir.path().to_owned(),
+            state_dir: dir.path().to_owned(),
+            runtime_dir: None,
+        };
+        assert!(own_key(&paths).is_none());
+        std::fs::write(dir.path().join("id_ed25519"), "private").unwrap();
+        std::fs::write(
+            dir.path().join("id_ed25519.pub"),
+            "ssh-ed25519 AAAA goway@x\n",
+        )
+        .unwrap();
+        let (key, private) = own_key(&paths).unwrap();
+        assert_eq!(key, "ssh-ed25519 AAAA goway@x");
+        assert!(private.ends_with("id_ed25519"));
     }
 
     #[test]

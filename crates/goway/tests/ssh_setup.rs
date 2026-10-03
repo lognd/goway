@@ -115,7 +115,8 @@ fn setup_authorizes_a_key_with_one_password_login_and_undo_restores_everything()
     let ak = s.home.join(".ssh/authorized_keys");
     let line = std::fs::read_to_string(&ak).unwrap();
     assert!(
-        line.starts_with("ssh-ed25519 ") && line.contains(" goway:"),
+        line.starts_with("no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 ")
+            && line.contains(" goway:"),
         "{line}"
     );
     assert_eq!((mode(&s.home.join(".ssh")), mode(&ak)), (0o700, 0o600));

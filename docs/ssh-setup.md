@@ -20,6 +20,7 @@ chmods, and it can be undone.
    already works, setup says so and only pins the confirmed key.
 2. **Pick a public key**, without ever reading private keys
    (`--key FILE.pub` chooses one; only `.pub` files are accepted):
+   - goway's own key from an earlier setup, if there is one, else
    - the ssh agent's first key (`ssh-add -L`), else
    - the first default identity (from `ssh -G`) that has a `.pub`
      next to it, else
@@ -36,7 +37,8 @@ chmods, and it can be undone.
    matches, unless the host is already pinned or you gave `--address`
    as an IP. Then it ensures on the host:
    - `~/.ssh` exists, with mode 700
-   - the key line is in `~/.ssh/authorized_keys`, tagged
+   - the key line is in `~/.ssh/authorized_keys`, prefixed with
+     `no-agent-forwarding,no-port-forwarding,no-X11-forwarding` and tagged
      `goway:<id>` (skipped if the key is already there)
    - `authorized_keys` has mode 600
 4. **Verify** that a key-only login now works, add the host to the
