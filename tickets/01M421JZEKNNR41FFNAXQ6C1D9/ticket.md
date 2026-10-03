@@ -8,8 +8,8 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T23:29:01Z"
-updated = "2026-10-03T23:29:01Z"
-scope = [".github/workflows/release.yml", "crates/goway/tests/publishing.rs", "docs/release.md"]
+updated = "2026-10-03T23:53:16Z"
+scope = [".github/workflows/release.yml", "crates/goway/tests/publishing.rs", "docs/release.md", ".github/workflows/ci.yml"]
 
 [[acceptance]]
 text = "Given release.yml, when a goway-vX.Y.Z tag is pushed, then the release runs, every publishing job (GitHub release, crates-io, pypi) is guarded by startsWith(github.ref, 'refs/tags/goway-v') and a push event, and a v* tag or a dry run publishes nothing"
