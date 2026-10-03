@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T21:37:39Z"
+digest = "e80f630731971c76803f2b0ee2a77aaf58b1e4b60f1382c6ae89fe039bc63ceb"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9b1aa868-82a1-4e7e-a28c-47f2c74176c4 with nextest profile: default
+    Starting 1 test across 30 binaries (357 tests skipped)
+        PASS [   1.627s] goway::host_facts the_probe_reports_live_ram_and_static_facts_on_request
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.628s] 1 test run: 1 passed, 357 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "the_probe_reports_live_ram"
+size = 566
+status = "measured"
+tests = ["the_probe_reports_live_ram_and_static_facts_on_request"]
+at = "2026-10-03T21:37:39Z"
+actor = "lognd"
+rev = 1
