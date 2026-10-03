@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T23:29:01Z"
-updated = "2026-10-03T23:56:30Z"
+updated = "2026-10-03T23:57:05Z"
 scope = [".github/workflows/release.yml", "crates/goway/tests/publishing.rs", "docs/release.md", ".github/workflows/ci.yml"]
 
 [[acceptance]]
