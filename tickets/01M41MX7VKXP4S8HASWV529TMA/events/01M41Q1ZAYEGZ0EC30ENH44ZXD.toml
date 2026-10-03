@@ -1,0 +1,54 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T20:24:58Z"
+digest = "cfce51a50b65648907ed02dcae8e55e2ecbc4ea1df85729d6f0efc706e180d2e"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID fb29a270-03b1-46c9-9226-75ba77eb57a1 with nextest profile: default
+    Starting 31 tests across 3 binaries (8 tests and 21 binaries skipped)
+        PASS [   0.019s] goway-setup::elevated the_admin_dir_acl_check_accepts_what_goway_creates
+        PASS [   0.020s] goway-setup::elevated a_loosened_or_linked_state_directory_is_refused_off_windows_too
+        PASS [   0.024s] goway-setup::elevated a_directory_removal_prior_cannot_reach_outside_its_own_path
+        PASS [   0.025s] goway-setup::elevated settings_with_a_bad_distro_or_port_are_refused_when_loaded
+        PASS [   0.025s] goway-setup::elevated the_elevated_validator_accepts_exactly_the_host_arp_entry
+        PASS [   0.031s] goway-setup::elevated elevated_log_names_are_plain_file_names
+        PASS [   0.022s] goway-setup::elevated the_protected_exe_is_copied_and_purged_with_the_state_directory
+        PASS [   0.014s] goway-setup::host_plan a_test_profile_gets_its_own_names_and_files
+        PASS [   0.025s] goway-setup::host_plan a_journal_from_before_scoping_can_still_be_uninstalled
+        PASS [   0.020s] goway-setup::host_plan a_new_port_on_a_set_up_machine_is_a_pure_addition_that_uninstall_removes
+        PASS [   0.050s] goway-setup::elevated the_admin_dir_acl_check_refuses_a_wrong_owner_or_a_writable_acl
+        PASS [   0.012s] goway-setup::host_plan distro_names_are_restricted_to_safe_characters
+        PASS [   0.021s] goway-setup::host_plan allow_from_accepts_addresses_and_cidrs_and_refuses_everything_else
+        PASS [   0.055s] goway-setup::elevated a_genuine_host_journal_is_accepted_and_reverts_to_the_start
+        PASS [   0.010s] goway-setup::host_plan firewall_rules_default_to_private_and_domain_on_the_local_subnet
+        PASS [   0.017s] goway-setup::host_plan on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall_keeps_it_all
+        PASS [   0.015s] goway-setup::host_plan optional_steps_follow_the_probed_facts
+        PASS [   0.009s] goway-setup::host_plan the_host_plan_registers_its_own_add_remove_programs_entry_running_the_protected_copy
+        PASS [   0.024s] goway-setup::host_plan changing_wsl_settings_asks_for_a_restart
+        PASS [   0.073s] goway-setup::elevated registry_acl_install_file_and_other_planted_kinds_are_refused
+        PASS [   0.071s] goway-setup::elevated a_planted_write_file_outside_the_host_plan_is_refused_before_anything_is_reverted
+        PASS [   0.024s] goway-setup::host_plan the_default_profile_reuses_the_names_of_the_hand_made_setup
+        PASS [   0.013s] goway-setup::relay a_foreign_portproxy_rule_on_the_port_refuses_a_nat_install_and_explains
+        PASS [   0.053s] goway-setup::host_plan a_user_change_after_install_is_left_alone_and_reported
+        PASS [   0.081s] goway-setup::elevated a_wildcard_resource_name_is_refused
+        PASS [   0.098s] goway-setup::elevated a_journal_in_an_untrusted_directory_is_not_read
+        PASS [   0.048s] goway-setup::host_plan the_host_journal_and_settings_live_in_the_admin_dir_apart_from_the_client_journal_and_are_cleaned_up
+        PASS [   0.039s] goway-setup::relay the_validator_refuses_variants_of_the_relay_entries
+        PASS [   0.107s] goway-setup::relay the_validator_accepts_exactly_the_nat_plans_entries
+        PASS [   0.163s] goway-setup::relay installing_then_uninstalling_the_nat_plan_restores_any_machine_and_foreign_relays_survive
+        PASS [   0.217s] goway-setup::host_plan reverting_the_host_plan_restores_any_machine_including_ones_where_parts_pre_exist
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.271s] 31 tests run: 31 passed, 8 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(relay) & (test(installing_then_uninstalling) | test(the_validator_accepts) | test(the_validator_refuses) | test(a_foreign_portproxy)) | binary(host_plan) | binary(elevated)'"
+size = 3914
+status = "measured"
+tests = ["the_admin_dir_acl_check_accepts_what_goway_creates", "a_loosened_or_linked_state_directory_is_refused_off_windows_too", "a_directory_removal_prior_cannot_reach_outside_its_own_path", "settings_with_a_bad_distro_or_port_are_refused_when_loaded", "the_elevated_validator_accepts_exactly_the_host_arp_entry", "elevated_log_names_are_plain_file_names", "the_protected_exe_is_copied_and_purged_with_the_state_directory", "the_admin_dir_acl_check_refuses_a_wrong_owner_or_a_writable_acl", "a_genuine_host_journal_is_accepted_and_reverts_to_the_start", "registry_acl_install_file_and_other_planted_kinds_are_refused", "a_planted_write_file_outside_the_host_plan_is_refused_before_anything_is_reverted", "a_wildcard_resource_name_is_refused", "a_journal_in_an_untrusted_directory_is_not_read", "a_foreign_portproxy_rule_on_the_port_refuses_a_nat_install_and_explains", "the_validator_refuses_variants_of_the_relay_entries", "the_validator_accepts_exactly_the_nat_plans_entries", "installing_then_uninstalling_the_nat_plan_restores_any_machine_and_foreign_relays_survive", "a_test_profile_gets_its_own_names_and_files", "a_journal_from_before_scoping_can_still_be_uninstalled", "a_new_port_on_a_set_up_machine_is_a_pure_addition_that_uninstall_removes", "distro_names_are_restricted_to_safe_characters", "allow_from_accepts_addresses_and_cidrs_and_refuses_everything_else", "firewall_rules_default_to_private_and_domain_on_the_local_subnet", "on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall_keeps_it_all", "optional_steps_follow_the_probed_facts", "the_host_plan_registers_its_own_add_remove_programs_entry_running_the_protected_copy", "changing_wsl_settings_asks_for_a_restart", "the_default_profile_reuses_the_names_of_the_hand_made_setup", "a_user_change_after_install_is_left_alone_and_reported", "the_host_journal_and_settings_live_in_the_admin_dir_apart_from_the_client_journal_and_are_cleaned_up", "reverting_the_host_plan_restores_any_machine_including_ones_where_parts_pre_exist"]
+at = "2026-10-03T20:24:58Z"
+actor = "lognd"
+rev = 1
