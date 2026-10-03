@@ -1,4 +1,5 @@
 //! `LocalSystem` against a real temporary directory.
+#![cfg_attr(windows, allow(unused_imports))] // some tests are unix-only
 
 use goway_journal::{
     Change, JournalError, ListPosition, LocalSystem, RegValue, ResourceKind, System, SystemError,
