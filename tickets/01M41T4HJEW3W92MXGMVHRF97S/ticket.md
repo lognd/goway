@@ -8,8 +8,12 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T21:18:48Z"
-updated = "2026-10-03T21:18:48Z"
+updated = "2026-10-03T21:18:49Z"
 scope = ["crates/goway-setup/src/native.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/src/helper.rs", "crates/goway-journal/src/change.rs", "crates/goway-setup/tests/**", "scripts/windows/roundtrip-host.sh", "docs/install-windows.md"]
+
+[[links]]
+kind = "blocked-by"
+target = "01M41Q6CX4RRFZT58EE995C0C6"
 
 [[acceptance]]
 text = "Given a Windows laptop, when goway-setup install --host --native runs, then it enables the OpenSSH Server capability (recorded so uninstall removes it only if it was absent), starts sshd on boot, opens the port to local networks only, sets PowerShell as the default shell, and prints the goway add line with the host key fingerprint"
