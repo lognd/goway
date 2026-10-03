@@ -8,11 +8,11 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:54Z"
-updated = "2026-10-03T18:35:30Z"
+updated = "2026-10-03T18:35:42Z"
 labels = ["security"]
 scope = ["crates/goway/**", "docs/usage.md", "docs/config.md"]
 
 [[acceptance]]
 text = "Given remote_root set to . or an unlabelled old directory under the root, when goway gc runs, then the config is rejected or the unlabelled directory is kept"
-bound = false
+bound = true
 +++
