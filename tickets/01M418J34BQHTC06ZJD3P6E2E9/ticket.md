@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a Windows client, when setup creates goway's key, then the key file's ACL is reduced to the current user (icacls), so Windows OpenSSH accepts it"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a host whose key authentication does not work yet, when goway ssh setup runs, then it authorizes goway's key over one password login and goway's own key-only calls work afterwards"

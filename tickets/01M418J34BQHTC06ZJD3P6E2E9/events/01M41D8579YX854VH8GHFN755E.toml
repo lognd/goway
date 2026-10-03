@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T17:33:35Z"
+digest = "1bb450ee40f33c829fb6bd3c302f7aa65dca5e40f3bd3935c283001a783cb5ff"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 21e9bd31-43a1-48ed-abc3-88ade74900a1 with nextest profile: default
+    Starting 1 test across 20 binaries (172 tests skipped)
+        PASS [   0.006s] goway sshsetup::tests::windows_key_acl_keeps_only_the_user
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.009s] 1 test run: 1 passed, 172 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(windows_key_acl_keeps_only_the_user)'"
+size = 552
+status = "measured"
+tests = ["sshsetup::tests::windows_key_acl_keeps_only_the_user"]
+at = "2026-10-03T17:33:35Z"
+actor = "lognd"
+rev = 1
