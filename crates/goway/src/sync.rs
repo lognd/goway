@@ -83,40 +83,126 @@ impl Secrets {
 }
 
 /// Directories whose contents are credentials wherever they appear.
-const SECRET_DIRS: &[&str] = &[".ssh", ".aws", ".gnupg", ".azure", ".docker", ".kube"];
+const SECRET_DIRS: &[&str] = &[
+    ".ssh",
+    ".aws",
+    ".gnupg",
+    ".azure",
+    ".docker",
+    ".kube",
+    ".terraform",
+    ".gcloud",
+    ".oci",
+    ".password-store",
+];
+/// Directory pairs (parent, child) whose contents are credentials.
+const SECRET_DIR_PAIRS: &[(&str, &str)] = &[
+    (".config", "gh"),
+    (".config", "gcloud"),
+    (".config", "doctl"),
+];
 /// File names that hold credentials.
 const SECRET_NAMES: &[&str] = &[
     ".env",
     ".envrc",
     ".npmrc",
+    ".yarnrc",
+    ".yarnrc.yml",
     ".pypirc",
     ".netrc",
     "_netrc",
     ".git-credentials",
     ".pgpass",
-    "credentials",
-    "credentials.json",
-    "secrets.json",
     ".htpasswd",
+    ".dockercfg",
+    ".dockerconfigjson",
+    ".vault-token",
+    ".my.cnf",
+    ".boto",
+    ".s3cfg",
+    ".terraformrc",
+    "rclone.conf",
+    ".rclone.conf",
+    "master.key",
+    "auth.json",
+    "secrets.json",
+    "secrets.yaml",
+    "secrets.yml",
+    "secrets.toml",
+    "secret.json",
+    "secret.yaml",
+    "secret.yml",
+    "terraform.rc",
 ];
-/// Extensions of key and certificate stores.
-const SECRET_EXTENSIONS: &[&str] = &[".pem", ".key", ".p12", ".pfx", ".jks", ".keystore", ".ppk"];
+/// File-name prefixes of credential files (`kubeconfig-prod`, `.env.local`,
+/// `id_ed25519`).
+const SECRET_PREFIXES: &[&str] = &["kubeconfig", ".env.", "id_"];
+/// Extensions and suffixes of key stores, state files and secret env files.
+const SECRET_EXTENSIONS: &[&str] = &[
+    ".pem",
+    ".key",
+    ".p12",
+    ".pfx",
+    ".pkcs12",
+    ".p8",
+    ".jks",
+    ".jceks",
+    ".keystore",
+    ".ppk",
+    ".kdbx",
+    ".kdb",
+    ".gpg",
+    ".pgp",
+    ".env",
+    ".tfstate",
+    ".tfstate.backup",
+    ".tfvars",
+    ".tfvars.json",
+    ".kubeconfig",
+];
+/// A file whose name mentions "secret" or "credential" is a secret only in
+/// data formats, so source files such as `secret_store.rs` are still sent.
+const SECRET_WORD_EXTENSIONS: &[&str] = &[
+    "",
+    "json",
+    "yaml",
+    "yml",
+    "toml",
+    "ini",
+    "conf",
+    "cfg",
+    "txt",
+    "xml",
+    "properties",
+    "enc",
+];
 
 /// Whether `path` looks like a secret goway does not send by default
-/// (case-insensitive): env files, credential files, private keys and
-/// key stores, and anything under `.ssh`, `.aws` or similar.
+/// (case-insensitive): env files, credential files, private keys, key
+/// stores, Terraform state and variables, kubeconfigs, and anything under
+/// `.ssh`, `.aws`, `.config/gh` or similar.
 pub fn is_secret_file(path: &str) -> bool {
     let lower = path.to_ascii_lowercase();
     let mut parts: Vec<&str> = lower.split('/').collect();
     let base = parts.pop().unwrap_or_default();
+    let public_key = Path::new(base)
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("pub"));
+    let ext = Path::new(base)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default();
     parts.iter().any(|d| SECRET_DIRS.contains(d))
+        || parts
+            .windows(2)
+            .any(|w| SECRET_DIR_PAIRS.contains(&(w[0], w[1])))
         || SECRET_NAMES.contains(&base)
-        || base.starts_with(".env.")
-        || (base.starts_with("id_")
-            && !Path::new(base)
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("pub")))
+        || (!public_key && SECRET_PREFIXES.iter().any(|p| base.starts_with(p)))
         || SECRET_EXTENSIONS.iter().any(|e| base.ends_with(e))
+        || (ext == "json"
+            && (base.starts_with("service-account") || base.starts_with("service_account")))
+        || ((base.contains("secret") || base.contains("credential"))
+            && SECRET_WORD_EXTENSIONS.contains(&ext))
 }
 
 /// Match `path` against `pattern`, where `*` stands for any characters.
@@ -855,25 +941,84 @@ mod tests {
         assert!(e.to_string().contains("not valid UTF-8"), "{e}");
     }
 
+    /// Credential files that must never be sent by default (gitleaks and
+    /// trufflehog style names plus the common cloud and tool configs).
+    const SECRET_CORPUS: &[&str] = &[
+        ".env",
+        ".ENV",
+        "a/b/.env.production",
+        "prod.env",
+        "config/staging.ENV",
+        ".envrc",
+        ".npmrc",
+        ".yarnrc.yml",
+        ".netrc",
+        "_netrc",
+        ".git-credentials",
+        ".pgpass",
+        ".htpasswd",
+        "id_rsa",
+        "keys/id_ed25519",
+        "server.PEM",
+        "tls/key.key",
+        "cert.p12",
+        "cert.pfx",
+        "apple.p8",
+        "store.jks",
+        "store.jceks",
+        "app.keystore",
+        "putty.ppk",
+        "vault.kdbx",
+        "old.kdb",
+        "secrets.tar.gpg",
+        "mail.pgp",
+        ".aws/credentials",
+        "home/.ssh/config",
+        "credentials",
+        "credentials.json",
+        ".cargo/credentials",
+        ".cargo/credentials.toml",
+        ".gem/credentials",
+        "config/credentials.yml.enc",
+        "jenkins/credentials.xml",
+        "terraform.tfstate",
+        "terraform.tfstate.backup",
+        "infra/prod.tfvars",
+        "infra/a.auto.tfvars.json",
+        ".terraform/terraform.tfstate",
+        ".terraformrc",
+        "kubeconfig",
+        "deploy/kubeconfig-prod",
+        "admin.kubeconfig",
+        ".kube/config",
+        ".dockercfg",
+        ".docker/config.json",
+        ".dockerconfigjson",
+        ".vault-token",
+        ".my.cnf",
+        ".boto",
+        ".s3cfg",
+        "rclone.conf",
+        "config/master.key",
+        "secrets.yaml",
+        "k8s/secrets.yml",
+        "secrets.json",
+        "secret.yaml",
+        "client_secret_123.json",
+        "client_secrets.json",
+        "service-account.json",
+        "gcp/service_account_key.json",
+        "auth.json",
+        ".config/gh/hosts.yml",
+        ".config/gcloud/credentials.db",
+        "app/.gnupg/pubring.kbx",
+        "db/secrets.toml",
+        "ci/aws_credentials.txt",
+    ];
+
     #[test]
     fn secret_files_are_recognized_case_insensitively() {
-        for secret in [
-            ".env",
-            ".ENV",
-            "a/b/.env.production",
-            ".envrc",
-            ".npmrc",
-            ".netrc",
-            ".git-credentials",
-            "id_rsa",
-            "keys/id_ed25519",
-            "server.PEM",
-            "tls/key.key",
-            "cert.p12",
-            ".aws/credentials",
-            "home/.ssh/config",
-            "credentials.json",
-        ] {
+        for secret in SECRET_CORPUS {
             assert!(is_secret_file(secret), "{secret}");
         }
         for plain in [
@@ -882,6 +1027,15 @@ mod tests {
             "README.md",
             "keyboard.rs",
             "environment.txt",
+            "src/credentials.rs",
+            "src/secret_store.rs",
+            "docs/secrets.md",
+            "src/auth.rs",
+            "tests/data/keys.txt",
+            "gh/readme.md",
+            "config/gh.toml",
+            ".cargo/config.toml",
+            "Cargo.toml",
         ] {
             assert!(!is_secret_file(plain), "{plain}");
         }

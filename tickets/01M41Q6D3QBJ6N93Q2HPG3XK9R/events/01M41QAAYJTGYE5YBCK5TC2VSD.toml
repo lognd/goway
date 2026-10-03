@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["Given remote.ps1, when the contract tests drive manifest, hashes, deletions, receive, envfile, run, probe, gc, doctor and purge, then they behave as remote.sh does (generation checks, labelled entries, marker-guarded purge, slots and locks), on Windows CI and under pwsh on Linux", "Given a command line, when it reaches PowerShell, then every argument arrives exactly as given (no re-splitting, quotes and dollar signs preserved), proven by a round-trip test over hostile arguments", "Given Ctrl-C or a dropped connection, when a run is in flight, then the Windows job tree is stopped and its slot released"]
+new = ["Given remote.ps1, when the contract tests drive manifest, hashes, deletions, receive, envfile, run, probe, gc, doctor and purge, then they behave as remote.sh does (generation checks, labelled entries, marker-guarded purge, slots and locks), on Windows CI and under pwsh on Linux", "Given a command line, when it reaches PowerShell, then every argument arrives exactly as given (no re-splitting, quotes and dollar signs preserved), proven by a round-trip test over hostile arguments", "Given Ctrl-C or a dropped connection, when a run is in flight, then the Windows job tree is stopped and its slot released", "Given a run on a Windows host, when it ends (success, failure, Ctrl-C or dropped connection), then its run folder is removed unless --keep, and a detached auto-gc removes every expired labelled entry, exactly as remote.sh does on Linux"]
+moved = [1, 2, 3]
+at = "2026-10-03T20:29:33Z"
+actor = "lognd"
+rev = 1

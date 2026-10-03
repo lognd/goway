@@ -1,0 +1,12 @@
+kind = "create"
+title = "gc, status and doctor for Windows hosts"
+type = "story"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
+scope = ["crates/goway/src/gc.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs", "crates/goway/src/remote.ps1", "crates/goway/tests/**", "docs/usage.md"]
+acceptance = ["Given Windows hosts, when goway gc and goway status run, then copies and caches are labelled, expire like on other hosts, and status shows Windows disk use", "Given goway doctor on a Windows host, when it runs, then it checks powershell.exe or ssh, rustup with the msvc target, cargo-nextest and free space on the system drive, and prints exact fix commands"]
+at = "2026-10-03T20:27:24Z"
+actor = "lognd"
+rev = 1

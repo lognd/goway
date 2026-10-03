@@ -228,13 +228,27 @@ is undone by `goway ssh setup HOST --undo`; see docs/ssh-setup.md.
 - The git-visible work tree (see Sync above), without `.git`.
 - Secret-looking files stay on your machine unless you allow them. The
   match ignores case and covers:
-  - env files (`.env`, `.env.*`, `.envrc`)
-  - credential files (`.npmrc`, `.netrc`, `.pypirc`, `.git-credentials`,
-    `credentials*`)
+  - environment files (dot-env files, their `.env.*` variants, `*.env`
+    such as `prod.env`, `.envrc`)
+  - credential files (`.npmrc`, `.yarnrc.yml`, `.netrc`, `.pypirc`,
+    `.git-credentials`, `.pgpass`, `.htpasswd`, `.dockercfg`,
+    `.vault-token`, `.my.cnf`, `.boto`, `.s3cfg`, `rclone.conf`,
+    `auth.json`, `master.key`, `kubeconfig*`, `service-account*.json`,
+    `secrets.yaml`) and any data file (json, yaml, toml, ini, xml, txt,
+    no extension) whose name contains `secret` or `credential`, such as
+    `.cargo/credentials.toml`; source files like `secret_store.rs` are
+    sent
+  - Terraform state and variables (`*.tfstate`, `*.tfstate.backup`,
+    `*.tfvars`)
   - private keys (`id_*` except `.pub`)
-  - key and certificate stores (`*.pem`, `*.key`, `*.p12`, `*.pfx`,
-    `*.jks`)
-  - anything under `.ssh`, `.aws`, `.gnupg`, `.docker` or `.kube`
+  - key, certificate and password stores (`*.pem`, `*.key`, `*.p12`,
+    `*.pfx`, `*.p8`, `*.jks`, `*.jceks`, `*.keystore`, `*.ppk`, `*.kdbx`,
+    `*.gpg`, `*.pgp`)
+  - anything under `.ssh`, `.aws`, `.gnupg`, `.azure`, `.docker`,
+    `.kube`, `.terraform`, `.gcloud`, `.config/gh` or `.config/gcloud`
+
+  This is a denylist: a secret with an unusual name that you track in git
+  is still sent.
 
   `goway run` lists the files it kept back. To send some anyway, add
   them to `secret_allow` in the config. Files inside a directory that is

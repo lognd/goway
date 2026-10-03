@@ -1,0 +1,8 @@
+kind = "create"
+object = "cycle"
+goal = "goway runs commands natively on Windows: frob-v2's Windows tests and clippy pass through goway --host win"
+start = "2026-10-05"
+end = "2026-10-06"
+at = "2026-10-03T20:27:36Z"
+actor = "lognd"
+rev = 1

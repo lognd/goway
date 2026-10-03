@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["Cargo.toml", "crates/*/Cargo.toml", ".github/workflows/release.yml", ".github/workflows/ci.yml", "docs/release.md", "README.md", "pyproject.toml"]
+new = ["Cargo.toml", "crates/*/Cargo.toml", ".github/workflows/release.yml", ".github/workflows/ci.yml", "docs/release.md", "README.md", "pyproject.toml", "crates/goway/tests/publishing.rs"]
+at = "2026-10-03T20:31:07Z"
+actor = "lognd"
+rev = 1
