@@ -8,7 +8,7 @@ points = 8
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-03T21:11:59Z"
+updated = "2026-10-03T21:12:01Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/src/config.rs", "crates/goway/tests/**", "docs/usage.md", "docs/config.md", "crates/goway/src/gc.rs", "docs/design.md"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a project with package.json, pyproject.toml, CMakeLists.txt, pom.xml, build.gradle or Cargo.toml, when it runs twice on the same slot, then node_modules, .venv, build/ or other detected dependency and build directories from the first run are still there"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given files a previous run generated that are neither in the work tree nor on the keep list (detected plus the config keep list), when the next run starts, then they are removed first, so no run sees another run's leftovers"
