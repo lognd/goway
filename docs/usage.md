@@ -202,7 +202,9 @@ runs (the binary is usually built there during the run), by
   command line, so they survive stripping:
   GoogleTest `GTEST_SHARD_INDEX`, `GTEST_TOTAL_SHARDS`, `--gtest_list_tests`,
   `--gtest_filter`; Catch2 v3 `--shard-count`, `--shard-index`,
-  `--list-tests`, `Catch2TestRun`. A file with only some markers is not
+  `--list-tests`, `catch2-version` (measured in a real stripped v3.7.1
+  binary; CI builds real GoogleTest and Catch2 binaries with CMake
+  FetchContent and checks detection and sharding against them). A file with only some markers is not
   detected, Catch2 v2 (no shard flags) is not detected, and neither is a
   file with both sets (goway's own binary carries both, because it embeds
   this script). An undetected program runs unchanged and sees `GOWAY_SHARD`

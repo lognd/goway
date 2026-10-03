@@ -7,7 +7,9 @@
 //! strings the frameworks embed and behave like them: GoogleTest-style
 //! fixtures read `GTEST_TOTAL_SHARDS`, `GTEST_SHARD_INDEX` and touch
 //! `GTEST_SHARD_STATUS_FILE`; Catch2-style ones parse `--shard-count` and
-//! `--shard-index`, or reject them with Catch2's command-line error.
+//! `--shard-index`, or reject them with Catch2's command-line error. One
+//! ignored test (run by CI) builds the real frameworks instead, so these
+//! fixtures cannot drift from them.
 #![cfg(unix)]
 #![allow(clippy::format_collect)] // building small fixture sources
 
@@ -52,7 +54,7 @@ const CATCH2: &[&str] = &[
     "--shard-count",
     "--shard-index",
     "--list-tests",
-    "Catch2TestRun",
+    "catch2-version",
 ];
 
 /// Compile a stripped fixture embedding `markers` and the given `body`.
@@ -387,4 +389,66 @@ int main(int argc, char **argv) {
     // Flagged, not remembered.
     let r = shard_run(&w, &[], &["./build/tests"]);
     assert!(!r.stderr.contains("failed before"), "{}", r.stderr);
+}
+
+/// Run `cmd`, panicking with its output on failure.
+fn must(cmd: &mut std::process::Command) {
+    let out = cmd.output().expect("tool missing");
+    assert!(
+        out.status.success(),
+        "{cmd:?}: {}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// Distinct `RAN <prefix>_k` lines (host prefix stripped) with their counts.
+fn ran_lines(stdout: &str, prefix: &str) -> BTreeMap<String, usize> {
+    let mut seen = BTreeMap::new();
+    for line in stdout.lines().filter(|l| l.contains("RAN ")) {
+        let line = line.split_once("] ").map_or(line, |(_, r)| r).trim();
+        if line.starts_with(&format!("RAN {prefix}")) {
+            *seen.entry(line.to_owned()).or_insert(0) += 1;
+        }
+    }
+    seen
+}
+
+// frob:tests crates/goway/src/runners.rs::plan
+// Real frameworks, so the marker fixtures above can never drift from them:
+// needs cmake, a C++ compiler, git/network (FetchContent), so it is ignored
+// by default and CI runs it with `--run-ignored only`.
+#[test]
+#[ignore = "needs cmake, a C++ compiler and network; run by CI"]
+fn real_googletest_and_catch2_binaries_are_detected_and_sharded_disjointly() {
+    let w = two_hosts();
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cxxshard");
+    // Built outside the synced repository: the FetchContent trees are huge.
+    let build_dir = w.root.join("cxx-build");
+    must(
+        std::process::Command::new("cmake")
+            .arg("-S")
+            .arg(&src)
+            .arg("-B")
+            .arg(&build_dir)
+            .arg("-DCMAKE_BUILD_TYPE=Release"),
+    );
+    must(
+        std::process::Command::new("cmake")
+            .arg("--build")
+            .arg(&build_dir)
+            .args(["-j", "4"]),
+    );
+    std::fs::create_dir_all(w.repo.join("build")).unwrap();
+    for (name, prefix, kind) in [("gt", "gt", "gtest"), ("c2", "c2_", "catch2")] {
+        let dest = w.repo.join("build").join(name);
+        std::fs::copy(build_dir.join(name), &dest).unwrap();
+        must(std::process::Command::new("strip").arg(&dest));
+        let r = shard_run(&w, &[], &[&format!("./build/{name}")]);
+        assert_eq!(r.out.status.code(), Some(0), "{name}: {}", r.stderr);
+        assert_eq!(detections(&r), [kind, kind], "{name}: {}", r.stderr);
+        let seen = ran_lines(&r.stdout, prefix);
+        assert_eq!(seen.len(), 12, "{name}: {seen:?}");
+        assert!(seen.values().all(|&n| n == 1), "{name}: {seen:?}");
+    }
 }

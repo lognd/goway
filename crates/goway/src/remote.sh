@@ -606,7 +606,7 @@ gpu_export() {
 # to parse their own command line; unlike symbols they survive stripping.
 SNIFF_CAP=$((256 * 1024 * 1024))
 GTEST_MARKERS=(GTEST_SHARD_INDEX GTEST_TOTAL_SHARDS --gtest_list_tests --gtest_filter)
-CATCH2_MARKERS=(--shard-count --shard-index --list-tests Catch2TestRun)
+CATCH2_MARKERS=(--shard-count --shard-index --list-tests catch2-version)
 
 # resolve_program NAME: the file the shell will execute for NAME (a path
 # containing "/" is relative to the current directory, otherwise PATH is
