@@ -2,7 +2,8 @@
 id = "01M418J3BG08155MM6317X1700"
 title = "Linux install and uninstall scripts"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
