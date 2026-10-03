@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/tests/**", "crates/goway/src/resolve.rs"]
+new = ["crates/goway/tests/**", "crates/goway/src/resolve.rs", "crates/goway/src/config.rs"]
+at = "2026-10-03T17:41:27Z"
+actor = "lognd"
+rev = 1
