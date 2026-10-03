@@ -21,7 +21,7 @@ bound = true
 
 [[acceptance]]
 text = "Given scheduled tasks and the relay refresh task, when they are registered, then every program and script path is absolute and the system directory comes from Windows, not the environment"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a pre-created empty state directory or a leading-dash distro name, when the host install runs, then the directory is replaced and the name refused"
