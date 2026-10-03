@@ -1,0 +1,8 @@
+kind = "land"
+base_ref = "refs/heads/main"
+commit = "dec6728f6efcd554a1f8cb81fb0ef5c925510eba"
+branch = "ticket/RP5W380"
+pushed = false
+at = "2026-10-03T22:56:42Z"
+actor = "lognd"
+rev = 1
