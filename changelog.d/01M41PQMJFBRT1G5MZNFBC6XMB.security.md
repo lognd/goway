@@ -1,0 +1,1 @@
+On a terminal, goway now strips OSC, DCS, APC, PM and SOS strings, non-color CSI sequences and other control characters from remote output (use --output=raw to opt out); pipes and files are never filtered.

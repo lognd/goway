@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 430" width="1000" height="430" role="img" aria-label="A goway session. goway status lists two helper laptops, helper-a with 12 cores and helper-b with 16 cores, both idle. goway run --shard 2 splits a cargo nextest run across both; helper-a passes 118 tests and helper-b passes 127, and goway finishes with exit 0.">
+  <rect width="1000" height="430" rx="12" fill="#0d1117"/>
+  <rect width="1000" height="36" rx="12" fill="#161b22"/>
+  <rect y="24" width="1000" height="12" fill="#161b22"/>
+  <circle cx="22" cy="18" r="6" fill="#f85149"/>
+  <circle cx="42" cy="18" r="6" fill="#d29922"/>
+  <circle cx="62" cy="18" r="6" fill="#3fb950"/>
+  <text x="500" y="23" text-anchor="middle" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#8b949e">main laptop: ~/my-project</text>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="14.5" fill="#c9d1d9" xml:space="preserve">
+    <text x="20" y="66"><tspan fill="#8b949e">$</tspan> goway status</text>
+    <text y="88" fill="#79c0ff"><tspan x="20">host</tspan><tspan x="110">address</tspan><tspan x="290">arch</tspan><tspan x="365">cores</tspan><tspan x="430">load 1/5/15</tspan><tspan x="580">jobs</tspan></text>
+    <text y="108"><tspan x="20">helper-a</tspan><tspan x="110">192.0.2.10 (cached)</tspan><tspan x="290">x86_64</tspan><tspan x="365">12</tspan><tspan x="430">0.04 0.02 0.04</tspan><tspan x="580">0</tspan></text>
+    <text y="128"><tspan x="20">helper-b</tspan><tspan x="110">192.0.2.11 (cached)</tspan><tspan x="290">x86_64</tspan><tspan x="365">16</tspan><tspan x="430">0.00 0.00 0.04</tspan><tspan x="580">0</tspan></text>
+
+    <text x="20" y="168"><tspan fill="#8b949e">$</tspan> goway run --shard 2 -- cargo nextest run --workspace</text>
+    <text x="20" y="190"><tspan fill="#79c0ff">goway: info:</tspan> sharding cargo nextest run --workspace across 2 hosts: helper-b, helper-a</text>
+    <text y="210"><tspan x="20" fill="#8b949e">[helper-a]</tspan><tspan x="120">Starting 118 tests across 21 binaries (127 skipped)</tspan></text>
+    <text y="230"><tspan x="20" fill="#8b949e">[helper-b]</tspan><tspan x="120">Starting 127 tests across 21 binaries (118 skipped)</tspan></text>
+    <text y="250"><tspan x="20" fill="#8b949e">[helper-a]</tspan><tspan x="120"><tspan fill="#3fb950">PASS</tspan> [   0.006s] goway::sync protocol_converges_and_keeps_snapshots_isolated</tspan></text>
+    <text y="270"><tspan x="20" fill="#8b949e">[helper-b]</tspan><tspan x="120"><tspan fill="#3fb950">PASS</tspan> [   0.011s] goway::run_local exit_code_passes_through_and_work_dir_is_removed</tspan></text>
+    <text x="20" y="290" fill="#8b949e">...</text>
+    <text y="310"><tspan x="20" fill="#8b949e">[helper-a]</tspan><tspan x="120">Summary [   5.869s] 118 tests run: <tspan fill="#3fb950">118 passed</tspan>, 127 skipped</tspan></text>
+    <text y="330"><tspan x="20" fill="#8b949e">[helper-b]</tspan><tspan x="120">Summary [   5.486s] 127 tests run: <tspan fill="#3fb950">127 passed</tspan>, 118 skipped</tspan></text>
+    <text x="20" y="352"><tspan fill="#3fb950">goway: done:</tspan> shard 1/2 on helper-b: exit 0 in 62.9s</text>
+    <text x="20" y="372"><tspan fill="#3fb950">goway: done:</tspan> shard 2/2 on helper-a: exit 0 in 25.5s</text>
+    <text x="20" y="392"><tspan fill="#8b949e">goway: note:</tspan> all shards done in 63.9s: exit 0</text>
+  </g>
+</svg>

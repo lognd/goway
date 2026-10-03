@@ -100,6 +100,11 @@ pub struct RunArgs {
     /// `GOWAY_SHARD_COUNT`). Output lines are prefixed with the host.
     #[arg(long, value_name = "N", conflicts_with = "host", value_parser = clap::value_parser!(u16).range(1..))]
     pub shard: Option<u16>,
+    /// How the command's output is shown: `safe` strips terminal control
+    /// sequences except colors when a stream is a terminal; `raw` passes
+    /// every byte through. Pipes and files are never filtered.
+    #[arg(long, value_enum, default_value_t, env = "GOWAY_OUTPUT")]
+    pub output: crate::termfilter::OutputMode,
     /// Extra environment for the remote command (KEY=VALUE, repeatable).
     #[arg(long = "env", short = 'e', value_name = "KEY=VALUE")]
     pub env: Vec<String>,

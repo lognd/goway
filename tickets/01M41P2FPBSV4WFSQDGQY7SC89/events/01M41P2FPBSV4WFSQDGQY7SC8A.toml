@@ -1,0 +1,11 @@
+kind = "create"
+title = "More operating systems and languages"
+type = "epic"
+category = "todo"
+priority = "medium"
+points = 13
+scope = ["crates/**", "docs/**", "scripts/**", ".github/**", "README.md"]
+acceptance = ["Given the README matrices, when a reader checks an operating system or a test framework, then each row states whether it is supported, how, and whether the maintainer has tested it"]
+at = "2026-10-03T20:07:47Z"
+actor = "lognd"
+rev = 1

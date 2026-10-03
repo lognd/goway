@@ -60,7 +60,7 @@ What happens:
    see each other's files, and a later sync never changes a running
    snapshot.
 4. **Run.** The command starts in its own session, with stdin, stdout
-   and stderr passed through untouched. `CARGO_TARGET_DIR` points at
+   and stderr passed through (see "Terminal output" below). `CARGO_TARGET_DIR` points at
    the first free per-repository target slot (a new one when all are
    busy, up to `target_slots`). While it holds slot k, the job runs in
    the tree at `cache/<repo>/tree-k` (its snapshot, moved there). Builds
@@ -111,6 +111,20 @@ them. goway's remote side therefore runs a watchdog per job. When the
 ssh session goes away, whether from Ctrl-C, a closed laptop lid or Wi-Fi
 loss, the watchdog sends the job's process group TERM, then KILL after 5
 seconds, and the work dir is cleaned up.
+
+### Terminal output
+
+The command runs somewhere else and may be untrusted, so what it prints
+must not be able to drive your terminal. When goway's stdout or stderr is
+a terminal, the output of that stream keeps text, newline, carriage
+return, tab, backspace and color (SGR) sequences, and drops everything
+else: OSC strings (clipboard writes, window titles), DCS, APC, PM and SOS
+strings, every other CSI sequence (cursor movement, terminal queries and
+reports) and all other control characters. Sequences split between two
+reads are handled. With `--output=raw` (or `GOWAY_OUTPUT=raw`) every byte
+passes through. When a stream is a pipe or a file (`goway run ... > log`,
+frob evidence), the output is never touched, byte for byte. Sharded runs
+(`--shard`) follow the same rules per `[host]`-prefixed stream.
 
 ## Status
 

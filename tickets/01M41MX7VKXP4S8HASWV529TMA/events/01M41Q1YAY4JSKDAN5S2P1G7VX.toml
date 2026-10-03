@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:24:57Z"
+digest = "96eda509a0641d08529b4fd1d7c4e87ffbc84923b9343c135f11e7ab8ae52e9b"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 0cb2fefd-e818-45b8-8488-7fe7430e8970 with nextest profile: default
+    Starting 5 tests across 1 binary (7 tests and 23 binaries skipped)
+        PASS [   0.010s] goway-setup::relay the_portproxy_resource_runs_netsh_with_the_distros_current_address
+        PASS [   0.010s] goway-setup::relay the_portproxy_table_and_relay_names_parse
+        PASS [   0.011s] goway-setup::relay the_refresh_script_validates_the_address_and_builds_the_exact_netsh_command
+        PASS [   0.013s] goway-setup::relay only_a_real_dotted_quad_is_taken_from_hostname_output
+        PASS [   0.015s] goway-setup::relay the_relay_task_runs_the_script_as_the_user_with_highest_privileges_and_stores_no_password
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.017s] 5 tests run: 5 passed, 7 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(relay) & (test(the_refresh_script) | test(only_a_real_dotted_quad) | test(the_relay_task_runs) | test(the_portproxy_resource) | test(the_portproxy_table))'"
+size = 1028
+status = "measured"
+tests = ["the_portproxy_resource_runs_netsh_with_the_distros_current_address", "the_portproxy_table_and_relay_names_parse", "the_refresh_script_validates_the_address_and_builds_the_exact_netsh_command", "only_a_real_dotted_quad_is_taken_from_hostname_output", "the_relay_task_runs_the_script_as_the_user_with_highest_privileges_and_stores_no_password"]
+at = "2026-10-03T20:24:57Z"
+actor = "lognd"
+rev = 1

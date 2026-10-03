@@ -23,6 +23,7 @@ pub mod sshsetup;
 pub mod state;
 pub mod status;
 pub mod sync;
+pub mod termfilter;
 pub mod uninstall;
 
 use std::process::ExitCode;

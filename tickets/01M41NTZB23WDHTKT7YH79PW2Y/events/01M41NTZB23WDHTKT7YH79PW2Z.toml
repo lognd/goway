@@ -1,0 +1,12 @@
+kind = "create"
+title = "Banner: center the text in the laptop screens"
+type = "docs"
+category = "todo"
+priority = "medium"
+points = 1
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["docs/assets/**"]
+acceptance = ["Given goway-banner.svg rendered, when looking at the laptop screens, then their text is centered horizontally and vertically in each screen"]
+at = "2026-10-03T20:03:41Z"
+actor = "lognd"
+rev = 1

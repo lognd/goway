@@ -19,9 +19,21 @@ root_dir() {
 }
 
 # Mark ROOT as goway's (gc refuses to remove anything under an unmarked root).
+# A directory that already exists, holds anything besides goway's own work,
+# seed and cache directories, and carries no marker is somebody else's: refuse
+# to adopt it, so a mis-set remote_root can never later be purged.
 mark_root() {
+  local e
+  [ -e "$1/.goway-root" ] && return 0
   mkdir -p "$1"
-  [ -e "$1/.goway-root" ] || printf 'goway state; safe to delete with goway gc --all\n' >"$1/.goway-root"
+  for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
+    [ -e "$e" ] || [ -L "$e" ] || continue
+    case "${e##*/}" in
+      work | seed | cache | .goway-root) ;;
+      *) die "$1 exists, is not empty and is not goway state; pick a dedicated remote_root" ;;
+    esac
+  done
+  printf 'goway state; safe to delete with goway gc --all\n' >"$1/.goway-root"
 }
 
 new_generation() { printf '%s-%s-%s\n' "$(date +%s%N)" "$$" "$RANDOM"; }
@@ -50,6 +62,7 @@ seed_from_sibling() {
 manifest() {
   local root seed
   root=$(root_dir "$1"); seed="$root/seed/$2"
+  mark_root "$root"
   mkdir -p "$seed"
   exec 8>"$seed/lock"
   if [ ! -d "$seed/tree" ]; then
@@ -416,7 +429,10 @@ purge() {
     [ -S "$s" ] || continue
     SCCACHE_SERVER_UDS="$s" sccache --stop-server >/dev/null 2>&1 || true
   done
-  rm -rf "$root"
+  # Only goway's own entries: a root that also holds foreign files keeps them.
+  rm -rf "$root/work" "$root/seed" "$root/cache"
+  rm -f "$root/.goway-root"
+  rmdir "$root" 2>/dev/null || true
   printf 'removed\n'
 }
 

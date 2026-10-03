@@ -710,3 +710,24 @@ fn plain_status_reads_as_labelled_lines() {
         "{text}"
     );
 }
+
+#[test]
+fn piped_output_is_byte_identical_even_with_escape_sequences() {
+    let w = world();
+    let evil = "\\033]52;c;QQ==\\a\\033]0;t\\a\\033[21t\\033[31mred\\033[0m\\001\\n";
+    for extra in [&[][..], &["--output", "raw"][..]] {
+        let mut args = vec!["run"];
+        args.extend_from_slice(extra);
+        args.extend(["--", "printf", evil]);
+        let out = w.run(&args);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(
+            out.stdout,
+            b"\x1b]52;c;QQ==\x07\x1b]0;t\x07\x1b[21t\x1b[31mred\x1b[0m\x01\n"
+        );
+    }
+}

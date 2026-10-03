@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320" role="img" aria-label="goway: run it on your other laptops. Your build or test command runs natively on the least busy laptop on your network, from your git work tree.">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b0f16"/>
+      <stop offset="1" stop-color="#101724"/>
+    </linearGradient>
+    <radialGradient id="glowGo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#58a6ff" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#58a6ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowDone" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3fb950" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wordmark" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f0f6fc"/>
+      <stop offset="1" stop-color="#a5b8cc"/>
+    </linearGradient>
+    <linearGradient id="mainFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#79c0ff"/>
+      <stop offset="1" stop-color="#1f6feb"/>
+    </linearGradient>
+    <linearGradient id="helperFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#56d364"/>
+      <stop offset="1" stop-color="#2ea043"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="320" fill="url(#bg)"/>
+  <circle cx="140" cy="160" r="150" fill="url(#glowGo)"/>
+  <circle cx="420" cy="160" r="170" fill="url(#glowDone)"/>
+
+  <!-- main laptop -->
+  <g transform="translate(60,112)">
+    <rect x="0" y="0" width="160" height="88" rx="10" fill="url(#mainFill)"/>
+    <rect x="10" y="10" width="140" height="68" rx="5" fill="#0d1117"/>
+    <text x="21" y="40" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="13" fill="#79c0ff">$ goway run \</text>
+    <text x="21" y="59" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="13" fill="#79c0ff">  -- cargo test</text>
+    <path d="M-12 96 H172 L160 108 H0 Z" fill="#1f6feb"/>
+  </g>
+
+  <!-- arrows -->
+  <path d="M232 148 C 296 148, 272 79, 336 79" stroke="#8b949e" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M232 164 C 296 164, 272 225, 336 225" stroke="#8b949e" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- helper laptops -->
+  <g transform="translate(350,44)">
+    <rect x="0" y="0" width="112" height="70" rx="8" fill="url(#helperFill)"/>
+    <rect x="8" y="8" width="96" height="54" rx="4" fill="#0d1117"/>
+    <text x="56" y="40" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="14" fill="#56d364">ok 118</text>
+    <path d="M-10 76 H122 L112 86 H0 Z" fill="#2ea043"/>
+  </g>
+  <g transform="translate(350,190)">
+    <rect x="0" y="0" width="112" height="70" rx="8" fill="url(#helperFill)"/>
+    <rect x="8" y="8" width="96" height="54" rx="4" fill="#0d1117"/>
+    <text x="56" y="40" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="14" fill="#56d364">ok 127</text>
+    <path d="M-10 76 H122 L112 86 H0 Z" fill="#2ea043"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="560" y="168" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="104" font-weight="700" fill="url(#wordmark)" letter-spacing="-2">goway</text>
+  <text x="564" y="214" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="27" fill="#c9d1d9">run it on your other laptops</text>
+  <text x="564" y="252" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="17" fill="#8b949e">native builds and tests, from your git work tree</text>
+</svg>
