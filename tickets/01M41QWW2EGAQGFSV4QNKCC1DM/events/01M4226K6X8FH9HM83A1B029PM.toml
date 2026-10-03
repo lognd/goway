@@ -1,0 +1,38 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T23:39:44Z"
+digest = "3cc55aeaa2ab10406f5ab57185b53c028bcf4930d18f51074b06fca6b3115843"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 88291cfb-ec34-422a-b6d3-29ec4aca467e with nextest profile: default
+    Starting 16 tests across 3 binaries (174 tests and 37 binaries skipped)
+        PASS [   0.010s] goway uninstall::tests::command_lines_quote_what_a_shell_would_split
+        PASS [   1.113s] goway uninstall::tests::environment_variables_move_the_install_locations
+        PASS [   1.125s] goway uninstall::tests::journal_wins_and_unknown_locations_are_unknown
+        PASS [   1.126s] goway uninstall::tests::a_virtual_environment_removes_itself_with_its_own_pip
+        PASS [   1.125s] goway uninstall::tests::a_missing_tool_is_reported_not_guessed
+        PASS [   1.124s] goway uninstall::tests::journal_entries_outside_the_install_scope_are_skipped
+        PASS [   1.130s] goway uninstall::tests::each_install_location_names_its_own_removal_command
+        PASS [   1.147s] goway uninstall::tests::a_crlf_profile_keeps_its_bytes_when_the_path_line_goes
+        PASS [   2.966s] goway::install_methods a_tool_missing_from_path_is_named_not_run
+        PASS [   2.973s] goway::install_methods an_unknown_location_gets_a_clear_message
+        PASS [   2.988s] goway::install_methods a_failing_removal_command_fails_the_uninstall
+        PASS [   3.554s] goway::install_methods cargo_install_is_removed_with_cargo_uninstall
+        PASS [   3.565s] goway::install_methods a_virtual_environment_runs_its_own_pip
+        PASS [   2.467s] goway::install_methods uv_tool_install_is_removed_with_uv_tool_uninstall
+        PASS [   2.482s] goway::install_methods pipx_install_is_removed_with_pipx_uninstall
+        PASS [   2.504s] goway::install_methods the_older_pipx_location_is_recognised_too
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   3.631s] 16 tests run: 16 passed, 174 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(install_methods) | (binary(goway) & test(uninstall::tests))'"
+size = 2009
+status = "measured"
+tests = ["uninstall::tests::command_lines_quote_what_a_shell_would_split", "uninstall::tests::environment_variables_move_the_install_locations", "uninstall::tests::journal_wins_and_unknown_locations_are_unknown", "uninstall::tests::a_virtual_environment_removes_itself_with_its_own_pip", "uninstall::tests::a_missing_tool_is_reported_not_guessed", "uninstall::tests::journal_entries_outside_the_install_scope_are_skipped", "uninstall::tests::each_install_location_names_its_own_removal_command", "uninstall::tests::a_crlf_profile_keeps_its_bytes_when_the_path_line_goes", "a_tool_missing_from_path_is_named_not_run", "an_unknown_location_gets_a_clear_message", "a_failing_removal_command_fails_the_uninstall", "cargo_install_is_removed_with_cargo_uninstall", "a_virtual_environment_runs_its_own_pip", "uv_tool_install_is_removed_with_uv_tool_uninstall", "pipx_install_is_removed_with_pipx_uninstall", "the_older_pipx_location_is_recognised_too"]
+at = "2026-10-03T23:39:44Z"
+actor = "lognd"
+rev = 1
