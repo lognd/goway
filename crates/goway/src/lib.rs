@@ -3,6 +3,7 @@
 
 pub mod cli;
 pub mod config;
+pub mod doctor;
 pub mod error;
 pub mod gc;
 pub mod hosts;
@@ -95,7 +96,19 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
                 &resolve::SshProber { settings },
             )
         }
-        Command::Doctor(_) => Err(Error::NotImplemented("doctor")),
+        Command::Doctor(args) => {
+            let settings = ssh::Settings::from_paths(&paths);
+            doctor::doctor(
+                &paths,
+                renderer,
+                args,
+                &resolve::SystemLookup,
+                &resolve::SshProber {
+                    settings: settings.clone(),
+                },
+                &settings,
+            )
+        }
         Command::Host(HostCommand::List) => host_list(&paths, renderer),
         Command::Host(HostCommand::Remove { name }) => host_remove(&paths, renderer, name),
         Command::Host(HostCommand::Add(args)) => {

@@ -344,3 +344,18 @@ fn every_run_triggers_automatic_gc_of_expired_entries() {
     }
     panic!("automatic gc did not remove the expired kept dir");
 }
+
+// frob:tests crates/goway/src/doctor.rs::doctor
+// frob:tests crates/goway/src/doctor.rs::parse_facts
+#[test]
+fn doctor_reports_every_check_with_status() {
+    let w = world();
+    let out = w.run(&["doctor"]);
+    let table = String::from_utf8_lossy(&out.stdout).into_owned();
+    for check in ["bash", "tar", "flock", "setsid", "cc (linker)", "cargo", "sshd password login"] {
+        assert!(table.lines().any(|l| l.starts_with(check)), "{check} missing\n{table}");
+    }
+    assert!(String::from_utf8_lossy(&out.stderr).contains("local at 127.0.0.1"));
+    let sudo_without_fix = w.run(&["doctor", "--sudo"]);
+    assert_eq!(sudo_without_fix.status.code(), Some(2), "--sudo requires --fix");
+}

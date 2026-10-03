@@ -242,6 +242,29 @@ gc() {
   fi
 }
 
+# doctor ROOT: key=value facts about the toolchain and host for `goway doctor`.
+doctor() {
+  local t v pa
+  if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; printf 'cargo_env=yes\n'; else printf 'cargo_env=no\n'; fi
+  for t in bash git tar flock setsid cc curl rustup cargo cargo-nextest sccache apt-get dnf pacman; do
+    if command -v "$t" >/dev/null 2>&1; then
+      case "$t" in
+        cargo-nextest) v=$({ cargo-nextest nextest --version 2>/dev/null || true; } | head -1) ;;
+        *) v=$({ "$t" --version 2>/dev/null || true; } | head -1) ;;
+      esac
+      printf 'tool.%s=%s\n' "$t" "${v:-present}"
+    else
+      printf 'tool.%s=\n' "$t"
+    fi
+  done
+  printf 'os=%s\n' "$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}")"
+  printf 'arch=%s\n' "$(uname -m)"
+  printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
+  pa=$(grep -rhiE '^\s*PasswordAuthentication\s' /etc/ssh/sshd_config.d/ /etc/ssh/sshd_config 2>/dev/null | head -1 | awk '{print tolower($2)}' || true)
+  printf 'password_auth=%s\n' "${pa:-default-yes}"
+  printf 'home=%s\n' "$HOME"
+}
+
 verb=${1:-}
 [ -n "$verb" ] || die "no verb"
 shift
@@ -251,6 +274,7 @@ case "$verb" in
   run) run "$@" ;;
   probe) probe "$@" ;;
   gc) gc "$@" ;;
+  doctor) doctor "$@" ;;
   ping) printf 'goway-remote ok\n' ;;
   *) die "unknown verb: $verb" ;;
 esac
