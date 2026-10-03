@@ -2,13 +2,13 @@
 id = "01M41F1RCK7DZQNPXF6PFDSEFK"
 title = "Warm cargo runs used binaries whose baked CARGO_MANIFEST_DIR pointed at a deleted work dir"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:05:03Z"
-updated = "2026-10-03T18:05:03Z"
+updated = "2026-10-03T18:05:13Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/run_local.rs", "docs/usage.md", "docs/design.md"]
 
 [[acceptance]]
