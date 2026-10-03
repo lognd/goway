@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T23:21:29Z"
+digest = "30c02a764bb4cfcf54127dbeebb2c23306c8b6f0dc88fb3dca499116258886a3"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID f6e0e3e7-258e-4309-a2f2-a9d9ad387291 with nextest profile: default
+    Starting 1 test across 39 binaries (453 tests skipped)
+        PASS [   0.015s] goway config::tests::job_limit_defaults_to_half_the_cores_and_honours_max_jobs
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.017s] 1 test run: 1 passed, 453 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(job_limit_defaults_to_half_the_cores_and_honours_max_jobs)'"
+size = 572
+status = "measured"
+tests = ["config::tests::job_limit_defaults_to_half_the_cores_and_honours_max_jobs"]
+at = "2026-10-03T23:21:29Z"
+actor = "lognd"
+rev = 1
