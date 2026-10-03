@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T23:56:28Z"
+digest = "85a5818c33b07d21f94d70a1172b8f93464c9bf3550eb03ef843454ccfce529e"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 28.38s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 5fb7e2dd-8bf6-4afb-81a9-2469ccd2222d with nextest profile: default
+    Starting 1 test across 40 binaries (469 tests skipped)
+        PASS [   0.008s] goway::publishing every_publishing_job_runs_only_on_a_version_tag_push
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.018s] 1 test run: 1 passed, 469 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(every_publishing_job_runs_only_on_a_version_tag_push)'"
+size = 749
+status = "measured"
+tests = ["every_publishing_job_runs_only_on_a_version_tag_push"]
+at = "2026-10-03T23:56:28Z"
+actor = "lognd"
+rev = 1
