@@ -693,3 +693,20 @@ fn a_failing_command_is_labelled_failed_in_words() {
         "{stderr}"
     );
 }
+
+// frob:tests crates/goway/src/render.rs::Renderer.with_plain
+#[test]
+fn plain_status_reads_as_labelled_lines() {
+    let w = world();
+    assert!(w.run(&["run", "--", "true"]).status.success());
+    let out = w.run(&["--plain", "status"]);
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(
+        text.starts_with("host: local, address: 127.0.0.1 (cached), arch: "),
+        "{text}"
+    );
+    assert!(
+        text.contains("cores: ") && text.contains("jobs: 0"),
+        "{text}"
+    );
+}

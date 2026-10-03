@@ -10,6 +10,9 @@ pub const DEFAULT_PROFILE: &str = "goway";
 /// Registry key (under HKCU) listing installed programs.
 const UNINSTALL_ROOT: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall";
 
+/// Registry key (under HKLM) listing programs installed for the whole machine.
+const MACHINE_UNINSTALL_ROOT: &str = r"HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall";
+
 /// Every location one profile touches, derived from the local application data directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Layout {
@@ -39,6 +42,8 @@ pub struct Layout {
     pub host_journal_path: PathBuf,
     /// `<admin_dir>\host-settings.json`, the distro and port the host install used.
     pub host_settings_path: PathBuf,
+    /// The machine-wide (HKLM) Add/Remove Programs key of the host component.
+    pub host_uninstall_key: String,
     /// Whether `state_dir` is the administrator-only directory (set on the host view): it is
     /// created with a protected ACL and verified before anything in it is read.
     pub admin_only: bool,
@@ -81,6 +86,7 @@ impl Layout {
             setup_exe: install_root.join("goway-setup.exe"),
             journal_path: state_dir.join("install-journal.json"),
             uninstall_key: format!(r"{UNINSTALL_ROOT}\{profile}"),
+            host_uninstall_key: format!(r"{MACHINE_UNINSTALL_ROOT}\{profile}-host"),
             host_journal_path: admin_dir.join("host-journal.json"),
             host_settings_path: admin_dir.join("host-settings.json"),
             admin_root,

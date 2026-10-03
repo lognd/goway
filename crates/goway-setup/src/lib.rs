@@ -9,6 +9,7 @@ pub mod cli;
 pub mod elevate;
 pub mod entry;
 pub mod error;
+pub mod helper;
 pub mod host;
 pub mod hostsys;
 pub mod layout;

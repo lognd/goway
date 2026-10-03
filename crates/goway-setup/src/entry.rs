@@ -42,3 +42,42 @@ pub fn uninstall_values(layout: &Layout, version: &str) -> Vec<(&'static str, Re
         ("NoRepair", RegValue::Dword(1)),
     ]
 }
+
+/// Display name of the host component's entry: "goway helper (host)", qualified by a non-default profile.
+pub fn host_display_name(profile: &str) -> String {
+    if profile == DEFAULT_PROFILE {
+        "goway helper (host)".to_owned()
+    } else {
+        format!("goway helper (host, profile {profile})")
+    }
+}
+
+/// The command line the host's entry runs: the protected admin-dir copy, quoted, uninstalling the host only.
+pub fn host_uninstall_string(layout: &Layout) -> String {
+    format!(
+        "\"{}\" uninstall --host --profile {}",
+        crate::admin::protected_exe(&layout.admin_dir).display(),
+        layout.profile
+    )
+}
+
+/// All values written under the host component's machine-wide Uninstall key, in write order.
+///
+/// The entry runs the protected copy of goway-setup (never the user-writable download or client
+/// copy), so removing the helper needs nothing the user has to keep.
+pub fn host_uninstall_values(layout: &Layout, version: &str) -> Vec<(&'static str, RegValue)> {
+    let s = |v: String| RegValue::String(v);
+    let exe = crate::admin::protected_exe(&layout.admin_dir)
+        .display()
+        .to_string();
+    vec![
+        ("DisplayName", s(host_display_name(&layout.profile))),
+        ("DisplayVersion", s(version.to_owned())),
+        ("Publisher", s(PUBLISHER.to_owned())),
+        ("InstallLocation", s(layout.admin_dir.display().to_string())),
+        ("DisplayIcon", s(exe)),
+        ("UninstallString", s(host_uninstall_string(layout))),
+        ("NoModify", RegValue::Dword(1)),
+        ("NoRepair", RegValue::Dword(1)),
+    ]
+}

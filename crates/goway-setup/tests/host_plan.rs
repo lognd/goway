@@ -63,8 +63,8 @@ fn the_default_profile_reuses_the_names_of_the_hand_made_setup() {
         ["ssh.socket", "ssh.service"]
     );
     assert!(
-        matches!(&plan[0], Change::SetIniKey { path, section, key, value }
-        if path == Path::new("/home/u/.wslconfig") && section == "wsl2" && key == "networkingMode" && value == "mirrored")
+        plan.iter().any(|c| matches!(c, Change::SetIniKey { path, section, key, value }
+        if path == Path::new("/home/u/.wslconfig") && section == "wsl2" && key == "networkingMode" && value == "mirrored"))
     );
 }
 
@@ -187,13 +187,32 @@ fn on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall
         &facts,
     );
     let mut journal = apply(&plan, &mut sys).unwrap();
-    assert_eq!(sys, before);
-    assert!(journal.entries.iter().all(|e| e.prior == Prior::Noop));
+    // The one thing a host install always adds is its own Add/Remove Programs entry.
+    let is_arp = |c: &Change| {
+        matches!(
+            c,
+            Change::EnsureRegKey { .. } | Change::SetRegistryValue { .. }
+        )
+    };
+    assert!(
+        journal
+            .entries
+            .iter()
+            .filter(|e| !is_arp(&e.change))
+            .all(|e| e.prior == Prior::Noop)
+    );
+    assert!(sys.reg_keys.contains(&layout("goway").host_uninstall_key));
     assert!(!host::sshd_changed(&journal));
     assert!(host::created_task(&journal).is_none());
     assert!(host::restart_notices(&journal).is_empty());
+    assert!(host::restart_need(&journal).is_none());
     let report = revert(&mut journal, &mut sys).unwrap();
-    assert!(report.outcomes.iter().all(|(_, o)| *o == Outcome::Noop));
+    assert!(
+        report
+            .outcomes
+            .iter()
+            .all(|(i, o)| { *o == Outcome::Noop || is_arp(&journal.entries[*i].change) })
+    );
     assert_eq!(sys, before);
 }
 
@@ -588,4 +607,61 @@ fn a_journal_from_before_scoping_can_still_be_uninstalled() {
         spec: r#"{"port":2299,"description":"WSL sshd; goway-setup profile p","x":1}"#.into(),
     };
     assert!(host::validate_journal(&j, &l, &settings, Path::new(HOME)).is_err());
+}
+
+// frob:tests crates/goway-setup/src/entry.rs::host_uninstall_values
+// frob:tests crates/goway-setup/src/entry.rs::host_uninstall_string
+// frob:tests crates/goway-setup/src/entry.rs::host_display_name
+// frob:tests crates/goway-setup/src/host.rs::host_plan
+#[test]
+fn the_host_plan_registers_its_own_add_remove_programs_entry_running_the_protected_copy() {
+    use goway_journal::RegValue;
+    let l = layout("goway-test");
+    let plan = host_plan(
+        &l,
+        &params(2299, Keepalive::Logon, true),
+        &HostFacts::assumed(),
+    );
+    assert_eq!(
+        l.host_uninstall_key,
+        r"HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\goway-test-host"
+    );
+    assert!(matches!(&plan[0], Change::EnsureRegKey { key } if *key == l.host_uninstall_key));
+    let value = |name: &str| {
+        plan.iter().find_map(|c| match c {
+            Change::SetRegistryValue {
+                key,
+                name: n,
+                value,
+            } if *key == l.host_uninstall_key && n == name => Some(value.clone()),
+            _ => None,
+        })
+    };
+    assert_eq!(
+        value("DisplayName"),
+        Some(RegValue::String(
+            "goway helper (host, profile goway-test)".into()
+        ))
+    );
+    let RegValue::String(uninstall) = value("UninstallString").unwrap() else {
+        panic!("UninstallString is a string");
+    };
+    let protected = goway_setup::admin::protected_exe(&l.admin_dir);
+    assert_eq!(
+        uninstall,
+        format!(
+            "\"{}\" uninstall --host --profile goway-test",
+            protected.display()
+        )
+    );
+    assert!(
+        !uninstall.contains("Programs"),
+        "never the user-writable client copy"
+    );
+    assert_eq!(value("NoModify"), Some(RegValue::Dword(1)));
+    let default = layout("goway");
+    assert_eq!(
+        goway_setup::entry::host_display_name(&default.profile),
+        "goway helper (host)"
+    );
 }

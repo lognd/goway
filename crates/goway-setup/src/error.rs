@@ -38,6 +38,9 @@ pub enum SetupError {
     /// The host component needs administrator rights and cannot get them.
     #[error("the host component needs administrator rights (firewall rules): {0}")]
     NeedsAdmin(String),
+    /// WSL or the distro is not there; nothing was changed. The text holds the steps to fix it.
+    #[error("{0}")]
+    WslMissing(String),
     /// The WSL distro is missing or does not start.
     #[error("WSL distro {0} did not respond; check `wsl -l -v` and pass --distro NAME")]
     DistroUnreachable(String),

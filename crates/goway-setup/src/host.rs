@@ -7,9 +7,10 @@
 
 use std::path::PathBuf;
 
-use goway_journal::{Change, Entry, Journal, Prior, ResourceKind};
+use goway_journal::{Change, Entry, Journal, Prior, RegValue, ResourceKind};
 use serde::{Deserialize, Serialize};
 
+use crate::entry::host_uninstall_values;
 use crate::layout::{DEFAULT_PROFILE, Layout};
 
 /// Default TCP port of the WSL sshd.
@@ -292,7 +293,8 @@ fn resource(kind: ResourceKind, name: String, spec: &impl Serialize) -> Change {
 
 /// The changes of the host component, in application order (reverted in the opposite order).
 ///
-/// Windows side: `.wslconfig` mirrored networking, the inbound firewall rule (Private and Domain
+/// Windows side: the machine-wide Add/Remove Programs entry that uninstalls the host from its
+/// protected copy, `.wslconfig` mirrored networking, the inbound firewall rule (Private and Domain
 /// profiles, local subnet plus `--allow-from` only), the Hyper-V
 /// firewall rule (when the cmdlets exist) and the keepalive task. WSL side: systemd in
 /// `/etc/wsl.conf`, the sshd package, the port (and optional hardening) drop-ins, and sshd
@@ -302,7 +304,21 @@ pub fn host_plan(layout: &Layout, params: &HostParams, facts: &HostFacts) -> Vec
     let profile = layout.profile.as_str();
     let port = params.port;
     let note = format!("goway-setup profile {profile}");
-    let mut plan = vec![
+    // The Add/Remove Programs entry goes first so it is reverted last: if an uninstall stops
+    // halfway, the entry that lets the user finish it is still there.
+    let mut plan = vec![Change::EnsureRegKey {
+        key: layout.host_uninstall_key.clone(),
+    }];
+    plan.extend(
+        host_uninstall_values(layout, env!("CARGO_PKG_VERSION"))
+            .into_iter()
+            .map(|(name, value)| Change::SetRegistryValue {
+                key: layout.host_uninstall_key.clone(),
+                name: name.to_owned(),
+                value,
+            }),
+    );
+    plan.extend([
         Change::SetIniKey {
             path: params.home.join(".wslconfig"),
             section: "wsl2".into(),
@@ -318,7 +334,7 @@ pub fn host_plan(layout: &Layout, params: &HostParams, facts: &HostFacts) -> Vec
                 scope: Scope::new(&params.allow_from),
             },
         ),
-    ];
+    ]);
     if facts.hyperv_firewall {
         plan.push(resource(
             ResourceKind::HyperVFirewallRule,
@@ -436,6 +452,88 @@ pub fn restart_notices(journal: &Journal) -> Vec<String> {
     notices
 }
 
+/// Which WSL restarts the install made necessary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RestartNeed {
+    /// `.wslconfig` changed (mirrored networking): only `wsl --shutdown` applies it.
+    pub shutdown: bool,
+    /// `/etc/wsl.conf` changed: restarting the one distro applies it.
+    pub terminate: bool,
+}
+
+impl RestartNeed {
+    /// Whether no restart is needed.
+    pub fn is_none(self) -> bool {
+        !self.shutdown && !self.terminate
+    }
+
+    /// The exact command that applies the change (`wsl --shutdown` covers the distro restart too).
+    pub fn command(self, distro: &str) -> Option<String> {
+        if self.shutdown {
+            Some("wsl --shutdown".to_owned())
+        } else if self.terminate {
+            Some(format!("wsl --terminate {distro}"))
+        } else {
+            None
+        }
+    }
+
+    /// Plain words for what the restart does to the user's open Linux windows.
+    pub fn consequence(self) -> &'static str {
+        if self.shutdown {
+            "This closes every open Linux (WSL) window on this laptop, so save your work in them first."
+        } else {
+            "This closes the open windows of that Linux distro, so save your work in them first."
+        }
+    }
+}
+
+/// The restarts the live entries of `journal` call for.
+pub fn restart_need(journal: &Journal) -> RestartNeed {
+    let mut need = RestartNeed::default();
+    for e in journal.entries.iter().filter(|e| changed(e)) {
+        match &e.change {
+            Change::SetIniKey { key, .. } if key == "networkingMode" => need.shutdown = true,
+            c @ Change::SetIniKey { .. } if is_wsl_conf(c) => need.terminate = true,
+            _ => {}
+        }
+    }
+    need
+}
+
+/// What to do about a needed restart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RestartAction {
+    /// Nothing to restart.
+    Nothing,
+    /// Ask on the console whether to restart now.
+    Ask,
+    /// Do not ask; print the exact command for the user to run when ready.
+    PrintCommand,
+}
+
+/// Decide how to treat a needed restart: ask only on a console, never with `--yes` or
+/// `--no-activate` (the latter is how live machines are protected from any restart).
+pub fn restart_action(
+    need: RestartNeed,
+    yes: bool,
+    activate: bool,
+    console: bool,
+) -> RestartAction {
+    if need.is_none() {
+        RestartAction::Nothing
+    } else if yes || !activate || !console {
+        RestartAction::PrintCommand
+    } else {
+        RestartAction::Ask
+    }
+}
+
+/// Whether a console answer means yes; anything but y or yes (including empty) is no.
+pub fn is_yes(answer: &str) -> bool {
+    matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes")
+}
+
 /// Whether the journal creates or removes the distro's port drop-in (the listening port changes).
 pub fn dropin_in_journal(journal: &Journal, profile: &str) -> bool {
     let want = port_dropin_path(profile);
@@ -542,6 +640,30 @@ fn legacy_variant(change: &Change) -> Option<Change> {
     })
 }
 
+/// The change with the recorded `DisplayVersion` of the host's Add/Remove Programs entry replaced
+/// by this build's version, so an uninstaller of another version still accepts the entry; only a
+/// short plain version string qualifies, anything else stays as recorded (and is then refused).
+fn normalize_version(change: &Change, layout: &Layout) -> Change {
+    if let Change::SetRegistryValue {
+        key,
+        name,
+        value: RegValue::String(v),
+    } = change
+        && *key == layout.host_uninstall_key
+        && name == "DisplayVersion"
+        && v.len() <= 32
+        && v.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'))
+    {
+        return Change::SetRegistryValue {
+            key: key.clone(),
+            name: name.clone(),
+            value: RegValue::String(env!("CARGO_PKG_VERSION").to_owned()),
+        };
+    }
+    change.clone()
+}
+
 /// Refuse a host journal holding anything the host plan for `settings` could not have produced.
 ///
 /// Run by the elevated uninstall before it reverts a single entry (see
@@ -571,7 +693,7 @@ pub fn validate_journal(
                 format!("resource name {name:?} contains wildcard characters"),
             );
         }
-        if !allowed.contains(&entry.change) {
+        if !allowed.contains(&normalize_version(&entry.change, layout)) {
             return refuse(
                 index,
                 format!("{:?} is not a change the host install makes", entry.change),
