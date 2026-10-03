@@ -2,7 +2,8 @@
 id = "01M41QWW2EGAQGFSV4QNKCC1DM"
 title = "Install and uninstall through uv, pipx, pip and cargo: documented, and goway uninstall removes the program however it was installed"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
