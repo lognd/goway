@@ -2,7 +2,8 @@
 id = "01M41K9Y2VNX7T4HRTW0MWPSWG"
 title = "Screen-reader friendly output: --plain renders tables as labelled lines"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
