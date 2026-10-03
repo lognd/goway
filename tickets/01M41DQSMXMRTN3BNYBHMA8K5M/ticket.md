@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T17:42:08Z"
-updated = "2026-10-03T21:37:46Z"
+updated = "2026-10-03T21:37:47Z"
 scope = ["scripts/windows/**", ".github/workflows/release.yml", "docs/install-windows.md", "docs/release.md"]
 
 [[acceptance]]
