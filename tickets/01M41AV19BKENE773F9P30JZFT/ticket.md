@@ -2,13 +2,13 @@
 id = "01M41AV19BKENE773F9P30JZFT"
 title = "Positioning and coexistence: goway's niche versus other distributed build systems"
 type = "docs"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:51:28Z"
-updated = "2026-10-03T16:51:28Z"
+updated = "2026-10-03T16:51:34Z"
 scope = ["docs/positioning.md", "README.md"]
 
 [[acceptance]]
