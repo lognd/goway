@@ -25,7 +25,7 @@ chmods, and it can be undone.
    - the first default identity (from `ssh -G`) that has a `.pub`
      next to it, else
    - a new ed25519 key in **goway's config dir**
-     (`~/.config/goway/id_ed25519`, `%APPDATA%\goway\id_ed25519`).
+     (`~/.config/goway/id_ed25519`, `%LOCALAPPDATA%\goway\id_ed25519`).
      goway never writes to your `~/.ssh` on the client. On Windows the
      key's ACL is reduced to your user
      (`icacls KEY /inheritance:r /grant:r USER:F`), because Windows

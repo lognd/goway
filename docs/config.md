@@ -4,9 +4,13 @@ goway keeps three local files:
 
 | File | Linux | Windows | Contents |
 |---|---|---|---|
-| config | `~/.config/goway/config.toml` | `%APPDATA%\goway\config.toml` | defaults and the host pool (you edit this) |
-| pinned keys | `~/.config/goway/known_hosts` | `%APPDATA%\goway\known_hosts` | one ssh host key per host, stored under `goway-<name>` |
+| config | `~/.config/goway/config.toml` | `%LOCALAPPDATA%\goway\config.toml` | defaults and the host pool (you edit this) |
+| pinned keys | `~/.config/goway/known_hosts` | `%LOCALAPPDATA%\goway\known_hosts` | one ssh host key per host, stored under `goway-<name>` |
 | state | `~/.local/state/goway/hosts.json` | `%LOCALAPPDATA%\goway\hosts.json` | last working address per host (a cache that is safe to delete) |
+
+On Windows everything lives in the local profile (`%LOCALAPPDATA%`), never the roaming one
+(`%APPDATA%`), because goway's unencrypted private key is kept there and the roaming profile is
+copied to domain servers. An older `%APPDATA%\goway` directory is moved over on first run.
 
 `GOWAY_CONFIG_DIR` and `GOWAY_STATE_DIR` override these directories.
 `goway config path` prints the paths in effect. On Unix, ssh connection

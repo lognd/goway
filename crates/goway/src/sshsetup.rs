@@ -154,14 +154,49 @@ fn read_public_key(host: &str, path: &Path) -> Result<String> {
     }
 }
 
-/// The `icacls` arguments that leave only `user` on a private key.
-pub fn icacls_args(path: &Path, user: &str) -> Vec<String> {
+/// The `icacls` arguments that leave only `principal` on a private key: the grant comes first,
+/// so a failed grant never leaves a key with its inheritance removed and nobody allowed. The
+/// principal is a SID spelled `*S-1-5-...` (never a name taken from the environment).
+pub fn icacls_args(path: &Path, principal: &str) -> Vec<String> {
     vec![
         path.display().to_string(),
-        "/inheritance:r".to_owned(),
         "/grant:r".to_owned(),
-        format!("{user}:F"),
+        format!("{principal}:F"),
+        "/inheritance:r".to_owned(),
     ]
+}
+
+/// The user SID in the CSV output of `whoami /user /fo csv /nh` (`"DOMAIN\\user","S-1-5-21-..."`),
+/// as the `*SID` form icacls accepts.
+pub fn parse_whoami_sid(text: &str) -> Option<String> {
+    let sid = text
+        .lines()
+        .find_map(|l| l.trim().rsplit(',').next())?
+        .trim()
+        .trim_matches('"');
+    let valid = sid.starts_with("S-1-")
+        && sid.ends_with(|c: char| c.is_ascii_digit())
+        && sid.len() <= 184
+        && sid
+            .chars()
+            .all(|c| c.is_ascii_digit() || matches!(c, 'S' | '-'));
+    valid.then(|| format!("*{sid}"))
+}
+
+/// A system tool by absolute path (`%SystemRoot%\System32`), never found through `PATH`.
+fn system32(tool: &str) -> PathBuf {
+    let root =
+        std::env::var_os("SystemRoot").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
+    root.join("System32").join(tool)
+}
+
+/// The invoking user's SID from the token (through `whoami`), not from `%USERNAME%`.
+fn current_user_sid() -> Option<String> {
+    let out = std::process::Command::new(system32("whoami.exe"))
+        .args(["/user", "/fo", "csv", "/nh"])
+        .output()
+        .ok()?;
+    parse_whoami_sid(&String::from_utf8_lossy(&out.stdout))
 }
 
 /// On Windows, OpenSSH refuses a private key others can read: keep only
@@ -170,9 +205,16 @@ fn restrict_key_acl(path: &Path, renderer: Renderer) {
     if !cfg!(windows) {
         return;
     }
-    let user = std::env::var("USERNAME").unwrap_or_default();
-    let ok = std::process::Command::new("icacls")
-        .args(icacls_args(path, &user))
+    let Some(principal) = current_user_sid() else {
+        renderer.warn(format_args!(
+            "could not tell who you are to restrict the ACL of {}; run `icacls <key> /grant:r \"%USERNAME%\":F /inheritance:r` yourself",
+            path.display()
+        ));
+        return;
+    };
+    let args = icacls_args(path, &principal);
+    let ok = std::process::Command::new(system32("icacls.exe"))
+        .args(&args)
         .output()
         .is_ok_and(|o| o.status.success());
     if ok {
@@ -181,7 +223,7 @@ fn restrict_key_acl(path: &Path, renderer: Renderer) {
         renderer.warn(format_args!(
             "could not restrict the ACL of {}; run: icacls {}",
             path.display(),
-            icacls_args(path, &user).join(" ")
+            args.join(" ")
         ));
     }
 }
@@ -539,19 +581,36 @@ mod tests {
     }
 
     #[test]
-    fn windows_key_acl_keeps_only_the_user() {
+    fn windows_key_acl_grants_the_sid_before_removing_inheritance() {
         assert_eq!(
             icacls_args(
-                Path::new(r"C:\Users\user\AppData\Roaming\goway\id_ed25519"),
-                "user"
+                Path::new(r"C:\Users\user\AppData\Local\goway\id_ed25519"),
+                "*S-1-5-21-1-2-3-1001"
             ),
             [
-                r"C:\Users\user\AppData\Roaming\goway\id_ed25519",
-                "/inheritance:r",
+                r"C:\Users\user\AppData\Local\goway\id_ed25519",
                 "/grant:r",
-                "user:F"
+                "*S-1-5-21-1-2-3-1001:F",
+                "/inheritance:r"
             ]
         );
+    }
+
+    #[test]
+    fn the_user_sid_is_read_from_whoami_csv_and_nothing_else() {
+        assert_eq!(
+            parse_whoami_sid("\"DESKTOP-X\\user\",\"S-1-5-21-1-2-3-1001\"\r\n").as_deref(),
+            Some("*S-1-5-21-1-2-3-1001")
+        );
+        for bad in [
+            "",
+            "ERROR: nope",
+            "\"a\",\"b\"",
+            "\"a\",\"S-1-5;calc\"",
+            "\"a\",\"S-1-\n",
+        ] {
+            assert_eq!(parse_whoami_sid(bad), None, "{bad:?}");
+        }
     }
 
     #[test]

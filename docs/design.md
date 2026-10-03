@@ -151,7 +151,7 @@ problem tree and the measured facts behind the design.
 
 ## 4. Configuration
 
-`~/.config/goway/config.toml` (Windows: `%APPDATA%\goway\config.toml`):
+`~/.config/goway/config.toml` (Windows: `%LOCALAPPDATA%\goway\config.toml`):
 
 ```toml
 [defaults]

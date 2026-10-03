@@ -5,6 +5,47 @@
 
 use std::path::PathBuf;
 
+/// Where an install that predates the move to the local profile kept its config on Windows
+/// (`%APPDATA%\goway`, which roams to domain servers), and where it lives now
+/// (`%LOCALAPPDATA%\goway`): the private key in it must not leave the machine.
+///
+/// Returns the directory to use: `local` when it exists or nothing needs moving; otherwise the
+/// legacy directory is renamed to `local` (the ACL moves with it), and only when that fails does
+/// the legacy path stay in use, so a failed move never loses a key.
+pub fn migrate_config_dir(legacy: &std::path::Path, local: &std::path::Path) -> PathBuf {
+    if legacy == local || local.exists() || !legacy.is_dir() {
+        return local.to_path_buf();
+    }
+    if let Some(parent) = local.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        tracing::warn!(error = %e, "could not create the local config parent; keeping the roaming directory");
+        return legacy.to_path_buf();
+    }
+    match std::fs::rename(legacy, local) {
+        Ok(()) => {
+            tracing::info!(from = %legacy.display(), to = %local.display(), "moved the config directory out of the roaming profile");
+            local.to_path_buf()
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "could not move the config directory; keeping the roaming one");
+            legacy.to_path_buf()
+        }
+    }
+}
+
+/// The default config directory: `~/.config/goway`, on Windows `%LOCALAPPDATA%\goway` (never
+/// the roaming profile), moving an older roaming directory over.
+fn default_config_dir() -> PathBuf {
+    #[cfg(windows)]
+    if let (Some(local), Some(roaming)) = (dirs::config_local_dir(), dirs::config_dir()) {
+        return migrate_config_dir(&roaming.join("goway"), &local.join("goway"));
+    }
+    dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("goway")
+}
+
 /// The local directories goway uses.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Paths {
@@ -19,16 +60,10 @@ pub struct Paths {
 impl Paths {
     /// Resolve from the environment, falling back to platform defaults
     /// (`~/.config/goway`, `~/.local/state/goway`; on Windows
-    /// `%APPDATA%\goway` and `%LOCALAPPDATA%\goway`).
+    /// both `%LOCALAPPDATA%\goway`).
     pub fn from_env() -> Self {
-        let config_dir = std::env::var_os("GOWAY_CONFIG_DIR").map_or_else(
-            || {
-                dirs::config_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join("goway")
-            },
-            PathBuf::from,
-        );
+        let config_dir =
+            std::env::var_os("GOWAY_CONFIG_DIR").map_or_else(default_config_dir, PathBuf::from);
         let state_dir = std::env::var_os("GOWAY_STATE_DIR").map_or_else(
             || {
                 dirs::state_dir()
@@ -77,6 +112,29 @@ impl Paths {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_existing_roaming_config_dir_moves_to_the_local_profile() {
+        let tmp = tempfile::tempdir().unwrap();
+        let legacy = tmp.path().join("Roaming").join("goway");
+        let local = tmp.path().join("Local").join("goway");
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::write(legacy.join("id_ed25519"), "key").unwrap();
+        assert_eq!(migrate_config_dir(&legacy, &local), local);
+        assert_eq!(
+            std::fs::read_to_string(local.join("id_ed25519")).unwrap(),
+            "key"
+        );
+        assert!(!legacy.exists());
+        // Nothing to move: the local directory is used as is, and an existing one wins.
+        assert_eq!(migrate_config_dir(&legacy, &local), local);
+        std::fs::create_dir_all(&legacy).unwrap();
+        assert_eq!(migrate_config_dir(&legacy, &local), local);
+        assert!(
+            legacy.exists(),
+            "an existing local directory is never merged over"
+        );
+    }
 
     #[test]
     fn files_live_under_their_dirs() {
