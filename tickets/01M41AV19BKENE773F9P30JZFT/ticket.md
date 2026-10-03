@@ -2,7 +2,8 @@
 id = "01M41AV19BKENE773F9P30JZFT"
 title = "Positioning and coexistence: goway's niche versus other distributed build systems"
 type = "docs"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
