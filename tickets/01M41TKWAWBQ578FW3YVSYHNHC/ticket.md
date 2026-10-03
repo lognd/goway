@@ -8,7 +8,7 @@ points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T21:27:11Z"
-updated = "2026-10-03T21:47:43Z"
+updated = "2026-10-03T21:47:45Z"
 scope = ["crates/goway/src/runners.rs", "crates/goway/src/shard.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/usage.md", "crates/goway/src/detect.rs", "crates/goway/src/run.rs", "crates/goway/src/gc.rs", "crates/goway/src/state.rs", "crates/goway/src/lib.rs"]
 
 [[acceptance]]
@@ -29,7 +29,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a GoogleTest shard, when it runs, then GOWAY sets GTEST_SHARD_STATUS_FILE and afterwards treats a missing status file as 'sharding not applied': a warning names the program, no rerun happens (each shard ran the whole suite, so results stand), and the report notes the duplicated work"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a Catch2 shard rejected with Catch2's unknown-option error before any test ran, when it ends, then goway warns, reruns that shard once without the shard flags, and records both attempts; any less certain failure is flagged and never rerun"
