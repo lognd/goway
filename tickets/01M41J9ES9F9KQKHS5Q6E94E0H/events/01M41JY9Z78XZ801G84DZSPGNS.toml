@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1, 2]
+captured_at = "2026-10-03T19:13:04Z"
+digest = "95f9b93c4e21c6c466f65a94175fd15b784f4590800e0c549dc3e4afb92ee49f"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID cb08def4-d544-406e-b13a-f376976497a5 with nextest profile: default
+    Starting 2 tests across 22 binaries (228 tests skipped)
+        PASS [   0.625s] goway::ssh_setup uninstall_everywhere_removes_goway_from_helper_and_laptop
+        PASS [   5.544s] goway::install_scripts goway_uninstall_reverts_the_install_journal_exactly
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   5.546s] 2 tests run: 2 passed, 228 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(uninstall_everywhere_removes_goway_from_helper_and_laptop) | test(goway_uninstall_reverts_the_install_journal_exactly)'"
+size = 670
+status = "measured"
+tests = ["uninstall_everywhere_removes_goway_from_helper_and_laptop", "goway_uninstall_reverts_the_install_journal_exactly"]
+at = "2026-10-03T19:13:04Z"
+actor = "lognd"
+rev = 1

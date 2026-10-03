@@ -8,15 +8,15 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:01:41Z"
-updated = "2026-10-03T19:09:08Z"
+updated = "2026-10-03T19:13:04Z"
 labels = ["newcomer"]
 scope = ["crates/goway/**", "docs/usage.md", "docs/install-linux.md", "scripts/uninstall.sh"]
 
 [[acceptance]]
 text = "Given a laptop with goway set up for helpers, when goway uninstall --everywhere runs, then each helper loses goway's remote state, the authorized key line and the tools goway installed, and this laptop loses goway's config, state and binary"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway uninstall without --everywhere, when it runs, then it lists exactly what it would remove on each machine and asks before removing"
-bound = false
+bound = true
 +++
