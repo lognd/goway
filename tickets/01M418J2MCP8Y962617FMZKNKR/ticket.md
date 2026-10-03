@@ -9,7 +9,7 @@ parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:37Z"
 updated = "2026-10-03T16:11:55Z"
-scope = ["crates/goway/**", "docs/**", "Cargo.toml", "Cargo.lock", "clippy.toml"]
+scope = ["crates/goway/**", "docs/**", "Cargo.toml", "Cargo.lock", "clippy.toml", "rustfmt.toml"]
 
 [[acceptance]]
 text = "Given the workspace, when cargo clippy runs, then print macros outside render.rs are denied"
