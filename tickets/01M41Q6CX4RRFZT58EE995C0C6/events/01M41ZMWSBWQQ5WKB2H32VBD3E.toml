@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T22:55:07Z"
+digest = "6c12c145233070499de5ad83152af3efd693db1a11faaaa7c18b9da622aa54ad"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2eb9f89b-d95a-4143-86bc-100eac2c3ad9 with nextest profile: default
+    Starting 2 tests across 38 binaries (443 tests skipped)
+        PASS [   0.087s] goway::host_add host_add_never_takes_the_windows_side_for_the_wsl_host
+        PASS [   0.260s] goway::host_add host_add_detects_a_windows_machine_and_records_its_kind
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.262s] 2 tests run: 2 passed, 443 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(host_add_detects_a_windows_machine_and_records_its_kind) | test(host_add_never_takes_the_windows_side_for_the_wsl_host)'"
+size = 663
+status = "measured"
+tests = ["host_add_never_takes_the_windows_side_for_the_wsl_host", "host_add_detects_a_windows_machine_and_records_its_kind"]
+at = "2026-10-03T22:55:07Z"
+actor = "lognd"
+rev = 1
