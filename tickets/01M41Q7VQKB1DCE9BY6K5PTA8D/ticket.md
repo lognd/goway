@@ -2,13 +2,13 @@
 id = "01M41Q7VQKB1DCE9BY6K5PTA8D"
 title = "Uninstall replays only known undo actions; install journal revert is scoped; cargo undo spares a pre-existing ~/.cargo"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:28:11Z"
-updated = "2026-10-03T20:28:11Z"
+updated = "2026-10-03T20:28:15Z"
 scope = ["crates/goway/src/uninstall.rs", "crates/goway/src/doctor.rs", "crates/goway/src/remote.sh", "crates/goway/tests/uninstall_records.rs", "crates/goway/tests/install_scripts.rs", "scripts/uninstall.sh", "docs/usage.md"]
 
 [[acceptance]]
