@@ -227,7 +227,11 @@ run() {
   if [ -z "${RUSTC_WRAPPER+set}" ] && command -v sccache >/dev/null 2>&1; then
     export RUSTC_WRAPPER=sccache
     export SCCACHE_DIR="${SCCACHE_DIR:-$cache/sccache}"
-    export SCCACHE_SERVER_PORT="${SCCACHE_SERVER_PORT:-$((4300 + 16#${repo_id:0:4} % 1000))}"
+    # A unix socket in the owner-only cache dir: no TCP port another user
+    # on the host could reach or squat (unless the user chose an endpoint).
+    if [ -z "${SCCACHE_SERVER_PORT:-}" ] && [ -z "${SCCACHE_SERVER_UDS:-}" ]; then
+      export SCCACHE_SERVER_UDS="$cache/sccache.sock"
+    fi
     # sccache's server is the one process allowed to outlive a run (it
     # keeps the cache warm); make it leave soon after the last build.
     export SCCACHE_IDLE_TIMEOUT="${SCCACHE_IDLE_TIMEOUT:-300}"

@@ -639,3 +639,28 @@ fn env_values_never_appear_in_ssh_arguments_or_logs() {
         "value in goway's log: {stderr}"
     );
 }
+
+#[test]
+fn sccache_listens_on_an_owner_only_socket_not_a_tcp_port() {
+    let has_sccache = Command::new("sh")
+        .args(["-c", "command -v sccache"])
+        .status()
+        .is_ok_and(|s| s.success());
+    if !has_sccache {
+        return;
+    }
+    let w = world();
+    let out = w.run(&[
+        "run",
+        "--",
+        "sh",
+        "-c",
+        "echo uds=$SCCACHE_SERVER_UDS port=${SCCACHE_SERVER_PORT:-none}",
+    ]);
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(text.contains("port=none"), "{text}");
+    assert!(
+        text.contains("/cache/") && text.contains("sccache.sock"),
+        "{text}"
+    );
+}

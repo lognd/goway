@@ -64,7 +64,7 @@ On the remote, a job sees these variables:
 | `GOWAY_HOST` | the host's hostname |
 | `GOWAY_RUN_ID` | the run's id |
 | `CARGO_TARGET_DIR` | a free per-repository target slot, unless already set |
-| `RUSTC_WRAPPER`, `SCCACHE_DIR`, `SCCACHE_SERVER_PORT`, `SCCACHE_IDLE_TIMEOUT` | sccache with a per-repository cache, port and a 300 s idle timeout. These are set only when sccache is installed and `RUSTC_WRAPPER` is unset, and each one only if it is still unset. |
+| `RUSTC_WRAPPER`, `SCCACHE_DIR`, `SCCACHE_SERVER_UDS`, `SCCACHE_IDLE_TIMEOUT` | sccache with a per-repository cache, a server socket in goway's owner-only cache directory (no TCP port), and a 300 s idle timeout. These are set only when sccache is installed and `RUSTC_WRAPPER` is unset, and each one only if it is still unset. |
 
 The remote environment, `~/.cargo/env` and `--env KEY=VALUE` values are
 applied first. goway only fills in what is still unset, so your settings
