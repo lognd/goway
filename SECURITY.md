@@ -62,6 +62,13 @@ fall into one of these areas:
   administrator rights and reads its state only from an
   administrator-only directory. Any way for a non-administrator to
   influence what it does is in scope, and is treated as high severity.
+- **Copy integrity.** goway verifies the helper's copy of your tree by
+  SHA-256 before every run and again when a command fails (see
+  [docs/usage.md](docs/usage.md)). These checks guard against goway's own
+  bugs (a stale or damaged copy), not against a compromised helper: a
+  helper under an attacker's control can already report any hash, run any
+  command and read everything sent to it. Helper answers are parsed
+  strictly and with bounds, but a verified copy is not a trusted helper.
 - **Output.** goway strips control and invisible format characters
   (including bidi controls) from everything it prints itself, indents the
   continuation lines of host-supplied text so none can pass for a

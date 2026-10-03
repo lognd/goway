@@ -133,6 +133,22 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
    3. Cargo: `CARGO_TARGET_DIR` is the first free target slot of the repo
       (new slot when all are busy, up to `target_slots`); sccache is used
       when installed, with a per-repo `SCCACHE_DIR`.
+   4a. Copy integrity (`Gate` in `run.rs`, `claims`/`verify_gate` in
+      `remote.sh`). The run verb publishes claims about its slot tree in
+      `work/<run>/verify.<phase>` (phase 1: every path the sync wrote, or
+      all synced files for a distrusted repository; phase 2: after a
+      non-zero exit, every synced file whose ctime did not change during
+      the command) and blocks on `verdict.<phase>`. goway reads them with
+      separate `verify-wait` calls (so stdio of the job is untouched),
+      compares with the local files and answers with `verify-verdict`.
+      Claims are `f SOH sha256 SOH path` and `l SOH target SOH path`
+      records, parsed strictly (64 lowercase hex digits, plain relative
+      paths, bounded count and length). A bad verdict makes the helper
+      wipe the slot tree, its target dir and the seed (never refilled from
+      a sibling seed) and exit 125; goway then reruns as attempt 2 (the
+      attempt number is an explicit `verify:N:level[:fresh]` word of the
+      run verb), and attempt 2 never reruns. A proven mismatch is stored
+      per host and repository in local state (`distrust`, 7 days).
    4. stdout and stderr stream through (byte for byte unless a stream is a
       terminal, where control sequences other than colors are stripped; see
       docs/usage.md); goway's own lines go to

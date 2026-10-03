@@ -120,6 +120,10 @@ pub struct RunArgs {
     /// a host that lacks it is still used when it is the best otherwise.
     #[arg(long, value_name = "TERM", value_delimiter = ',')]
     pub prefers: Vec<String>,
+    /// Skip the extra copy verification a repository gets after a proven
+    /// mismatch, for this run only (changed files are still checked).
+    #[arg(long)]
+    pub trust_copy: bool,
     /// Extra environment for the remote command (KEY=VALUE, repeatable).
     #[arg(long = "env", short = 'e', value_name = "KEY=VALUE")]
     pub env: Vec<String>,

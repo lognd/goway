@@ -91,7 +91,7 @@ manifest() {
   mark_root "$root"
   if [ ! -d "$seed/tree" ]; then
     lock_dir 8 "$seed" -x
-    [ -d "$seed/tree" ] || seed_from_sibling "$seed"
+    [ -d "$seed/tree" ] || [ -e "$seed/fresh" ] || seed_from_sibling "$seed"
   fi
   lock_dir 8 "$seed" -s
   [ -d "$seed/tree" ] || return 0
@@ -183,6 +183,7 @@ receive() {
     (cd "$seed/changes" && ls | sort -n | head -n -"$LOG_KEEP" | xargs -r rm -f --)
   fi
   rm -f "$seed"/changes.*
+  rm -f "$seed/fresh"
   tar -x --unlink-first --recursive-unlink --no-same-owner -C "$seed/tree" -f -
   find "$seed/tree" -mindepth 1 -depth -type d -empty -delete
   if [ -n "${5:-}" ]; then
@@ -359,6 +360,12 @@ sync_slot() {
       (cd "$slot" && xargs -0 -r touch -h -d "@$stamp" -- <"$tmp/todo.p")
     fi
   fi
+  # What the copy-integrity check (verify_gate) looks at: the regular files
+  # and symlinks this sync wrote, and all of the snapshot's.
+  comm -z -12 "$tmp/todo.p" "$tmp/reg.p" >"$work/written.reg"
+  comm -z -23 "$tmp/todo.p" "$tmp/reg.p" >"$work/written.lnk"
+  cp "$tmp/reg.p" "$work/all.reg"
+  comm -z -23 "$tmp/snap.p" "$tmp/reg.p" >"$work/all.lnk"
   # What the next reconcile compares against: the snapshot and the slot as
   # they are now (the job's changes show up as differences from the latter).
   cp "$tmp/snap" "$slot.farm"
@@ -366,6 +373,122 @@ sync_slot() {
   printf '%s %s' "$seedkey" "$(cat "$work/seqinfo" 2>/dev/null)" >"$slot.state"
   printf 'written=%s removed=%s\n' "$written" "$removed" >"$slot.stats"
   rm -rf "$tmp"
+}
+
+# claims DIR REG_LIST LNK_LIST: what DIR holds for the named paths, as
+# NUL-terminated records "f SOH sha256 SOH path" (regular files) and
+# "l SOH target SOH path" (symlinks). The lists are NUL-separated paths
+# relative to DIR. GOWAY_TEST_CORRUPT (tests only) falsifies the first hash.
+claims() {
+  local dir=$1 p corrupt=0
+  # Test hook: 1 falsifies every verification, first only attempt 1's, after
+  # only the post-failure check of attempt 1.
+  case "${GOWAY_TEST_CORRUPT:-}" in
+    1) corrupt=1 ;;
+    first) [ "${attempt:-1}" = 1 ] && corrupt=1 ;;
+    after) [ "${attempt:-1}" = 1 ] && [ "${phase:-1}" = 2 ] && corrupt=1 ;;
+  esac
+  (cd "$dir" && xargs -0 -r sha256sum -z -- <"$2" 2>/dev/null || true) |
+    sed -z "s/^\\(.\\{64\\}\\)  /f$SOH\\1$SOH/" |
+    if [ $corrupt = 1 ]; then
+      sed -z "1s/^f$SOH.\\{64\\}/f${SOH}0000000000000000000000000000000000000000000000000000000000000000/"
+    else cat; fi
+  while IFS= read -r -d '' p; do
+    printf 'l%s%s%s%s\0' "$SOH" "$(cd "$dir" && readlink -- "$p")" "$SOH" "$p"
+  done <"$3"
+}
+
+# slot_wipe SLOT_NUMBER CACHE [SEEDKEY ROOT]: throw away a slot's tree, its
+# state and its cargo target dir; with SEEDKEY also the seed this run was
+# given (marked so it is rebuilt from the laptop, never from a sibling seed),
+# so the next attempt copies everything again.
+slot_wipe() {
+  local slot=$1 cache=$2 seedkey=${3:-} root=${4:-}
+  rm -rf "$cache/tree-$slot" "$cache/target-$slot" "$cache"/tree-"$slot".{farm,slot,state,stats}
+  case "$seedkey" in "" | *[!A-Za-z0-9._/-]* | */../* | ../* | *..) return 0 ;; esac
+  if [ -d "$root/seed/$seedkey" ]; then
+    rm -rf "$root/seed/$seedkey/tree" "$root/seed/$seedkey/generation" "$root/seed/$seedkey/changes"
+    : >"$root/seed/$seedkey/fresh"
+  fi
+  return 0
+}
+
+# tree_stamps DIR: sorted records "ctime SOH size SOH path" of DIR's files
+# and links (NUL-terminated).
+tree_stamps() {
+  find "$1" -mindepth 1 \( -type f -o -type l \) -printf "%C@${SOH}%s${SOH}%P\\0" | sort -z
+}
+
+# verify_gate WORK PHASE DIR REG LNK: publish the claims about the named files
+# (verify.PHASE) and block until goway answers with a verdict (verdict.PHASE:
+# ok or bad). Returns 0 for ok; 1 for bad, or when no answer comes (goway
+# went away or never answered within two minutes).
+verify_gate() {
+  local work=$1 phase=$2 i v
+  { printf 'goway-verify1\0'; claims "$3" "$4" "$5"; } >"$work/verify.$phase.tmp"
+  mv "$work/verify.$phase.tmp" "$work/verify.$phase"
+  for ((i = 0; i < 1200; i++)); do
+    if [ -f "$work/verdict.$phase" ]; then
+      v=$(cat "$work/verdict.$phase")
+      [ "$v" = ok ] && return 0
+      return 1
+    fi
+    kill -0 "$PPID" 2>/dev/null || return 1
+    sleep 0.1
+  done
+  return 1
+}
+
+# verify_failed PHASE: goway judged the copy bad (or never answered): wipe the
+# slot and the seed, say so, and stop. Uses run's variables (dynamic scope).
+verify_failed() {
+  printf 'goway-remote: the copy of the tree on this host did not verify (phase %s); slot %s is discarded\n' \
+    "$1" "$slot" >&2
+  slot_wipe "$slot" "$cache" "$(cat "$work/seed" 2>/dev/null || true)" "$root"
+  rm -rf "$work"
+  exit 125
+}
+
+# verify_wait ROOT RUN_ID PHASE [SECONDS]: for goway's control call. Prints
+# "ready" and the claims once the run published them, "ended" once the run is
+# over, or "pending" after SECONDS (default 10, at most 55: ask again).
+verify_wait() {
+  local root work i seen=0 window=${4:-10}
+  case "$window" in "" | *[!0-9]*) die "verify-wait: bad window" ;; esac
+  [ "$window" -le 55 ] || window=55
+  root=$(root_dir "$1"); work="$root/work/$2"
+  case "$2$3" in *[!A-Za-z0-9-]* | "") die "verify-wait: bad argument" ;; esac
+  for ((i = 0; i < window * 10; i++)); do
+    if [ -f "$work/verify.$3" ]; then
+      printf 'ready\n'
+      cat "$work/verify.$3"
+      return 0
+    fi
+    if [ -f "$work/lock" ]; then
+      if flock -n "$work/lock" true 2>/dev/null; then
+        seen=$((seen + 1))
+        [ $seen -ge 3 ] && { printf 'ended\n'; return 0; }
+      else
+        seen=0
+      fi
+    elif [ ! -d "$work" ]; then
+      printf 'ended\n'
+      return 0
+    fi
+    sleep 0.1
+  done
+  printf 'pending\n'
+}
+
+# verify_verdict ROOT RUN_ID PHASE ok|bad: goway's answer to verify_gate.
+verify_verdict() {
+  local root work
+  root=$(root_dir "$1"); work="$root/work/$2"
+  case "$2$3" in *[!A-Za-z0-9-]* | "") die "verify-verdict: bad argument" ;; esac
+  case "$4" in ok | bad) ;; *) die "verify-verdict: bad verdict" ;; esac
+  [ -d "$work" ] || die "verify-verdict: no work dir"
+  printf '%s' "$4" >"$work/verdict.$3.tmp"
+  mv "$work/verdict.$3.tmp" "$work/verdict.$3"
 }
 
 # Kill the job's process group when the ssh session that started it dies
@@ -659,11 +782,17 @@ run() {
   shift 10
   # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
   # framework detection of the command's program (see shard_run).
-  local detect="" gpu_per=""
+  local detect="" gpu_per="" verify="" fresh=0 attempt=1 level=changed
   while [ $# -gt 0 ] && [ "$1" != "--" ]; do
     case "$1" in
       shard-detect:[0-9]*:[0-9]*:[A-Za-z0-9]*) detect=${1#shard-detect:} ;;
       gpu-slots:[0-9]*) gpu_per=${1#gpu-slots:} ;;
+      verify:[12]:changed | verify:[12]:all | verify:[12]:changed:fresh | verify:[12]:all:fresh)
+        # The attempt number is goway's explicit argument, never read from
+        # the environment or from anything the helper reports.
+        verify=1; attempt=${1#verify:}; attempt=${attempt%%:*}
+        level=${1#verify:?:}; level=${level%%:*}
+        case "$1" in *:fresh) fresh=1 ;; esac ;;
       *) die "run: unknown option $1" ;;
     esac
     shift
@@ -732,9 +861,27 @@ run() {
   # file!()), and cargo reuses them when only the workspace moved. So a
   # slot's binaries always run against a tree at the same path: tree-<slot>.
   rundir="$cache/tree-$slot"
+  # A fresh copy (the second attempt, or a distrusted repository): no tree,
+  # target dir or seed of an earlier run is trusted.
+  if [ $fresh = 1 ] || [ "$attempt" = 2 ]; then
+    slot_wipe "$slot" "$cache"
+    printf 'goway: building slot %s from scratch (attempt %s)\n' "$slot" "$attempt" >&2
+  fi
   sync_slot "$work/tree" "$rundir" "$work" "$keepignored" "$keepb64" "$(cat "$work/seed" 2>/dev/null || true)" "$cache/target-$slot"
   # The snapshot has done its job; its links hold no data of their own.
   rm -rf "$work/tree"
+  # Copy integrity, before the command may start: goway compares what this
+  # sync wrote (everything, when distrusted) with the laptop's files.
+  if [ -n "$verify" ]; then
+    if [ "$level" = all ]; then
+      verify_gate "$work" 1 "$rundir" "$work/all.reg" "$work/all.lnk" || verify_failed 1
+    else
+      verify_gate "$work" 1 "$rundir" "$work/written.reg" "$work/written.lnk" || verify_failed 1
+    fi
+  fi
+  # What the tree looked like (ctime, size) when the command started: a file
+  # whose record changes was changed by the command, not by the copy.
+  tree_stamps "$rundir" >"$work/stamps.before"
   if [ -z "${CARGO_TARGET_DIR:-}" ]; then
     export CARGO_TARGET_DIR="$cache/target-$slot"
   fi
@@ -779,6 +926,16 @@ run() {
   fi
   kill "$wd" 2>/dev/null || true
   cd "$root"
+  # A failed command: before blaming the code, goway compares every synced
+  # file the command did not itself change with the laptop's.
+  if [ -n "$verify" ] && [ "$rc" -ne 0 ] && kill -0 "$PPID" 2>/dev/null; then
+    tree_stamps "$rundir" >"$work/stamps.after"
+    comm -z -12 "$work/stamps.before" "$work/stamps.after" | sed -z "s/^\\([^$SOH]*$SOH\\)\\{2\\}//" |
+      sort -z >"$work/untouched"
+    comm -z -12 "$work/all.reg" "$work/untouched" >"$work/after.reg"
+    comm -z -12 "$work/all.lnk" "$work/untouched" >"$work/after.lnk"
+    verify_gate "$work" 2 "$rundir" "$work/after.reg" "$work/after.lnk" || verify_failed 2
+  fi
   if [ "$keep" = 1 ]; then cp -a --reflink=auto "$rundir" "$work/tree"; fi
   if [ "$keep" != 1 ]; then rm -rf "$work"; fi
   # Cheap automatic gc of expired entries, detached so it never delays
@@ -1032,6 +1189,8 @@ case "$verb" in
   hashes) hashes "$@" ;;
   deletions) deletions "$@" ;;
   changes) changes "$@" ;;
+  verify-wait) verify_wait "$@" ;;
+  verify-verdict) verify_verdict "$@" ;;
   run) run "$@" ;;
   envfile) envfile "$@" ;;
   probe) probe "$@" ;;

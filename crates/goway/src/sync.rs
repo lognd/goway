@@ -568,6 +568,18 @@ pub struct Stats {
     pub kept_local: Vec<String>,
     /// Files under a symlinked directory (not sent).
     pub behind_links: Vec<String>,
+    /// The files this sync was made from (for the copy-integrity check).
+    pub manifest: Manifest,
+}
+
+/// The local file set a sync was made from, as it was then.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct Manifest(pub Vec<LocalFile>);
+
+impl std::fmt::Debug for Manifest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Manifest({} files)", self.0.len())
+    }
 }
 
 /// Runs remote script invocations; ssh in production, a local shell in tests.
@@ -778,6 +790,174 @@ pub fn parse_hashes(bytes: &[u8]) -> BTreeMap<String, String> {
         .collect()
 }
 
+/// Most claims one verification answer may carry.
+pub const MAX_CLAIMS: usize = 400_000;
+/// Longest path or link target a claim may name.
+const MAX_CLAIM_TEXT: usize = 4096;
+
+/// What a helper says one path of its copy holds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Claim {
+    /// A regular file with this SHA-256 (64 lowercase hex digits).
+    File(String),
+    /// A symlink to this target.
+    Link(String),
+}
+
+/// Parse a helper's verification answer: a `goway-verify1` header record,
+/// then `f SOH sha256 SOH path` and `l SOH target SOH path` records, each
+/// NUL-terminated. Strict and bounded: any malformed record, an oversized
+/// path, a hash that is not 64 lowercase hex digits, a path that is not
+/// plain relative, or more than [`MAX_CLAIMS`] records is an error, never
+/// a guess.
+pub fn parse_claims(bytes: &[u8]) -> std::result::Result<Vec<(String, Claim)>, String> {
+    let mut records = bytes.split(|b| *b == 0);
+    if records.next() != Some(b"goway-verify1") {
+        return Err("the answer does not start with the goway-verify1 header".to_owned());
+    }
+    let mut claims = Vec::new();
+    let mut rest: Vec<&[u8]> = records.collect();
+    // The split leaves one empty slice after the final terminator.
+    if rest.last().is_some_and(|r| r.is_empty()) {
+        rest.pop();
+    }
+    if rest.len() > MAX_CLAIMS {
+        return Err(format!("more than {MAX_CLAIMS} claims"));
+    }
+    for rec in rest {
+        let mut parts = rec.splitn(3, |b| *b == 1);
+        let (Some(kind), Some(value), Some(path)) = (parts.next(), parts.next(), parts.next())
+        else {
+            return Err("a claim is not `kind, value, path`".to_owned());
+        };
+        let text = |b: &[u8]| {
+            if b.len() > MAX_CLAIM_TEXT {
+                return Err("a claim names an oversized path".to_owned());
+            }
+            String::from_utf8(b.to_vec()).map_err(|_| "a claim is not UTF-8".to_owned())
+        };
+        let path = text(path)?;
+        if path.is_empty()
+            || path.starts_with('/')
+            || path
+                .split('/')
+                .any(|c| c == ".." || c.is_empty() || c == ".")
+        {
+            return Err(format!(
+                "a claim names a path that is not plain and relative: {path:?}"
+            ));
+        }
+        let claim = match kind {
+            b"f" => {
+                let hash = text(value)?;
+                if hash.len() != 64 || !hash.bytes().all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f'))
+                {
+                    return Err("a claim's hash is not 64 lowercase hex digits".to_owned());
+                }
+                Claim::File(hash)
+            }
+            b"l" => Claim::Link(text(value)?),
+            _ => return Err("a claim has an unknown kind".to_owned()),
+        };
+        claims.push((path, claim));
+    }
+    Ok(claims)
+}
+
+/// How one claim disagreed with this machine's file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Why {
+    /// A regular file whose content differs.
+    Content,
+    /// A symlink or file of the wrong kind, or a different link target.
+    Kind,
+    /// The helper holds a path this sync never sent.
+    Unexpected,
+}
+
+/// One path whose copy on the helper is not what this machine has.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mismatch {
+    /// The path, relative to the work tree.
+    pub path: String,
+    /// What differed.
+    pub why: Why,
+    /// The size here in bytes, when known (never any content).
+    pub size: Option<u64>,
+}
+
+/// The outcome of comparing a helper's claims with the local files.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Comparison {
+    /// Claims compared.
+    pub checked: usize,
+    /// Claims not compared because the local file changed since the sync.
+    pub skipped: usize,
+    /// Paths that disagree.
+    pub mismatches: Vec<Mismatch>,
+}
+
+/// Compare `claims` with the files of `root` as listed in `files` (the sync's
+/// manifest). A local file that changed since the sync (size or mtime) is
+/// skipped: the helper has the older, correct copy.
+pub fn compare_claims(root: &Path, files: &Manifest, claims: &[(String, Claim)]) -> Comparison {
+    let by_path: BTreeMap<&str, &LocalFile> =
+        files.0.iter().map(|f| (f.path.as_str(), f)).collect();
+    let mut out = Comparison::default();
+    for (path, claim) in claims {
+        let Some(file) = by_path.get(path.as_str()) else {
+            out.mismatches.push(Mismatch {
+                path: path.clone(),
+                why: Why::Unexpected,
+                size: None,
+            });
+            continue;
+        };
+        let full = root.join(path);
+        let meta = std::fs::symlink_metadata(&full).ok();
+        let mtime = meta
+            .as_ref()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs());
+        let unchanged = meta
+            .as_ref()
+            .is_some_and(|m| m.len() == file.size || file.size == 0)
+            && mtime == Some(file.mtime);
+        if !unchanged {
+            out.skipped += 1;
+            continue;
+        }
+        out.checked += 1;
+        let ok = match (&file.kind, claim) {
+            (Kind::File { .. }, Claim::File(hash)) => {
+                file_sha256(&full).as_deref() == Some(hash.as_str())
+            }
+            (Kind::Symlink { target }, Claim::Link(got)) => target == got,
+            _ => {
+                out.mismatches.push(Mismatch {
+                    path: path.clone(),
+                    why: Why::Kind,
+                    size: Some(file.size),
+                });
+                continue;
+            }
+        };
+        if !ok {
+            out.mismatches.push(Mismatch {
+                path: path.clone(),
+                why: if matches!(file.kind, Kind::File { .. }) {
+                    Why::Content
+                } else {
+                    Why::Kind
+                },
+                size: Some(file.size),
+            });
+        }
+    }
+    out
+}
+
 fn nul_list<'a>(items: impl Iterator<Item = &'a str>) -> Vec<u8> {
     let mut out = Vec::new();
     for item in items {
@@ -900,6 +1080,7 @@ fn sync_once(
         deleted: plan.delete.len(),
         kept_local: set.kept_local,
         behind_links: set.behind_links,
+        manifest: Manifest(local.clone()),
     };
     tracing::info!(?stats, remote_files = remote_entries.len(), "sync plan");
     // Deletions are bound to this attempt: a list stored by an attempt
@@ -1251,6 +1432,102 @@ mod tests {
             "same size, new mtime: content is checked first"
         );
         assert_eq!(plan.delete, ["gone", "gone link"]);
+    }
+
+    fn claim(kind: &str, value: &str, path: &str) -> Vec<u8> {
+        let mut v = format!("{kind}\u{1}{value}\u{1}{path}").into_bytes();
+        v.push(0);
+        v
+    }
+
+    // frob:tests crates/goway/src/sync.rs::parse_claims
+    #[test]
+    fn claims_are_parsed_strictly_and_with_bounds() {
+        let hash = "a".repeat(64);
+        let mut ok = b"goway-verify1\0".to_vec();
+        ok.extend(claim("f", &hash, "src/lib.rs"));
+        ok.extend(claim("l", "lib.rs", "link"));
+        let parsed = parse_claims(&ok).unwrap();
+        assert_eq!(
+            parsed,
+            [
+                ("src/lib.rs".to_owned(), Claim::File(hash.clone())),
+                ("link".to_owned(), Claim::Link("lib.rs".to_owned())),
+            ]
+        );
+        let with = |rec: Vec<u8>| {
+            let mut v = b"goway-verify1\0".to_vec();
+            v.extend(rec);
+            parse_claims(&v)
+        };
+        assert!(parse_claims(b"").is_err(), "no header");
+        assert!(parse_claims(b"goway-verify2\0").is_err(), "wrong header");
+        assert!(
+            with(claim("f", &"A".repeat(64), "a")).is_err(),
+            "uppercase hex"
+        );
+        assert!(
+            with(claim("f", &"a".repeat(63), "a")).is_err(),
+            "short hash"
+        );
+        assert!(with(claim("x", &hash, "a")).is_err(), "unknown kind");
+        assert!(with(claim("f", &hash, "../a")).is_err(), "climbing path");
+        assert!(with(claim("f", &hash, "/a")).is_err(), "absolute path");
+        assert!(
+            with(claim("f", &hash, &"p".repeat(5000))).is_err(),
+            "oversized path"
+        );
+        assert!(with(b"f\x01only-two\0".to_vec()).is_err(), "missing field");
+        let mut many = b"goway-verify1\0".to_vec();
+        for i in 0..=MAX_CLAIMS {
+            many.extend(claim("l", "t", &format!("p{i}")));
+        }
+        assert!(parse_claims(&many).is_err(), "too many claims");
+    }
+
+    // frob:tests crates/goway/src/sync.rs::compare_claims
+    #[test]
+    fn claims_are_compared_with_local_files_and_stale_ones_skipped() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a"), "hello").unwrap();
+        std::fs::write(dir.path().join("b"), "world").unwrap();
+        let mtime = |n: &str| {
+            std::fs::metadata(dir.path().join(n))
+                .unwrap()
+                .modified()
+                .unwrap()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        };
+        let manifest = Manifest(vec![
+            LocalFile {
+                kind: Kind::File { exec: false },
+                ..file("a", 5, mtime("a"))
+            },
+            LocalFile {
+                kind: Kind::File { exec: false },
+                ..file("b", 5, mtime("b"))
+            },
+        ]);
+        let good = file_sha256(&dir.path().join("a")).unwrap();
+        let claims = vec![
+            ("a".to_owned(), Claim::File(good.clone())),
+            ("b".to_owned(), Claim::File("0".repeat(64))),
+            ("ghost".to_owned(), Claim::File(good.clone())),
+        ];
+        let c = compare_claims(dir.path(), &manifest, &claims);
+        assert_eq!(c.checked, 2);
+        let bad: Vec<(&str, &Why)> = c
+            .mismatches
+            .iter()
+            .map(|m| (m.path.as_str(), &m.why))
+            .collect();
+        assert_eq!(bad, [("b", &Why::Content), ("ghost", &Why::Unexpected)]);
+        // A file edited here after the sync is not the helper's fault.
+        std::fs::write(dir.path().join("b"), "changed later, longer").unwrap();
+        let c = compare_claims(dir.path(), &manifest, &claims[1..2]);
+        assert_eq!((c.checked, c.skipped, c.mismatches.len()), (0, 1, 0));
     }
 
     // frob:tests crates/goway/src/sync.rs::write_tar

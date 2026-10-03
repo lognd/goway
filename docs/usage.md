@@ -83,6 +83,41 @@ A line on stderr says where the job ran:
 `--report FILE` writes the same as JSON (host, address, arch, hostname,
 command, exit code, duration, run id, repository) for evidence records.
 
+### Copy integrity
+
+The copy of your tree on a helper is checked end to end, against your own
+files, because a stale or damaged copy would make tests run the wrong code
+without any sign of it. These checks guard against goway's own bugs; they
+do not defend against a compromised helper (see SECURITY.md).
+
+- **Every run.** After the helper has updated its slot tree and before
+  your command starts, it reports the SHA-256 of every file this sync
+  wrote there; goway compares them with your files. A mismatch stops the
+  command before it starts.
+- **A command that fails.** The helper then reports the hash of every
+  synced file the command did not itself change, and goway compares them.
+  If all match, the failure is genuine: it is reported with the command's
+  exit code and never rerun. If any differ, goway names the files, rebuilds
+  the slot, its cargo target dir and the helper's seed copy from scratch,
+  and reruns the command exactly once.
+- **Reruns terminate.** The attempt number is goway's own count, passed to
+  the helper explicitly. The rerun is attempt 2, and attempt 2 can never
+  rerun: if the rebuilt copy fails verification too, goway exits 125 with
+  the evidence. Each shard of a sharded run reruns at most once.
+- **After a proven mismatch,** that repository on that host gets full
+  verification of every file and a fresh slot copy on every run, until 7
+  days pass without a mismatch. The mark lives only in goway's local state
+  (never in the repository or goway.toml). `goway gc --repo NAME` clears
+  it; `goway run --trust-copy` skips it for one run (changed files are
+  still checked).
+- **Reporting.** A mismatch is a goway bug: goway says so and prints what
+  to include in a report (host, repository id, paths and sizes, never file
+  contents). With `--report FILE`, the JSON has an `attempts` list with
+  both attempts, the first marked `"valid": false`.
+
+A file you edit on this machine after the sync started is skipped by the
+check, as is a file the command changed itself.
+
 ### Sharding one run across hosts
 
 ```

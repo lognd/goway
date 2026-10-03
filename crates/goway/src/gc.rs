@@ -157,6 +157,15 @@ pub fn gc(
             ));
         }
     }
+    // So is the distrust a copy mismatch left behind (see `goway run`).
+    if !args.dry_run && (args.repo.is_some() || args.all) {
+        let cleared = state.clear_distrust(args.repo.as_deref(), crate::state::now_secs());
+        if cleared > 0 {
+            renderer.note(format_args!(
+                "trusting {cleared} repositories' copies on hosts again"
+            ));
+        }
+    }
     if let Err(e) = state.save(&paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
     }

@@ -67,6 +67,9 @@ pub struct ShardReport {
     pub matched: Vec<Matched>,
     /// This shard's share of the tests.
     pub share: Share,
+    /// Every attempt (copy verification), when the shard ran on a helper.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub attempts: Vec<run::AttemptRecord>,
     /// What the helper's test-binary detection did, when it was asked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detection: Option<Detection>,
@@ -274,6 +277,11 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
             .join(", ")
     ));
     let interrupted = run::interrupt_flag();
+    let now = crate::state::now_secs();
+    let distrusted: Vec<bool> = hosts
+        .iter()
+        .map(|(h, ..)| !args.trust_copy && state.distrusted(&h.name, &repo.id, now))
+        .collect();
     let width = hosts.iter().map(|(h, ..)| h.name.len()).max().unwrap_or(0);
     let results: Vec<Result<ShardReport>> = std::thread::scope(|scope| {
         let handles: Vec<_> = hosts
@@ -287,11 +295,12 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                 let repo = &repo;
                 let interrupted = &interrupted;
                 let plan = &plans[i];
+                let distrusted = distrusted[i];
                 scope.spawn(move || -> Result<ShardReport> {
                     let shard_started = Instant::now();
                     let index = i + 1;
                     let prefix = format!("[{:<width$}] ", host.name);
-                    let run_id = run::new_run_id() + &format!("-s{index}");
+                    let first_run_id = run::new_run_id() + &format!("-s{index}");
                     let mut pairs = args.env.clone();
                     pairs.push(format!("GOWAY_SHARD={index}"));
                     pairs.push(format!("GOWAY_SHARD_COUNT={count}"));
@@ -300,90 +309,156 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                     let nonce = detect::nonce();
                     // Held until this shard ends (only a local shard takes one).
                     let mut _slot = None;
-                    let mut child = if found.is_local() {
-                        // This machine: nothing to sync; the command runs in the current directory.
-                        _slot = Some(local::Slot::acquire(&local::jobs_dir(env.paths), &run_id)?);
-                        let job = local::Job {
-                            command: &command,
-                            env: &pairs,
-                            priority: config.priority_of(host),
-                            cwd: env.cwd,
-                            run_id: &run_id,
-                            hostname: &probe.hostname,
+                    let mut verify = run::Verify::first(distrusted);
+                    let mut attempts: Vec<run::AttemptRecord> = Vec::new();
+                    let (code, detection) = loop {
+                        let run_id = if verify.attempt == 1 {
+                            first_run_id.clone()
+                        } else {
+                            format!("{first_run_id}-a{}", verify.attempt)
                         };
-                        local::process(&job)
-                            .stdin(Stdio::null())
-                            .stdout(Stdio::piped())
-                            .stderr(Stdio::piped())
-                            .spawn()
-                            .map_err(|e| {
-                                Error::Usage(format!("cannot run `{}`: {e}", command[0]))
-                            })?
-                    } else {
-                        run::sync_snapshot(env, config, repo, found, &run_id, args.keep)?;
-                        run::send_env(env, config, found, &run_id, &run::encode_env(&pairs)?)?;
-                        let mut extra = run::gpu_words(selection, config, host);
-                        if plan.detect {
-                            extra.push(detect::request_word(index, count, &nonce));
-                        }
-                        let cmd = run::run_invocation_with(
-                            config,
-                            config.priority_of(host).as_str(),
-                            repo,
-                            &run_id,
-                            args.keep,
-                            &extra,
-                            &command,
-                        );
-                        ssh::command(&found.target, env.settings, KeyPolicy::Strict, &cmd)
-                            .stdin(Stdio::null())
-                            .stdout(Stdio::piped())
-                            .stderr(Stdio::piped())
-                            .spawn()
-                            .map_err(|e| Error::Ssh {
-                                host: host.name.clone(),
-                                message: format!("cannot run ssh: {e}"),
-                            })?
-                    };
-                    let (out, err) = (child.stdout.take(), child.stderr.take());
-                    let filter_out = termfilter::should_filter(
-                        args.output,
-                        std::io::IsTerminal::is_terminal(&std::io::stdout()),
-                    );
-                    let filter_err = termfilter::should_filter(
-                        args.output,
-                        std::io::IsTerminal::is_terminal(&std::io::stderr()),
-                    );
-                    let mut result_line = None;
-                    std::thread::scope(|s| {
-                        if let Some(out) = out {
-                            let p = prefix.clone();
-                            s.spawn(move || pump(out, false, &p, filter_out));
-                        }
-                        if let Some(err) = err {
-                            let p = prefix.clone();
-                            if plan.detect && !found.is_local() {
-                                let (split, line) = ResultSplitter::new(err, &nonce);
-                                result_line = Some(line);
-                                s.spawn(move || pump(split, true, &p, filter_err));
-                            } else {
-                                s.spawn(move || pump(err, true, &p, filter_err));
+                        let mut manifest = None;
+                        let mut child = if found.is_local() {
+                            // This machine: nothing to sync; the command runs in the current directory.
+                            _slot =
+                                Some(local::Slot::acquire(&local::jobs_dir(env.paths), &run_id)?);
+                            let job = local::Job {
+                                command: &command,
+                                env: &pairs,
+                                priority: config.priority_of(host),
+                                cwd: env.cwd,
+                                run_id: &run_id,
+                                hostname: &probe.hostname,
+                            };
+                            local::process(&job)
+                                .stdin(Stdio::null())
+                                .stdout(Stdio::piped())
+                                .stderr(Stdio::piped())
+                                .spawn()
+                                .map_err(|e| {
+                                    Error::Usage(format!("cannot run `{}`: {e}", command[0]))
+                                })?
+                        } else {
+                            let synced =
+                                run::sync_snapshot(env, config, repo, found, &run_id, args.keep)?;
+                            manifest = Some(synced.manifest);
+                            run::send_env(env, config, found, &run_id, &run::encode_env(&pairs)?)?;
+                            let mut extra = run::gpu_words(selection, config, host);
+                            if plan.detect {
+                                extra.push(detect::request_word(index, count, &nonce));
                             }
+                            extra.push(verify.word());
+                            let cmd = run::run_invocation_with(
+                                config,
+                                config.priority_of(host).as_str(),
+                                repo,
+                                &run_id,
+                                args.keep,
+                                &extra,
+                                &command,
+                            );
+                            ssh::command(&found.target, env.settings, KeyPolicy::Strict, &cmd)
+                                .stdin(Stdio::null())
+                                .stdout(Stdio::piped())
+                                .stderr(Stdio::piped())
+                                .spawn()
+                                .map_err(|e| Error::Ssh {
+                                    host: host.name.clone(),
+                                    message: format!("cannot run ssh: {e}"),
+                                })?
+                        };
+                        let (out, err) = (child.stdout.take(), child.stderr.take());
+                        let filter_out = termfilter::should_filter(
+                            args.output,
+                            std::io::IsTerminal::is_terminal(&std::io::stdout()),
+                        );
+                        let filter_err = termfilter::should_filter(
+                            args.output,
+                            std::io::IsTerminal::is_terminal(&std::io::stderr()),
+                        );
+                        let mut result_line = None;
+                        let gate = manifest.as_ref().map(|manifest| run::Gate {
+                            transport: crate::sync::SshTransport {
+                                target: &found.target,
+                                settings: env.settings,
+                            },
+                            remote_root: config.defaults.remote_root.as_str(),
+                            run_id: &run_id,
+                            repo_root: &repo.root,
+                            manifest,
+                        });
+                        let done = std::sync::atomic::AtomicBool::new(false);
+                        let gate_report = std::thread::scope(|s| {
+                            let watcher = gate.as_ref().map(|g| {
+                                let done = &done;
+                                s.spawn(move || g.drive(done))
+                            });
+                            let mut pumps = Vec::new();
+                            if let Some(out) = out {
+                                let p = prefix.clone();
+                                pumps.push(s.spawn(move || pump(out, false, &p, filter_out)));
+                            }
+                            if let Some(err) = err {
+                                let p = prefix.clone();
+                                if plan.detect && !found.is_local() {
+                                    let (split, line) = ResultSplitter::new(err, &nonce);
+                                    result_line = Some(line);
+                                    pumps.push(s.spawn(move || pump(split, true, &p, filter_err)));
+                                } else {
+                                    pumps.push(s.spawn(move || pump(err, true, &p, filter_err)));
+                                }
+                            }
+                            for p in pumps {
+                                let _ = p.join();
+                            }
+                            // The output ended with the ssh session; stop the watcher.
+                            done.store(true, std::sync::atomic::Ordering::SeqCst);
+                            watcher.map(|w| w.join().expect("the verification thread panicked"))
+                        });
+                        let detection = result_line
+                            .and_then(|f| f.lock().ok().and_then(|l| l.clone()))
+                            .and_then(|text| Detection::parse(&text));
+                        let status = child.wait().map_err(|e| Error::Ssh {
+                            host: host.name.clone(),
+                            message: format!("ssh failed: {e}"),
+                        })?;
+                        let code = if interrupted.load(std::sync::atomic::Ordering::SeqCst)
+                            && status.code() == Some(255)
+                        {
+                            130
+                        } else {
+                            run::exit_code_of(status)
+                        };
+                        let Some(gate_report) = gate_report else {
+                            break (code, detection);
+                        };
+                        attempts.push(run::AttemptRecord::new(
+                            verify.attempt,
+                            &run_id,
+                            code,
+                            &gate_report,
+                        ));
+                        if let Some(why) = &gate_report.error {
+                            return Err(Error::Ssh {
+                                host: host.name.clone(),
+                                message: format!("copy verification failed: {why}"),
+                            });
                         }
-                    });
-                    let detection = result_line
-                        .and_then(|f| f.lock().ok().and_then(|l| l.clone()))
-                        .and_then(|text| Detection::parse(&text));
-                    let status = child.wait().map_err(|e| Error::Ssh {
-                        host: host.name.clone(),
-                        message: format!("ssh failed: {e}"),
-                    })?;
-                    let code = if interrupted.load(std::sync::atomic::Ordering::SeqCst)
-                        && status.code() == Some(255)
-                    {
-                        130
-                    } else {
-                        run::exit_code_of(status)
+                        if gate_report.mismatches.is_empty() {
+                            break (code, detection);
+                        }
+                        run::warn_mismatch(
+                            renderer,
+                            &host.name,
+                            repo,
+                            &gate_report,
+                            verify.attempt < run::MAX_ATTEMPTS,
+                        );
+                        if verify.attempt >= run::MAX_ATTEMPTS {
+                            // The rebuilt copy failed too: stop with the evidence.
+                            break (crate::error::EXIT_GOWAY_FAILURE, detection);
+                        }
+                        verify = run::Verify::rerun();
                     };
                     tracing::info!(host = %host.name, index, code, "shard finished");
                     Ok(ShardReport {
@@ -403,6 +478,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                         hostname: probe.hostname.clone(),
                         command,
                         exit_code: code,
+                        attempts,
                         detection,
                         duration_secs: shard_started.elapsed().as_secs_f64(),
                     })
@@ -450,6 +526,16 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                 tracing::warn!(shard = i + 1, error = %e, "shard failed to run");
             }
         }
+    }
+    let mut mismatched = false;
+    for report in &shards {
+        if report.attempts.iter().any(|a| !a.valid) {
+            state.mark_mismatch(&report.host, &repo.name, &repo.id, crate::state::now_secs());
+            mismatched = true;
+        }
+    }
+    if mismatched && let Err(e) = state.save(&env.paths.state_file()) {
+        tracing::warn!(error = %e, "cannot remember the copy mismatch");
     }
     if remember {
         detect::mark(&mut state, &repo.name, &repo.id, &program);

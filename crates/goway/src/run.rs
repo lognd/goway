@@ -146,6 +146,10 @@ pub struct Env<'a> {
 }
 
 /// `goway run`.
+///
+/// # Panics
+///
+/// Only if the copy-verification thread panics, which is a bug.
 #[allow(clippy::too_many_lines)] // one sequence: choose, sync, run, report
 pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     if let Some(count) = args.shard {
@@ -197,39 +201,140 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     }
 
     let remote_root = config.defaults.remote_root.as_str();
-    let run_id = new_run_id();
-    let synced = sync_snapshot(env, &config, &repo, &found, &run_id, args.keep)?;
-    renderer.note(format_args!(
-        "synced {} files ({} sent, {} bytes, {} deleted)",
-        synced.files, synced.sent, synced.bytes, synced.deleted
-    ));
-    report_withheld(renderer, &synced);
-    send_env(env, &config, &found, &run_id, &env_bytes)?;
-
-    let cmd = run_invocation_with(
-        &config,
-        config.priority_of(&host).as_str(),
-        &repo,
-        &run_id,
-        args.keep,
-        &gpu_words(&selection, &config, &host),
-        &args.command,
-    );
-
-    renderer.headline(format_args!(
-        "running on {} ({arch}, {hostname}) at {}{}: {}",
-        host.name,
-        found.target.address,
-        if matched.is_empty() {
-            String::new()
+    let now = crate::state::now_secs();
+    let distrusted = !args.trust_copy && state.distrusted(&host.name, &repo.id, now);
+    if distrusted {
+        renderer.note(format_args!(
+            "{} had a copy mismatch lately: verifying every file on a fresh slot copy",
+            host.name
+        ));
+    }
+    let mut verify = Verify::first(distrusted);
+    let mut attempts: Vec<AttemptRecord> = Vec::new();
+    let (run_id, code, interrupted) = loop {
+        let run_id = if verify.attempt == 1 {
+            new_run_id()
         } else {
-            format!(" [{}]", needs::summary(&matched))
-        },
-        ssh::shell_join(&args.command)
-    ));
-    let (code, interrupted) = stream(&found, env.settings, &cmd, args.output)?;
+            format!("{}-a{}", new_run_id(), verify.attempt)
+        };
+        let synced = sync_snapshot(env, &config, &repo, &found, &run_id, args.keep)?;
+        renderer.note(format_args!(
+            "synced {} files ({} sent, {} bytes, {} deleted)",
+            synced.files, synced.sent, synced.bytes, synced.deleted
+        ));
+        report_withheld(renderer, &synced);
+        send_env(env, &config, &found, &run_id, &env_bytes)?;
+
+        let mut extra = gpu_words(&selection, &config, &host);
+        extra.push(verify.word());
+        let cmd = run_invocation_with(
+            &config,
+            config.priority_of(&host).as_str(),
+            &repo,
+            &run_id,
+            args.keep,
+            &extra,
+            &args.command,
+        );
+
+        renderer.headline(format_args!(
+            "running on {} ({arch}, {hostname}) at {}{}{}: {}",
+            host.name,
+            found.target.address,
+            if matched.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", needs::summary(&matched))
+            },
+            if verify.attempt > 1 {
+                " (rerun on a rebuilt copy)"
+            } else {
+                ""
+            },
+            ssh::shell_join(&args.command)
+        ));
+        let gate = Gate {
+            transport: SshTransport {
+                target: &found.target,
+                settings: env.settings,
+            },
+            remote_root,
+            run_id: &run_id,
+            repo_root: &repo.root,
+            manifest: &synced.manifest,
+        };
+        let done = std::sync::atomic::AtomicBool::new(false);
+        let (streamed, gate_report) = std::thread::scope(|s| {
+            let watcher = s.spawn(|| gate.drive(&done));
+            let streamed = stream(&found, env.settings, &cmd, args.output);
+            done.store(true, std::sync::atomic::Ordering::SeqCst);
+            (
+                streamed,
+                watcher.join().expect("the verification thread panicked"),
+            )
+        });
+        let (code, interrupted) = streamed?;
+        attempts.push(AttemptRecord::new(
+            verify.attempt,
+            &run_id,
+            code,
+            &gate_report,
+        ));
+        if let Some(why) = &gate_report.error {
+            // Not a proven mismatch: report it, never rerun on it.
+            return Err(Error::Ssh {
+                host: host.name.clone(),
+                message: format!("copy verification failed: {why}"),
+            });
+        }
+        if gate_report.mismatches.is_empty() {
+            tracing::info!(
+                checked = gate_report.checked,
+                skipped = gate_report.skipped,
+                "copy verified"
+            );
+            break (run_id, code, interrupted);
+        }
+        // A proven mismatch: remember it, and rerun once (attempt 2 never reruns).
+        let mut fresh_state = State::load(&env.paths.state_file())?;
+        fresh_state.mark_mismatch(&host.name, &repo.name, &repo.id, crate::state::now_secs());
+        if let Err(e) = fresh_state.save(&env.paths.state_file()) {
+            tracing::warn!(error = %e, "cannot remember the copy mismatch");
+        }
+        let rerunning = verify.attempt < MAX_ATTEMPTS;
+        warn_mismatch(renderer, &host.name, &repo, &gate_report, rerunning);
+        if !rerunning {
+            renderer.failed(format_args!(
+                "exit 125 on {}: the rebuilt copy did not verify either; goway stops here",
+                host.name
+            ));
+            if let Some(path) = &args.report {
+                write_report(
+                    path,
+                    &RemoteReport {
+                        base: Report {
+                            host: host.name.clone(),
+                            address: found.target.address.clone(),
+                            arch: arch.clone(),
+                            hostname: hostname.clone(),
+                            command: args.command.clone(),
+                            exit_code: crate::error::EXIT_GOWAY_FAILURE,
+                            duration_secs: started.elapsed().as_secs_f64(),
+                            run_id: run_id.clone(),
+                            repo: repo.name.clone(),
+                            matched: matched.clone(),
+                            rule: rule.clone(),
+                        },
+                        attempts: attempts.clone(),
+                    },
+                )?;
+            }
+            return Ok(crate::error::EXIT_GOWAY_FAILURE);
+        }
+        verify = Verify::rerun();
+    };
     let elapsed = started.elapsed();
-    tracing::info!(host = %host.name, code, ?elapsed, run_id, "run finished");
+    tracing::info!(host = %host.name, code, ?elapsed, run_id, attempts = attempts.len(), "run finished");
     if interrupted {
         renderer.warn(format_args!(
             "interrupted; the remote job is stopped by its watchdog (run {run_id})"
@@ -253,22 +358,35 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     if let Some(path) = &args.report {
         write_report(
             path,
-            &Report {
-                host: host.name.clone(),
-                address: found.target.address.clone(),
-                arch,
-                hostname,
-                command: args.command.clone(),
-                exit_code: code,
-                duration_secs: elapsed.as_secs_f64(),
-                run_id,
-                repo: repo.name.clone(),
-                matched,
-                rule,
+            &RemoteReport {
+                base: Report {
+                    host: host.name.clone(),
+                    address: found.target.address.clone(),
+                    arch,
+                    hostname,
+                    command: args.command.clone(),
+                    exit_code: code,
+                    duration_secs: elapsed.as_secs_f64(),
+                    run_id,
+                    repo: repo.name.clone(),
+                    matched,
+                    rule,
+                },
+                attempts,
             },
         )?;
     }
     Ok(code)
+}
+
+/// `--report` of a run on a helper: the usual fields plus every attempt.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct RemoteReport {
+    /// The final attempt's provenance and exit code.
+    #[serde(flatten)]
+    pub base: Report,
+    /// Every attempt, the first marked invalid when it was rerun.
+    pub attempts: Vec<AttemptRecord>,
 }
 
 /// Sync the work tree to `found` and snapshot it as work dir `run_id`.
@@ -296,6 +414,268 @@ pub(crate) fn sync_snapshot(
         &sync::Secrets::from_config(&config.defaults),
         Some(&snapshot),
     )
+}
+
+/// Most attempts of one run: the first, and one rerun after a copy that
+/// failed verification. The rerun is attempt 2 and attempt 2 never reruns.
+pub(crate) const MAX_ATTEMPTS: u8 = 2;
+
+/// How the helper verifies its copy for one attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Verify {
+    /// This attempt's number, 1 or [`MAX_ATTEMPTS`]; goway's own count,
+    /// passed to the helper explicitly.
+    pub attempt: u8,
+    /// Verify every file, not only those this sync wrote (distrusted repository).
+    pub all: bool,
+    /// Rebuild the slot from scratch first.
+    pub fresh: bool,
+}
+
+impl Verify {
+    /// The first attempt; a distrusted repository is verified fully on a fresh slot.
+    pub(crate) fn first(distrusted: bool) -> Self {
+        Self {
+            attempt: 1,
+            all: distrusted,
+            fresh: distrusted,
+        }
+    }
+
+    /// The only rerun: a slot rebuilt from scratch.
+    pub(crate) fn rerun() -> Self {
+        Self {
+            attempt: MAX_ATTEMPTS,
+            all: false,
+            fresh: true,
+        }
+    }
+
+    /// The word the remote `run` verb takes.
+    pub(crate) fn word(self) -> String {
+        format!(
+            "verify:{}:{}{}",
+            self.attempt,
+            if self.all { "all" } else { "changed" },
+            if self.fresh { ":fresh" } else { "" }
+        )
+    }
+}
+
+/// What the copy-integrity check of one attempt found.
+#[derive(Debug, Default)]
+pub(crate) struct GateReport {
+    /// Files compared with this machine's.
+    pub checked: usize,
+    /// Files not compared because they changed here since the sync.
+    pub skipped: usize,
+    /// Paths whose copy on the helper differs (the attempt is invalid).
+    pub mismatches: Vec<sync::Mismatch>,
+    /// The helper's answer could not be used (not a mismatch, never rerun).
+    pub error: Option<String>,
+}
+
+/// The control side of the copy-integrity check: while the run's ssh session
+/// waits for goway's verdict, this reads the helper's claims over separate
+/// calls, compares them with the local files and answers.
+pub(crate) struct Gate<'a> {
+    /// How to reach the helper.
+    pub transport: SshTransport<'a>,
+    /// The helper's state root.
+    pub remote_root: &'a str,
+    /// The run to verify.
+    pub run_id: &'a str,
+    /// The local work tree.
+    pub repo_root: &'a Path,
+    /// The files this sync was made from.
+    pub manifest: &'a sync::Manifest,
+}
+
+impl Gate<'_> {
+    /// Seconds one `verify-wait` call may block: short before the command
+    /// starts (a run that died before it began leaves this call running),
+    /// long while it runs (the end of the run is noticed at once).
+    const WAIT_START: &'static str = "10";
+    const WAIT_RUNNING: &'static str = "50";
+
+    fn call(&self, args: &[&str]) -> std::result::Result<Vec<u8>, String> {
+        sync::Transport::output(&self.transport, &remote::invocation(args[0], &args[1..]))
+            .map_err(|e| e.to_string())
+    }
+
+    /// Wait for the claims of `phase`; `None` when the run ended without them.
+    fn claims(
+        &self,
+        phase: u8,
+        done: &std::sync::atomic::AtomicBool,
+    ) -> std::result::Result<Option<Vec<u8>>, String> {
+        let window = if phase == 1 {
+            Self::WAIT_START
+        } else {
+            Self::WAIT_RUNNING
+        };
+        loop {
+            if done.load(std::sync::atomic::Ordering::SeqCst) {
+                return Ok(None);
+            }
+            let out = self.call(&[
+                "verify-wait",
+                self.remote_root,
+                self.run_id,
+                &phase.to_string(),
+                window,
+            ])?;
+            let split = out.iter().position(|b| *b == b'\n').unwrap_or(out.len());
+            match &out[..split] {
+                b"ready" => return Ok(Some(out[(split + 1).min(out.len())..].to_vec())),
+                b"ended" => return Ok(None),
+                b"pending" => {}
+                _ => return Err("the helper's verify-wait answer is not understood".to_owned()),
+            }
+        }
+    }
+
+    fn verdict(&self, phase: u8, ok: bool) -> std::result::Result<(), String> {
+        self.call(&[
+            "verify-verdict",
+            self.remote_root,
+            self.run_id,
+            &phase.to_string(),
+            if ok { "ok" } else { "bad" },
+        ])
+        .map(drop)
+    }
+
+    /// Verify the helper's copy before the command starts (phase 1) and,
+    /// when the command fails, after it (phase 2), until `done` is set.
+    pub(crate) fn drive(&self, done: &std::sync::atomic::AtomicBool) -> GateReport {
+        let mut report = GateReport::default();
+        for phase in 1..=2u8 {
+            let bytes = match self.claims(phase, done) {
+                Ok(Some(bytes)) => bytes,
+                Ok(None) => break,
+                Err(e) => {
+                    report.error = Some(e);
+                    return report;
+                }
+            };
+            match sync::parse_claims(&bytes) {
+                Err(e) => {
+                    report.error =
+                        Some(format!("the helper's verification answer is invalid: {e}"));
+                    let _ = self.verdict(phase, false);
+                    return report;
+                }
+                Ok(claims) => {
+                    let c = sync::compare_claims(self.repo_root, self.manifest, &claims);
+                    tracing::info!(
+                        phase,
+                        checked = c.checked,
+                        skipped = c.skipped,
+                        bad = c.mismatches.len(),
+                        "copy verification"
+                    );
+                    report.checked += c.checked;
+                    report.skipped += c.skipped;
+                    let ok = c.mismatches.is_empty();
+                    report.mismatches.extend(c.mismatches);
+                    if let Err(e) = self.verdict(phase, ok) {
+                        report.error = Some(e);
+                        return report;
+                    }
+                    if !ok {
+                        return report;
+                    }
+                }
+            }
+        }
+        report
+    }
+}
+
+/// One attempt of a run, as `--report` records it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AttemptRecord {
+    /// 1, or 2 for the rerun.
+    pub attempt: u8,
+    /// The attempt's remote run id.
+    pub run_id: String,
+    /// The exit code the attempt ended with.
+    pub exit_code: u8,
+    /// False when the helper's copy failed verification: the exit code says nothing about the code.
+    pub valid: bool,
+    /// The paths whose copy differed (at most 50).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub mismatched: Vec<String>,
+}
+
+impl AttemptRecord {
+    /// Record `attempt`'s outcome from the gate's report.
+    pub(crate) fn new(attempt: u8, run_id: &str, exit_code: u8, gate: &GateReport) -> Self {
+        Self {
+            attempt,
+            run_id: run_id.to_owned(),
+            exit_code,
+            valid: gate.mismatches.is_empty() && gate.error.is_none(),
+            mismatched: gate
+                .mismatches
+                .iter()
+                .take(50)
+                .map(|m| m.path.clone())
+                .collect(),
+        }
+    }
+}
+
+/// Tell the user a copy failed verification: a goway bug, and what to put in the report.
+pub(crate) fn warn_mismatch(
+    renderer: Renderer,
+    host: &str,
+    repo: &Repo,
+    gate: &GateReport,
+    rerunning: bool,
+) {
+    let shown: Vec<String> = gate
+        .mismatches
+        .iter()
+        .take(20)
+        .map(|m| {
+            let size = m.size.map_or_else(String::new, |s| format!(" ({s} bytes)"));
+            format!(
+                "{}{size} [{}]",
+                m.path,
+                match m.why {
+                    sync::Why::Content => "content",
+                    sync::Why::Kind => "kind or link target",
+                    sync::Why::Unexpected => "not sent",
+                }
+            )
+        })
+        .collect();
+    renderer.warn(format_args!(
+        "the copy of your tree on {host} did not match this machine: {} file(s) differ: {}{}",
+        gate.mismatches.len(),
+        shown.join(", "),
+        if gate.mismatches.len() > shown.len() {
+            ", ..."
+        } else {
+            ""
+        }
+    ));
+    renderer.warn(
+        "this is a goway bug, never your code. Please report it at https://github.com/lognd/goway/issues \
+         with: the host name, the repository id below, the paths and sizes above (never file contents), \
+         and `goway --version` on both machines",
+    );
+    renderer.note(format_args!("repository id: {}", repo.id));
+    if rerunning {
+        renderer.note(format_args!(
+            "the slot and its copy on {host} are rebuilt from scratch and the command is rerun once; \
+             this repository on {host} gets full verification and a fresh copy every run until 7 days pass without a mismatch \
+             (`goway gc --repo {}` clears that, `--trust-copy` skips it for one run)",
+            repo.name
+        ));
+    }
 }
 
 /// Tell the user which files stayed on this machine and why.

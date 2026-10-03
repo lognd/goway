@@ -32,6 +32,25 @@ pub struct ShardMarks {
     pub programs: Vec<String>,
 }
 
+/// Days without a copy mismatch after which a distrusted repository is trusted again.
+pub const DISTRUST_DAYS: u64 = 7;
+
+/// A repository on a host whose copy once failed verification: it gets
+/// full verification and a fresh slot every run until it has been clean
+/// for [`DISTRUST_DAYS`] (kept only in local state, never sent anywhere).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct Distrust {
+    /// The host's name.
+    #[serde(default)]
+    pub host: String,
+    /// The repository's readable name (so `gc --repo NAME` finds it).
+    #[serde(default)]
+    pub repo: String,
+    /// Seconds since the epoch of the last proven mismatch.
+    #[serde(default)]
+    pub last_mismatch: u64,
+}
+
 /// The state file: host name (lowercase) to its cached state.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct State {
@@ -45,6 +64,9 @@ pub struct State {
     /// (kept only here, never sent to a host; cleared by `goway gc --repo`).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub shard_marks: BTreeMap<String, ShardMarks>,
+    /// Repositories on hosts whose copy failed verification, by `host/repo-id`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub distrust: BTreeMap<String, Distrust>,
     /// Probe static facts on the next probe regardless of age (not saved).
     #[serde(skip)]
     pub refresh_facts: bool,
@@ -92,11 +114,52 @@ impl State {
         );
     }
 
+    /// Whether `repo_id` on `host` is distrusted at `now` (a mark older than
+    /// [`DISTRUST_DAYS`] no longer counts).
+    pub fn distrusted(&self, host: &str, repo_id: &str, now: u64) -> bool {
+        self.distrust
+            .get(&distrust_key(host, repo_id))
+            .is_some_and(|d| now.saturating_sub(d.last_mismatch) < DISTRUST_DAYS * 86_400)
+    }
+
+    /// Record a proven copy mismatch of `repo_id` (named `repo`) on `host`.
+    pub fn mark_mismatch(&mut self, host: &str, repo: &str, repo_id: &str, now: u64) {
+        tracing::warn!(
+            host,
+            repo,
+            "remembering a copy mismatch: full verification from now on"
+        );
+        self.distrust.insert(
+            distrust_key(host, repo_id),
+            Distrust {
+                host: host.to_owned(),
+                repo: repo.to_owned(),
+                last_mismatch: now,
+            },
+        );
+    }
+
+    /// Forget the distrust of the repository named or identified by `filter`
+    /// (all of them with no filter) and any that expired by `now`; returns
+    /// how many were forgotten.
+    pub fn clear_distrust(&mut self, filter: Option<&str>, now: u64) -> usize {
+        let before = self.distrust.len();
+        self.distrust.retain(|key, d| {
+            let expired = now.saturating_sub(d.last_mismatch) >= DISTRUST_DAYS * 86_400;
+            !expired && filter.is_some_and(|f| key.rsplit('/').next() != Some(f) && d.repo != f)
+        });
+        before - self.distrust.len()
+    }
+
     /// Forget `name` (when a host is removed).
     pub fn forget(&mut self, name: &str) {
         self.hosts.remove(&name.to_ascii_lowercase());
         self.facts.remove(&name.to_ascii_lowercase());
     }
+}
+
+fn distrust_key(host: &str, repo_id: &str) -> String {
+    format!("{}/{repo_id}", host.to_ascii_lowercase())
 }
 
 /// Seconds since the Unix epoch.
@@ -109,6 +172,24 @@ pub fn now_secs() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // frob:tests crates/goway/src/state.rs::State::mark_mismatch
+    // frob:tests crates/goway/src/state.rs::State::distrusted
+    // frob:tests crates/goway/src/state.rs::State::clear_distrust
+    #[test]
+    fn distrust_expires_after_seven_clean_days_and_clears_by_repo() {
+        let mut s = State::default();
+        s.mark_mismatch("Helios", "proj", "id1", 1_000);
+        assert!(s.distrusted("helios", "id1", 1_000 + 6 * 86_400));
+        assert!(!s.distrusted("helios", "id1", 1_000 + 7 * 86_400));
+        assert!(!s.distrusted("other", "id1", 1_000));
+        s.mark_mismatch("helios", "proj", "id1", 2_000);
+        s.mark_mismatch("orion", "proj2", "id2", 2_000);
+        assert_eq!(s.clear_distrust(Some("proj"), 3_000), 1);
+        assert!(s.distrusted("orion", "id2", 3_000));
+        assert_eq!(s.clear_distrust(Some("id2"), 3_000), 1);
+        assert!(s.distrust.is_empty());
+    }
 
     // frob:tests crates/goway/src/state.rs::now_secs
     #[test]
