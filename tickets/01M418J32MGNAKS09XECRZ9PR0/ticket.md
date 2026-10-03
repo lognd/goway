@@ -8,12 +8,12 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:56:45Z"
+updated = "2026-10-03T17:02:40Z"
 scope = ["crates/goway/**"]
 
 [[acceptance]]
 text = "Given a host without cargo-nextest, when goway doctor runs, then it reports the missing tool with the exact fix command"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a fix that needs root, when goway doctor --fix runs, then it does not run it and tells the user to run it with sudo and why"

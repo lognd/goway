@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T17:02:40Z"
+digest = "01fa18d21bb322fad2e24274c770bc7dec2978ee2b6e623b4e5cb06bec6e732e"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 758e1649-a3d7-4e8e-83bc-15404576c572 with nextest profile: default
+    Starting 2 tests across 15 binaries (125 tests skipped)
+        PASS [   0.027s] goway doctor::tests::missing_nextest_names_the_exact_fix
+        PASS [   1.337s] goway::run_local doctor_reports_every_check_with_status
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.338s] 2 tests run: 2 passed, 125 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(missing_nextest_names_the_exact_fix) | test(doctor_reports_every_check_with_status)'"
+size = 633
+status = "measured"
+tests = ["doctor::tests::missing_nextest_names_the_exact_fix", "doctor_reports_every_check_with_status"]
+at = "2026-10-03T17:02:40Z"
+actor = "lognd"
+rev = 1
