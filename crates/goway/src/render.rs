@@ -133,6 +133,23 @@ pub fn format_table(rows: &[Vec<String>]) -> Vec<String> {
 mod tests {
     use super::*;
 
+    // frob:tests crates/goway/src/render.rs::Renderer.warn
+    // frob:tests crates/goway/src/render.rs::Renderer.note
+    // frob:tests crates/goway/src/render.rs::Renderer.ok
+    // frob:tests crates/goway/src/render.rs::Renderer.headline
+    // frob:tests crates/goway/src/render.rs::Renderer.line
+    // frob:tests crates/goway/src/render.rs::Renderer.table
+    #[test]
+    fn every_style_renders_without_color() {
+        let r = Renderer::new(ColorWhen::Never);
+        r.warn("w");
+        r.note("n");
+        r.ok("o");
+        r.headline("h");
+        r.line("l");
+        r.table(&[vec!["a".to_owned()]]);
+    }
+
     #[test]
     fn table_columns_align() {
         let rows = vec![

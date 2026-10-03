@@ -45,6 +45,9 @@ fn print_macros_are_denied_outside_render() {
     }
 }
 
+// frob:tests crates/goway/src/lib.rs::main_with
+// frob:tests crates/goway/src/lib.rs::init_tracing
+// frob:tests crates/goway/src/render.rs::Renderer.error
 #[test]
 fn goway_failure_exits_125_with_rendered_error() {
     let dir = tempfile::tempdir().unwrap();
