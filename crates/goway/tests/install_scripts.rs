@@ -401,7 +401,7 @@ fn shasum_verifies_the_download_when_sha256sum_is_missing() {
         std::os::unix::fs::symlink(find_tool(tool), bin.path().join(tool)).unwrap();
     }
     if std::env::consts::OS == "macos" {
-        std::os::unix::fs::symlink("/usr/bin/shasum", bin.path().join("shasum")).unwrap();
+        stub(bin.path(), "shasum", "exec /usr/bin/shasum \"$@\"");
     } else {
         let real = find_tool("sha256sum").display().to_string();
         stub(
