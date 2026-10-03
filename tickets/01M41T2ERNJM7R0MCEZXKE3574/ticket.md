@@ -2,13 +2,13 @@
 id = "01M41T2ERNJM7R0MCEZXKE3574"
 title = "GPU slots: one GPU job per GPU by default, with CUDA_VISIBLE_DEVICES set"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:17:40Z"
-updated = "2026-10-03T21:17:40Z"
+updated = "2026-10-03T21:58:25Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/src/config.rs", "crates/goway/tests/**", "docs/config.md"]
 
 [[links]]
