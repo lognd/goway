@@ -2,13 +2,13 @@
 id = "01M41SDZPWESK72BNQ03Y6T2FJ"
 title = "Capacity-weighted sharding: bigger hosts take a bigger share of the tests"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:06:29Z"
-updated = "2026-10-03T21:06:33Z"
+updated = "2026-10-03T22:13:01Z"
 scope = ["crates/goway/src/shard.rs", "crates/goway/src/runners.rs", "crates/goway/src/pool.rs", "crates/goway/tests/**", "docs/usage.md"]
 
 [[links]]
