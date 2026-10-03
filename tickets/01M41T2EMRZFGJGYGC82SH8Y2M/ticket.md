@@ -2,13 +2,13 @@
 id = "01M41T2EMRZFGJGYGC82SH8Y2M"
 title = "goway.toml project rules and host labels"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:17:40Z"
-updated = "2026-10-03T21:17:40Z"
+updated = "2026-10-03T21:55:00Z"
 scope = ["crates/goway/src/project.rs", "crates/goway/src/config.rs", "crates/goway/src/run.rs", "crates/goway/tests/**", "docs/config.md", "docs/usage.md"]
 
 [[links]]
