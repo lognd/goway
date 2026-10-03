@@ -13,8 +13,6 @@ name: release
 on:
   push:
     tags: ["v*"]
-    # TEMPORARY (remove before landing): dry run from CI test branches.
-    branches: ["ci/**"]
   # Dry run: builds and uploads every artifact, publishes nothing.
   workflow_dispatch:
 permissions:
