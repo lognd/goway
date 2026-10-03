@@ -8,8 +8,8 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-03T20:29:24Z"
-scope = ["crates/goway/src/sync.rs", "crates/goway/src/interop.rs", "crates/goway/tests/**", "docs/design.md"]
+updated = "2026-10-03T20:29:35Z"
+scope = ["crates/goway/src/sync.rs", "crates/goway/src/interop.rs", "crates/goway/tests/**", "docs/design.md", "crates/goway/src/gc.rs"]
 
 [[acceptance]]
 text = "Given an interop host, when goway syncs, then the file set is git ls-files -co --exclude-standard minus secrets, written into goway's own NTFS directory for that repository and worktree, never another repository's"
