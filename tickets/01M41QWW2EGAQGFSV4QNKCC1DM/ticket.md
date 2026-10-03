@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:39:40Z"
-updated = "2026-10-03T20:39:40Z"
-scope = ["README.md", "docs/usage.md", "docs/install-linux.md", "crates/goway/src/uninstall.rs", "crates/goway/tests/**", ".github/workflows/ci.yml"]
+updated = "2026-10-03T22:54:57Z"
+scope = ["README.md", "docs/install-linux.md", "crates/goway/src/uninstall.rs", ".github/workflows/ci.yml", "crates/goway/tests/install_methods.rs", "docs/install-methods.md"]
 
 [[acceptance]]
 text = "Given README.md, when a reader wants goway from PyPI or crates.io, then it explains uv (preferred, with a link to its installer), pipx, pip in a virtual environment (and why system pip is refused on Debian and Ubuntu), and cargo install (with a link to rustup.rs), each with where the program lands, how to get it on PATH, how to update and how to remove it"

@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["README.md", "docs/usage.md", "docs/install-linux.md", "crates/goway/src/uninstall.rs", "crates/goway/tests/**", ".github/workflows/ci.yml"]
+new = ["README.md", "docs/install-linux.md", "crates/goway/src/uninstall.rs", ".github/workflows/ci.yml", "crates/goway/tests/install_methods.rs", "docs/install-methods.md"]
+at = "2026-10-03T22:54:57Z"
+actor = "lognd"
+rev = 1

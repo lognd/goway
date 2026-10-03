@@ -4,11 +4,11 @@ title = "doctor checks exactly what a project needs on every host: build tools, 
 type = "story"
 category = "todo"
 priority = "medium"
-points = 8
+points = 13
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-03T22:31:26Z"
+updated = "2026-10-03T22:48:25Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/usage.md"]
 
 [[acceptance]]
@@ -25,5 +25,17 @@ bound = false
 
 [[acceptance]]
 text = 'Given goway.toml [toolchain] (for example cmake = ">=3.24", gcc = "14", tools = ["protoc"]), when doctor runs, then those requirements are checked like detected ones and take precedence'
+bound = false
+
+[[acceptance]]
+text = "Given a CMake project, when doctor determines its needs, then it uses CMake's own interfaces, not text matching: goway places a File API query (codemodel-v2, cache-v2, cmakeFiles-v1, toolchains-v1) in every build directory it keeps in a slot so normal configures write replies, doctor reads the latest replies (compilers with id and version, <Pkg>_DIR and FETCHCONTENT_* cache entries, fetched dependencies, link libraries), and doctor --configure runs one configure in a labelled scratch directory with --trace-expand --trace-format=json-v1 to capture find_package, FetchContent_Declare, pkg_check_modules and CPMAddPackage calls with resolved arguments; a failed find_package names the missing package and its install command"
+bound = false
+
+[[acceptance]]
+text = "Given other ecosystems, when doctor determines needs, then it uses each tool's machine-readable output where it exists (cargo metadata, go list -m -json and go env -json, mvn help:effective-pom, Gradle's toolchain report, dotnet --list-sdks) and real parsers (TOML, JSON, XML) for declarative files; plain text matching is only a fallback when the tool is missing, and doctor labels such results approximate and says to install the tool first"
+bound = false
+
+[[acceptance]]
+text = "Given doctor's analysis, when it configures or queries a project, then that only happens on helpers inside goway's labelled root (never on the laptop and never in the user's work tree), every reply is read with size limits and parsed strictly, and the scratch directory is removed afterwards and covered by gc"
 bound = false
 +++

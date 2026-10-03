@@ -93,6 +93,21 @@ pub struct Report {
     pub shards: Vec<ShardReport>,
 }
 
+/// The shares note body: each host with its share, largest share first and
+/// then by name, so the line is the same whatever order the pool chose.
+fn shares_note<'a>(names: impl Iterator<Item = &'a str>, weights: &runners::Weights) -> String {
+    let mut shares: Vec<(&str, u32)> = names
+        .enumerate()
+        .map(|(i, name)| (name, weights.weight(i + 1)))
+        .collect();
+    shares.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+    shares
+        .iter()
+        .map(|(name, w)| format!("{name} {w}/{}", weights.total()))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// Copy `reader` to our stdout or stderr line by line with `prefix`. With
 /// `filter` (the target is a terminal and the mode is not raw) the bytes go
 /// through one stateful terminal filter per stream, so a sequence cannot be
@@ -244,17 +259,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
         }
         renderer.note(format_args!(
             "shares by free cores: {}",
-            hosts
-                .iter()
-                .enumerate()
-                .map(|(i, (h, ..))| format!(
-                    "{} {}/{}",
-                    h.name,
-                    weights.weight(i + 1),
-                    weights.total()
-                ))
-                .collect::<Vec<_>>()
-                .join(", ")
+            shares_note(hosts.iter().map(|(h, ..)| h.name.as_str()), &weights)
         ));
     } else if plans.first().and_then(|p| p.framework).is_some()
         && !can_weigh
@@ -566,6 +571,23 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shares_note_lists_the_largest_share_first_whatever_the_pool_order() {
+        let w = runners::Weights::from_capacities(&[1.0, 4.0]);
+        let note = shares_note(["small", "big"].into_iter(), &w);
+        assert_eq!(
+            note,
+            format!(
+                "big {}/{t}, small {}/{t}",
+                w.weight(2),
+                w.weight(1),
+                t = w.total()
+            )
+        );
+        let swapped = runners::Weights::from_capacities(&[4.0, 1.0]);
+        assert_eq!(shares_note(["big", "small"].into_iter(), &swapped), note);
+    }
 
     fn pumped(input: &[u8], filter: bool) -> Vec<Vec<u8>> {
         let mut batches = Vec::new();
