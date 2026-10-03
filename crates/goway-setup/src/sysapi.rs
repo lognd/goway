@@ -65,9 +65,9 @@ pub fn tool_path(tool: Tool) -> String {
     }
 }
 
-/// `%SystemRoot%` as the system reports it (not from the environment).
 #[cfg(windows)]
 #[allow(unsafe_code)] // GetSystemWindowsDirectoryW FFI; see SAFETY
+/// `%SystemRoot%` as the system reports it (not from the environment).
 pub fn windows_dir() -> std::io::Result<PathBuf> {
     use windows_sys::Win32::System::SystemInformation::GetSystemWindowsDirectoryW;
     let mut buf = [0u16; 260];
@@ -79,9 +79,9 @@ pub fn windows_dir() -> std::io::Result<PathBuf> {
     Ok(PathBuf::from(String::from_utf16_lossy(&buf[..n])))
 }
 
-/// The machine-wide `ProgramData` directory from the known-folder API.
 #[cfg(windows)]
 #[allow(unsafe_code)] // SHGetKnownFolderPath FFI; see SAFETY
+/// The machine-wide `ProgramData` directory from the known-folder API.
 pub fn program_data_dir() -> std::io::Result<PathBuf> {
     use windows_sys::Win32::System::Com::CoTaskMemFree;
     use windows_sys::Win32::UI::Shell::{FOLDERID_ProgramData, SHGetKnownFolderPath};
@@ -101,18 +101,18 @@ pub fn program_data_dir() -> std::io::Result<PathBuf> {
     }
 }
 
-/// The machine-wide data directory (a stand-in off Windows: `PROGRAMDATA` or `/var/lib`).
 #[cfg(not(windows))]
+/// The machine-wide data directory (a stand-in off Windows: `PROGRAMDATA` or `/var/lib`).
 pub fn program_data_dir() -> std::io::Result<PathBuf> {
     Ok(std::env::var_os("PROGRAMDATA").map_or_else(|| PathBuf::from("/var/lib"), PathBuf::from))
 }
 
+#[cfg(windows)]
+#[allow(unsafe_code)]
 /// Copy a NUL-terminated UTF-16 string.
 ///
 /// # Safety
 /// `p` must point to a valid NUL-terminated UTF-16 string.
-#[cfg(windows)]
-#[allow(unsafe_code)]
 unsafe fn wide_to_string(p: *const u16) -> String {
     let mut len = 0;
     // SAFETY: the caller guarantees a terminating NUL, so every read below stays in bounds.
@@ -124,15 +124,15 @@ unsafe fn wide_to_string(p: *const u16) -> String {
     }
 }
 
-/// UTF-16, NUL-terminated.
 #[cfg(windows)]
+/// UTF-16, NUL-terminated.
 pub fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-/// The SID of the user this process runs as, in `S-1-5-21-...` form.
 #[cfg(windows)]
 #[allow(unsafe_code)] // token and SID FFI; see SAFETY
+/// The SID of the user this process runs as, in `S-1-5-21-...` form.
 pub fn current_user_sid() -> std::io::Result<String> {
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, LocalFree};
     use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
@@ -171,15 +171,15 @@ pub fn current_user_sid() -> std::io::Result<String> {
     }
 }
 
-/// The SID of the user (unavailable off Windows).
 #[cfg(not(windows))]
+/// The SID of the user (unavailable off Windows).
 pub fn current_user_sid() -> std::io::Result<String> {
     Err(std::io::Error::other("user SIDs only exist on Windows"))
 }
 
-/// The owner and DACL of `path` as an SDDL string (`O:...D:...`).
 #[cfg(windows)]
 #[allow(unsafe_code)] // security descriptor FFI; see SAFETY
+/// The owner and DACL of `path` as an SDDL string (`O:...D:...`).
 pub fn owner_and_dacl_sddl(path: &std::path::Path) -> std::io::Result<String> {
     use windows_sys::Win32::Foundation::LocalFree;
     use windows_sys::Win32::Security::Authorization::{
@@ -227,10 +227,10 @@ pub fn owner_and_dacl_sddl(path: &std::path::Path) -> std::io::Result<String> {
     }
 }
 
-/// Create the directory `path` carrying `sddl` from the start (no window where it inherits a
-/// wider ACL); an existing directory is left alone and reported as `AlreadyExists`.
 #[cfg(windows)]
 #[allow(unsafe_code)] // security descriptor FFI; see SAFETY
+/// Create the directory `path` carrying `sddl` from the start (no window where it inherits a
+/// wider ACL); an existing directory is left alone and reported as `AlreadyExists`.
 pub fn create_dir_with_sddl(path: &std::path::Path, sddl: &str) -> std::io::Result<()> {
     use windows_sys::Win32::Foundation::LocalFree;
     use windows_sys::Win32::Security::Authorization::{

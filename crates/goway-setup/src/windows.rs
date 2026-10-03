@@ -36,12 +36,12 @@ pub fn broadcast_environment_change() {
     }
 }
 
+#[cfg(windows)]
+#[allow(unsafe_code)] // one FFI call with a constant flag; see SAFETY
 /// Limit DLL loading to the system directory for the rest of the process's life.
 ///
 /// Without it a DLL planted beside the exe (a user-writable directory for the installed copy)
 /// can be loaded into an elevated process. Best effort; failure is logged.
-#[cfg(windows)]
-#[allow(unsafe_code)] // one FFI call with a constant flag; see SAFETY
 pub fn restrict_dll_search() {
     use windows_sys::Win32::System::LibraryLoader::{
         LOAD_LIBRARY_SEARCH_SYSTEM32, SetDefaultDllDirectories,
@@ -52,22 +52,22 @@ pub fn restrict_dll_search() {
     }
 }
 
-/// Limit DLL loading to the system directory (no-op off Windows).
 #[cfg(not(windows))]
+/// Limit DLL loading to the system directory (no-op off Windows).
 pub fn restrict_dll_search() {}
 
-/// Tell running programs the user environment changed (no-op off Windows).
 #[cfg(not(windows))]
+/// Tell running programs the user environment changed (no-op off Windows).
 pub fn broadcast_environment_change() {
     tracing::debug!("no environment broadcast off Windows");
 }
 
+#[cfg(windows)]
 /// Start `command` so it survives this process and, where allowed, the session's job object.
 ///
 /// Windows OpenSSH (and some terminals) put a session in a job that kills every descendant when
 /// the session ends. `CREATE_BREAKAWAY_FROM_JOB` escapes it; if the job forbids that the spawn
 /// is retried without the flag. Off Windows this is a plain spawn.
-#[cfg(windows)]
 pub fn spawn_detached(command: &mut std::process::Command) -> std::io::Result<std::process::Child> {
     use std::os::windows::process::CommandExt;
     const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
@@ -80,16 +80,16 @@ pub fn spawn_detached(command: &mut std::process::Command) -> std::io::Result<st
     }
 }
 
-/// Start `command` detached (plain spawn off Windows).
 #[cfg(not(windows))]
+/// Start `command` detached (plain spawn off Windows).
 pub fn spawn_detached(command: &mut std::process::Command) -> std::io::Result<std::process::Child> {
     command.spawn()
 }
 
+#[cfg(windows)]
 /// Delete `exe` and then `dir` once this process has exited (it cannot delete its own image).
 ///
 /// Spawns a hidden `cmd` that waits about two seconds, then removes the copy, its log and `dir`.
-#[cfg(windows)]
 pub fn schedule_self_delete(exe: &Path, dir: &Path) {
     use std::os::windows::process::CommandExt;
     use std::process::{Command, Stdio};
@@ -117,18 +117,18 @@ pub fn schedule_self_delete(exe: &Path, dir: &Path) {
     }
 }
 
-/// Delete the relaunched copy after exit (no-op off Windows).
 #[cfg(not(windows))]
+/// Delete the relaunched copy after exit (no-op off Windows).
 pub fn schedule_self_delete(exe: &Path, _dir: &Path) {
     tracing::debug!(exe = %exe.display(), "no self-delete off Windows");
 }
 
+#[cfg(windows)]
 /// Remove `dir` and its contents, then `root` if empty, once this process has exited.
 ///
 /// Used for the administrator-only state directory when it still holds this process's own exe
 /// or log. Spawns a hidden `cmd` (absolute path) that waits about five seconds, which also
 /// leaves the caller time to read the elevated run's log; it inherits this process's token.
-#[cfg(windows)]
 pub fn schedule_dir_removal(dir: &Path, root: &Path) {
     use std::os::windows::process::CommandExt;
     use std::process::{Command, Stdio};
@@ -155,8 +155,8 @@ pub fn schedule_dir_removal(dir: &Path, root: &Path) {
     }
 }
 
-/// Remove the state directory after exit (no-op off Windows).
 #[cfg(not(windows))]
+/// Remove the state directory after exit (no-op off Windows).
 pub fn schedule_dir_removal(dir: &Path, _root: &Path) {
     tracing::debug!(dir = %dir.display(), "no scheduled removal off Windows");
 }

@@ -59,3 +59,15 @@ fn elevation_probes_do_not_panic_and_relaunch_is_unavailable_off_windows() {
         assert!(run_elevated(Path::new("goway-setup.exe"), "install").is_err());
     }
 }
+
+// frob:tests crates/goway-setup/src/elevate.rs::redirect_output
+// frob:tests crates/goway-setup/src/windows.rs::restrict_dll_search
+#[test]
+fn output_redirection_and_dll_restriction_are_harmless_off_windows() {
+    goway_setup::windows::restrict_dll_search();
+    if !cfg!(windows) {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = std::fs::File::create(tmp.path().join("log")).unwrap();
+        assert!(goway_setup::elevate::redirect_output(file).is_err());
+    }
+}

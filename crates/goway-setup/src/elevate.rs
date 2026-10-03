@@ -85,8 +85,8 @@ pub fn is_elevated() -> bool {
     }
 }
 
-/// Whether this process holds an elevated token (nothing to elevate off Windows).
 #[cfg(not(windows))]
+/// Whether this process holds an elevated token (nothing to elevate off Windows).
 pub fn is_elevated() -> bool {
     true
 }
@@ -135,18 +135,18 @@ pub fn run_elevated(exe: &Path, parameters: &str) -> std::io::Result<u32> {
     }
 }
 
-/// Run elevated (unsupported off Windows).
 #[cfg(not(windows))]
+/// Run elevated (unsupported off Windows).
 pub fn run_elevated(_exe: &Path, _parameters: &str) -> std::io::Result<u32> {
     Err(std::io::Error::other(
         "elevation is only available on Windows",
     ))
 }
 
-/// Point this process's standard output and error at `log` (the elevated run has no console the
-/// caller can read); the file stays open for the life of the process.
 #[cfg(windows)]
 #[allow(unsafe_code)] // SetStdHandle FFI; see SAFETY
+/// Point this process's standard output and error at `log` (the elevated run has no console the
+/// caller can read); the file stays open for the life of the process.
 pub fn redirect_output(log: std::fs::File) -> std::io::Result<()> {
     use std::os::windows::io::AsRawHandle as _;
     use windows_sys::Win32::System::Console::{STD_ERROR_HANDLE, STD_OUTPUT_HANDLE, SetStdHandle};
@@ -163,8 +163,8 @@ pub fn redirect_output(log: std::fs::File) -> std::io::Result<()> {
     }
 }
 
-/// Redirect output to the log (unsupported off Windows, where nothing is ever relaunched).
 #[cfg(not(windows))]
+/// Redirect output to the log (unsupported off Windows, where nothing is ever relaunched).
 pub fn redirect_output(_log: std::fs::File) -> std::io::Result<()> {
     Err(std::io::Error::other("elevated runs only exist on Windows"))
 }
