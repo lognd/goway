@@ -2,7 +2,8 @@
 id = "01M418J2PA3M2FESKBF2Y6VZWP"
 title = "Config file and host identity: TOML config, state file, pinned host keys via HostKeyAlias"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
