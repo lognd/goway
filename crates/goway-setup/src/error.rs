@@ -41,6 +41,17 @@ pub enum SetupError {
         /// The distro.
         distro: String,
     },
+    /// State an elevated process would act on sits where a non-administrator could have written it.
+    #[error("refusing to trust {path}: {reason}")]
+    UntrustedState {
+        /// The directory, file or entry that was refused.
+        path: String,
+        /// Why it was refused.
+        reason: String,
+    },
+    /// The client component is per-user and must never run with an elevated token.
+    #[error("the client component never runs elevated; only the host component does")]
+    ClientNeverElevated,
     /// The elevated re-run failed; its own output was printed above.
     #[error("the elevated run failed with exit code {0}; its output is shown above")]
     ElevatedRunFailed(u32),

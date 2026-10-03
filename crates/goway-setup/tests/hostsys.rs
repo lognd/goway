@@ -162,7 +162,10 @@ fn scripts_name_the_right_cmdlets_and_quote_their_values() {
         fw.contains("-Direction Inbound -Action Allow -Protocol TCP -LocalPort 2299 -Profile Any")
     );
     assert!(fw.starts_with("$ErrorActionPreference = 'Stop'"));
-    assert!(ps::firewall_exists("x").contains("Get-NetFirewallRule -DisplayName 'x'"));
+    assert!(
+        ps::firewall_exists("x")
+            .contains("Get-NetFirewallRule -DisplayName ([WildcardPattern]::Escape('x'))")
+    );
     assert!(ps::firewall_delete("x").contains("| Remove-NetFirewallRule"));
     let hv = ps::hyperv_create(
         "h",
@@ -174,7 +177,10 @@ fn scripts_name_the_right_cmdlets_and_quote_their_values() {
     );
     assert!(hv.contains("New-NetFirewallHyperVRule -Name 'h'"));
     assert!(hv.contains("-VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol TCP -LocalPorts 2299 -Action Allow"));
-    assert!(ps::hyperv_exists("h").contains("Get-NetFirewallHyperVRule -Name 'h'"));
+    assert!(
+        ps::hyperv_exists("h")
+            .contains("Get-NetFirewallHyperVRule -Name ([WildcardPattern]::Escape('h'))")
+    );
     assert!(ps::hyperv_delete("h").contains("Remove-NetFirewallHyperVRule"));
     assert!(ps::hyperv_available().contains("New-NetFirewallHyperVRule"));
     let spec = |keepalive| TaskSpec {
@@ -191,9 +197,12 @@ fn scripts_name_the_right_cmdlets_and_quote_their_values() {
     assert!(logon.contains("-MultipleInstances IgnoreNew"));
     let boot = ps::task_create("T", &spec(Keepalive::Boot));
     assert!(boot.contains("-AtStartup") && boot.contains("-LogonType S4U"));
-    assert!(ps::task_exists("T").contains("Get-ScheduledTask -TaskName 'T'"));
+    assert!(
+        ps::task_exists("T")
+            .contains("Get-ScheduledTask -TaskName ([WildcardPattern]::Escape('T'))")
+    );
     assert!(ps::task_delete("T").contains("Unregister-ScheduledTask"));
-    assert!(ps::task_start("T").contains("Start-ScheduledTask -TaskName 'T'"));
+    assert!(ps::task_start("T").contains("| Start-ScheduledTask"));
     assert_eq!(
         ps::keepalive_arguments("U"),
         "--headless wsl.exe -d U --exec /bin/sh -c \"exec sleep infinity\""
@@ -391,7 +400,9 @@ fn windows_resources_run_the_matching_powershell_and_report_failures() {
     s.resource_delete(ResourceKind::HyperVFirewallRule, "h")
         .unwrap();
     let scripts: Vec<String> = fake.log.borrow().iter().map(script_of).collect();
-    assert!(scripts[0].contains("Get-NetFirewallRule -DisplayName 'r'"));
+    assert!(
+        scripts[0].contains("Get-NetFirewallRule -DisplayName ([WildcardPattern]::Escape('r'))")
+    );
     assert!(scripts[1].contains("New-NetFirewallRule") && scripts[1].contains("2299"));
     assert!(scripts[2].contains("Remove-NetFirewallRule"));
     assert!(scripts[3].contains("Unregister-ScheduledTask"));
@@ -605,5 +616,64 @@ fn deactivation_leaves_a_port_that_is_still_configured_and_starts_tasks_by_name(
     assert_eq!(s.deactivate_sshd(2222).unwrap(), None);
     s.start_task("WSL Keepalive").unwrap();
     let last = fake.log.borrow().last().cloned().unwrap();
-    assert!(script_of(&last).contains("Start-ScheduledTask -TaskName 'WSL Keepalive'"));
+    assert!(script_of(&last).contains("| Start-ScheduledTask"));
+}
+
+// frob:tests crates/goway-setup/src/ps.rs::firewall_delete
+// frob:tests crates/goway-setup/src/ps.rs::task_delete
+// frob:tests crates/goway-setup/src/ps.rs::hyperv_delete
+// frob:tests crates/goway-setup/src/ps.rs::task_exists
+#[test]
+fn lookups_match_a_name_exactly_and_never_as_a_wildcard() {
+    for script in [
+        ps::firewall_delete("*"),
+        ps::firewall_exists("*"),
+        ps::hyperv_delete("*"),
+        ps::task_delete("*"),
+        ps::task_exists("*"),
+        ps::task_start("*"),
+    ] {
+        assert!(
+            script.contains("[WildcardPattern]::Escape('*')"),
+            "the name is escaped for the cmdlet: {script}"
+        );
+        assert!(
+            script.contains("Where-Object { $_.") && script.contains("-ceq '*' }"),
+            "and the result is filtered on exact equality: {script}"
+        );
+    }
+}
+
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem
+#[test]
+fn powershell_resources_with_wildcard_names_never_reach_powershell() {
+    let fake = Fake::new(vec![("powershell.exe", 0, "1\n")]);
+    let mut s = sys(&fake);
+    for kind in [
+        ResourceKind::FirewallRule,
+        ResourceKind::HyperVFirewallRule,
+        ResourceKind::ScheduledTask,
+    ] {
+        assert!(s.resource_exists(kind, "*").is_err());
+        assert!(s.resource_delete(kind, "WSL*").is_err());
+        assert!(s.resource_create(kind, "a?", "{}").is_err());
+    }
+    assert!(fake.log.borrow().is_empty(), "no command was started");
+}
+
+// frob:tests crates/goway-setup/src/sysapi.rs::tool_path
+#[test]
+fn system_tools_are_started_by_the_expected_path() {
+    use goway_setup::sysapi::{Tool, tool_path};
+    let ps = tool_path(Tool::PowerShell);
+    let wsl = tool_path(Tool::Wsl);
+    if cfg!(windows) {
+        assert!(
+            ps.to_lowercase()
+                .ends_with(r"\system32\windowspowershell\v1.0\powershell.exe")
+        );
+        assert!(wsl.to_lowercase().ends_with(r"\system32\wsl.exe"));
+    } else {
+        assert_eq!((ps.as_str(), wsl.as_str()), ("powershell.exe", "wsl.exe"));
+    }
 }

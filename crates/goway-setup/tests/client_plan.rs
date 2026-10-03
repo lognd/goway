@@ -8,7 +8,7 @@ use goway_setup::layout::{Layout, validate_profile};
 use goway_setup::plan::{Component, Sources, build, client_plan};
 
 fn layout(profile: &str) -> Layout {
-    Layout::new(Path::new("/local"), profile).unwrap()
+    Layout::new(Path::new("/local"), Path::new("/ProgramData"), profile).unwrap()
 }
 
 fn sources() -> Sources {
@@ -53,7 +53,7 @@ fn profile_names_are_restricted_to_safe_characters() {
     for bad in ["", ".", "..", "a/b", "a\\b", "a b", "a;b", "é"] {
         assert!(validate_profile(bad).is_err(), "{bad:?} must be rejected");
     }
-    assert!(Layout::new(Path::new("/l"), "../x").is_err());
+    assert!(Layout::new(Path::new("/l"), Path::new("/ProgramData"), "../x").is_err());
 }
 
 // frob:tests crates/goway-setup/src/entry.rs::uninstall_values

@@ -20,6 +20,7 @@ use goway_journal::{LocalSystem, RegValue, ResourceKind, SysResult, System, Syst
 
 use crate::host::{FirewallSpec, HostFacts, HyperVSpec, TaskSpec};
 use crate::ps;
+use crate::sysapi::{Tool, tool_path};
 
 /// One external command to run.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,6 +124,25 @@ fn to_output(out: std::process::Output) -> Output {
     }
 }
 
+/// Refuse a PowerShell-managed resource whose name could act as a wildcard pattern.
+fn reject_wildcard(kind: ResourceKind, name: &str) -> SysResult<()> {
+    let powershell = matches!(
+        kind,
+        ResourceKind::FirewallRule | ResourceKind::HyperVFirewallRule | ResourceKind::ScheduledTask
+    );
+    if powershell && crate::host::has_wildcard(name) {
+        tracing::error!(
+            ?kind,
+            name,
+            "refusing a resource name with wildcard characters"
+        );
+        return Err(SystemError::InvalidState(format!(
+            "resource name {name:?} contains wildcard characters"
+        )));
+    }
+    Ok(())
+}
+
 /// Whether a path names something inside the distro (an absolute unix path).
 pub fn is_wsl_path(path: &Path) -> bool {
     path.to_str().is_some_and(|s| s.starts_with('/'))
@@ -198,7 +218,7 @@ impl<R: Runner> HostSystem<R> {
         full.push("--exec".to_owned());
         full.extend(argv.iter().map(|a| (*a).to_owned()));
         Invocation {
-            program: "wsl.exe".into(),
+            program: tool_path(Tool::Wsl),
             args: full,
             stdin: stdin.map(<[u8]>::to_vec),
         }
@@ -237,7 +257,7 @@ impl<R: Runner> HostSystem<R> {
 
     fn powershell(&self, what: &str, script: &str) -> SysResult<Output> {
         let inv = Invocation {
-            program: "powershell.exe".into(),
+            program: tool_path(Tool::PowerShell),
             args: vec![
                 "-NoProfile".into(),
                 "-NonInteractive".into(),
@@ -602,6 +622,7 @@ impl<R: Runner> System for HostSystem<R> {
     }
 
     fn resource_exists(&self, kind: ResourceKind, name: &str) -> SysResult<bool> {
+        reject_wildcard(kind, name)?;
         match kind {
             ResourceKind::FirewallRule => {
                 self.ps_flag("query firewall rule", &ps::firewall_exists(name))
@@ -628,6 +649,7 @@ impl<R: Runner> System for HostSystem<R> {
     }
 
     fn resource_create(&mut self, kind: ResourceKind, name: &str, spec: &str) -> SysResult<()> {
+        reject_wildcard(kind, name)?;
         tracing::info!(?kind, name, "creating resource");
         match kind {
             ResourceKind::FirewallRule => {
@@ -671,6 +693,7 @@ impl<R: Runner> System for HostSystem<R> {
     }
 
     fn resource_delete(&mut self, kind: ResourceKind, name: &str) -> SysResult<()> {
+        reject_wildcard(kind, name)?;
         tracing::info!(?kind, name, "deleting resource");
         match kind {
             ResourceKind::FirewallRule => self

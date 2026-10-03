@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use clap::{Args, Parser, Subcommand};
 use goway_journal::{LocalSystem, sha256_hex, still_applied};
 
+use crate::admin;
 use crate::app::{self, Retry};
 use crate::elevate;
 use crate::error::SetupError;
@@ -15,7 +16,9 @@ use crate::hostsys::HostSystem;
 use crate::layout::{DEFAULT_PROFILE, Layout};
 use crate::plan::{Component, Sources, build};
 use crate::render::{ColorWhen, Renderer};
-use crate::windows::{broadcast_environment_change, schedule_self_delete, spawn_detached};
+use crate::windows::{
+    broadcast_environment_change, schedule_dir_removal, schedule_self_delete, spawn_detached,
+};
 
 /// Retry budget when files are briefly locked (a parent process still exiting, an antivirus scan).
 const RETRY: Retry = Retry {
@@ -44,6 +47,20 @@ pub struct ProfileArg {
     /// Profile name: names the install directory, journal and Add/Remove Programs entry.
     #[arg(long, default_value = DEFAULT_PROFILE)]
     pub profile: String,
+}
+
+/// Hidden arguments of the elevated re-run (the host component only; see [`Elevate`]).
+#[derive(Debug, Clone, Default, Args)]
+pub struct ChildArgs {
+    /// Internal: this is the elevated re-run; never elevate again.
+    #[arg(long, hide = true)]
+    pub elevated_child: bool,
+    /// Internal: SID of the user who started the install; the elevated run must be that user.
+    #[arg(long, hide = true, value_name = "SID")]
+    pub invoker_sid: Option<String>,
+    /// Internal: name of the log file (in the administrator-only directory) for the output.
+    #[arg(long, hide = true, value_name = "NAME")]
+    pub elevated_log: Option<String>,
 }
 
 /// The goway-setup subcommands.
@@ -78,12 +95,12 @@ pub enum Command {
         /// Host: fail instead of asking Windows (UAC) for administrator rights.
         #[arg(long)]
         no_elevate: bool,
-        /// Internal: this is the elevated re-run; never elevate again.
-        #[arg(long, hide = true)]
-        elevated_child: bool,
         /// Profile selection.
         #[command(flatten)]
         profile: ProfileArg,
+        /// Internal: elevated-run plumbing.
+        #[command(flatten)]
+        child: ChildArgs,
     },
     /// Undo everything the install did by replaying its journal backwards.
     Uninstall {
@@ -99,12 +116,12 @@ pub enum Command {
         /// Host: fail instead of asking Windows (UAC) for administrator rights.
         #[arg(long)]
         no_elevate: bool,
-        /// Internal: this is the elevated re-run; never elevate again.
-        #[arg(long, hide = true)]
-        elevated_child: bool,
         /// Profile selection.
         #[command(flatten)]
         profile: ProfileArg,
+        /// Internal: elevated-run plumbing.
+        #[command(flatten)]
+        child: ChildArgs,
         /// Internal: this is the relaunched temporary copy; delete its directory when done.
         #[arg(long, hide = true, value_name = "DIR")]
         relaunched: Option<PathBuf>,
@@ -140,10 +157,23 @@ struct InstallRequest {
 }
 
 /// Whether and how the process may obtain administrator rights.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Elevate {
     allowed: bool,
     is_child: bool,
+    invoker_sid: Option<String>,
+    log: Option<String>,
+}
+
+impl Elevate {
+    fn new(no_elevate: bool, child: &ChildArgs) -> Self {
+        Self {
+            allowed: !no_elevate,
+            is_child: child.elevated_child,
+            invoker_sid: child.invoker_sid.clone(),
+            log: child.elevated_log.clone(),
+        }
+    }
 }
 
 /// Run the parsed command.
@@ -159,8 +189,8 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             harden,
             no_activate,
             no_elevate,
-            elevated_child,
             profile,
+            child,
         } => install(
             r,
             &profile.profile,
@@ -172,10 +202,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
                 keepalive: *keepalive,
                 harden: *harden,
                 activate: !*no_activate,
-                elevate: Elevate {
-                    allowed: !*no_elevate,
-                    is_child: *elevated_child,
-                },
+                elevate: Elevate::new(*no_elevate, child),
             },
         ),
         Command::Uninstall {
@@ -183,8 +210,8 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             host,
             no_activate,
             no_elevate,
-            elevated_child,
             profile,
+            child,
             relaunched,
         } => {
             let components = if *client || *host {
@@ -192,16 +219,13 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             } else {
                 vec![Component::Host, Component::Client]
             };
-            let elevate = Elevate {
-                allowed: !*no_elevate,
-                is_child: *elevated_child,
-            };
+            let elevate = Elevate::new(*no_elevate, child);
             uninstall(
                 r,
                 &profile.profile,
                 &components,
                 !*no_activate,
-                elevate,
+                &elevate,
                 relaunched.as_deref(),
             )
         }
@@ -220,24 +244,71 @@ fn current_exe() -> Result<PathBuf, SetupError> {
 fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), SetupError> {
     let layout = Layout::from_environment(profile)?;
     let wants_host = req.components.contains(&Component::Host);
+    if req.elevate.is_child && req.components.contains(&Component::Client) {
+        return Err(SetupError::ClientNeverElevated);
+    }
     if wants_host {
         host::validate_distro(&req.distro)?;
         if !req.dry_run && !cfg!(windows) {
             return Err(SetupError::HostNeedsWindows);
         }
-        if !req.dry_run
-            && let Some(code) = ensure_admin(r, "the host install", req.elevate)?
-        {
-            return finish_elevated(code);
+        if req.elevate.is_child {
+            enter_elevated_child(&layout, &req.elevate)?;
         }
     }
     for component in &req.components {
         match component {
             Component::Client => install_client(r, &layout, req.dry_run)?,
-            Component::Host => install_host(r, &layout, req)?,
+            Component::Host if req.dry_run => {
+                dry_run_host(r, &layout, &host_params(req)?)?;
+            }
+            Component::Host => {
+                let exe = current_exe()?;
+                let args = install_child_args(profile, req);
+                if let Some(code) = relaunch_host_elevated(
+                    r,
+                    "the host install",
+                    &layout,
+                    &exe,
+                    args,
+                    &req.elevate,
+                )? {
+                    finish_elevated(code)?;
+                } else {
+                    install_host(r, &layout, req)?;
+                }
+            }
         }
     }
     Ok(())
+}
+
+/// The arguments of the elevated re-run of `install`: the host component only, with every
+/// setting spelled out (nothing is copied from the parent's raw command line).
+fn install_child_args(profile: &str, req: &InstallRequest) -> Vec<String> {
+    let keepalive = clap::ValueEnum::to_possible_value(&req.keepalive)
+        .map_or_else(|| "logon".to_owned(), |v| v.get_name().to_owned());
+    let mut args: Vec<String> = [
+        "install",
+        "--host",
+        "--profile",
+        profile,
+        "--port",
+        &req.port.to_string(),
+        "--distro",
+        &req.distro,
+        "--keepalive",
+        &keepalive,
+    ]
+    .map(str::to_owned)
+    .to_vec();
+    if req.harden {
+        args.push("--harden".to_owned());
+    }
+    if !req.activate {
+        args.push("--no-activate".to_owned());
+    }
+    args
 }
 
 fn install_client(r: Renderer, layout: &Layout, dry_run: bool) -> Result<(), SetupError> {
@@ -344,6 +415,13 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
             return Err(e);
         }
     };
+    match current_exe().and_then(|exe| admin::install_protected_exe(&layout.admin_dir, &exe)) {
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!(error = %e, "could not keep a protected copy of the setup exe");
+            r.notice("could not keep an administrator-only copy of goway-setup; a later uninstall must be started from an elevated terminal");
+        }
+    }
     r.host_installed(layout, &params.distro, params.port, journal.entries.len());
     if req.activate {
         if host::sshd_changed(&journal) {
@@ -367,27 +445,23 @@ fn uninstall(
     profile: &str,
     components: &[Component],
     activate: bool,
-    elevate: Elevate,
+    elevate: &Elevate,
     relaunched: Option<&Path>,
 ) -> Result<(), SetupError> {
     let layout = Layout::from_environment(profile)?;
+    if elevate.is_child {
+        if components.contains(&Component::Client) {
+            return Err(SetupError::ClientNeverElevated);
+        }
+        enter_elevated_child(&layout, elevate)?;
+    }
+    notice_legacy_host_state(r, &layout);
     let mut order = components.to_vec();
     order.sort_by_key(|c| std::cmp::Reverse(*c));
-    if order.contains(&Component::Host)
-        && let Some(journal) = app::load_journal(&layout.host_view())?
-        && host::needs_admin(&journal)
-    {
-        if !cfg!(windows) {
-            return Err(SetupError::HostNeedsWindows);
-        }
-        if let Some(code) = ensure_admin(r, "the host uninstall", elevate)? {
-            return finish_elevated(code);
-        }
-    }
     let mut found = false;
     for component in order {
         found |= match component {
-            Component::Host => uninstall_host(r, &layout, activate)?,
+            Component::Host => uninstall_host_entry(r, &layout, activate, elevate)?,
             Component::Client => uninstall_client(r, &layout, relaunched)?,
         };
     }
@@ -397,8 +471,58 @@ fn uninstall(
     Ok(())
 }
 
+/// Uninstall the host component, elevating only this part when needed.
+///
+/// The host journal lives in the administrator-only directory, so removing it always needs
+/// administrator rights. When not elevated, the elevated re-run starts the protected copy of
+/// the setup exe from that directory, never the user-writable installed one.
+fn uninstall_host_entry(
+    r: Renderer,
+    layout: &Layout,
+    activate: bool,
+    elevate: &Elevate,
+) -> Result<bool, SetupError> {
+    if app::load_journal(&layout.host_view())?.is_none() {
+        return Ok(false);
+    }
+    if !cfg!(windows) {
+        return Err(SetupError::HostNeedsWindows);
+    }
+    if !elevate::is_elevated() {
+        let protected = admin::protected_exe(&layout.admin_dir);
+        if !protected.is_file() {
+            return Err(SetupError::NeedsAdmin(format!(
+                "the host uninstall: no administrator-only copy of goway-setup at {}; start goway-setup from a terminal opened with Run as administrator",
+                protected.display()
+            )));
+        }
+        let mut args: Vec<String> = ["uninstall", "--host", "--profile", &layout.profile]
+            .map(str::to_owned)
+            .to_vec();
+        if !activate {
+            args.push("--no-activate".to_owned());
+        }
+        if let Some(code) =
+            relaunch_host_elevated(r, "the host uninstall", layout, &protected, args, elevate)?
+        {
+            finish_elevated(code)?;
+            return Ok(true);
+        }
+    }
+    uninstall_host(r, layout, activate, elevate.log.as_deref())
+}
+
 /// Uninstall the host component; `Ok(false)` when it has no journal.
-fn uninstall_host(r: Renderer, layout: &Layout, activate: bool) -> Result<bool, SetupError> {
+///
+/// Runs elevated. The journal and settings come from the verified administrator-only
+/// directory, and the journal is replayed only if every entry is one the host plan for those
+/// settings could have produced.
+fn uninstall_host(
+    r: Renderer,
+    layout: &Layout,
+    activate: bool,
+    keep_log: Option<&str>,
+) -> Result<bool, SetupError> {
     let view = layout.host_view();
     if app::load_journal(&view)?.is_none() {
         return Ok(false);
@@ -410,8 +534,11 @@ fn uninstall_host(r: Renderer, layout: &Layout, activate: bool) -> Result<bool, 
         distro: DEFAULT_DISTRO.to_owned(),
         port: DEFAULT_PORT,
     });
+    let home = dirs::home_dir().ok_or(SetupError::NoLocalAppData)?;
     let mut sys = HostSystem::new(&settings.distro);
-    let report = app::uninstall(&mut sys, &view, Retry::ONCE)?;
+    let report = app::uninstall_checked(&mut sys, &view, Retry::ONCE, |journal| {
+        host::validate_journal(journal, layout, &settings, &home)
+    })?;
     let Some(report) = report else {
         return Ok(false);
     };
@@ -419,15 +546,85 @@ fn uninstall_host(r: Renderer, layout: &Layout, activate: bool) -> Result<bool, 
         sys.deactivate_sshd(settings.port)?;
     }
     app::remove_settings(layout);
+    purge_admin_state(layout, keep_log);
     r.uninstalled_component(layout, "host component of profile", &report);
     Ok(true)
 }
 
-/// Make sure this process is elevated, relaunching through UAC when allowed.
+/// Remove the administrator-only state; what cannot go while this process runs (its own exe
+/// or log) is removed by a helper shortly after it exits.
+fn purge_admin_state(layout: &Layout, keep_log: Option<&str>) {
+    let exe = current_exe().unwrap_or_default();
+    if !admin::purge(&layout.admin_dir, &layout.admin_root, &exe, keep_log) {
+        schedule_dir_removal(&layout.admin_dir, &layout.admin_root);
+    }
+}
+
+/// The elevated entry point of a re-run (`--elevated-child`).
 ///
-/// `Ok(None)` means elevated and the caller proceeds; `Ok(Some(code))` means the elevated copy
-/// already did the work (its output printed) and finished with `code`.
-fn ensure_admin(r: Renderer, what: &str, elevate: Elevate) -> Result<Option<u32>, SetupError> {
+/// Everything after this acts with an administrator token, so it must only ever consume data
+/// from a location a non-administrator cannot write: the administrator-only state directory
+/// (verified, created here with a protected ACL), the arguments given on the UAC command
+/// line, and the system's own tools by absolute path. It also refuses to run for a different
+/// account than the one that asked, because profile and WSL distros are per user.
+// frob:invariant INV-ELEV-001
+fn enter_elevated_child(layout: &Layout, elevate: &Elevate) -> Result<(), SetupError> {
+    if !elevate::is_elevated() {
+        return Err(SetupError::NeedsAdmin(
+            "the elevated re-run is still not elevated".to_owned(),
+        ));
+    }
+    let wrong_user = |why: &str| {
+        SetupError::NeedsAdmin(format!(
+            "the elevated re-run {why}; run goway-setup from an elevated terminal of your own account instead"
+        ))
+    };
+    let Some(expected) = &elevate.invoker_sid else {
+        return Err(wrong_user("was not told who started it"));
+    };
+    let me =
+        crate::sysapi::current_user_sid().map_err(|e| SetupError::io(Path::new("<token>"), e))?;
+    if &me != expected {
+        tracing::error!(%me, %expected, "elevated as a different account");
+        return Err(wrong_user(
+            "runs as a different account than the one that started it",
+        ));
+    }
+    app::prepare_admin_dir(layout)?;
+    if let Some(name) = &elevate.log {
+        if !admin::valid_log_name(name) {
+            return Err(SetupError::UntrustedState {
+                path: name.clone(),
+                reason: "not a valid elevated log name".to_owned(),
+            });
+        }
+        admin::remove_old_logs(&layout.admin_dir, Some(name));
+        let path = layout.admin_dir.join(name);
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map_err(|e| SetupError::io(&path, e))?;
+        elevate::redirect_output(file).map_err(|e| SetupError::io(&path, e))?;
+    }
+    tracing::info!("running elevated for the host component");
+    Ok(())
+}
+
+/// Re-run the host component elevated through UAC when this process is not elevated.
+///
+/// `Ok(None)` means this process is already elevated and the caller proceeds in-process;
+/// `Ok(Some(code))` means the elevated copy of `exe` did the work (its output printed) and
+/// finished with `code`. Only `args` (the host component) are passed; the client component
+/// never runs elevated.
+fn relaunch_host_elevated(
+    r: Renderer,
+    what: &str,
+    layout: &Layout,
+    exe: &Path,
+    mut args: Vec<String>,
+    elevate: &Elevate,
+) -> Result<Option<u32>, SetupError> {
     if elevate::is_elevated() {
         tracing::info!("running with administrator rights");
         return Ok(None);
@@ -442,22 +639,29 @@ fn ensure_admin(r: Renderer, what: &str, elevate: Elevate) -> Result<Option<u32>
         };
         return Err(SetupError::NeedsAdmin(format!("{what}: {why}")));
     }
+    let sid =
+        crate::sysapi::current_user_sid().map_err(|e| SetupError::io(Path::new("<token>"), e))?;
+    let log = admin::new_log_name();
+    args.extend([
+        "--elevated-child".to_owned(),
+        "--invoker-sid".to_owned(),
+        sid,
+        "--elevated-log".to_owned(),
+        log.clone(),
+    ]);
     r.elevating(what);
-    let exe = current_exe()?;
-    let mut args: Vec<String> = std::env::args().skip(1).collect();
-    args.push("--elevated-child".to_owned());
-    let log = std::env::temp_dir().join(format!("goway-setup-elevated-{}.log", std::process::id()));
-    let code =
-        elevate::run_elevated(&elevate::elevated_parameters(&exe, &args, &log)).map_err(|e| {
-            SetupError::NeedsAdmin(format!("{what}: Windows did not grant elevation ({e})"))
-        })?;
-    match std::fs::read_to_string(&log) {
-        Ok(text) => r.passthrough(&text),
-        Err(e) => {
-            tracing::warn!(path = %log.display(), error = %e, "no output from the elevated run");
-        }
+    let code = elevate::run_elevated(exe, &elevate::command_line(&args)).map_err(|e| {
+        SetupError::NeedsAdmin(format!("{what}: Windows did not grant elevation ({e})"))
+    })?;
+    // The log sits in the administrator-only directory; read it only if that checks out.
+    match app::verify_admin_dir(layout) {
+        Ok(true) => match std::fs::read_to_string(layout.admin_dir.join(&log)) {
+            Ok(text) => r.passthrough(&text),
+            Err(e) => tracing::warn!(error = %e, "no output from the elevated run"),
+        },
+        Ok(false) => tracing::warn!("the elevated run left no state directory"),
+        Err(e) => tracing::error!(error = %e, "not reading the elevated log"),
     }
-    let _ = std::fs::remove_file(&log);
     Ok(Some(code))
 }
 
@@ -498,17 +702,35 @@ fn uninstall_client(
     }
 }
 
+/// Copy `from` to `to`, which must not exist yet.
+fn copy_new(from: &Path, to: &Path) -> Result<(), SetupError> {
+    let mut src = std::fs::File::open(from).map_err(|e| SetupError::io(from, e))?;
+    let mut dst = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(to)
+        .map_err(|e| SetupError::io(to, e))?;
+    std::io::copy(&mut src, &mut dst).map_err(|e| SetupError::io(to, e))?;
+    Ok(())
+}
+
 /// Copy this exe to the temp directory and continue there: a running exe cannot delete itself.
 ///
 /// The copy runs detached (it must outlive this process, which exits at once so the installed
 /// exe is unlocked) with its output in `uninstall.log` beside it; it deletes itself when done.
 fn relaunch(r: Renderer, layout: &Layout, exe: &Path) -> Result<(), SetupError> {
     let dir = app::relaunch_dir(&std::env::temp_dir(), std::process::id());
-    std::fs::create_dir_all(&dir).map_err(|e| SetupError::io(&dir, e))?;
+    // `create_dir` (not `_all`) and exclusive file creation: a directory or link planted at the
+    // predictable temp path makes this fail instead of being written through.
+    std::fs::create_dir(&dir).map_err(|e| SetupError::io(&dir, e))?;
     let copy = dir.join("goway-setup.exe");
-    std::fs::copy(exe, &copy).map_err(|e| SetupError::io(&copy, e))?;
+    copy_new(exe, &copy)?;
     let log_path = dir.join("uninstall.log");
-    let log = std::fs::File::create(&log_path).map_err(|e| SetupError::io(&log_path, e))?;
+    let log = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&log_path)
+        .map_err(|e| SetupError::io(&log_path, e))?;
     let log_err = log.try_clone().map_err(|e| SetupError::io(&log_path, e))?;
     r.relaunching(&copy, &log_path);
     tracing::info!(copy = %copy.display(), "relaunching uninstaller from temp");
@@ -531,6 +753,7 @@ fn relaunch(r: Renderer, layout: &Layout, exe: &Path) -> Result<(), SetupError> 
 
 fn status(r: Renderer, profile: &str) -> Result<(), SetupError> {
     let layout = Layout::from_environment(profile)?;
+    notice_legacy_host_state(r, &layout);
     let mut any = false;
     if let Some(journal) = app::load_journal(&layout)? {
         any = true;
@@ -550,4 +773,18 @@ fn status(r: Renderer, profile: &str) -> Result<(), SetupError> {
         r.not_installed(&layout);
     }
     Ok(())
+}
+
+/// Tell the user about a host journal an older goway-setup left in their (user-writable)
+/// profile: it is never read or replayed, because an elevated process must not trust it.
+fn notice_legacy_host_state(r: Renderer, layout: &Layout) {
+    let legacy = layout.state_dir.join("host-journal.json");
+    if legacy.exists() {
+        tracing::warn!(path = %legacy.display(), "ignoring a host journal in the user profile");
+        r.notice(&format!(
+            "ignoring {}: host state now lives in {} where only administrators can write; remove the old file after checking the host by hand",
+            legacy.display(),
+            layout.admin_dir.display()
+        ));
+    }
 }

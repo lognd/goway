@@ -1,6 +1,7 @@
 # Installing goway on Windows
 
-`goway-setup.exe` is a single-file, per-user installer (no administrator rights) built around the
+`goway-setup.exe` is a single-file installer (the client component is per-user and needs no
+administrator rights; only the host component elevates) built around the
 journal in `crates/goway-journal`. Every change it makes is recorded together with the state it
 replaced, so `uninstall` replays the journal backwards and restores the machine.
 
@@ -15,12 +16,13 @@ replaced, so `uninstall` replays the journal backwards and restores the machine.
 `--profile` (default `goway`) names the install directory, the journal and the Add/Remove Programs
 key, so a test profile never touches a real install. `--dry-run` prints the plan and changes
 nothing. `-v` raises diagnostics, `--color` controls color. Components are selectable: `--client`
-(the default when neither is named) and `--host`. Each component has its own journal in the profile's
-state directory (`install-journal.json` for the client, `host-journal.json` for the host), so either
+(the default when neither is named) and `--host`. Each component has its own journal, so either
 can be installed and removed on its own; `uninstall` without flags removes every component that has a
-journal (host first, then client) and `status` shows both. A host install also writes
-`host-settings.json` (distro and port) so uninstall reaches the same distro; it is deleted with the
-journal.
+journal (host first, then client) and `status` shows both. The client journal
+(`install-journal.json`) lives in the profile's per-user state directory; the host journal
+(`host-journal.json`) and `host-settings.json` (distro and port, so uninstall reaches the same
+distro) live in an administrator-only directory, `%ProgramData%\goway\P` (see "Security of the
+elevated host steps" below). They are deleted with the component.
 
 `install --host --dry-run` on Windows probes the machine read-only and marks each step `in place`
 or `will do`.
@@ -78,12 +80,79 @@ unpacked, ...) the install refuses that step with a message instead of touching 
 **Elevation.** Firewall rules need administrator rights. goway-setup checks its token
 (`GetTokenInformation(TokenElevation)`). Over Windows OpenSSH an administrator account already holds a
 full token (High mandatory level, verified on both test laptops), so nothing happens. In an
-ordinary console it re-runs itself through the `runas` verb (a UAC prompt) with its output captured
-in a temporary log that the unelevated copy prints, and returns the elevated copy's exit code. It
+ordinary console it re-runs only the host component through the `runas` verb (a UAC prompt) and
+returns the elevated copy's exit code; the client component never runs elevated. It
 does not prompt when it cannot be shown (no `SESSIONNAME`, as in SSH sessions), with `--no-elevate`,
 or in the elevated copy itself; it then fails with a message saying how to start an elevated
 terminal. The interactive UAC path is built but was not exercised end to end (the test machines are
-only reachable over SSH).
+only reachable over SSH). How the elevated step is kept safe is described next.
+
+## Security of the elevated host steps
+
+In plain words: the part of goway-setup that runs with administrator rights no longer believes
+anything a normal program running as you could have written. Before this change the host journal
+lived in your profile, where any program you run can edit it, and the elevated uninstall replayed it
+as administrator; a planted entry could overwrite a system file or delete every firewall rule. Now:
+
+* **Host state is in an administrator-only place.** The host journal and settings live in
+  `%ProgramData%\goway\P`, created by the elevated process, writable only by Administrators and
+  SYSTEM (everyone else may read). Before reading anything from it goway-setup checks that the
+  directory is a real directory (not a link), is owned by Administrators or SYSTEM, and grants no one
+  else more than read access; otherwise it refuses and says why.
+* **Only entries goway itself would have written are replayed.** The elevated uninstall rebuilds
+  what the host plan can contain from the validated settings (profile, port, distro) and refuses the
+  whole journal, before reverting anything, if one entry is not in that set: other paths, registry
+  keys, ACLs, or resource names with wildcards.
+* **Names are matched exactly.** The PowerShell lookups for firewall rules and scheduled tasks
+  escape wildcards and filter on exact equality, so a rule named `*` can no longer mean "all rules".
+* **Only the host component is elevated**, started with explicit arguments (no copy of your raw
+  command line), and only for the same account that asked: elevating as a different administrator is
+  refused, because your profile and your WSL distros belong to you.
+* **The elevated program is not the one in your profile.** A host install keeps a copy of
+  `goway-setup.exe` in the administrator-only directory, and a later uninstall that needs elevation
+  starts that copy, not `%LOCALAPPDATA%\Programs\P\goway-setup.exe`, which any program you run
+  could have replaced. (The very first install still runs the exe you started: you chose it, and the
+  UAC prompt names it.)
+* **No shell, no search path.** The UAC relaunch passes the exe and its arguments directly (no
+  `cmd.exe`, so characters like `&` or `%` in an argument mean nothing), and `powershell.exe`,
+  `wsl.exe` and `cmd.exe` are started by absolute path under the Windows System32 directory, with
+  DLL loading limited to System32.
+* **Temp and log files are created exclusively** (`CREATE_NEW`) in the administrator-only
+  directory; the journal's temporary file is never written through a pre-existing file or link.
+
+<details><summary>Details for reviewers</summary>
+
+* Directory ACL (SDDL): `O:BAD:P(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)(A;OICI;0x1200a9;;;BU)` for both
+  `%ProgramData%\goway` and `%ProgramData%\goway\P`: owner Administrators, protected (no inherited
+  entries), full control for Administrators and SYSTEM, read and execute for Users. The check
+  (`admin::check_sddl`) requires an Administrators, SYSTEM or TrustedInstaller owner, a DACL, and no
+  allow entry for any other trustee with a write, delete, change-permissions or take-ownership bit
+  (symbolic or hexadecimal). It is pure and unit tested off Windows (`tests/elevated.rs`). Parent and
+  child directories are both verified; a reparse point is refused. Known folders, the Windows
+  directory and the token SID come from system calls, never from environment variables.
+* Validation (`host::validate_journal`): every entry's change must equal one of the changes of
+  `host_plan` over both keepalive modes, with and without hardening, the Hyper-V rule and the port
+  drop-in, for the saved port and distro. A directory-removal prior may list only ancestors of the
+  directory the entry ensured. Resource names with `*?[]` or a backtick are refused (in the
+  validator and again in `HostSystem`).
+* The elevated re-run gets `--elevated-child --invoker-sid SID --elevated-log NAME`. It compares
+  the SID with its own token, creates the directory (verifying it), deletes older
+  `elevated-*.log` files, creates its log with `create_new` and redirects stdout and stderr to it;
+  the unelevated parent reads that file (only after verifying the directory) and prints it. Early
+  failures before the log exists are visible only as the exit code.
+* The legacy location: a `host-journal.json` left in `%LOCALAPPDATA%\P` by an older version is never
+  read or replayed; `status` and `uninstall` print a notice with the path.
+* The log of an elevated uninstall and, when it ran from the protected copy, that copy cannot be
+  deleted while in use; a hidden `cmd` (absolute path, same token) removes the directory about five
+  seconds after the process exits. Runs that never go through UAC (an administrator terminal or SSH
+  session) remove everything immediately.
+* Invariant `INV-ELEV-001`: elevated code never acts on data from a location a non-administrator can
+  write (marked at `enter_elevated_child` in `crates/goway-setup/src/cli.rs`).
+* Not covered: a program already running with your administrator token, or one that replaced the
+  exe before the very first install, is out of scope; so is the ssh key ACL of `goway ssh setup`
+  (the client crate).
+
+</details>
 
 ## Why uninstall provably restores the machine
 

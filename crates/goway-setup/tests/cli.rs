@@ -59,7 +59,7 @@ fn a_bad_profile_is_rejected_before_anything_happens() {
 #[test]
 fn every_message_renders_without_panicking() {
     let r = Renderer::new(ColorWhen::Never);
-    let layout = Layout::new(Path::new("/l"), "p").unwrap();
+    let layout = Layout::new(Path::new("/l"), Path::new("/ProgramData"), "p").unwrap();
     let change = Change::EnsureDir { path: "/x".into() };
     let mut journal = Journal::new("j");
     journal.entries.push(goway_journal::Entry {
@@ -184,7 +184,7 @@ fn status_and_uninstall_of_an_unknown_profile_report_nothing_to_do() {
 fn host_messages_render_without_panicking() {
     use goway_journal::ResourceKind;
     let r = Renderer::new(ColorWhen::Never);
-    let layout = Layout::new(Path::new("/l"), "p").unwrap();
+    let layout = Layout::new(Path::new("/l"), Path::new("/ProgramData"), "p").unwrap();
     r.passthrough("child output\n");
     r.elevating("the host install");
     r.notice("restart WSL");
@@ -231,5 +231,24 @@ fn host_messages_render_without_panicking() {
         ResourceKind::WslPackage,
     ] {
         assert!(!goway_setup::render::describe_kind(kind).is_empty());
+    }
+}
+
+// frob:tests crates/goway-setup/src/cli.rs::run
+#[test]
+fn the_elevated_rerun_refuses_the_client_component() {
+    for args in [
+        vec!["install", "--client", "--host", "--elevated-child"],
+        vec!["uninstall", "--client", "--elevated-child"],
+    ] {
+        let mut argv = vec!["goway-setup", "--color", "never"];
+        argv.extend(args);
+        argv.extend(["--profile", "elevated-client-test"]);
+        let cli = Cli::try_parse_from(argv).unwrap();
+        let err = run(&cli, Renderer::new(ColorWhen::Never)).unwrap_err();
+        assert!(
+            matches!(err, goway_setup::error::SetupError::ClientNeverElevated),
+            "{err:?}"
+        );
     }
 }

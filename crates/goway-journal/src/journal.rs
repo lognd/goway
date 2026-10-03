@@ -123,7 +123,7 @@ impl Journal {
         Self::new(format!("{nanos:x}-{:x}-{n:x}", std::process::id()))
     }
 
-    /// Write the journal as JSON, atomically (temp file then rename).
+    /// Write the journal as JSON, atomically (exclusively created temp file, then rename).
     pub fn save(&self, path: &Path) -> Result<(), JournalError> {
         let io = |source| JournalError::Io {
             path: path.to_path_buf(),
@@ -133,7 +133,23 @@ impl Journal {
         let mut tmp = path.as_os_str().to_owned();
         tmp.push(".tmp");
         let tmp = PathBuf::from(tmp);
-        std::fs::write(&tmp, json).map_err(io)?;
+        // A stale temp file is removed and the new one created exclusively, so a file or link
+        // planted at the temp path is never written through (the journal may live in a
+        // directory only an administrator can write, but the save must not rely on that).
+        match std::fs::remove_file(&tmp) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(io(e)),
+        }
+        {
+            use std::io::Write as _;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&tmp)
+                .map_err(io)?;
+            file.write_all(json.as_bytes()).map_err(io)?;
+        }
         std::fs::rename(&tmp, path).map_err(io)?;
         tracing::debug!(journal = %self.id, entries = self.entries.len(), path = %path.display(), "journal saved");
         Ok(())

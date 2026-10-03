@@ -7,6 +7,7 @@ use goway_journal::{
     ApplyError, Change, Journal, JournalError, Outcome, System, apply_with, revert, still_applied,
 };
 
+use crate::admin;
 use crate::error::SetupError;
 use crate::host::HostSettings;
 use crate::layout::Layout;
@@ -55,33 +56,73 @@ pub struct UninstallReport {
     pub outcomes: Vec<(usize, Outcome)>,
 }
 
-/// Persist the host settings so a later uninstall reaches the same distro.
+/// Create (when absent) and verify the administrator-only directories of `layout`.
+///
+/// Only an elevated process can create them; an existing directory with the wrong owner or ACL
+/// is refused.
+pub fn prepare_admin_dir(layout: &Layout) -> Result<(), SetupError> {
+    admin::ensure(&layout.admin_root)?;
+    admin::ensure(&layout.admin_dir)
+}
+
+/// Verify the administrator-only directories when they exist; `false` when there are none.
+pub fn verify_admin_dir(layout: &Layout) -> Result<bool, SetupError> {
+    if !layout.admin_dir.exists() {
+        return Ok(false);
+    }
+    admin::verify(&layout.admin_root)?;
+    admin::verify(&layout.admin_dir)?;
+    Ok(true)
+}
+
+/// Persist the host settings (in the administrator-only directory) so a later uninstall
+/// reaches the same distro.
 pub fn save_settings(layout: &Layout, settings: &HostSettings) -> Result<(), SetupError> {
-    std::fs::create_dir_all(&layout.state_dir).map_err(|e| SetupError::io(&layout.state_dir, e))?;
+    prepare_admin_dir(layout)?;
     let json = serde_json::to_string_pretty(settings).map_err(JournalError::from)?;
     std::fs::write(&layout.host_settings_path, json)
         .map_err(|e| SetupError::io(&layout.host_settings_path, e))
 }
 
 /// Read the saved host settings; `None` when there are none.
+///
+/// The directory is verified first and the values are validated (distro name, port), because
+/// an elevated uninstall rebuilds its expected plan from them.
 pub fn load_settings(layout: &Layout) -> Result<Option<HostSettings>, SetupError> {
-    match std::fs::read_to_string(&layout.host_settings_path) {
-        Ok(text) => Ok(serde_json::from_str(&text).ok()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(SetupError::io(&layout.host_settings_path, e)),
+    if !verify_admin_dir(layout)? {
+        return Ok(None);
     }
+    let text = match std::fs::read_to_string(&layout.host_settings_path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(SetupError::io(&layout.host_settings_path, e)),
+    };
+    let settings: HostSettings =
+        serde_json::from_str(&text).map_err(|e| SetupError::UntrustedState {
+            path: layout.host_settings_path.display().to_string(),
+            reason: format!("unreadable settings ({e})"),
+        })?;
+    settings.validate(&layout.host_settings_path)?;
+    Ok(Some(settings))
 }
 
-/// Delete the saved host settings, then the state directory if nothing else is in it.
+/// Delete the saved host settings, then the state directories if nothing else is in them.
 pub fn remove_settings(layout: &Layout) {
     if let Err(e) = std::fs::remove_file(&layout.host_settings_path) {
         tracing::debug!(path = %layout.host_settings_path.display(), error = %e, "no settings to remove");
     }
-    let _ = std::fs::remove_dir(&layout.state_dir);
+    let _ = std::fs::remove_dir(&layout.admin_dir);
+    let _ = std::fs::remove_dir(&layout.admin_root);
 }
 
 /// Load the profile's journal; `None` when it has none.
+///
+/// A journal in the administrator-only directory is read only after the directory's owner and
+/// ACL check out.
 pub fn load_journal(layout: &Layout) -> Result<Option<Journal>, SetupError> {
+    if layout.admin_only && !verify_admin_dir(layout)? {
+        return Ok(None);
+    }
     if !layout.journal_path.exists() {
         return Ok(None);
     }
@@ -110,7 +151,12 @@ pub fn install(
     plan: &[Change],
 ) -> Result<Journal, SetupError> {
     ensure_not_installed(layout)?;
-    std::fs::create_dir_all(&layout.state_dir).map_err(|e| SetupError::io(&layout.state_dir, e))?;
+    if layout.admin_only {
+        prepare_admin_dir(layout)?;
+    } else {
+        std::fs::create_dir_all(&layout.state_dir)
+            .map_err(|e| SetupError::io(&layout.state_dir, e))?;
+    }
     let path = layout.journal_path.clone();
     let result = apply_with(plan, sys, Journal::generate(), &mut |j| j.save(&path));
     match result {
@@ -145,10 +191,24 @@ pub fn uninstall(
     layout: &Layout,
     retry: Retry,
 ) -> Result<Option<UninstallReport>, SetupError> {
+    uninstall_checked(sys, layout, retry, |_| Ok(()))
+}
+
+/// [`uninstall`], but `check` must accept the loaded journal before anything is reverted.
+///
+/// This is how the elevated host uninstall refuses entries that its own plan could not have
+/// produced; a refusal leaves the system and the journal untouched.
+pub fn uninstall_checked(
+    sys: &mut (impl System + ?Sized),
+    layout: &Layout,
+    retry: Retry,
+    check: impl FnOnce(&Journal) -> Result<(), SetupError>,
+) -> Result<Option<UninstallReport>, SetupError> {
     let Some(mut journal) = load_journal(layout)? else {
         tracing::info!(profile = %layout.profile, "nothing to uninstall");
         return Ok(None);
     };
+    check(&journal)?;
     let mut attempt = 1;
     let report = loop {
         let result = revert(&mut journal, sys);
@@ -174,6 +234,11 @@ pub fn uninstall(
 fn finish_journal(layout: &Layout) {
     if let Err(e) = std::fs::remove_file(&layout.journal_path) {
         tracing::warn!(path = %layout.journal_path.display(), error = %e, "could not remove journal");
+    }
+    if layout.admin_only {
+        // The administrator-only directory also holds settings, the protected exe and logs;
+        // the host uninstall purges it once it is done with all of them.
+        return;
     }
     match std::fs::remove_dir(&layout.state_dir) {
         Ok(()) => tracing::info!(path = %layout.state_dir.display(), "removed state directory"),

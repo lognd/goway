@@ -2,33 +2,49 @@
 //!
 //! Over Windows OpenSSH an administrator account already holds a full (High integrity) token, so
 //! [`is_elevated`] is true and nothing is relaunched. In an ordinary non-elevated console the
-//! installer re-runs itself through the `runas` verb (a UAC prompt), with its output captured in
-//! a log file that the caller prints afterwards, and waits for the exit code.
+//! installer re-runs only its host component through the `runas` verb (a UAC prompt) and waits
+//! for the exit code. The elevated exe and its arguments are handed to `ShellExecuteExW`
+//! directly: no `cmd.exe` is involved, so no shell metacharacter in an argument can mean
+//! anything. The elevated run writes its own output to a log in the administrator-only state
+//! directory (see [`crate::admin`]), which the caller prints afterwards.
 
 use std::path::Path;
 
-/// Quote one argument for a Windows command line (`cmd.exe` and the C runtime rules).
+/// Quote one argument for a Windows command line as `CommandLineToArgvW` and the C runtime
+/// parse it: backslashes are literal except in front of a quote.
 pub fn quote_arg(arg: &str) -> String {
-    if !arg.is_empty() && !arg.contains([' ', '\t', '"']) {
+    if !arg.is_empty() && !arg.contains([' ', '\t', '\n', '\x0b', '"']) {
         return arg.to_owned();
     }
-    format!("\"{}\"", arg.replace('"', "\\\""))
+    let mut out = String::with_capacity(arg.len() + 2);
+    out.push('"');
+    let mut backslashes = 0usize;
+    for c in arg.chars() {
+        match c {
+            '\\' => backslashes += 1,
+            '"' => {
+                out.extend(std::iter::repeat_n('\\', backslashes * 2 + 1));
+                out.push('"');
+                backslashes = 0;
+            }
+            _ => {
+                out.extend(std::iter::repeat_n('\\', backslashes));
+                out.push(c);
+                backslashes = 0;
+            }
+        }
+    }
+    out.extend(std::iter::repeat_n('\\', backslashes * 2));
+    out.push('"');
+    out
 }
 
-/// The `cmd.exe` parameters that run `exe args...` with all output written to `log`.
-///
-/// `/S` strips the outermost quote pair, so the inner quoting survives; the exit code of `cmd`
-/// is that of the program.
-pub fn elevated_parameters(exe: &Path, args: &[String], log: &Path) -> String {
-    let mut line = quote_arg(&exe.display().to_string());
-    for a in args {
-        line.push(' ');
-        line.push_str(&quote_arg(a));
-    }
-    format!(
-        "/D /S /C \"{line} > {} 2>&1\"",
-        quote_arg(&log.display().to_string())
-    )
+/// The parameter string that passes `args` to the elevated exe (no program name, no shell).
+pub fn command_line(args: &[String]) -> String {
+    args.iter()
+        .map(|a| quote_arg(a))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Whether Windows could show a UAC prompt: only interactive desktop sessions set `SESSIONNAME`
@@ -69,16 +85,17 @@ pub fn is_elevated() -> bool {
     }
 }
 
-/// Whether this process holds an elevated token (nothing to elevate off Windows).
 #[cfg(not(windows))]
+/// Whether this process holds an elevated token (nothing to elevate off Windows).
 pub fn is_elevated() -> bool {
     true
 }
 
 #[cfg(windows)]
 #[allow(unsafe_code)] // ShellExecuteExW FFI; see SAFETY
-/// Run `cmd.exe <parameters>` elevated (UAC prompt), wait, and return its exit code.
-pub fn run_elevated(parameters: &str) -> std::io::Result<u32> {
+/// Run `exe parameters` elevated (UAC prompt), wait, and return its exit code.
+pub fn run_elevated(exe: &Path, parameters: &str) -> std::io::Result<u32> {
+    use crate::sysapi::{wide, windows_dir};
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{
         GetExitCodeProcess, INFINITE, WaitForSingleObject,
@@ -87,11 +104,11 @@ pub fn run_elevated(parameters: &str) -> std::io::Result<u32> {
         SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_HIDE;
-    let wide = |s: &str| -> Vec<u16> { s.encode_utf16().chain(std::iter::once(0)).collect() };
     let verb = wide("runas");
-    let file = wide("cmd.exe");
+    let file = wide(&exe.display().to_string());
     let params = wide(parameters);
-    tracing::info!(parameters, "relaunching elevated through UAC");
+    let directory = wide(&windows_dir()?.join("System32").display().to_string());
+    tracing::info!(exe = %exe.display(), parameters, "relaunching elevated through UAC");
     // SAFETY: SHELLEXECUTEINFOW is plain data, valid when zeroed then filled; the wide strings
     // are NUL-terminated and outlive the call; the process handle returned thanks to
     // SEE_MASK_NOCLOSEPROCESS is waited on, queried and closed exactly once.
@@ -102,6 +119,7 @@ pub fn run_elevated(parameters: &str) -> std::io::Result<u32> {
         info.lpVerb = verb.as_ptr();
         info.lpFile = file.as_ptr();
         info.lpParameters = params.as_ptr();
+        info.lpDirectory = directory.as_ptr();
         info.nShow = SW_HIDE;
         if ShellExecuteExW(&raw mut info) == 0 {
             return Err(std::io::Error::last_os_error());
@@ -117,10 +135,36 @@ pub fn run_elevated(parameters: &str) -> std::io::Result<u32> {
     }
 }
 
-/// Run elevated (unsupported off Windows).
 #[cfg(not(windows))]
-pub fn run_elevated(_parameters: &str) -> std::io::Result<u32> {
+/// Run elevated (unsupported off Windows).
+pub fn run_elevated(_exe: &Path, _parameters: &str) -> std::io::Result<u32> {
     Err(std::io::Error::other(
         "elevation is only available on Windows",
     ))
+}
+
+#[cfg(windows)]
+#[allow(unsafe_code)] // SetStdHandle FFI; see SAFETY
+/// Point this process's standard output and error at `log` (the elevated run has no console the
+/// caller can read); the file stays open for the life of the process.
+pub fn redirect_output(log: std::fs::File) -> std::io::Result<()> {
+    use std::os::windows::io::AsRawHandle as _;
+    use windows_sys::Win32::System::Console::{STD_ERROR_HANDLE, STD_OUTPUT_HANDLE, SetStdHandle};
+    let handle = log.as_raw_handle();
+    // SAFETY: `handle` is a valid open file handle; it is leaked below so it outlives every use.
+    let ok = unsafe {
+        SetStdHandle(STD_OUTPUT_HANDLE, handle) != 0 && SetStdHandle(STD_ERROR_HANDLE, handle) != 0
+    };
+    std::mem::forget(log);
+    if ok {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(windows))]
+/// Redirect output to the log (unsupported off Windows, where nothing is ever relaunched).
+pub fn redirect_output(_log: std::fs::File) -> std::io::Result<()> {
+    Err(std::io::Error::other("elevated runs only exist on Windows"))
 }

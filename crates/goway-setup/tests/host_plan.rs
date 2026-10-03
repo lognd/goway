@@ -17,7 +17,7 @@ use proptest::test_runner::{Config, TestRunner};
 const HOME: &str = "/home/u";
 
 fn layout(profile: &str) -> Layout {
-    Layout::new(Path::new("/Local"), profile).unwrap()
+    Layout::new(Path::new("/Local"), Path::new("/ProgramData"), profile).unwrap()
 }
 
 fn params(port: u16, keepalive: Keepalive, harden: bool) -> HostParams {
@@ -429,15 +429,23 @@ fn a_user_change_after_install_is_left_alone_and_reported() {
 // frob:tests crates/goway-setup/src/layout.rs::Layout.host_view
 // frob:tests crates/goway-setup/src/app.rs::ensure_not_installed
 #[test]
-fn the_host_journal_and_settings_live_beside_the_client_journal_and_are_cleaned_up() {
+fn the_host_journal_and_settings_live_in_the_admin_dir_apart_from_the_client_journal_and_are_cleaned_up()
+ {
     let tmp = tempfile::tempdir().unwrap();
     let mut l = layout("p");
     l.state_dir = tmp.path().join("state");
     l.journal_path = l.state_dir.join("install-journal.json");
-    l.host_journal_path = l.state_dir.join("host-journal.json");
-    l.host_settings_path = l.state_dir.join("host-settings.json");
+    l.admin_root = tmp.path().join("ProgramData").join("goway");
+    l.admin_dir = l.admin_root.join("p");
+    l.host_journal_path = l.admin_dir.join("host-journal.json");
+    l.host_settings_path = l.admin_dir.join("host-settings.json");
     let view = l.host_view();
     assert_eq!(view.journal_path, l.host_journal_path);
+    assert_eq!(
+        view.state_dir, l.admin_dir,
+        "host state is administrator-only"
+    );
+    assert!(view.admin_only && !l.admin_only);
 
     assert!(app::load_settings(&l).unwrap().is_none());
     let settings = HostSettings {
@@ -463,6 +471,7 @@ fn the_host_journal_and_settings_live_beside_the_client_journal_and_are_cleaned_
     assert!(!report.outcomes.is_empty());
     assert!(!l.host_journal_path.exists());
     app::remove_settings(&l);
-    assert!(!l.state_dir.exists(), "empty state dir is removed");
+    assert!(!l.admin_dir.exists(), "empty admin dir is removed");
+    assert!(!l.admin_root.exists(), "empty admin root is removed");
     assert_eq!(sys, base_machine());
 }

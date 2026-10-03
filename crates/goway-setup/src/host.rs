@@ -84,6 +84,20 @@ pub struct HostSettings {
     pub port: u16,
 }
 
+impl HostSettings {
+    /// Refuse settings an elevated process must not build its expected plan from.
+    pub fn validate(&self, path: &std::path::Path) -> Result<(), crate::error::SetupError> {
+        validate_distro(&self.distro)?;
+        if self.port == 0 {
+            return Err(crate::error::SetupError::UntrustedState {
+                path: path.display().to_string(),
+                reason: "port 0 is not a valid sshd port".to_owned(),
+            });
+        }
+        Ok(())
+    }
+}
+
 /// Spec of a Windows Defender Firewall rule resource (JSON in `Change::EnsureResource::spec`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FirewallSpec {
@@ -360,4 +374,100 @@ pub fn needs_admin(journal: &Journal) -> bool {
                 }
             )
     })
+}
+
+/// Whether a resource name contains characters PowerShell cmdlets treat as wildcards.
+pub fn has_wildcard(name: &str) -> bool {
+    name.contains(['*', '?', '[', ']', '`'])
+}
+
+/// Every change the host plan can contain for these settings, over all optional steps
+/// (Hyper-V rule or not, port drop-in or not, hardening or not, either keepalive).
+///
+/// The elevated uninstall accepts a journal entry only if it is in this set: a replay can then
+/// never touch a path, registry key or resource name the install itself would not have.
+pub fn expected_changes(
+    layout: &Layout,
+    settings: &HostSettings,
+    home: &std::path::Path,
+) -> Vec<Change> {
+    let mut all: Vec<Change> = Vec::new();
+    for keepalive in [Keepalive::Logon, Keepalive::Boot] {
+        for harden in [false, true] {
+            for hyperv_firewall in [false, true] {
+                for sshd_ports in [Vec::new(), vec![settings.port]] {
+                    let params = HostParams {
+                        port: settings.port,
+                        distro: settings.distro.clone(),
+                        keepalive,
+                        harden,
+                        home: home.to_path_buf(),
+                    };
+                    let facts = HostFacts {
+                        hyperv_firewall,
+                        sshd_ports,
+                        authorized_keys: true,
+                    };
+                    for change in host_plan(layout, &params, &facts) {
+                        if !all.contains(&change) {
+                            all.push(change);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    all
+}
+
+/// Refuse a host journal holding anything the host plan for `settings` could not have produced.
+///
+/// Run by the elevated uninstall before it reverts a single entry (see
+/// [`crate::app::uninstall_checked`]). Besides membership in [`expected_changes`] it checks that
+/// resource names carry no wildcard and that a directory-removal prior only lists ancestors of
+/// the directory the entry ensured.
+pub fn validate_journal(
+    journal: &Journal,
+    layout: &Layout,
+    settings: &HostSettings,
+    home: &std::path::Path,
+) -> Result<(), crate::error::SetupError> {
+    let allowed = expected_changes(layout, settings, home);
+    let refuse = |index: usize, reason: String| {
+        tracing::error!(index, %reason, "host journal entry refused");
+        Err(crate::error::SetupError::UntrustedState {
+            path: layout.host_journal_path.display().to_string(),
+            reason: format!("entry {index}: {reason}"),
+        })
+    };
+    for (index, entry) in journal.entries.iter().enumerate() {
+        if let Change::EnsureResource { name, .. } = &entry.change
+            && has_wildcard(name)
+        {
+            return refuse(
+                index,
+                format!("resource name {name:?} contains wildcard characters"),
+            );
+        }
+        if !allowed.contains(&entry.change) {
+            return refuse(
+                index,
+                format!("{:?} is not a change the host install makes", entry.change),
+            );
+        }
+        if let Prior::DirsCreated { created } = &entry.prior {
+            let target = match &entry.change {
+                Change::EnsureDir { path } => Some(path),
+                _ => None,
+            };
+            let inside = |dir: &PathBuf| target.is_some_and(|t| t.starts_with(dir));
+            if !created.iter().all(inside) {
+                return refuse(
+                    index,
+                    "it would remove directories outside its own path".to_owned(),
+                );
+            }
+        }
+    }
+    Ok(())
 }

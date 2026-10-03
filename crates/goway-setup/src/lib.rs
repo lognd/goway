@@ -3,6 +3,7 @@
 //! Every change goes through `goway-journal`, so `uninstall` replays the recorded priors
 //! backwards. Components (`client`, `host`) are planned independently in [`plan`] and [`host`], one journal each.
 
+pub mod admin;
 pub mod app;
 pub mod cli;
 pub mod elevate;
@@ -14,6 +15,7 @@ pub mod layout;
 pub mod plan;
 pub mod ps;
 pub mod render;
+pub mod sysapi;
 pub mod windows;
 
 /// The goway.exe embedded at build time (empty when built without `GOWAY_PAYLOAD`).

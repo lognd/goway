@@ -50,8 +50,9 @@ ssh_opts=(-n -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=acce
 rsh() { ssh "${ssh_opts[@]}" "$ip" "$@"; }              # Windows OpenSSH, lands in cmd.exe
 wsh() { ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$work/known_hosts" -p "$live_port" "$ip" "$@"; }  # the WSL sshd (user shell; stdin is passed through)
 winps() { # run a script file through powershell -EncodedCommand (no quoting layers)
+    # Comment lines and indentation are dropped: cmd.exe caps a command line at 8191 characters.
     local enc
-    enc="$( (echo '$ProgressPreference="SilentlyContinue"'; cat "$1") | iconv -f utf-8 -t utf-16le | base64 -w0)"
+    enc="$( (echo '$ProgressPreference="SilentlyContinue"'; grep -v '^[[:space:]]*#' "$1" | sed 's/^[[:space:]]*//') | iconv -f utf-8 -t utf-16le | base64 -w0)"
     rsh powershell -NoProfile -NonInteractive -EncodedCommand "$enc" 2>/dev/null | tr -d '\r\0' | grep -a -v '^#< CLIXML' || true
 }
 winps_cmd() { local f="$work/cmd.ps1"; printf '%s\n' "$1" > "$f"; winps "$f"; }
