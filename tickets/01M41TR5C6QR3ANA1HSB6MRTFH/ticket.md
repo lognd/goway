@@ -2,7 +2,8 @@
 id = "01M41TR5C6QR3ANA1HSB6MRTFH"
 title = "Copy integrity: verify changed files every run, verify everything on failure, rerun once only on a proven bad copy, and distrust the fast path afterwards"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
