@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T21:37:40Z"
+digest = "79c3df6b9832cc79eaf39b6de678bc18b9c9509f42fde9a97230de4c71dee81f"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 01414626-9dc0-4d8f-b2bf-934bbd84ac6b with nextest profile: default
+    Starting 1 test across 30 binaries (357 tests skipped)
+        PASS [   0.004s] goway status::tests::rows_show_gpu_ram_and_features_and_stay_aligned
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.005s] 1 test run: 1 passed, 357 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "rows_show_gpu_ram"
+size = 562
+status = "measured"
+tests = ["status::tests::rows_show_gpu_ram_and_features_and_stay_aligned"]
+at = "2026-10-03T21:37:40Z"
+actor = "lognd"
+rev = 1
