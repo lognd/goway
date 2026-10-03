@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:29:31Z"
-updated = "2026-10-03T22:47:14Z"
+updated = "2026-10-03T22:47:15Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/src/sync.rs", "crates/goway/src/state.rs", "crates/goway/src/shard.rs", "crates/goway/src/cli.rs", "crates/goway/src/gc.rs", "crates/goway/tests/**", "docs/design.md", "docs/usage.md", "SECURITY.md"]
 
 [[links]]
@@ -33,7 +33,7 @@ bound = true
 
 [[acceptance]]
 text = "Given SECURITY.md, when read, then it states that these checks guard against goway's own bugs and not against a compromised helper, which can already report anything"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given any run, when reruns are considered, then termination is guaranteed: the attempt number is an explicit argument of the run (never read from the environment or the helper), a rerun is attempt 2 and attempt 2 can never rerun; if the rebuilt copy still fails verification, goway exits 125 with the evidence instead of trying again; a sharded run reruns each shard at most once; a test with a helper that always reports a mismatch proves exactly two attempts and exit 125"
