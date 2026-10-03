@@ -1,0 +1,7 @@
+kind = "field"
+field = "title"
+old = "doctor checks the toolchains a project needs (Node, Python, Java, C/C++, Go, Ruby, .NET)"
+new = "doctor checks exactly what a project needs on every host: build tools, CMake, test frameworks and libraries, language toolchains; nothing it does not need"
+at = "2026-10-03T22:31:26Z"
+actor = "lognd"
+rev = 1
