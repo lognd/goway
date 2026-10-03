@@ -1,0 +1,12 @@
+kind = "create"
+title = "Install journal core with provable inverse"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway-setup/**", "docs/**"]
+acceptance = ["Given any initial model system and component selection, when install then uninstall replay the journal, then the system equals the initial state (property test)"]
+at = "2026-10-03T16:11:38Z"
+actor = "lognd"
+rev = 1
