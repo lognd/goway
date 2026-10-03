@@ -400,6 +400,21 @@ fallback = true    # run here, with a note, when no helper is reachable (default
 - `goway status` shows a `local` row (load, RAM, jobs against `max_jobs`) when
   `[local]` exists, saying whether it is in the pool.
 
+### Nested goway is bounded
+
+Every `goway run` sets `GOWAY_DEPTH` (its own depth plus one) and
+`GOWAY_CHAIN` (the machines the chain of runs passed through) for the
+command, on the helper as well as locally. A goway that finds
+`GOWAY_DEPTH=4` refuses to run anything: it exits 125 and names the chain,
+so a command that calls goway recursively always terminates. A non-numeric
+`GOWAY_DEPTH` counts as the limit. Note that each level of nesting holds
+its own build slot and job slot while it waits for the next, so deeply
+nested runs of one repository need `target_slots` above the depth.
+
+goway's own background work never starts runs: the automatic gc after a run
+only deletes expired entries, and `gc.lock` in the remote root keeps it to
+one automatic gc per host root at a time.
+
 ### Exit codes
 
 | Code | Meaning |

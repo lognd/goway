@@ -104,20 +104,7 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
                 &settings,
             )
         }
-        Command::Run(args) => {
-            let settings = ssh::Settings::from_paths(&paths);
-            let cwd = std::env::current_dir().map_err(|e| Error::io("read", ".", e))?;
-            let env = run::Env {
-                paths: &paths,
-                lookup: &resolve::SystemLookup,
-                prober: &resolve::SshProber {
-                    settings: settings.clone(),
-                },
-                settings: &settings,
-                cwd: &cwd,
-            };
-            run::run(&env, renderer, args)
-        }
+        Command::Run(args) => run_command(&paths, renderer, args),
         Command::Status { refresh } => {
             let settings = ssh::Settings::from_paths(&paths);
             status::status(
@@ -175,6 +162,38 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
             Ok(0)
         }
     }
+}
+
+/// `goway run`: hand the command its nesting depth, then run it.
+fn run_command(paths: &Paths, renderer: Renderer, args: &cli::RunArgs) -> Result<u8> {
+    let settings = ssh::Settings::from_paths(paths);
+    let cwd = std::env::current_dir().map_err(|e| Error::io("read", ".", e))?;
+    let env = run::Env {
+        paths,
+        lookup: &resolve::SystemLookup,
+        prober: &resolve::SshProber {
+            settings: settings.clone(),
+        },
+        settings: &settings,
+        cwd: &cwd,
+    };
+    // Every command goway starts learns how deep it is, locally and
+    // on a helper (the pairs travel like --env), so recursion ends.
+    let mut nested = args.env.clone();
+    nested.extend(run::nested_env_here()?);
+    let args = cli::RunArgs {
+        host: args.host.clone(),
+        keep: args.keep,
+        report: args.report.clone(),
+        shard: args.shard,
+        output: args.output,
+        needs: args.needs.clone(),
+        prefers: args.prefers.clone(),
+        trust_copy: args.trust_copy,
+        env: nested,
+        command: args.command.clone(),
+    };
+    run::run(&env, renderer, &args)
 }
 
 /// `goway host list`: the configured pool and each host's cached address.

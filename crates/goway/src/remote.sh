@@ -29,7 +29,7 @@ mark_root() {
   for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
     [ -e "$e" ] || [ -L "$e" ] || continue
     case "${e##*/}" in
-      work | seed | cache | gpu | .goway-root) ;;
+      work | seed | cache | gpu | gc.lock | .goway-root) ;;
       *) die "$1 exists, is not empty and is not goway state; pick a dedicated remote_root" ;;
     esac
   done
@@ -942,8 +942,11 @@ run() {
   # the exit (and never holds the ssh session open).
   if [ -n "$ttls" ]; then
     IFS=: read -r t_cache t_orphan t_kept <<<"$ttls"
-    (trap '' HUP; gc "$root_arg" "$(date +%s)" "$t_cache" "$t_orphan" "$t_kept" apply "" "") \
-      </dev/null >/dev/null 2>&1 5>&- 7>&- 9>&- &
+    # At most one automatic gc per root (gc.lock); it only ever removes
+    # files and never starts a goway run.
+    (trap '' HUP; flock -n 8 || exit 0
+     gc "$root_arg" "$(date +%s)" "$t_cache" "$t_orphan" "$t_kept" apply "" "") \
+      8>"$root/gc.lock" </dev/null >/dev/null 2>&1 5>&- 7>&- 9>&- &
   fi
   exit "$rc"
 }
@@ -1174,7 +1177,7 @@ purge() {
     SCCACHE_SERVER_UDS="$s" sccache --stop-server >/dev/null 2>&1 || true
   done
   # Only goway's own entries: a root that also holds foreign files keeps them.
-  rm -rf "$root/work" "$root/seed" "$root/cache" "$root/gpu"
+  rm -rf "$root/work" "$root/seed" "$root/cache" "$root/gpu" "$root/gc.lock"
   rm -f "$root/.goway-root"
   rmdir "$root" 2>/dev/null || true
   printf 'removed\n'

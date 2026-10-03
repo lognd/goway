@@ -59,6 +59,61 @@ pub struct Report {
     pub rule: Option<Applied>,
 }
 
+/// The deepest goway-inside-goway nesting allowed; a goway that sees this
+/// `GOWAY_DEPTH` refuses to run anything.
+pub const MAX_DEPTH: u32 = 4;
+
+/// What a goway process at the depth in `depth`/`chain`/`host` hands to the
+/// commands it runs: `GOWAY_DEPTH` plus one and the chain extended by this
+/// process's machine (`GOWAY_HOST`, or "origin" for the outermost goway).
+///
+/// # Errors
+///
+/// [`Error::TooDeep`] when `depth` has reached [`MAX_DEPTH`]. An unparsable
+/// depth counts as the limit, so a mangled value cannot open the loop.
+pub fn nested_env(
+    depth: Option<&str>,
+    chain: Option<&str>,
+    host: Option<&str>,
+) -> Result<Vec<String>> {
+    let own = match depth.map(str::trim) {
+        None | Some("") => 0,
+        Some(d) => d.parse::<u32>().unwrap_or(MAX_DEPTH),
+    };
+    let here = host.filter(|h| !h.is_empty()).unwrap_or("origin");
+    let chain = match chain.filter(|c| !c.is_empty()) {
+        Some(c) => format!("{c} > {here}"),
+        None => here.to_owned(),
+    };
+    if own >= MAX_DEPTH {
+        tracing::warn!(own, %chain, "nesting limit reached");
+        return Err(Error::TooDeep {
+            depth: own,
+            limit: MAX_DEPTH,
+            chain,
+        });
+    }
+    tracing::debug!(own, %chain, "nested goway depth");
+    Ok(vec![
+        format!("GOWAY_DEPTH={}", own + 1),
+        format!("GOWAY_CHAIN={chain}"),
+    ])
+}
+
+/// [`nested_env`] for this process's own environment.
+///
+/// # Errors
+///
+/// [`Error::TooDeep`] at the limit.
+pub fn nested_env_here() -> Result<Vec<String>> {
+    let get = |k| std::env::var(k).ok();
+    nested_env(
+        get("GOWAY_DEPTH").as_deref(),
+        get("GOWAY_CHAIN").as_deref(),
+        get("GOWAY_HOST").as_deref(),
+    )
+}
+
 /// A new run id: time plus process id, unique per client.
 pub fn new_run_id() -> String {
     let now = std::time::SystemTime::now()
@@ -848,6 +903,24 @@ fn stream(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // frob:tests crates/goway/src/run.rs::nested_env
+    #[test]
+    fn nesting_counts_up_and_refuses_at_the_limit() {
+        let first = nested_env(None, None, None).unwrap();
+        assert_eq!(first, ["GOWAY_DEPTH=1", "GOWAY_CHAIN=origin"]);
+        let third = nested_env(Some("2"), Some("origin > a"), Some("b")).unwrap();
+        assert_eq!(third, ["GOWAY_DEPTH=3", "GOWAY_CHAIN=origin > a > b"]);
+        let Err(Error::TooDeep { depth, chain, .. }) =
+            nested_env(Some("4"), Some("origin > a > b > c"), Some("d"))
+        else {
+            panic!("depth 4 must be refused");
+        };
+        assert_eq!(depth, 4);
+        assert_eq!(chain, "origin > a > b > c > d");
+        assert!(nested_env(Some("junk"), None, None).is_err());
+        assert!(nested_env(Some(""), None, None).is_ok());
+    }
 
     #[test]
     fn env_pairs_are_validated_and_encoded() {

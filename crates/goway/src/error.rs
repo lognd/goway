@@ -22,6 +22,18 @@ pub enum Error {
         /// The underlying OS error.
         source: std::io::Error,
     },
+    /// goway was started by goway too many levels deep.
+    #[error(
+        "goway is nested {depth} deep (limit {limit}): {chain}; a command that calls goway recursively is refused here"
+    )]
+    TooDeep {
+        /// The depth this goway saw in `GOWAY_DEPTH`.
+        depth: u32,
+        /// The nesting limit.
+        limit: u32,
+        /// The machines the chain of goway runs passed through.
+        chain: String,
+    },
     /// The config file is malformed or inconsistent.
     #[error("config {path}: {message}")]
     Config {

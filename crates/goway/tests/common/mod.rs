@@ -108,6 +108,9 @@ impl World {
             .env_remove("SCCACHE_SERVER_PORT")
             .env_remove("GOWAY")
             .env_remove("GOWAY_RUN_ID")
+            .env_remove("GOWAY_HOST")
+            .env_remove("GOWAY_DEPTH")
+            .env_remove("GOWAY_CHAIN")
             .env_remove("GOWAY_SHARD")
             .env_remove("GOWAY_SHARD_COUNT");
         cmd
