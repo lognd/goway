@@ -39,13 +39,25 @@ pub fn parse_probe(text: &str) -> Option<Probe> {
         .lines()
         .filter_map(|l| l.trim().split_once('='))
         .collect();
-    let num = |k: &str| kv.get(k).and_then(|v| v.parse::<f64>().ok());
+    // A host reports these about itself: accept only sane values, so a
+    // hostile or broken host cannot win scheduling with -inf or 0 cores.
+    let num = |k: &str| {
+        kv.get(k)
+            .and_then(|v| v.parse::<f64>().ok())
+            .filter(|x| x.is_finite() && (0.0..1.0e6).contains(x))
+    };
+    let cores: u32 = kv
+        .get("cores")?
+        .parse()
+        .ok()
+        .filter(|c| (1..=65_536).contains(c))?;
+    let jobs: u32 = kv.get("jobs")?.parse().ok().filter(|j| *j <= 1_000_000)?;
     Some(Probe {
-        arch: (*kv.get("arch")?).to_owned(),
-        hostname: (*kv.get("hostname")?).to_owned(),
-        cores: kv.get("cores")?.parse().ok()?,
+        arch: crate::render::clean(kv.get("arch")?),
+        hostname: crate::render::clean(kv.get("hostname")?),
+        cores,
         load: [num("load1")?, num("load5")?, num("load15")?],
-        jobs: kv.get("jobs")?.parse().ok()?,
+        jobs,
         disk_used: kv.get("disk_used").and_then(|v| v.parse().ok()),
         disk_free: kv.get("disk_free").and_then(|v| v.parse().ok()),
     })
@@ -330,6 +342,17 @@ mod tests {
         );
         assert!((score(&p) - 2.5 / 12.0).abs() < 1e-9);
         assert!(parse_probe("arch=x\n").is_none());
+        for bad in ["load1=-inf", "load1=NaN", "load1=-1", "cores=0", "cores=-3"] {
+            let text = format!(
+                "arch=x86_64\nhostname=h\ncores=4\nload1=1\nload5=0\nload15=0\njobs=0\n{bad}\n"
+            );
+            assert!(parse_probe(&text).is_none(), "{bad}");
+        }
+        let p = parse_probe(
+            "arch=x86_64\nhostname=ev\u{1b}[2Jil\ncores=4\nload1=1\nload5=0\nload15=0\njobs=0\n",
+        )
+        .unwrap();
+        assert_eq!(p.hostname, "ev?[2Jil");
     }
 
     #[test]

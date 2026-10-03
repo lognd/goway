@@ -1,0 +1,1 @@
+Security: everything goway prints itself is stripped of control characters (a host can no longer inject terminal escapes through its hostname or errors), and host probes with non-finite, negative or absurd load, core or job values are rejected.
