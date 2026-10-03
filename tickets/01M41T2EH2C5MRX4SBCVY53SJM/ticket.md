@@ -11,6 +11,10 @@ created = "2026-10-03T21:17:40Z"
 updated = "2026-10-03T21:17:40Z"
 scope = ["crates/goway/src/cli.rs", "crates/goway/src/pool.rs", "crates/goway/src/needs.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs", "crates/goway/src/error.rs", "crates/goway/tests/**", "docs/usage.md"]
 
+[[links]]
+kind = "blocked-by"
+target = "01M41T2EDAC22Z3A6BP3Q0VGAX"
+
 [[acceptance]]
 text = "Given --needs terms (gpu, gpu=cuda, gpu=rocm, gpu-mem>=8G, cuda>=12.1, mem>=16G, cores>=8, arch=x86_64, os=linux, cpu=avx512f, kvm, docker, disk>=50G, label=NAME), when goway picks hosts, then only hosts meeting every term qualify; when none does, it exits 125 listing each host and what it lacks"
 bound = false
