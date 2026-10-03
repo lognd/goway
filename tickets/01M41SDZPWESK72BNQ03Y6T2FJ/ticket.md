@@ -2,7 +2,8 @@
 id = "01M41SDZPWESK72BNQ03Y6T2FJ"
 title = "Capacity-weighted sharding: bigger hosts take a bigger share of the tests"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
