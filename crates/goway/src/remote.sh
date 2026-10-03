@@ -159,7 +159,18 @@ watchdog() {
   fi
 }
 
-# run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 ENV_B64 TTLS PRIORITY -- CMD...
+# envfile ROOT RUN_ID: store the run's --env values (NUL-separated on
+# stdin, never in argv) in its work dir, readable by the owner only.
+envfile() {
+  local root work
+  root=$(root_dir "$1"); work="$root/work/$2"
+  case "$2" in *[!A-Za-z0-9-]* | "") die "envfile: bad run id" ;; esac
+  [ -d "$work" ] || die "envfile: no work dir $work"
+  cat >"$work/env"
+  chmod 600 "$work/env"
+}
+
+# run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 TTLS PRIORITY -- CMD...
 # The work dir was created by receive (snapshot of the seed).
 # TTLS is "cache:orphan:kept" in seconds, for the automatic gc afterwards.
 # Snapshot the seed into a fresh work dir, pick a free cargo target slot,
@@ -168,9 +179,9 @@ watchdog() {
 run() {
   local root work cache slot="" k rc=0 wd rundir
   root=$(root_dir "$1"); work="$root/work/$2"; cache="$root/cache/$3"
-  local root_arg=$1 run_id=$2 repo_id=$3 keep=$4 slots=$5 cache_meta=$6 envb=$7
-  local ttls=$8 priority=$9 nicer=()
-  shift 9
+  local root_arg=$1 run_id=$2 repo_id=$3 keep=$4 slots=$5 cache_meta=$6
+  local ttls=$7 priority=$8 nicer=()
+  shift 8
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
@@ -188,8 +199,9 @@ run() {
   # remote environment and ~/.cargo/env, then the user's --env values;
   # goway only fills in what is still unset.
   if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; fi
-  if [ -n "$envb" ]; then
-    while IFS= read -r -d '' kv; do export "$kv"; done < <(printf '%s' "$envb" | base64 -d)
+  if [ -f "$work/env" ]; then
+    while IFS= read -r -d '' kv; do export "$kv"; done <"$work/env"
+    rm -f "$work/env"
   fi
   if [ -z "${CARGO_TARGET_DIR:-}" ]; then
     for ((k = 0; k < slots; k++)); do
@@ -393,6 +405,7 @@ case "$verb" in
   hashes) hashes "$@" ;;
   deletions) deletions "$@" ;;
   run) run "$@" ;;
+  envfile) envfile "$@" ;;
   probe) probe "$@" ;;
   gc) gc "$@" ;;
   doctor) doctor "$@" ;;

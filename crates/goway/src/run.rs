@@ -62,8 +62,8 @@ pub fn new_run_id() -> String {
     )
 }
 
-/// Validate `KEY=VALUE` pairs and encode them NUL-separated in base64.
-pub fn encode_env(pairs: &[String]) -> Result<String> {
+/// Validate `KEY=VALUE` pairs and encode them NUL-separated.
+pub fn encode_env(pairs: &[String]) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
     for pair in pairs {
         let valid = pair.split_once('=').is_some_and(|(k, _)| {
@@ -79,7 +79,31 @@ pub fn encode_env(pairs: &[String]) -> Result<String> {
         bytes.extend_from_slice(pair.as_bytes());
         bytes.push(0);
     }
-    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+    Ok(bytes)
+}
+
+/// Hand the run's `--env` values to its work dir over ssh's stdin, never
+/// as a command-line argument other users on the host could read.
+pub(crate) fn send_env(
+    env: &Env<'_>,
+    config: &Config,
+    found: &Found,
+    run_id: &str,
+    bytes: &[u8],
+) -> Result<()> {
+    if bytes.is_empty() {
+        return Ok(());
+    }
+    let transport = SshTransport {
+        target: &found.target,
+        settings: env.settings,
+    };
+    sync::Transport::exchange(
+        &transport,
+        &remote::invocation("envfile", &[&config.defaults.remote_root, run_id]),
+        bytes,
+    )
+    .map(drop)
 }
 
 /// Map a local ssh exit status to goway's exit code.
@@ -117,7 +141,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         return crate::shard::run_sharded(env, renderer, args, count);
     }
     let started = Instant::now();
-    let env_b64 = encode_env(&args.env)?;
+    let env_bytes = encode_env(&args.env)?;
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
     let mut state = State::load(&env.paths.state_file())?;
@@ -147,6 +171,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         "synced {} files ({} sent, {} bytes, {} deleted)",
         synced.files, synced.sent, synced.bytes, synced.deleted
     ));
+    send_env(env, &config, &found, &run_id, &env_bytes)?;
 
     let cmd = run_invocation(
         &config,
@@ -155,7 +180,6 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         &run_id,
         args.keep,
         &args.command,
-        &env_b64,
     );
 
     renderer.headline(format_args!(
@@ -260,7 +284,6 @@ pub(crate) fn run_invocation(
     run_id: &str,
     keep: bool,
     command: &[String],
-    env_b64: &str,
 ) -> String {
     let cache_meta = label_b64(repo, "cache");
     let slots = config.defaults.target_slots.max(1).to_string();
@@ -279,7 +302,6 @@ pub(crate) fn run_invocation(
         keep,
         &slots,
         &cache_meta,
-        env_b64,
         &ttls,
         priority,
         "--",
@@ -335,10 +357,7 @@ mod tests {
 
     #[test]
     fn env_pairs_are_validated_and_encoded() {
-        let b64 = encode_env(&["A=1".to_owned(), "B_2=x y".to_owned()]).unwrap();
-        let raw = base64::engine::general_purpose::STANDARD
-            .decode(b64)
-            .unwrap();
+        let raw = encode_env(&["A=1".to_owned(), "B_2=x y".to_owned()]).unwrap();
         assert_eq!(raw, b"A=1\0B_2=x y\0");
         for bad in ["=1", "1A=2", "A-B=1", "NOEQ"] {
             assert!(encode_env(&[bad.to_owned()]).is_err(), "{bad}");

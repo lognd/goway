@@ -135,6 +135,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                     pairs.push(format!("GOWAY_SHARD={index}"));
                     pairs.push(format!("GOWAY_SHARD_COUNT={count}"));
                     let command = shard_command(&args.command, index, count);
+                    run::send_env(env, config, found, &run_id, &run::encode_env(&pairs)?)?;
                     let cmd = run::run_invocation(
                         config,
                         config.priority_of(host).as_str(),
@@ -142,7 +143,6 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                         &run_id,
                         args.keep,
                         &command,
-                        &run::encode_env(&pairs)?,
                     );
                     let mut child =
                         ssh::command(&found.target, env.settings, KeyPolicy::Strict, &cmd)

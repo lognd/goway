@@ -591,3 +591,51 @@ fn local_environment_never_travels_to_the_host() {
     let remote_env = String::from_utf8_lossy(&out.stdout);
     assert!(!remote_env.contains("s3cret-sentinel"), "{remote_env}");
 }
+
+// frob:tests crates/goway/src/run.rs::send_env
+#[test]
+fn env_values_never_appear_in_ssh_arguments_or_logs() {
+    // A fake ssh that records every argument it receives.
+    let w = common::world_with_ssh(&FAKE_SSH.replace(
+        "while [ $# -gt 0 ]; do",
+        "printf '%s\\n' \"$@\" >>\"$HOME/../ssh-argv.log\"\nwhile [ $# -gt 0 ]; do",
+    ));
+    let home = w.root.join("home");
+    std::fs::create_dir(&home).unwrap();
+    let out = w
+        .goway(&[
+            "-vv",
+            "run",
+            "-e",
+            "API_TOKEN=s3cret-sentinel",
+            "--",
+            "sh",
+            "-c",
+            "echo got=$API_TOKEN",
+        ])
+        .env("HOME", &home)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "got=s3cret-sentinel\n",
+        "the job still sees it"
+    );
+    let argv = std::fs::read_to_string(w.root.join("ssh-argv.log")).unwrap();
+    assert!(!argv.contains("s3cret-sentinel"), "value in ssh argv");
+    let encoded = {
+        use base64::Engine as _;
+        base64::engine::general_purpose::STANDARD.encode(b"API_TOKEN=s3cret-sentinel\0")
+    };
+    assert!(!argv.contains(&encoded[..16]), "value (base64) in ssh argv");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("s3cret-sentinel"),
+        "value in goway's log: {stderr}"
+    );
+}

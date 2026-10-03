@@ -58,6 +58,21 @@ pub enum Command {
     Config(ConfigCommand),
 }
 
+impl Command {
+    /// The verb's name, for logs (arguments may hold secrets).
+    pub fn verb(&self) -> &'static str {
+        match self {
+            Self::Run(_) => "run",
+            Self::Status => "status",
+            Self::Gc(_) => "gc",
+            Self::Doctor(_) => "doctor",
+            Self::Host(_) => "host",
+            Self::Ssh(_) => "ssh",
+            Self::Config(_) => "config",
+        }
+    }
+}
+
 /// Arguments of `goway run`.
 #[derive(Debug, Args)]
 pub struct RunArgs {

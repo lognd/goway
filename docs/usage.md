@@ -160,7 +160,10 @@ is undone by `goway ssh setup HOST --undo`; see docs/ssh-setup.md.
 
 - The git-visible work tree (see Sync above), without `.git` and
   without `.env` files.
-- The command line and any `--env` values.
+- The command line, and any `--env` values. The values travel over the
+  encrypted ssh connection's input into a file only you can read, which
+  is deleted when the job starts. They never appear in the host's process
+  list or in goway's logs.
 - Labels: repository name, a repository id (a hash of the root commit),
   the local worktree path, and this machine's hostname.
 
