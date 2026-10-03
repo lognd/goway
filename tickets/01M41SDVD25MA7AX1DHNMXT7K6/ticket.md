@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:06:25Z"
-updated = "2026-10-03T22:12:29Z"
+updated = "2026-10-03T22:12:31Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/run.rs", "crates/goway/src/config.rs", "crates/goway/src/local.rs", "crates/goway/src/shard.rs", "crates/goway/src/status.rs", "crates/goway/src/error.rs", "crates/goway/tests/**", "docs/usage.md", "docs/config.md", "crates/goway/src/resolve.rs", "crates/goway/src/lib.rs"]
 
 [[acceptance]]
@@ -21,7 +21,7 @@ bound = true
 
 [[acceptance]]
 text = "Given no helper is reachable, when goway run picks a host, then it exits 125 with the reason and a next step naming --host local and [local] fallback = true; with fallback = true it runs locally with a clear note and the report records host local"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway status, when local is configured, then it shows a local row with its load and whether it is in the pool"
