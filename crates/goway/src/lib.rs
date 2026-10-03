@@ -4,9 +4,12 @@
 pub mod cli;
 pub mod config;
 pub mod error;
+pub mod hosts;
 pub mod paths;
 pub mod render;
+pub mod resolve;
 pub mod ssh;
+pub mod sshenv;
 pub mod state;
 
 use std::process::ExitCode;
@@ -58,7 +61,9 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
         Command::Doctor(_) => Err(Error::NotImplemented("doctor")),
         Command::Host(HostCommand::List) => host_list(&paths, renderer),
         Command::Host(HostCommand::Remove { name }) => host_remove(&paths, renderer, name),
-        Command::Host(HostCommand::Add(_)) => Err(Error::NotImplemented("host add")),
+        Command::Host(HostCommand::Add(args)) => {
+            hosts::add(&paths, renderer, args, &resolve::SystemLookup)
+        }
         Command::Ssh(_) => Err(Error::NotImplemented("ssh")),
         Command::Config(ConfigCommand::Path) => {
             renderer.table(&[
