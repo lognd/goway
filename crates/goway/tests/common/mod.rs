@@ -55,7 +55,7 @@ pub fn world_with_ssh(script: &str) -> World {
     let ssh = bin.join("ssh");
     std::fs::write(&ssh, script).unwrap();
     std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let remote = root.join("remote");
+    let remote = root.join("goway-remote");
     let config = root.join("config");
     std::fs::create_dir(&config).unwrap();
     std::fs::write(

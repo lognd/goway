@@ -23,7 +23,10 @@ your comments and layout.
 ```toml
 [defaults]
 remote_root = ".cache/goway"   # goway's remote state, relative to the remote home; must be a
-                               # dedicated directory (not ~, /, or containing ..)
+                               # dedicated directory: not ~, /, or containing ..; its last
+                               # component must contain "goway" (so .ssh or Documents are refused).
+                               # goway only adopts a missing or empty directory, and purge removes
+                               # only work/, seed/, cache/ and its marker, never foreign files
 cache_ttl = "7d"               # seeds and per-repository caches expire after this idle time
 orphan_ttl = "1d"              # unlocked work dirs left by crashed runs
 kept_ttl = "3d"                # work dirs kept with `goway run --keep`

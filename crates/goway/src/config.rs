@@ -139,6 +139,8 @@ pub fn key_alias(name: &str) -> String {
 
 /// `remote_root` is where gc deletes things: it must name a dedicated
 /// directory, never the home directory, `/`, or anything outside via `..`.
+/// The last component must contain `goway`, so an ordinary directory such as
+/// `.ssh` or `Documents` can never be adopted as goway state.
 pub fn check_remote_root(root: &str) -> std::result::Result<(), &'static str> {
     let trimmed = root.trim_end_matches('/');
     if trimmed.is_empty() || trimmed == "." || trimmed == "~" {
@@ -159,6 +161,12 @@ pub fn check_remote_root(root: &str) -> std::result::Result<(), &'static str> {
         .count();
     if depth == 0 || (root.starts_with('/') && depth < 2) {
         return Err("is too shallow; use a directory like .cache/goway");
+    }
+    let last = trimmed.rsplit('/').find(|c| !c.is_empty() && *c != ".");
+    if !last.is_some_and(|c| c.to_ascii_lowercase().contains("goway")) {
+        return Err(
+            "must end in a dedicated directory whose name contains `goway`, like .cache/goway",
+        );
     }
     Ok(())
 }
@@ -451,7 +459,20 @@ user = "user"
 
     #[test]
     fn remote_root_must_be_a_dedicated_directory() {
-        for bad in ["", ".", "./", "/", "~", "~/x", "a/../..", "/tmp", "x\ny"] {
+        for bad in [
+            "",
+            ".",
+            "./",
+            "/",
+            "~",
+            "~/x",
+            "a/../..",
+            "/tmp",
+            "x\ny",
+            ".ssh",
+            "Documents",
+            "/home/u/projects",
+        ] {
             assert!(check_remote_root(bad).is_err(), "{bad:?}");
         }
         for good in [".cache/goway", "/srv/goway", "work/goway-state"] {
