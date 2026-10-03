@@ -8,8 +8,8 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:51:28Z"
-updated = "2026-10-03T17:04:27Z"
-scope = ["crates/goway/**"]
+updated = "2026-10-03T17:06:44Z"
+scope = ["crates/goway/**", "docs/positioning.md", "docs/config.md"]
 
 [[acceptance]]
 text = "Given RUSTC_WRAPPER, CARGO_TARGET_DIR or SCCACHE_* set through --env or the remote environment, when goway runs a job, then the user's values win over goway's defaults"
