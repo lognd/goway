@@ -136,6 +136,11 @@ pub struct HostAddArgs {
     /// Most goway jobs at once on this host.
     #[arg(long)]
     pub max_jobs: Option<u32>,
+    /// The host key fingerprint to trust (`SHA256:...`, shown on the host
+    /// by `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`); without it
+    /// goway asks you to confirm the key at the terminal.
+    #[arg(long, value_name = "SHA256:...")]
+    pub fingerprint: Option<String>,
 }
 
 /// `goway ssh` verbs.
@@ -163,6 +168,10 @@ pub struct SshSetupArgs {
     /// For a new host: the remote user.
     #[arg(long, conflicts_with = "undo")]
     pub user: Option<String>,
+    /// For a new host: the host key fingerprint to trust (`SHA256:...`);
+    /// without it goway asks you to confirm the key before any password.
+    #[arg(long, value_name = "SHA256:...", conflicts_with = "undo")]
+    pub fingerprint: Option<String>,
 }
 
 /// `goway config` verbs.

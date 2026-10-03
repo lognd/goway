@@ -105,6 +105,22 @@ impl Renderer {
     }
 }
 
+/// Ask a question on the terminal and read one line of answer; `None`
+/// when stdin is not a terminal (scripts must pass flags instead).
+pub fn ask(prompt: &str) -> Option<String> {
+    use std::io::{BufRead as _, IsTerminal as _, Write as _};
+    if !std::io::stdin().is_terminal() {
+        return None;
+    }
+    let mut err = std::io::stderr().lock();
+    let _ = write!(err, "goway: {prompt}");
+    let _ = err.flush();
+    drop(err);
+    let mut line = String::new();
+    std::io::stdin().lock().read_line(&mut line).ok()?;
+    Some(line)
+}
+
 /// Write one line of a remote command's output with a `[host] ` prefix
 /// (sharded runs, where several hosts stream at once). The line's bytes
 /// pass through unchanged; the stream is locked so lines never interleave.

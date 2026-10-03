@@ -38,10 +38,35 @@ esac
 exec sh -c "$1"
 "#;
 
+const FAKE_KEY: &str = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";
+
+/// The SHA256 fingerprint of the fake sshd's host key, via ssh-keygen.
+fn fake_fingerprint() -> String {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("k");
+    std::fs::write(&file, format!("x ssh-ed25519 {FAKE_KEY}\n")).unwrap();
+    let out = std::process::Command::new("ssh-keygen")
+        .arg("-lf")
+        .arg(&file)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&out.stdout)
+        .split_whitespace()
+        .find(|w| w.starts_with("SHA256:"))
+        .unwrap()
+        .to_owned()
+}
+
+/// `host add` with the fake host's real fingerprint.
 fn add(w: &World, hostname: &str, args: &[&str]) -> Output {
-    let mut all = vec!["host", "add"];
+    let fp = fake_fingerprint();
+    let mut all = vec!["host", "add", "--fingerprint", fp.as_str()];
     all.extend_from_slice(args);
-    w.goway(&all)
+    add_raw(w, hostname, &all)
+}
+
+fn add_raw(w: &World, hostname: &str, all: &[&str]) -> Output {
+    w.goway(all)
         .env("FAKE_HOSTNAME", hostname)
         .env("FAKE_WINDOWS_PORT", "2222")
         .output()
@@ -97,5 +122,56 @@ fn host_add_refuses_a_machine_with_another_hostname() {
     assert!(
         !kh.contains("goway-box"),
         "no key pinned for the wrong machine: {kh}"
+    );
+}
+
+// frob:tests crates/goway/src/hosts.rs::confirm_key
+// frob:tests crates/goway/src/hosts.rs::fingerprints
+#[test]
+fn nothing_is_pinned_without_a_confirmed_fingerprint() {
+    let w = empty_world();
+    // No terminal and no --fingerprint: refuse, pin nothing.
+    let out = add_raw(
+        &w,
+        "box",
+        &[
+            "host",
+            "add",
+            "box",
+            "--address",
+            "box-at-home",
+            "--port",
+            "22",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(125));
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(
+        stderr.contains("needs confirmation") && stderr.contains("--fingerprint"),
+        "{stderr}"
+    );
+    // A wrong fingerprint (an impostor answering for the name): refuse.
+    let wrong = add_raw(
+        &w,
+        "box",
+        &[
+            "host",
+            "add",
+            "box",
+            "--address",
+            "box-at-home",
+            "--port",
+            "22",
+            "--fingerprint",
+            "SHA256:AAAAnotthekey",
+        ],
+    );
+    assert_eq!(wrong.status.code(), Some(125));
+    assert!(String::from_utf8_lossy(&wrong.stderr).contains("not the machine you named"));
+    let kh = std::fs::read_to_string(w.config.join("known_hosts")).unwrap_or_default();
+    assert!(!kh.contains("goway-box"), "{kh}");
+    assert_eq!(
+        std::fs::read_to_string(w.config.join("config.toml")).unwrap(),
+        "# my pool\n"
     );
 }
