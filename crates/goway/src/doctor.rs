@@ -510,8 +510,19 @@ pub struct Installed {
 pub fn undo_of(check: &str) -> Option<(String, bool)> {
     match check {
         "cargo" => Some((format!("{CARGO_BIN}/rustup self uninstall -y"), false)),
-        "cargo-nextest" => Some((format!("rm -f {CARGO_BIN}/cargo-nextest"), false)),
-        "sccache" => Some((format!("rm -f {CARGO_BIN}/sccache"), false)),
+        // Also the cargo bin directories the install created, if now empty.
+        "cargo-nextest" => Some((
+            format!(
+                "rm -f {CARGO_BIN}/cargo-nextest && {{ rmdir {CARGO_BIN} 2>/dev/null && rmdir \"${{CARGO_HOME:-$HOME/.cargo}}\" 2>/dev/null; true; }}"
+            ),
+            false,
+        )),
+        "sccache" => Some((
+            format!(
+                "rm -f {CARGO_BIN}/sccache && {{ rmdir {CARGO_BIN} 2>/dev/null && rmdir \"${{CARGO_HOME:-$HOME/.cargo}}\" 2>/dev/null; true; }}"
+            ),
+            false,
+        )),
         "sshd password login" => Some((
             "rm -f /etc/ssh/sshd_config.d/10-goway-keys-only.conf && systemctl reload ssh"
                 .to_owned(),
@@ -748,6 +759,37 @@ mod tests {
                 assert!(!fix.command.contains("pwned"), "{}", fix.command);
             }
         }
+    }
+
+    #[test]
+    fn tool_undo_removes_only_empty_directories_it_left() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path();
+        let bin = home.join(".cargo/bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("sccache"), "x").unwrap();
+        let (undo, root) = undo_of("sccache").unwrap();
+        assert!(!root);
+        let ok = std::process::Command::new("sh")
+            .args(["-c", &undo])
+            .env("HOME", home)
+            .env_remove("CARGO_HOME")
+            .status()
+            .unwrap();
+        assert!(ok.success());
+        assert!(!home.join(".cargo").exists(), "empty dirs removed");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("cargo"), "x").unwrap();
+        std::fs::write(bin.join("cargo-nextest"), "x").unwrap();
+        let (undo, _) = undo_of("cargo-nextest").unwrap();
+        let ok = std::process::Command::new("sh")
+            .args(["-c", &undo])
+            .env("HOME", home)
+            .env_remove("CARGO_HOME")
+            .status()
+            .unwrap();
+        assert!(ok.success());
+        assert!(bin.join("cargo").exists(), "other tools stay");
     }
 
     #[test]

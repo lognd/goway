@@ -87,6 +87,7 @@ fn unix_mode_is_set_and_restored() {
     ));
 }
 
+#[cfg(not(windows))]
 #[test]
 fn registry_acl_vars_and_resources_are_unsupported() {
     let mut sys = LocalSystem;
