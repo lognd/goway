@@ -135,13 +135,21 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
    5. Every step records its prior state; `goway ssh setup --undo HOST`
       removes exactly the lines and settings it added.
 
-## 3. Configuration
+## 3. Where each part is documented
+
+User-facing behaviour is described in docs/usage.md (run, status, gc,
+doctor), docs/hosts.md (identity and resolution), docs/config.md (files,
+keys, environment), docs/install-windows.md (installer) and
+docs/positioning.md (niche and coexistence rules). This page keeps the
+problem tree and the measured facts behind the design.
+
+## 4. Configuration
 
 `~/.config/goway/config.toml` (Windows: `%APPDATA%\goway\config.toml`):
 
 ```toml
 [defaults]
-remote_root = "~/.cache/goway"
+remote_root = ".cache/goway"  # relative to the remote home
 cache_ttl = "7d"
 orphan_ttl = "1d"
 kept_ttl = "3d"
