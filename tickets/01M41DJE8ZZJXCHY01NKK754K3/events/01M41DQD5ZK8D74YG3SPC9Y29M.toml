@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T17:41:55Z"
+digest = "f9d1988df7bcb8a93f661e30c6dc7d0eb56989736b9ad7870f0e072d43821227"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 7c5187ea-ea71-49b7-a160-e51f7e9af9b1 with nextest profile: default
+    Starting 2 tests across 1 binary (20 binaries skipped)
+        PASS [   0.175s] goway::host_add host_add_refuses_a_machine_with_another_hostname
+        PASS [   0.298s] goway::host_add host_add_skips_windows_sshd_and_pins_the_linux_machine
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.299s] 2 tests run: 2 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(host_add)'"
+size = 653
+status = "measured"
+tests = ["host_add_refuses_a_machine_with_another_hostname", "host_add_skips_windows_sshd_and_pins_the_linux_machine"]
+at = "2026-10-03T17:41:55Z"
+actor = "lognd"
+rev = 1
