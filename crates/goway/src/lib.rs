@@ -1,6 +1,7 @@
 //! goway: run a command on another machine, natively, from the current git
 //! work tree. See docs/design.md for the problem tree.
 
+pub mod add;
 pub mod cli;
 pub mod config;
 pub mod doctor;
@@ -67,6 +68,19 @@ pub fn main_with(cli: &Cli) -> ExitCode {
 fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
     let paths = Paths::from_env();
     match command {
+        Command::Add(args) => {
+            let settings = ssh::Settings::from_paths(&paths);
+            add::add(
+                &paths,
+                renderer,
+                args,
+                &resolve::SystemLookup,
+                &resolve::SshProber {
+                    settings: settings.clone(),
+                },
+                &settings,
+            )
+        }
         Command::Run(args) => {
             let settings = ssh::Settings::from_paths(&paths);
             let cwd = std::env::current_dir().map_err(|e| Error::io("read", ".", e))?;

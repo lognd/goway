@@ -39,6 +39,8 @@ pub struct Cli {
 /// Every goway verb.
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Add a helper laptop: key login, pinned identity, toolchain, all in one.
+    Add(AddArgs),
     /// Sync the work tree and run a command on a pool host.
     Run(RunArgs),
     /// Show hosts, load, running jobs and disk used by goway.
@@ -62,6 +64,7 @@ impl Command {
     /// The verb's name, for logs (arguments may hold secrets).
     pub fn verb(&self) -> &'static str {
         match self {
+            Self::Add(_) => "add",
             Self::Run(_) => "run",
             Self::Status => "status",
             Self::Gc(_) => "gc",
@@ -127,10 +130,47 @@ pub struct DoctorArgs {
     /// Run the fixes that need no root; explain the ones that do.
     #[arg(long)]
     pub fix: bool,
-    /// With --fix, also run the fixes that need root, through sudo on an
-    /// interactive ssh session (sudo asks for your password on the host).
-    #[arg(long, requires = "fix")]
-    pub sudo: bool,
+    /// With --fix, also run the fixes that need root on the host: listed
+    /// with reasons, confirmed once, then run in one interactive sudo
+    /// session there (its sudo asks for the password; goway never sees it).
+    #[arg(long, alias = "sudo", requires = "fix")]
+    pub rsudo: bool,
+    /// Do not ask before running root fixes (with --rsudo).
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+/// Arguments of `goway add`.
+#[derive(Debug, Args)]
+pub struct AddArgs {
+    /// The helper's name (its Windows device name works, e.g. Helios).
+    #[arg(value_parser = host_name)]
+    pub host: String,
+    /// The helper's host key fingerprint, as its installer printed it.
+    #[arg(long, value_name = "SHA256:...")]
+    pub fingerprint: Option<String>,
+    /// The Linux user on the helper (the password you are asked for is this user's).
+    #[arg(long)]
+    pub user: Option<String>,
+    /// An address to try first (name or IP); not needed on most networks.
+    #[arg(long)]
+    pub address: Option<String>,
+    /// The ssh port on the helper (default 2222).
+    #[arg(long)]
+    pub port: Option<u16>,
+    /// The public key to authorize (a `.pub` file).
+    #[arg(long, value_name = "FILE.pub")]
+    pub key: Option<std::path::PathBuf>,
+    /// Also make the changes that need administrator rights on the helper
+    /// (listed, confirmed once, one sudo password typed into its sudo).
+    #[arg(long)]
+    pub rsudo: bool,
+    /// Also install what this laptop is missing (ssh client, git) with sudo here.
+    #[arg(long)]
+    pub lsudo: bool,
+    /// Do not ask before the --rsudo / --lsudo changes.
+    #[arg(long, short = 'y')]
+    pub yes: bool,
 }
 
 /// `goway host` verbs.

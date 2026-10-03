@@ -1,5 +1,27 @@
 # Using goway
 
+## Add a helper laptop
+
+```
+goway add HELPER --fingerprint SHA256:... --user LINUXUSER
+goway add HELPER --rsudo        # also make the administrator changes there
+```
+
+The helper's installer prints this exact command, fingerprint included.
+`goway add` does the following:
+1. Checks that this laptop has ssh and git. With `--lsudo` it installs
+   what is missing here.
+2. Sets up key login with one password prompt (docs/ssh-setup.md).
+3. Pins the helper's identity, and adds it to the pool.
+4. Installs its toolchain (cargo-nextest, sccache).
+5. With `--rsudo`, it lists the changes that need administrator rights
+   on the helper, with the reason for each, asks once, and runs them
+   all in one sudo session. You type the helper's password into its own
+   sudo; goway never sees it.
+
+Running `goway add` again changes nothing that is already in place.
+
+
 ## Run a command
 
 ```

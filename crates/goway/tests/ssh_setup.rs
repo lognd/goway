@@ -248,3 +248,47 @@ fn a_new_host_is_confirmed_before_any_password_and_pinned_once() {
             .contains("newbox")
     );
 }
+
+// frob:tests crates/goway/src/add.rs::add
+#[test]
+fn add_registers_a_new_helper_in_one_command_and_is_idempotent() {
+    let s = setup_world();
+    let fp = fake_fingerprint();
+    let out = s.run(&[
+        "add",
+        "newbox",
+        "--address",
+        "127.0.0.1",
+        "--fingerprint",
+        &fp,
+    ]);
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(stderr.contains("key login to newbox works"), "{stderr}");
+    assert!(stderr.contains("goway: next:"), "{stderr}");
+    let ran = s.run(&["run", "--host", "newbox", "--", "true"]);
+    assert_eq!(
+        ran.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&ran.stderr)
+    );
+
+    let before = (snapshot(&s.home), snapshot(&s.w.config));
+    let again = s.run(&[
+        "add",
+        "newbox",
+        "--address",
+        "127.0.0.1",
+        "--fingerprint",
+        &fp,
+    ]);
+    let stderr = String::from_utf8_lossy(&again.stderr).into_owned();
+    assert!(stderr.contains("set up before"), "{stderr}");
+    let after = (snapshot(&s.home), snapshot(&s.w.config));
+    assert_eq!(before.0, after.0, "the helper is not touched again");
+    assert_eq!(
+        before.1.get("config.toml"),
+        after.1.get("config.toml"),
+        "the config is not touched again"
+    );
+}
