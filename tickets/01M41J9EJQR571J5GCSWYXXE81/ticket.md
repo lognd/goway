@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:01:41Z"
-updated = "2026-10-03T19:08:29Z"
+updated = "2026-10-03T19:08:30Z"
 labels = ["newcomer"]
 scope = ["crates/goway/**", "docs/usage.md", "docs/ssh-setup.md"]
 
@@ -18,7 +18,7 @@ bound = true
 
 [[acceptance]]
 text = "Given root fixes are needed, when goway add HELPER --rsudo runs, then they run in one interactive sudo session on the helper after one confirmation, and without --rsudo they are only listed with reasons"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway add HELPER runs again, when the helper is already set up, then it changes nothing and says so"
