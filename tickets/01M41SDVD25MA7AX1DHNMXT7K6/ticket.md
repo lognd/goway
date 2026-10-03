@@ -2,7 +2,8 @@
 id = "01M41SDVD25MA7AX1DHNMXT7K6"
 title = "Local host: --host local runs here in place; [local] pool opt-in; offline failure offers local"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
