@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T21:54:25Z"
+digest = "38cbcfa54bd0cffd3ae0412082ebd8d0a0698ffd3f9d9b48d910719c9cea220e"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 31ee3cbc-011d-456e-a53c-16c43f0cff9e with nextest profile: default
+    Starting 1 test across 32 binaries (385 tests skipped)
+        PASS [   5.474s] goway::needs sharded_runs_need_every_host_to_qualify_and_report_each_hosts_facts
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   5.476s] 1 test run: 1 passed, 385 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "sharded_runs_need_every_host"
+size = 574
+status = "measured"
+tests = ["sharded_runs_need_every_host_to_qualify_and_report_each_hosts_facts"]
+at = "2026-10-03T21:54:25Z"
+actor = "lognd"
+rev = 1
