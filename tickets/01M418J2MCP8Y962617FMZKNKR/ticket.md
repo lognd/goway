@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:37Z"
-updated = "2026-10-03T16:14:15Z"
+updated = "2026-10-03T16:14:21Z"
 scope = ["crates/goway/**", "docs/**", "Cargo.toml", "Cargo.lock", "clippy.toml", "rustfmt.toml", "rust-toolchain.toml", "README.md"]
 
 [[acceptance]]
