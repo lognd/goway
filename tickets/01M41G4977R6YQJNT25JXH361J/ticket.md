@@ -2,7 +2,8 @@
 id = "01M41G4977R6YQJNT25JXH361J"
 title = "M3: gc removes only labelled entries under a marked root; remote_root validated"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
