@@ -2,7 +2,7 @@
 id = "01M41J9EDG2P620PVQSSZ2EHXD"
 title = "Accessible output: words not colors, a next step on every error"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
