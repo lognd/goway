@@ -8,7 +8,7 @@ points = 8
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:47:11Z"
+updated = "2026-10-03T16:47:15Z"
 scope = ["crates/goway/**"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a cargo command, when goway runs it, then CARGO_TARGET_DIR points to a free per-repo target slot"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given --report FILE, when the run ends, then FILE holds host, arch, address and exit code as JSON"
