@@ -8,8 +8,8 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:47:26Z"
-updated = "2026-10-03T19:47:26Z"
-scope = ["crates/goway-setup/**", "docs/install-windows.md", "README.md"]
+updated = "2026-10-03T19:59:50Z"
+scope = ["crates/goway-setup/**", "docs/install-windows.md"]
 
 [[acceptance]]
 text = "Given a helper whose WSL runs in NAT mode (Windows 10, or Windows 11 without mirrored networking), when goway-setup install --host runs, then other computers on the local network reach its WSL sshd through a Windows port relay scoped like the firewall rule"
