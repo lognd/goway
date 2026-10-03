@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-03T21:47:41Z"
+digest = "249170662eb99ae723db407c92d44452f64fa3a9be726c387e04c477c0073010"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 4bd2c2a1-e34f-48e2-b2e2-1aee9ba39d30 with nextest profile: default
+    Starting 1 test across 31 binaries (371 tests skipped)
+        PASS [   1.506s] goway::shard_detect scripts_and_goways_own_binary_are_never_detected
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.508s] 1 test run: 1 passed, 371 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "scripts_and_goways_own_binary"
+size = 562
+status = "measured"
+tests = ["scripts_and_goways_own_binary_are_never_detected"]
+at = "2026-10-03T21:47:41Z"
+actor = "lognd"
+rev = 1
