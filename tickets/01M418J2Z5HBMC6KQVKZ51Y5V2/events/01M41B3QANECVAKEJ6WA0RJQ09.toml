@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T16:56:13Z"
+digest = "803214cd2cdf292eeb5ec7082b6ba9c63f7f25772269351a8de72264930e5935"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 6a6907be-e1b3-46ae-bd9b-dd0da02f4d8d with nextest profile: default
+    Starting 1 test across 15 binaries (119 tests skipped)
+        PASS [   0.236s] goway::run_local gc_dry_run_filters_by_repo_and_age_and_removes_nothing
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.237s] 1 test run: 1 passed, 119 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(gc_dry_run_filters_by_repo_and_age_and_removes_nothing)'"
+size = 565
+status = "measured"
+tests = ["gc_dry_run_filters_by_repo_and_age_and_removes_nothing"]
+at = "2026-10-03T16:56:13Z"
+actor = "lognd"
+rev = 1
