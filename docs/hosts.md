@@ -34,14 +34,17 @@ stage only runs if every earlier one failed:
 5. **windows-mdns**: `<name>.local` asked of Windows through WSL interop
    (`powershell.exe Resolve-DnsName`). A WSL client in NAT mode cannot
    do mDNS itself. This takes about 1 to 4 seconds, which is why it is
-   last and why the result is cached.
+   last and why the result is cached. `GOWAY_WINDOWS_LOOKUP=0` turns
+   it off.
 
 Loopback, link-local and duplicate addresses are skipped. Windows also
 answers with unrelated adapters (for example VirtualBox
 `192.168.56.1`). Those candidates fail the key check and are skipped.
 Resolution stops early if the key is not pinned yet or authentication is
 refused, because another address of the same machine would not help.
-The error lists every candidate tried and why it failed.
+The error lists every candidate tried and why it failed, including the
+reason a candidate was rejected (for example a hostname that does not
+match).
 
 ## `goway host add NAME`
 

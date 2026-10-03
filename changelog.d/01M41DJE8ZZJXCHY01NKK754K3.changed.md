@@ -1,0 +1,1 @@
+goway host add now explains why a candidate was rejected (for example a hostname mismatch), keeps a config file's leading comments above new hosts, and GOWAY_WINDOWS_LOOKUP=0 turns off the Windows name lookup under WSL.

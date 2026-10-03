@@ -94,6 +94,7 @@ impl World {
             .env("PATH", path)
             .env("GOWAY_CONFIG_DIR", &self.config)
             .env("GOWAY_STATE_DIR", self.root.join("state"))
+            .env("GOWAY_WINDOWS_LOOKUP", "0")
             .env_remove("RUSTC_WRAPPER");
         cmd
     }

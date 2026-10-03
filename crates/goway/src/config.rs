@@ -234,13 +234,23 @@ pub fn add_host(path: &Path, host: &HostConfig) -> Result<()> {
                 path: path.to_owned(),
                 message: e.to_string(),
             })?;
-    let table = toml_edit::ser::to_document(host)
+    // A file holding only comments keeps them as the document's trailing
+    // text, which would end up below the new table: move them above it.
+    let leading = doc.trailing().as_str().unwrap_or_default().to_owned();
+    let only_comments = doc.as_table().is_empty() && !leading.trim().is_empty();
+    if only_comments {
+        doc.set_trailing("");
+    }
+    let mut table = toml_edit::ser::to_document(host)
         .map_err(|e| Error::Config {
             path: path.to_owned(),
             message: e.to_string(),
         })?
         .as_table()
         .clone();
+    if only_comments {
+        table.decor_mut().set_prefix(leading);
+    }
     let hosts = doc
         .entry("host")
         .or_insert_with(|| toml_edit::Item::ArrayOfTables(toml_edit::ArrayOfTables::new()));
@@ -426,6 +436,27 @@ user = "user"
                 .unwrap()
                 .contains("# my pool")
         );
+    }
+
+    #[test]
+    fn add_host_keeps_a_leading_comment_on_top() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(&path, "# my pool\n").unwrap();
+        let host = HostConfig {
+            name: "q".to_owned(),
+            address: None,
+            port: None,
+            user: None,
+            max_jobs: None,
+            priority: None,
+            max_load: None,
+            identity: None,
+        };
+        add_host(&path, &host).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.starts_with("# my pool\n"), "{text}");
+        assert!(text.contains("[[host]]\nname = \"q\""), "{text}");
     }
 
     #[test]

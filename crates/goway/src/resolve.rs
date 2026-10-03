@@ -89,6 +89,8 @@ pub struct Miss {
     pub source: Source,
     /// Why it failed.
     pub failure: Failure,
+    /// The first line of ssh's or the check's explanation, if any.
+    pub detail: String,
 }
 
 impl std::fmt::Display for Miss {
@@ -100,7 +102,11 @@ impl std::fmt::Display for Miss {
             Failure::Unreachable => "unreachable",
             Failure::Other => "ssh failed",
         };
-        write!(f, "{} ({}): {why}", self.address, self.source)
+        if self.detail.is_empty() || self.failure != Failure::Other {
+            write!(f, "{} ({}): {why}", self.address, self.source)
+        } else {
+            write!(f, "{} ({}): {}", self.address, self.source, self.detail)
+        }
     }
 }
 
@@ -208,6 +214,12 @@ pub fn resolve(
                         address,
                         source,
                         failure,
+                        detail: stderr
+                            .lines()
+                            .map(str::trim)
+                            .find(|l| !l.is_empty())
+                            .unwrap_or_default()
+                            .to_owned(),
                     };
                     // An unpinned key or refused auth will not get better at
                     // another address of the same machine; stop early.
@@ -245,7 +257,9 @@ impl Lookup for SystemLookup {
     }
 
     fn windows(&self, name: &str) -> Vec<IpAddr> {
-        if !under_wsl() {
+        // GOWAY_WINDOWS_LOOKUP=0 turns the interop lookup off (tests, or
+        // WSL setups where powershell.exe is not wanted).
+        if !under_wsl() || std::env::var_os("GOWAY_WINDOWS_LOOKUP").is_some_and(|v| v == "0") {
             return Vec::new();
         }
         windows_lookup(name)

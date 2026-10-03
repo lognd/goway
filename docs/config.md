@@ -52,6 +52,7 @@ Durations use humantime syntax: `90s`, `30m`, `12h`, `7d`.
 | `GOWAY_REPORT` | same as `goway run --report FILE` |
 | `GOWAY_LOG` | tracing filter, such as `goway=debug` (`-v`, `-vv` and `-vvv` raise the level too) |
 | `NO_COLOR` | no color in goway's own output (`--color` overrides) |
+| `GOWAY_WINDOWS_LOOKUP=0` | under WSL, never ask Windows (`powershell.exe`) to resolve names |
 
 On the remote, a job sees these variables:
 
