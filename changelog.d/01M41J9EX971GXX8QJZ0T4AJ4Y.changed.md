@@ -1,0 +1,1 @@
+A newcomer guide: the README is a per-machine quick start (one command on each helper, one install and one goway add per helper on the main laptop) with every 'what this changes and why' in a collapsed section, plus a plain-words glossary and a troubleshooting page keyed by the messages goway prints.
