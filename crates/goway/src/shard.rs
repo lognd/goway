@@ -29,6 +29,22 @@ use crate::ssh::{self, KeyPolicy};
 use crate::state::State;
 use crate::termfilter;
 
+/// How big a shard was, relative to the others.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Share {
+    /// Free cores the host had when it was chosen (cores minus load).
+    pub capacity: f64,
+    /// This shard's weight; shares are `weight` out of `total_weight`.
+    pub weight: u32,
+    /// The sum of all shards' weights.
+    pub total_weight: u32,
+    /// `weight / total_weight`.
+    pub fraction: f64,
+    /// Whether the split followed capacity (false: equal shares, because
+    /// the framework or command cannot be split by weight).
+    pub weighted: bool,
+}
+
 /// One shard's outcome, in the `--report` file.
 #[derive(Debug, Clone, Serialize)]
 pub struct ShardReport {
@@ -49,6 +65,8 @@ pub struct ShardReport {
     /// The host facts that met the run's `--needs` and `--prefers`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub matched: Vec<Matched>,
+    /// This shard's share of the tests.
+    pub share: Share,
     /// What the helper's test-binary detection did, when it was asked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detection: Option<Detection>,
@@ -200,6 +218,52 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
     }
+    // Capacity-weighted shares (for the adapters that can split by weight).
+    let capacities: Vec<f64> = hosts.iter().map(|(_, _, p)| pool::capacity(p)).collect();
+    let can_weigh = plans
+        .first()
+        .and_then(|p| p.framework)
+        .is_some_and(runners::Framework::weighted);
+    let weights = if can_weigh {
+        runners::Weights::from_capacities(&capacities)
+    } else {
+        runners::Weights::equal(count)
+    };
+    if weights.is_unequal() {
+        let detect_flags: Vec<bool> = plans.iter().map(|p| p.detect).collect();
+        plans = (1..=count)
+            .map(|index| {
+                runners::plan_weighted(&args.command, &args.env, &project, index, &weights)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        for (p, d) in plans.iter_mut().zip(detect_flags) {
+            p.detect = d;
+        }
+        renderer.note(format_args!(
+            "shares by free cores: {}",
+            hosts
+                .iter()
+                .enumerate()
+                .map(|(i, (h, ..))| format!(
+                    "{} {}/{}",
+                    h.name,
+                    weights.weight(i + 1),
+                    weights.total()
+                ))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    } else if plans.first().and_then(|p| p.framework).is_some()
+        && !can_weigh
+        && capacities.len() > 1
+    {
+        let unequal = runners::Weights::from_capacities(&capacities).is_unequal();
+        if unequal {
+            renderer.note(
+                "hosts differ in free capacity, but this framework splits its shards equally",
+            );
+        }
+    }
     renderer.headline(format_args!(
         "sharding {} across {count} hosts: {}",
         ssh::shell_join(&args.command),
@@ -218,6 +282,8 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
             .map(|(i, (host, found, probe))| {
                 let config = &config;
                 let selection = &selection;
+                let capacities = &capacities;
+                let weights = &weights;
                 let repo = &repo;
                 let interrupted = &interrupted;
                 let plan = &plans[i];
@@ -322,6 +388,14 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                     tracing::info!(host = %host.name, index, code, "shard finished");
                     Ok(ShardReport {
                         matched: selection.assess(host, probe).matched,
+                        share: Share {
+                            capacity: capacities[i],
+                            weight: weights.weight(index),
+                            total_weight: u32::try_from(weights.total()).unwrap_or(u32::MAX),
+                            fraction: f64::from(weights.weight(index))
+                                / f64::from(u32::try_from(weights.total()).unwrap_or(u32::MAX)),
+                            weighted: can_weigh && weights.is_unequal(),
+                        },
                         shard: index,
                         host: host.name.clone(),
                         address: found.target.address.clone(),
@@ -349,8 +423,13 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                 if let Some(d) = &report.detection {
                     remember |= note_detection(renderer, &report, d, &program);
                 }
+                let share = if report.share.weighted {
+                    format!(", {:.0}% share", report.share.fraction * 100.0)
+                } else {
+                    String::new()
+                };
                 let line = format_args!(
-                    "shard {}/{count} on {}: exit {} in {:.1}s",
+                    "shard {}/{count} on {}: exit {} in {:.1}s{share}",
                     report.shard, report.host, report.exit_code, report.duration_secs
                 );
                 if report.exit_code == 0 {

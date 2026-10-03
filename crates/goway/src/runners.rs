@@ -284,13 +284,156 @@ fn npm_script_framework(command: &[String], project: &Project) -> Option<Framewo
     .map(|(_, f)| f)
 }
 
-/// The command and environment for shard `index` (1-based) of `count`.
+/// The relative sizes of the shards: shard `i` gets `weight(i)` of every
+/// `total()` units. Weights are small whole numbers (reduced by their
+/// greatest common divisor), so a split is exact, deterministic and, with
+/// equal weights, exactly round-robin.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Weights {
+    weights: Vec<u32>,
+    /// Owner (0-based shard) of each slot of one cycle of `total()` slots.
+    cycle: Vec<usize>,
+}
+
+/// The largest weight [`Weights::from_capacities`] gives (the freest host).
+pub const MAX_WEIGHT: u32 = 4;
+
+fn gcd(a: u32, b: u32) -> u32 {
+    if b == 0 { a } else { gcd(b, a % b) }
+}
+
+impl Weights {
+    /// `n` equal shards.
+    pub fn equal(n: usize) -> Self {
+        Self::new(&vec![1; n.max(1)])
+    }
+
+    /// Shards of the given relative sizes (zero counts as one).
+    pub fn new(weights: &[u32]) -> Self {
+        let mut w: Vec<u32> = weights.iter().map(|w| (*w).max(1)).collect();
+        if w.is_empty() {
+            w.push(1);
+        }
+        let g = w.iter().copied().fold(0, gcd).max(1);
+        for x in &mut w {
+            *x /= g;
+        }
+        let total: u32 = w.iter().sum();
+        // Smooth weighted round-robin: interleaves the shards evenly and, with
+        // equal weights, yields 0, 1, 2, ... like plain round-robin.
+        let mut current = vec![0i64; w.len()];
+        let mut cycle = Vec::with_capacity(total as usize);
+        for _ in 0..total {
+            for (c, x) in current.iter_mut().zip(&w) {
+                *c += i64::from(*x);
+            }
+            let pick = current
+                .iter()
+                .enumerate()
+                .max_by(|a, b| a.1.cmp(b.1).then(b.0.cmp(&a.0)))
+                .map_or(0, |(i, _)| i);
+            current[pick] -= i64::from(total);
+            cycle.push(pick);
+        }
+        Self { weights: w, cycle }
+    }
+
+    /// Weights proportional to free capacity (cores not yet in use): the
+    /// freest host gets [`MAX_WEIGHT`], others a share of it, none less than 1.
+    pub fn from_capacities(capacities: &[f64]) -> Self {
+        let max = capacities
+            .iter()
+            .copied()
+            .filter(|c| c.is_finite())
+            .fold(0.0, f64::max);
+        if max <= 0.0 {
+            return Self::equal(capacities.len());
+        }
+        let w: Vec<u32> = capacities
+            .iter()
+            .map(|c| {
+                let r = if c.is_finite() {
+                    (c / max).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // 0..=MAX_WEIGHT
+                let w = (r * f64::from(MAX_WEIGHT)).round() as u32;
+                w.max(1)
+            })
+            .collect();
+        Self::new(&w)
+    }
+
+    /// How many shards.
+    pub fn count(&self) -> usize {
+        self.weights.len()
+    }
+
+    /// The sum of the weights: the length of one cycle.
+    pub fn total(&self) -> usize {
+        self.cycle.len()
+    }
+
+    /// The (reduced) weight of shard `index` (1-based).
+    pub fn weight(&self, index: usize) -> u32 {
+        self.weights[index - 1]
+    }
+
+    /// Whether the shards are not all the same size.
+    pub fn is_unequal(&self) -> bool {
+        self.total() != self.count()
+    }
+
+    /// The 0-based shard that owns the unit at `position` (0-based) of a sorted list.
+    pub fn owner(&self, position: usize) -> usize {
+        self.cycle[position % self.cycle.len()]
+    }
+
+    /// The 1-based slots of one cycle that shard `index` (1-based) owns: its
+    /// nextest partitions out of `total()`.
+    pub fn partitions_of(&self, index: usize) -> Vec<usize> {
+        self.cycle
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| **o == index - 1)
+            .map(|(slot, _)| slot + 1)
+            .collect()
+    }
+}
+
+/// Run `commands` one after the other as one command: the first failure's
+/// exit code wins, but every command runs. A single command is returned as is.
+fn sequential(mut commands: Vec<Vec<String>>) -> Vec<String> {
+    if commands.len() == 1 {
+        return commands.remove(0);
+    }
+    let mut script = String::from("rc=0");
+    for c in &commands {
+        script.push_str("; ");
+        script.push_str(&crate::ssh::shell_join(c));
+        script.push_str("; r=$?; [ $rc -ne 0 ] || rc=$r");
+    }
+    script.push_str("; exit $rc");
+    vec!["sh".to_owned(), "-c".to_owned(), script]
+}
+
+impl Framework {
+    /// Whether this adapter splits by weight (the rest always split equally).
+    pub fn weighted(self) -> bool {
+        matches!(
+            self,
+            Self::Nextest | Self::Pytest | Self::GoTest | Self::Maven | Self::Gradle | Self::Rspec
+        )
+    }
+}
+
+/// The command and environment for shard `index` (1-based) of `count`,
+/// every shard getting an equal share.
 ///
 /// # Errors
 ///
-/// [`Error::Usage`] when the command already shards itself, or when a
-/// file-splitting adapter cannot tell what to split.
-#[allow(clippy::too_many_lines)] // one match arm per framework
+/// As [`plan_weighted`].
 pub fn plan(
     command: &[String],
     env: &[String],
@@ -298,6 +441,27 @@ pub fn plan(
     index: usize,
     count: usize,
 ) -> Result<Plan> {
+    plan_weighted(command, env, project, index, &Weights::equal(count))
+}
+
+/// The command and environment for shard `index` (1-based) when the shards
+/// have the relative sizes in `weights`. Adapters that can split by weight
+/// (nextest partitions, files, packages, classes) do; the native ones
+/// (`--shard=i/N`, `-I`, `GoogleTest`, Catch2) always split equally.
+///
+/// # Errors
+///
+/// [`Error::Usage`] when the command already shards itself, or when a
+/// file-splitting adapter cannot tell what to split.
+#[allow(clippy::too_many_lines)] // one match arm per framework
+pub fn plan_weighted(
+    command: &[String],
+    env: &[String],
+    project: &Project,
+    index: usize,
+    weights: &Weights,
+) -> Result<Plan> {
+    let count = weights.count();
     let Some(framework) = detect(command, env, project) else {
         return Ok(Plan {
             framework: None,
@@ -325,11 +489,21 @@ pub fn plan(
                 .position(|w| base_name(&w[0]).ends_with("nextest") && w[1] == "run")
                 .map_or(0, |p| p + 2);
             let at = insert_point(command, at);
-            plan.command = with_inserted(
-                command,
-                at,
-                &["--partition".to_owned(), format!("count:{index}/{count}")],
-            );
+            // Weighted: M = the sum of the weights partitions, a shard runs the
+            // ones it owns (one nextest run each, one after the other).
+            let total = weights.total();
+            let runs: Vec<Vec<String>> = weights
+                .partitions_of(index)
+                .into_iter()
+                .map(|p| {
+                    with_inserted(
+                        command,
+                        at,
+                        &["--partition".to_owned(), format!("count:{p}/{total}")],
+                    )
+                })
+                .collect();
+            plan.command = sequential(runs);
         }
         Framework::Vitest | Framework::Jest | Framework::Playwright => {
             if has_flag(command, &["--shard"]) {
@@ -392,7 +566,7 @@ pub fn plan(
                 command,
                 project,
                 index,
-                count,
+                weights,
                 find_tool(command, &["pytest", "py.test"]).unwrap_or(0),
                 &PYTEST,
             );
@@ -403,25 +577,27 @@ pub fn plan(
                 command,
                 project,
                 index,
-                count,
+                weights,
                 find_tool(command, &["rspec"]).unwrap_or(0),
                 &RSPEC,
             );
         }
-        Framework::GoTest => return split_go(command, project, index, count),
+        Framework::GoTest => return split_go(command, project, index, weights),
         Framework::Maven | Framework::Gradle => {
-            return split_java(framework, command, project, index, count);
+            return split_java(framework, command, project, index, weights);
         }
     }
     Ok(plan)
 }
 
-/// Round-robin share of the sorted, de-duplicated `units` for shard `index` (1-based).
-fn share(units: BTreeSet<String>, index: usize, count: usize) -> Vec<String> {
+/// The weighted round-robin share of the sorted, de-duplicated `units` for
+/// shard `index` (1-based): the unit at position `j` belongs to the shard
+/// that owns slot `j` of the weights' cycle (plain round-robin when equal).
+fn share(units: BTreeSet<String>, index: usize, weights: &Weights) -> Vec<String> {
     units
         .into_iter()
         .enumerate()
-        .filter(|(i, _)| i % count == index - 1)
+        .filter(|(i, _)| weights.owner(*i) == index - 1)
         .map(|(_, u)| u)
         .collect()
 }
@@ -518,7 +694,7 @@ fn split_by_path(
     command: &[String],
     project: &Project,
     index: usize,
-    count: usize,
+    weights: &Weights,
     tool_at: usize,
     rules: &PathRules,
 ) -> Result<Plan> {
@@ -616,7 +792,7 @@ fn split_by_path(
             framework.name()
         )));
     }
-    let mine = share(units, index, count);
+    let mine = share(units, index, weights);
     if mine.is_empty() {
         return Ok(nothing_to_do(framework));
     }
@@ -654,7 +830,12 @@ fn go_pattern_arg(arg: &str) -> bool {
     arg == "." || arg.starts_with("./") || arg.starts_with("../") || arg.contains("...")
 }
 
-fn split_go(command: &[String], project: &Project, index: usize, count: usize) -> Result<Plan> {
+fn split_go(
+    command: &[String],
+    project: &Project,
+    index: usize,
+    weights: &Weights,
+) -> Result<Plan> {
     let framework = Framework::GoTest;
     let tool = find_tool(command, &["go"]).unwrap_or(0);
     let test_at = tool + 1;
@@ -695,7 +876,7 @@ fn split_go(command: &[String], project: &Project, index: usize, count: usize) -
             "goway found no Go test packages matching the pattern in the synced project".to_owned(),
         ));
     }
-    let mine = share(units, index, count);
+    let mine = share(units, index, weights);
     if mine.is_empty() {
         return Ok(nothing_to_do(framework));
     }
@@ -760,7 +941,7 @@ fn split_java(
     command: &[String],
     project: &Project,
     index: usize,
-    count: usize,
+    weights: &Weights,
 ) -> Result<Plan> {
     let maven = framework == Framework::Maven;
     if maven && command.iter().any(|a| a.starts_with("-Dtest=")) {
@@ -776,7 +957,7 @@ fn split_java(
             framework.name()
         )));
     }
-    let mine = share(classes, index, count);
+    let mine = share(classes, index, weights);
     if mine.is_empty() {
         return Ok(nothing_to_do(framework));
     }
@@ -1121,5 +1302,141 @@ mod tests {
                 .collect();
             assert_exactly_once(&gradle, &all);
         }
+    }
+    // frob:tests crates/goway/src/runners.rs::Weights
+    #[test]
+    fn equal_weights_are_plain_round_robin_and_unequal_ones_interleave() {
+        let w = Weights::equal(3);
+        assert!(!w.is_unequal());
+        assert_eq!(
+            (0..7).map(|j| w.owner(j)).collect::<Vec<_>>(),
+            [0, 1, 2, 0, 1, 2, 0]
+        );
+        assert_eq!(
+            Weights::new(&[2, 2, 2]),
+            Weights::equal(3),
+            "reduced by the gcd"
+        );
+        let w = Weights::new(&[2, 1]);
+        assert_eq!((w.total(), w.weight(1), w.weight(2)), (3, 2, 1));
+        assert_eq!(w.partitions_of(1), [1, 3]);
+        assert_eq!(w.partitions_of(2), [2]);
+        let w = Weights::new(&[4, 1]);
+        assert_eq!(
+            (0..5).map(|j| w.owner(j)).collect::<Vec<_>>(),
+            [0, 0, 1, 0, 0]
+        );
+        // Zero and empty never divide by zero.
+        assert_eq!(Weights::new(&[0, 0]), Weights::equal(2));
+        assert_eq!(Weights::new(&[]).count(), 1);
+    }
+
+    // frob:tests crates/goway/src/runners.rs::Weights
+    #[test]
+    fn capacities_become_small_whole_weights() {
+        let w = Weights::from_capacities(&[12.0, 4.0]);
+        assert_eq!((w.weight(1), w.weight(2)), (4, 1));
+        assert!(!Weights::from_capacities(&[8.0, 8.0]).is_unequal());
+        assert!(
+            !Weights::from_capacities(&[8.0, 7.5]).is_unequal(),
+            "close hosts get equal shares"
+        );
+        let w = Weights::from_capacities(&[0.5, 16.0]);
+        assert_eq!(
+            (w.weight(1), w.weight(2)),
+            (1, 4),
+            "a busy host still gets a share"
+        );
+        for bad in [
+            vec![0.0, 0.0],
+            vec![f64::NAN, f64::NAN],
+            vec![f64::INFINITY, 3.0],
+        ] {
+            assert_eq!(Weights::from_capacities(&bad).count(), 2);
+        }
+    }
+
+    proptest::proptest! {
+        // frob:tests crates/goway/src/runners.rs::Weights
+        #[test]
+        fn weighted_shares_cover_every_unit_once_in_proportion(
+            weights in proptest::collection::vec(1u32..=8, 1..=6),
+            units in 0usize..200,
+        ) {
+            let w = Weights::new(&weights);
+            let mut seen = vec![0usize; w.count()];
+            for j in 0..units {
+                proptest::prop_assert!(w.owner(j) < w.count());
+                seen[w.owner(j)] += 1;
+            }
+            proptest::prop_assert_eq!(seen.iter().sum::<usize>(), units);
+            for (i, n) in seen.iter().enumerate() {
+                #[allow(clippy::cast_precision_loss)]
+                let ideal = units as f64 * f64::from(w.weight(i + 1)) / w.total() as f64;
+                #[allow(clippy::cast_precision_loss)]
+                let off = (*n as f64 - ideal).abs();
+                proptest::prop_assert!(off <= f64::from(w.weight(i + 1)), "shard {i}: {n} vs {ideal}");
+            }
+            // Partitions of all shards are exactly 1..=total, once each.
+            let mut all: Vec<usize> = (1..=w.count()).flat_map(|i| w.partitions_of(i)).collect();
+            all.sort_unstable();
+            proptest::prop_assert_eq!(all, (1..=w.total()).collect::<Vec<_>>());
+        }
+    }
+
+    // frob:tests crates/goway/src/runners.rs::plan_weighted
+    #[test]
+    fn nextest_runs_the_partitions_a_weighted_shard_owns() {
+        let cmd = words("cargo nextest run --workspace");
+        let w = Weights::new(&[2, 1]);
+        let one = plan_weighted(&cmd, &[], &project(&[]), 2, &w).unwrap();
+        assert_eq!(
+            one.command,
+            words("cargo nextest run --workspace --partition count:2/3")
+        );
+        let two = plan_weighted(&cmd, &[], &project(&[]), 1, &w).unwrap();
+        assert_eq!(&two.command[..2], ["sh", "-c"]);
+        let script = &two.command[2];
+        assert!(
+            script.contains("cargo nextest run --workspace --partition count:1/3"),
+            "{script}"
+        );
+        assert!(script.contains("--partition count:3/3"), "{script}");
+        assert!(script.ends_with("; exit $rc"), "{script}");
+        // Every partition of 1..=3 is run by exactly one shard.
+        let all = format!("{} {}", one.command.join(" "), script);
+        for p in 1..=3 {
+            assert_eq!(all.matches(&format!("count:{p}/3")).count(), 1, "{all}");
+        }
+        // Equal weights keep the plain command.
+        let eq = plan_weighted(&cmd, &[], &project(&[]), 2, &Weights::equal(3)).unwrap();
+        assert_eq!(
+            eq.command,
+            plan(&cmd, &[], &project(&[]), 2, 3).unwrap().command
+        );
+        assert_eq!(
+            eq.command,
+            words("cargo nextest run --workspace --partition count:2/3")
+        );
+    }
+
+    // frob:tests crates/goway/src/runners.rs::plan_weighted
+    #[test]
+    fn file_splitting_adapters_give_bigger_shares_to_bigger_weights() {
+        let files: Vec<String> = (0..9).map(|i| format!("tests/test_{i}.py")).collect();
+        let refs: Vec<&str> = files.iter().map(String::as_str).collect();
+        let w = Weights::new(&[2, 1]);
+        let a = plan_weighted(&words("pytest"), &[], &project(&refs), 1, &w).unwrap();
+        let b = plan_weighted(&words("pytest"), &[], &project(&refs), 2, &w).unwrap();
+        let (ca, cb) = (a.command.len() - 1, b.command.len() - 1);
+        assert_eq!((ca, cb), (6, 3));
+        let mut all: Vec<&String> = a.command[1..].iter().chain(&b.command[1..]).collect();
+        all.sort();
+        all.dedup();
+        assert_eq!(all.len(), 9, "every file runs exactly once");
+        // Native adapters ignore weights.
+        let v = plan_weighted(&words("npx vitest run"), &[], &project(&[]), 2, &w).unwrap();
+        assert_eq!(v.command, words("npx vitest run --shard=2/2"));
+        assert!(!Framework::Vitest.weighted() && Framework::Nextest.weighted());
     }
 }

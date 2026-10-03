@@ -106,6 +106,35 @@ already splits itself: `--partition`, `--shard`, `--shard-count`,
 `-I` for ctest, `-Dtest=` for Maven, `--tests` for Gradle, or the
 `GTEST_*` shard variables.
 
+#### Capacity-weighted shares
+
+Hosts differ, so equal shares leave the big ones idle while the small ones
+finish last. When the framework can split by weight, goway sizes each host's
+share by its **free capacity**, measured when the hosts are chosen: cores
+minus the 1-minute load minus goway jobs already running (never below half a
+core). The freest host gets weight 4, the others a proportional whole weight
+from 1 to 4 (so hosts within about 12% of each other split equally), reduced by
+their common divisor; the shares are those weights out of their sum. goway
+prints `shares by free cores: big 4/5, small 1/5` and each finished shard shows
+its percentage.
+
+- **cargo nextest**: the tests are split into as many `--partition count:p/M`
+  partitions as the weights sum to (M), and a host runs the partitions it owns,
+  one nextest run after the other in one command (every partition runs even if
+  an earlier one fails; the first failure's exit code is the shard's). Equal
+  weights are the plain single `count:i/N` run.
+- **pytest, RSpec, go test, Maven, Gradle**: goway's own file, package or class
+  split becomes a weighted round-robin over the sorted list, so a host with twice
+  the weight gets twice the units, interleaved evenly. With equal weights it is the
+  plain round-robin of before.
+- **vitest, jest, Playwright (`--shard=i/N`), CTest (`-I`), GoogleTest, Catch2
+  and unknown commands** split natively and equally; goway says so when the hosts
+  differ.
+
+Either way each test runs on exactly one shard. The `--report` file lists, per
+shard, `host`, `arch` and `share` (`capacity`, `weight`, `total_weight`,
+`fraction`, and `weighted`: false when the split was equal).
+
 #### Framework adapters
 
 | Framework | How it is sharded | Prerequisites | Status |

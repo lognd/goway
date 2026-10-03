@@ -101,6 +101,13 @@ pub fn score(p: &Probe, mem_per_core: f64) -> f64 {
     (p.load[0] + f64::from(p.jobs)) / f64::from(p.cores.max(1)) + mem_penalty(p, mem_per_core)
 }
 
+/// Free capacity in cores: cores minus 1-minute load minus goway's own
+/// jobs (not yet in the load), never below half a core. Sharding gives
+/// each host a share proportional to this.
+pub fn capacity(p: &Probe) -> f64 {
+    (f64::from(p.cores) - p.load[0] - f64::from(p.jobs)).max(0.5)
+}
+
 /// A probed host: where it answered and what it said, or why it did not.
 #[derive(Debug)]
 pub struct Probed<'a> {
