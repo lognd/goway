@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:15:48Z"
+updated = "2026-10-03T16:19:17Z"
 scope = ["crates/goway/**"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = false
 
 [[acceptance]]
 text = "Given a host, when goway builds an ssh command, then it uses HostKeyAlias goway-NAME, StrictHostKeyChecking yes and goway's known_hosts file"
-bound = false
+bound = true
 +++
