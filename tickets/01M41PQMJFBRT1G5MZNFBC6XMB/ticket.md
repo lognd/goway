@@ -2,13 +2,13 @@
 id = "01M41PQMJFBRT1G5MZNFBC6XMB"
 title = "Filter terminal control sequences from remote output when stdout or stderr is a terminal"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:19:20Z"
-updated = "2026-10-03T20:19:27Z"
+updated = "2026-10-03T20:19:30Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**", "SECURITY.md", "docs/usage.md", "docs/design.md"]
 
 [[acceptance]]
