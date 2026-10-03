@@ -1,0 +1,12 @@
+kind = "create"
+title = "Linux install and uninstall scripts"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 2
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["scripts/**", "docs/**"]
+acceptance = ["Given a Linux user, when scripts/install.sh then scripts/uninstall.sh run, then ~/.local/bin and shell profile equal their state before"]
+at = "2026-10-03T16:11:38Z"
+actor = "lognd"
+rev = 1
