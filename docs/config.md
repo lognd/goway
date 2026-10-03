@@ -56,8 +56,9 @@ On the remote, a job sees these variables:
 | `GOWAY` | `1` |
 | `GOWAY_HOST` | the host's hostname |
 | `GOWAY_RUN_ID` | the run's id |
-| `CARGO_TARGET_DIR` | a free per-repository target slot |
-| `RUSTC_WRAPPER`, `SCCACHE_DIR` | sccache with a per-repository cache, set only when sccache is installed and `RUSTC_WRAPPER` is unset |
+| `CARGO_TARGET_DIR` | a free per-repository target slot, unless already set |
+| `RUSTC_WRAPPER`, `SCCACHE_DIR`, `SCCACHE_SERVER_PORT`, `SCCACHE_IDLE_TIMEOUT` | sccache with a per-repository cache, port and a 300 s idle timeout. These are set only when sccache is installed and `RUSTC_WRAPPER` is unset, and each one only if it is still unset. |
 
-Values passed with `--env KEY=VALUE` are applied last, so they override
-all of these.
+The remote environment, `~/.cargo/env` and `--env KEY=VALUE` values are
+applied first. goway only fills in what is still unset, so your settings
+always win (see docs/positioning.md).

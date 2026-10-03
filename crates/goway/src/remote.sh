@@ -98,26 +98,35 @@ run() {
 
   [ -f "$cache/meta.json" ] || printf '%s' "$cache_meta" | base64 -d >"$cache/meta.json"
   touch "$cache/meta.json"
-  for ((k = 0; k < slots; k++)); do
-    exec 7>"$cache/target-$k.lock"
-    if flock -n 7; then slot=$k; break; fi
-    exec 7>&-
-  done
-  if [ -z "$slot" ]; then
-    slot=$((RANDOM % slots))
-    printf 'goway: all %s cargo target slots busy; waiting for slot %s\n' "$slots" "$slot" >&2
-    exec 7>"$cache/target-$slot.lock"
-    flock 7
-  fi
-  export CARGO_TARGET_DIR="$cache/target-$slot"
 
+  # Settings that already exist win over goway's defaults: first the
+  # remote environment and ~/.cargo/env, then the user's --env values;
+  # goway only fills in what is still unset.
   if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; fi
-  if [ -z "${RUSTC_WRAPPER:-}" ] && command -v sccache >/dev/null 2>&1; then
-    export RUSTC_WRAPPER=sccache SCCACHE_DIR="$cache/sccache"
-    export SCCACHE_SERVER_PORT=$((4300 + 16#${repo_id:0:4} % 1000))
-  fi
   if [ -n "$envb" ]; then
     while IFS= read -r -d '' kv; do export "$kv"; done < <(printf '%s' "$envb" | base64 -d)
+  fi
+  if [ -z "${CARGO_TARGET_DIR:-}" ]; then
+    for ((k = 0; k < slots; k++)); do
+      exec 7>"$cache/target-$k.lock"
+      if flock -n 7; then slot=$k; break; fi
+      exec 7>&-
+    done
+    if [ -z "$slot" ]; then
+      slot=$((RANDOM % slots))
+      printf 'goway: all %s cargo target slots busy; waiting for slot %s\n' "$slots" "$slot" >&2
+      exec 7>"$cache/target-$slot.lock"
+      flock 7
+    fi
+    export CARGO_TARGET_DIR="$cache/target-$slot"
+  fi
+  if [ -z "${RUSTC_WRAPPER+set}" ] && command -v sccache >/dev/null 2>&1; then
+    export RUSTC_WRAPPER=sccache
+    export SCCACHE_DIR="${SCCACHE_DIR:-$cache/sccache}"
+    export SCCACHE_SERVER_PORT="${SCCACHE_SERVER_PORT:-$((4300 + 16#${repo_id:0:4} % 1000))}"
+    # sccache's server is the one process allowed to outlive a run (it
+    # keeps the cache warm); make it leave soon after the last build.
+    export SCCACHE_IDLE_TIMEOUT="${SCCACHE_IDLE_TIMEOUT:-300}"
   fi
   export GOWAY=1 GOWAY_RUN_ID="$run_id" GOWAY_HOST
   GOWAY_HOST=$(uname -n)

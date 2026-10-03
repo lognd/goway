@@ -352,10 +352,129 @@ fn doctor_reports_every_check_with_status() {
     let w = world();
     let out = w.run(&["doctor"]);
     let table = String::from_utf8_lossy(&out.stdout).into_owned();
-    for check in ["bash", "tar", "flock", "setsid", "cc (linker)", "cargo", "sshd password login"] {
-        assert!(table.lines().any(|l| l.starts_with(check)), "{check} missing\n{table}");
+    for check in [
+        "bash",
+        "tar",
+        "flock",
+        "setsid",
+        "cc (linker)",
+        "cargo",
+        "sshd password login",
+    ] {
+        assert!(
+            table.lines().any(|l| l.starts_with(check)),
+            "{check} missing\n{table}"
+        );
     }
     assert!(String::from_utf8_lossy(&out.stderr).contains("local at 127.0.0.1"));
     let sudo_without_fix = w.run(&["doctor", "--sudo"]);
-    assert_eq!(sudo_without_fix.status.code(), Some(2), "--sudo requires --fix");
+    assert_eq!(
+        sudo_without_fix.status.code(),
+        Some(2),
+        "--sudo requires --fix"
+    );
+}
+
+#[test]
+fn user_settings_win_over_goway_defaults() {
+    let w = world();
+    let show = "echo T=$CARGO_TARGET_DIR W=${RUSTC_WRAPPER-unset} D=${SCCACHE_DIR-unset}";
+    // --env values win.
+    let out = w.run(&[
+        "run",
+        "-e",
+        "CARGO_TARGET_DIR=/custom/target",
+        "-e",
+        "RUSTC_WRAPPER=",
+        "--",
+        "sh",
+        "-c",
+        show,
+    ]);
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(text.contains("T=/custom/target"), "{text}");
+    assert!(
+        text.contains("W= "),
+        "empty RUSTC_WRAPPER disables sccache: {text}"
+    );
+    assert!(text.contains("D=unset"), "{text}");
+    // The remote environment wins too (the fake ssh passes ours through).
+    let out = w
+        .goway(&["run", "--", "sh", "-c", show])
+        .env("RUSTC_WRAPPER", "my-wrapper")
+        .env("CARGO_TARGET_DIR", "/fast/disk")
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(text.contains("T=/fast/disk W=my-wrapper"), "{text}");
+}
+
+/// Every file under `dir`, relative.
+fn files_under(dir: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).unwrap() {
+            let p = e.unwrap().path();
+            if p.is_dir() {
+                stack.push(p);
+            } else {
+                out.push(p.strip_prefix(dir).unwrap().display().to_string());
+            }
+        }
+    }
+    out
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_run_leaves_no_files_outside_its_root_and_no_processes() {
+    let w = world();
+    let home = w.root.join("remote-home");
+    std::fs::create_dir(&home).unwrap();
+    std::fs::write(
+        w.config.join("config.toml"),
+        "[defaults]\nremote_root = \".cache/goway\"\n\n[[host]]\nname = \"local\"\naddress = \"127.0.0.1\"\n",
+    )
+    .unwrap();
+    let marker = format!("goway-leak-check-{}", std::process::id());
+    let out = w
+        .goway(&[
+            "run",
+            "--",
+            "sh",
+            "-c",
+            &format!("echo {marker} >/dev/null; sleep 0.2"),
+        ])
+        .env("HOME", &home)
+        .env_remove("RUSTC_WRAPPER")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let outside: Vec<String> = files_under(&home)
+        .into_iter()
+        .filter(|f| !f.starts_with(".cache/goway/"))
+        .collect();
+    assert!(
+        outside.is_empty(),
+        "files outside the remote root: {outside:?}"
+    );
+    // Give the detached gc a moment, then no process may mention this run.
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+    let root = home.join(".cache/goway").display().to_string();
+    let mut leftovers = Vec::new();
+    for entry in std::fs::read_dir("/proc").unwrap().flatten() {
+        let Ok(cmdline) = std::fs::read(entry.path().join("cmdline")) else {
+            continue;
+        };
+        let cmdline = String::from_utf8_lossy(&cmdline).replace('\0', " ");
+        if cmdline.contains(&marker) || cmdline.contains(&root) {
+            leftovers.push(cmdline);
+        }
+    }
+    assert!(leftovers.is_empty(), "processes left behind: {leftovers:?}");
 }
