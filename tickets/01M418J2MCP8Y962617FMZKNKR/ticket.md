@@ -2,13 +2,13 @@
 id = "01M418J2MCP8Y962617FMZKNKR"
 title = "Workspace skeleton: CLI, render module, tracing, error and exit-code types"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:37Z"
-updated = "2026-10-03T16:11:37Z"
+updated = "2026-10-03T16:11:49Z"
 scope = ["crates/goway/**", "docs/**"]
 
 [[acceptance]]
