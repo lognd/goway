@@ -2,13 +2,13 @@
 id = "01M41QWW2EGAQGFSV4QNKCC1DM"
 title = "Install and uninstall through uv, pipx, pip and cargo: documented, and goway uninstall removes the program however it was installed"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:39:40Z"
-updated = "2026-10-03T22:54:57Z"
+updated = "2026-10-03T23:32:40Z"
 scope = ["README.md", "docs/install-linux.md", "crates/goway/src/uninstall.rs", ".github/workflows/ci.yml", "crates/goway/tests/install_methods.rs", "docs/install-methods.md"]
 
 [[acceptance]]
