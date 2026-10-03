@@ -7,6 +7,7 @@
 use crate::host::{
     FIREWALL_PROFILES, FirewallSpec, HyperVSpec, Keepalive, LOCAL_SUBNET, Scope, TaskSpec,
 };
+use crate::relay::RelayTaskSpec;
 
 /// Single-quote a value as a PowerShell string literal (`'` doubles).
 pub fn quote(value: &str) -> String {
@@ -187,6 +188,52 @@ pub fn task_create(name: &str, spec: &TaskSpec) -> String {
         name = quote(name),
         desc = quote(&spec.description),
     ))
+}
+
+/// The conhost command line that runs the refresh script with no window, through the absolute
+/// `powershell.exe` and with the user's profile and the execution policy out of the picture.
+pub fn relay_arguments(powershell_exe: &str, script: &str) -> String {
+    format!(
+        "--headless \"{powershell_exe}\" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{script}\""
+    )
+}
+
+/// Script registering the relay refresh task: it runs as the invoking user (only that user can
+/// see the distro) with the highest privileges (netsh needs them), at logon or startup like the
+/// keepalive and then every few minutes. No password is stored (`Interactive` or `S4U`).
+pub fn relay_task_create(
+    name: &str,
+    spec: &RelayTaskSpec,
+    conhost_exe: &str,
+    powershell_exe: &str,
+) -> String {
+    let (trigger, logon) = match spec.keepalive {
+        Keepalive::Logon => (
+            "New-ScheduledTaskTrigger -AtLogOn -User $user",
+            "Interactive",
+        ),
+        Keepalive::Boot => ("New-ScheduledTaskTrigger -AtStartup", "S4U"),
+    };
+    strict(&format!(
+        "$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name\n\
+         $action = New-ScheduledTaskAction -Execute {conhost} -Argument {args}\n\
+         $trigger = {trigger}\n\
+         $repeat = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes {minutes}) -RepetitionDuration (New-TimeSpan -Days 3650)\n\
+         $trigger.Repetition = $repeat.Repetition\n\
+         $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType {logon} -RunLevel Highest\n\
+         $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew\n\
+         Register-ScheduledTask -TaskName {name} -Description {desc} -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null",
+        conhost = quote(conhost_exe),
+        args = quote(&relay_arguments(powershell_exe, &spec.script)),
+        minutes = spec.interval_minutes,
+        name = quote(name),
+        desc = quote(&spec.description),
+    ))
+}
+
+/// Script printing the Windows build number.
+pub fn windows_build() -> String {
+    strict("(Get-CimInstance Win32_OperatingSystem).BuildNumber")
 }
 
 /// Script stopping (when running) and unregistering a task; absent is success.

@@ -8,7 +8,7 @@ use goway_journal::{
 };
 use goway_setup::app::{self, Retry};
 use goway_setup::host::{
-    self, DEFAULT_PORT, HostFacts, HostParams, HostSettings, Keepalive, host_plan,
+    self, DEFAULT_PORT, HostFacts, HostParams, HostSettings, Keepalive, NetworkMode, host_plan,
 };
 use goway_setup::layout::Layout;
 use proptest::prelude::*;
@@ -28,6 +28,7 @@ fn params(port: u16, keepalive: Keepalive, harden: bool) -> HostParams {
         harden,
         allow_from: Vec::new(),
         home: PathBuf::from(HOME),
+        network: NetworkMode::Mirrored,
     }
 }
 
@@ -117,6 +118,7 @@ fn optional_steps_follow_the_probed_facts() {
         hyperv_firewall: false,
         sshd_ports: vec![2222],
         authorized_keys: false,
+        ..HostFacts::assumed()
     };
     let plan = host_plan(&l, &p, &none);
     assert!(kinds(&plan, ResourceKind::HyperVFirewallRule).is_empty());
@@ -180,6 +182,7 @@ fn on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall
         hyperv_firewall: false,
         sshd_ports: vec![2222],
         authorized_keys: true,
+        ..HostFacts::assumed()
     };
     let plan = host_plan(
         &layout("goway"),
@@ -203,7 +206,7 @@ fn on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall
     );
     assert!(sys.reg_keys.contains(&layout("goway").host_uninstall_key));
     assert!(!host::sshd_changed(&journal));
-    assert!(host::created_task(&journal).is_none());
+    assert!(host::created_tasks(&journal).is_empty());
     assert!(host::restart_notices(&journal).is_empty());
     assert!(host::restart_need(&journal).is_none());
     let report = revert(&mut journal, &mut sys).unwrap();
@@ -217,7 +220,7 @@ fn on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall
 }
 
 // frob:tests crates/goway-setup/src/host.rs::sshd_changed
-// frob:tests crates/goway-setup/src/host.rs::created_task
+// frob:tests crates/goway-setup/src/host.rs::created_tasks
 // frob:tests crates/goway-setup/src/host.rs::restart_notices
 // frob:tests crates/goway-setup/src/host.rs::dropin_in_journal
 // frob:tests crates/goway-setup/src/host.rs::needs_admin
@@ -230,15 +233,13 @@ fn a_new_port_on_a_set_up_machine_is_a_pure_addition_that_uninstall_removes() {
         hyperv_firewall: true,
         sshd_ports: vec![2222],
         authorized_keys: true,
+        ..HostFacts::assumed()
     };
     let plan = host_plan(&layout("goway-test"), &p, &facts);
     let mut journal = apply(&plan, &mut sys).unwrap();
     assert_ne!(sys, before);
     assert!(host::sshd_changed(&journal));
-    assert_eq!(
-        host::created_task(&journal),
-        Some("goway-test WSL Keepalive")
-    );
+    assert_eq!(host::created_tasks(&journal), ["goway-test WSL Keepalive"]);
     assert!(
         host::restart_notices(&journal).is_empty(),
         "mirrored and systemd were already set"
@@ -339,6 +340,7 @@ fn scenario() -> impl Strategy<Value = Scenario> {
                         hyperv_firewall: f.0,
                         sshd_ports: if f.1 { vec![2222] } else { vec![] },
                         authorized_keys: f.2,
+                        ..HostFacts::assumed()
                     },
                     params: params(port, ka, harden),
                     profile,
@@ -474,6 +476,7 @@ fn the_host_journal_and_settings_live_in_the_admin_dir_apart_from_the_client_jou
         distro: "Ubuntu".into(),
         port: DEFAULT_PORT,
         allow_from: Vec::new(),
+        network: NetworkMode::Mirrored,
     };
     app::save_settings(&l, &settings).unwrap();
     assert_eq!(app::load_settings(&l).unwrap(), Some(settings));
@@ -576,6 +579,7 @@ fn allow_from_accepts_addresses_and_cidrs_and_refuses_everything_else() {
         distro: "Ubuntu".into(),
         port: 2222,
         allow_from: vec!["0.0.0.0/0".into()],
+        network: NetworkMode::Mirrored,
     };
     assert!(settings.validate(Path::new("s.json")).is_err());
 }
@@ -589,6 +593,7 @@ fn a_journal_from_before_scoping_can_still_be_uninstalled() {
         distro: "Ubuntu".into(),
         port: 2299,
         allow_from: Vec::new(),
+        network: NetworkMode::Mirrored,
     };
     let legacy_fw = Change::EnsureResource {
         kind: ResourceKind::FirewallRule,

@@ -12,6 +12,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::entry::host_uninstall_values;
 use crate::layout::{DEFAULT_PROFILE, Layout};
+use crate::relay::{
+    self, LISTEN_ADDRESS, PortProxyRule, PortProxySpec, REFRESH_MINUTES, RelayTaskSpec,
+};
 
 /// Default TCP port of the WSL sshd.
 pub const DEFAULT_PORT: u16 = 2222;
@@ -44,6 +47,112 @@ pub enum Keepalive {
     Boot,
 }
 
+/// Which WSL networking the user asked for (`--network`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub enum NetworkChoice {
+    /// Mirrored when the Windows build supports it and `.wslconfig` does not say `nat`; else NAT.
+    #[default]
+    Auto,
+    /// Set `networkingMode=mirrored` (Windows 11 22H2 or newer only).
+    Mirrored,
+    /// Leave WSL in NAT mode and relay the port through Windows (`netsh portproxy`).
+    Nat,
+}
+
+/// The networking the install actually set up; recorded so uninstall and status know it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NetworkMode {
+    /// WSL mirrors the Windows network: the firewall rules alone expose sshd.
+    #[default]
+    Mirrored,
+    /// WSL sits behind NAT: a portproxy relay (kept current by a task) exposes sshd.
+    Nat,
+}
+
+impl NetworkMode {
+    /// The lowercase name used on the command line and in messages.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Mirrored => "mirrored",
+            Self::Nat => "nat",
+        }
+    }
+}
+
+/// First Windows build with mirrored networking (Windows 11 22H2).
+pub const MIRRORED_MIN_BUILD: u32 = 22621;
+
+/// Decide the networking mode from the request and what the machine is like.
+///
+/// `auto` picks mirrored only when the build supports it and the user has not explicitly set
+/// `networkingMode=nat` in `.wslconfig`; an explicit `mirrored` on an older build is refused.
+pub fn resolve_network(
+    choice: NetworkChoice,
+    facts: &HostFacts,
+) -> Result<NetworkMode, crate::error::SetupError> {
+    let supported = facts.windows_build.is_some_and(|b| b >= MIRRORED_MIN_BUILD);
+    let mode = match choice {
+        NetworkChoice::Nat => NetworkMode::Nat,
+        NetworkChoice::Mirrored if supported => NetworkMode::Mirrored,
+        NetworkChoice::Mirrored => {
+            tracing::warn!(build = ?facts.windows_build, "mirrored networking refused: build too old");
+            return Err(crate::error::SetupError::MirroredUnsupported {
+                build: facts.windows_build,
+            });
+        }
+        NetworkChoice::Auto => {
+            let explicit_nat = facts
+                .wslconfig_network
+                .as_deref()
+                .is_some_and(|m| m.eq_ignore_ascii_case("nat"));
+            if supported && !explicit_nat {
+                NetworkMode::Mirrored
+            } else {
+                NetworkMode::Nat
+            }
+        }
+    };
+    tracing::info!(?choice, ?mode, build = ?facts.windows_build, wslconfig = ?facts.wslconfig_network, "resolved networking mode");
+    Ok(mode)
+}
+
+/// Refuse a NAT install when a portproxy rule already listens on the helper's port.
+///
+/// goway never edits or removes a rule it did not create, so the user must pick another
+/// `--port` or remove the rule themselves.
+pub fn check_relay_port(
+    mode: NetworkMode,
+    port: u16,
+    rules: &[PortProxyRule],
+) -> Result<(), crate::error::SetupError> {
+    if mode != NetworkMode::Nat {
+        return Ok(());
+    }
+    match relay::rule_on_port(rules, port) {
+        Some(r) => {
+            tracing::warn!(
+                ?r,
+                "install refused: a portproxy rule already uses the port"
+            );
+            Err(crate::error::SetupError::RelayPortBusy {
+                port,
+                listen: r.listen_address.to_string(),
+                connect: format!("{}:{}", r.connect_address, r.connect_port),
+            })
+        }
+        None => Ok(()),
+    }
+}
+
+/// What to tell the user after a NAT-mode install about how the helper is reached.
+pub fn nat_notice(port: u16) -> String {
+    format!(
+        "network mode: nat. Other computers reach the helper through a Windows relay on port {port} (netsh portproxy), \
+         limited by the same firewall rules; a scheduled task re-points it whenever WSL's address changes"
+    )
+}
+
 /// What the user asked the host component to set up.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostParams {
@@ -59,6 +168,8 @@ pub struct HostParams {
     pub allow_from: Vec<String>,
     /// The user's home directory, where `.wslconfig` lives.
     pub home: PathBuf,
+    /// The resolved networking mode (see [`resolve_network`]).
+    pub network: NetworkMode,
 }
 
 /// What probing the machine found; it decides which optional steps the plan contains.
@@ -70,6 +181,12 @@ pub struct HostFacts {
     pub sshd_ports: Vec<u16>,
     /// Whether the distro's default user has at least one authorized key.
     pub authorized_keys: bool,
+    /// The Windows build number, when it could be read.
+    pub windows_build: Option<u32>,
+    /// `networkingMode` already set in the user's `.wslconfig`, if any.
+    pub wslconfig_network: Option<String>,
+    /// The machine's current portproxy rules.
+    pub portproxy: Vec<PortProxyRule>,
 }
 
 impl HostFacts {
@@ -79,6 +196,9 @@ impl HostFacts {
             hyperv_firewall: true,
             sshd_ports: Vec::new(),
             authorized_keys: true,
+            windows_build: Some(MIRRORED_MIN_BUILD + 10),
+            wslconfig_network: None,
+            portproxy: Vec::new(),
         }
     }
 }
@@ -93,6 +213,9 @@ pub struct HostSettings {
     /// Extra remote addresses the firewall rules admit besides the local subnet.
     #[serde(default)]
     pub allow_from: Vec<String>,
+    /// The networking mode the install chose (journals before NAT support are mirrored).
+    #[serde(default)]
+    pub network: NetworkMode,
 }
 
 impl Default for HostSettings {
@@ -102,6 +225,7 @@ impl Default for HostSettings {
             distro: DEFAULT_DISTRO.to_owned(),
             port: DEFAULT_PORT,
             allow_from: Vec::new(),
+            network: NetworkMode::Mirrored,
         }
     }
 }
@@ -252,11 +376,33 @@ pub fn hyperv_rule_name(profile: &str, port: u16) -> String {
 
 /// Name of the keepalive scheduled task (the default logon task matches the hand-made one).
 pub fn task_name(profile: &str, keepalive: Keepalive) -> String {
-    let suffix = match keepalive {
+    format!(
+        "{}WSL Keepalive{}",
+        prefix(profile),
+        keepalive_suffix(keepalive)
+    )
+}
+
+/// The task-name suffix that tells the boot variant from the logon one.
+fn keepalive_suffix(keepalive: Keepalive) -> &'static str {
+    match keepalive {
         Keepalive::Logon => "",
         Keepalive::Boot => " (boot)",
-    };
-    format!("{}WSL Keepalive{suffix}", prefix(profile))
+    }
+}
+
+/// Name of the relay refresh task (named like the keepalive task, with `Relay` for `Keepalive`).
+pub fn relay_task_name(profile: &str, keepalive: Keepalive) -> String {
+    format!(
+        "{}WSL Relay{}",
+        prefix(profile),
+        keepalive_suffix(keepalive)
+    )
+}
+
+/// Path of the relay refresh script, inside the administrator-only directory.
+pub fn relay_script_path(layout: &Layout) -> PathBuf {
+    layout.admin_dir.join(relay::SCRIPT_NAME)
 }
 
 /// Path of the sshd drop-in that adds the listening port.
@@ -318,23 +464,23 @@ pub fn host_plan(layout: &Layout, params: &HostParams, facts: &HostFacts) -> Vec
                 value,
             }),
     );
-    plan.extend([
-        Change::SetIniKey {
+    if params.network == NetworkMode::Mirrored {
+        plan.push(Change::SetIniKey {
             path: params.home.join(".wslconfig"),
             section: "wsl2".into(),
             key: "networkingMode".into(),
             value: "mirrored".into(),
+        });
+    }
+    plan.extend([resource(
+        ResourceKind::FirewallRule,
+        firewall_rule_name(profile, port),
+        &FirewallSpec {
+            port,
+            description: format!("WSL sshd; {note}"),
+            scope: Scope::new(&params.allow_from),
         },
-        resource(
-            ResourceKind::FirewallRule,
-            firewall_rule_name(profile, port),
-            &FirewallSpec {
-                port,
-                description: format!("WSL sshd; {note}"),
-                scope: Scope::new(&params.allow_from),
-            },
-        ),
-    ]);
+    )]);
     if facts.hyperv_firewall {
         plan.push(resource(
             ResourceKind::HyperVFirewallRule,
@@ -359,6 +505,9 @@ pub fn host_plan(layout: &Layout, params: &HostParams, facts: &HostFacts) -> Vec
             ),
         },
     ));
+    if params.network == NetworkMode::Nat {
+        plan.extend(relay_changes(layout, params, &note));
+    }
     plan.push(Change::SetIniKey {
         path: WSL_CONF.into(),
         section: "boot".into(),
@@ -393,6 +542,42 @@ pub fn host_plan(layout: &Layout, params: &HostParams, facts: &HostFacts) -> Vec
     plan
 }
 
+/// The NAT-mode changes: the refresh script, the portproxy relay, and the task that keeps the
+/// relay pointed at the distro. Applied in this order and reverted in the opposite one, so the
+/// task never outlives the script it runs.
+fn relay_changes(layout: &Layout, params: &HostParams, note: &str) -> Vec<Change> {
+    let profile = layout.profile.as_str();
+    let script = relay_script_path(layout);
+    vec![
+        Change::WriteFile {
+            path: script.clone(),
+            contents: relay::refresh_script(profile, &params.distro, params.port),
+        },
+        resource(
+            ResourceKind::PortProxy,
+            relay::relay_name(params.port),
+            &PortProxySpec {
+                listen_address: LISTEN_ADDRESS.to_owned(),
+                port: params.port,
+            },
+        ),
+        resource(
+            ResourceKind::ScheduledTask,
+            relay_task_name(profile, params.keepalive),
+            &RelayTaskSpec {
+                distro: params.distro.clone(),
+                keepalive: params.keepalive,
+                script: script.display().to_string(),
+                interval_minutes: REFRESH_MINUTES,
+                description: format!(
+                    "points the port {} relay at the {} WSL distro's current address; {note}",
+                    params.port, params.distro
+                ),
+            },
+        ),
+    ]
+}
+
 /// Whether `entry` really changed something (a no-op entry means the state pre-existed).
 fn changed(entry: &Entry) -> bool {
     entry.prior != Prior::Noop && !entry.reverted
@@ -422,16 +607,39 @@ fn is_wsl_conf(change: &Change) -> bool {
     matches!(change, Change::SetIniKey { path, .. } if path.to_str() == Some(WSL_CONF))
 }
 
-/// The keepalive task this journal created (the one worth starting now), if any.
-pub fn created_task(journal: &Journal) -> Option<&str> {
-    journal.entries.iter().find_map(|e| match &e.change {
-        Change::EnsureResource {
-            kind: ResourceKind::ScheduledTask,
-            name,
-            ..
-        } if changed(e) => Some(name.as_str()),
-        _ => None,
-    })
+/// The tasks this journal created (the keepalive, and in NAT mode the relay refresh), in plan
+/// order: the ones worth starting now.
+pub fn created_tasks(journal: &Journal) -> Vec<&str> {
+    journal
+        .entries
+        .iter()
+        .filter_map(|e| match &e.change {
+            Change::EnsureResource {
+                kind: ResourceKind::ScheduledTask,
+                name,
+                ..
+            } if changed(e) => Some(name.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The networking mode a host journal was built for: NAT exactly when it holds a relay.
+pub fn network_in_journal(journal: &Journal) -> NetworkMode {
+    let relay = journal.entries.iter().any(|e| {
+        matches!(
+            &e.change,
+            Change::EnsureResource {
+                kind: ResourceKind::PortProxy,
+                ..
+            }
+        )
+    });
+    if relay {
+        NetworkMode::Nat
+    } else {
+        NetworkMode::Mirrored
+    }
 }
 
 /// Follow-ups the user must perform after a host install: settings only WSL's restart applies.
@@ -557,7 +765,8 @@ pub fn needs_admin(journal: &Journal) -> bool {
                 Change::EnsureResource {
                     kind: ResourceKind::FirewallRule
                         | ResourceKind::HyperVFirewallRule
-                        | ResourceKind::ScheduledTask,
+                        | ResourceKind::ScheduledTask
+                        | ResourceKind::PortProxy,
                     ..
                 }
             )
@@ -580,6 +789,8 @@ pub fn expected_changes(
     home: &std::path::Path,
 ) -> Vec<Change> {
     let mut all: Vec<Change> = Vec::new();
+    // Only the mode the install recorded: a journal holding the other mode's entries is refused.
+    let network = settings.network;
     for keepalive in [Keepalive::Logon, Keepalive::Boot] {
         for harden in [false, true] {
             for hyperv_firewall in [false, true] {
@@ -591,11 +802,13 @@ pub fn expected_changes(
                         harden,
                         allow_from: settings.allow_from.clone(),
                         home: home.to_path_buf(),
+                        network,
                     };
                     let facts = HostFacts {
                         hyperv_firewall,
                         sshd_ports,
                         authorized_keys: true,
+                        ..HostFacts::assumed()
                     };
                     for change in host_plan(layout, &params, &facts) {
                         for variant in [legacy_variant(&change), Some(change)]

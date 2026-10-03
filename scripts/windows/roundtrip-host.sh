@@ -26,6 +26,16 @@
 # goway-test-host). Case 1 checks its values and then uninstalls by running the entry's own
 # UninstallString (the protected copy in %ProgramData%, never the downloaded file); the snapshots
 # include the HKLM entries, so both cases prove the entry is gone again after uninstall.
+# Case 3 (nat): --network nat is forced on this (mirrored) machine on its own port 2399 to prove
+# the NAT relay: install adds the relay (netsh portproxy 0.0.0.0:2399), the refresh script in the
+# administrator-only directory and the refresh task (Highest privileges); .wslconfig is not
+# touched. The relay's address is then set to a wrong one by hand and the task is started: it must
+# put the WSL address back. A mirrored machine's WSL address is the Windows address itself, so to
+# prove traffic really crosses the relay without looping it onto itself (a mirrored host cannot
+# reach its own address from itself), the relay is pointed at the live sshd on 127.0.0.1:2222 for
+# one login through port 2399 and put back. Uninstall must leave
+# the portproxy table, tasks, firewall rules and files exactly as before.
+# GOWAY_CASES="nat" (a space-separated subset of "logon boot nat") limits the run to those cases.
 # Exits nonzero unless every before/after snapshot pair is identical.
 set -euo pipefail
 
@@ -40,6 +50,8 @@ distro="${GOWAY_DISTRO:-Ubuntu}"
 remote_dir=goway-roundtrip-host
 work="$(mktemp -d)"
 poller_pid=""
+cases="${GOWAY_CASES:-logon boot nat}"
+nat_port=2399
 
 [[ -f "$exe" ]] || { echo "missing $exe; run scripts/windows/build.sh" >&2; exit 2; }
 
@@ -187,9 +199,65 @@ for (\$i = 0; \$i -lt 60; \$i++) { if (-not (Test-Path -LiteralPath \$env:Progra
     compare "$label" "before-$label" "after-$label"
 }
 
-run_case logon "" no --allow-from 100.64.0.0/10
-run_case boot " (boot)" yes --no-harden --keepalive boot --allow-from 100.64.0.0/10
-compare "restored-original" before-logon after-boot
+run_nat_case() {
+    local label=nat
+    echo "== case $label (relay on port $nat_port; --network nat forced)"
+    echo "-- plan (dry run)"
+    setup install --host --dry-run --network nat --port $nat_port --profile "$profile" --color never
+    snapshot "before-$label"
+    local ip_before; ip_before="$(rwsl hostname -I | awk '{print $1}')"
+    echo "WSL address as the distro reports it: $ip_before"
+    setup install --host --network nat --port $nat_port --profile "$profile" --no-activate --no-elevate --yes --allow-from 100.64.0.0/10 -v
+    setup status --profile "$profile" --color never
+    local win; win="$(winps_cmd "
+\$r = & \$env:SystemRoot\System32\netsh.exe interface portproxy show v4tov4
+\$r | ForEach-Object { 'proxy: ' + \$_.Trim() }
+\$t = Get-ScheduledTask -TaskName 'goway-test WSL Relay'
+'relay task: ' + \$t.TaskName + ' ' + \$t.Principal.LogonType + ' run=' + \$t.Principal.RunLevel + ' user=' + (\$t.Principal.UserId -ne \$null)
+'relay trigger: ' + \$t.Triggers[0].CimClass.CimClassName + ' every=' + \$t.Triggers[0].Repetition.Interval
+'relay action: ' + \$t.Actions[0].Execute + ' ' + \$t.Actions[0].Arguments
+'script present: ' + (Test-Path -LiteralPath \$env:ProgramData\goway\goway-test\relay-refresh.ps1)
+(Get-NetFirewallRule -DisplayName 'goway-test WSL SSH $nat_port' | Get-NetFirewallAddressFilter | % { 'rule remote: ' + (\$_.RemoteAddress -join ',') })
+")"
+    echo "$win"
+    win="$(tr -s ' ' <<<"$win")"
+    for want in "proxy: 0.0.0.0 $nat_port $ip_before $nat_port" "relay task: goway-test WSL Relay " "run=Highest" "script present: True" "rule remote: LocalSubnet"; do
+        grep -qF "$want" <<<"$win" || { echo "FAIL: after install, missing: $want"; status=1; }
+    done
+    echo "-- the refresh task puts a wrong address back (simulated WSL restart)"
+    winps_cmd "& \$env:SystemRoot\System32\netsh.exe interface portproxy set v4tov4 listenaddress=0.0.0.0 listenport=$nat_port connectaddress=192.0.2.99 connectport=$nat_port" >/dev/null
+    winps_cmd "Start-ScheduledTask -TaskName 'goway-test WSL Relay'" >/dev/null
+    local fixed=0 i table
+    for i in $(seq 1 30); do
+        table="$(winps_cmd "& \$env:SystemRoot\System32\netsh.exe interface portproxy show v4tov4")"
+        if grep -qE "^0\.0\.0\.0 +$nat_port +$ip_before +$nat_port" <<<"$table"; then fixed=1; break; fi
+        sleep 1
+    done
+    [[ $fixed -eq 1 ]] && echo "ok: the task re-pointed the relay at $ip_before after ${i}s" || { echo "FAIL: relay not re-pointed: $table"; status=1; }
+    echo "-- a login through the relay (pointed at the live sshd on the host's loopback for this one check)"
+    winps_cmd "& \$env:SystemRoot\System32\netsh.exe interface portproxy set v4tov4 listenaddress=0.0.0.0 listenport=$nat_port connectaddress=127.0.0.1 connectport=$live_port" >/dev/null
+    sleep 1
+    # The firewall rule is limited to Private and Domain networks, so a login from here over a
+    # network Windows calls Public is (rightly) blocked: shown for information, never asserted.
+    echo "info: a direct login to $ip:$nat_port from this machine: $([[ "$(probe_login $nat_port)" -eq 1 ]] && echo allowed || echo blocked by the firewall scope)"
+    # To prove the relay itself forwards, enter it from the host's own loopback (not subject to the
+    # firewall) through Windows OpenSSH's TCP forwarding, then log in to the WSL sshd end to end.
+    if ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$work/known_hosts" -o ProxyCommand="ssh -W 127.0.0.1:$nat_port -o BatchMode=yes $ip" -p $nat_port "$ip" true >/dev/null 2>&1; then echo "ok: logged in to the WSL sshd through the relay (loopback of $ip, port $nat_port)"; else echo "FAIL: no login through the relay"; status=1; fi
+    winps_cmd "& \$env:SystemRoot\System32\netsh.exe interface portproxy set v4tov4 listenaddress=0.0.0.0 listenport=$nat_port connectaddress=$ip_before connectport=$nat_port" >/dev/null
+    setup uninstall --host --profile "$profile" --no-activate --no-elevate -v
+    snapshot "after-$label"
+    compare "$label" "before-$label" "after-$label"
+}
+
+for c in $cases; do
+    case "$c" in
+        logon) run_case logon "" no --allow-from 100.64.0.0/10 ;;
+        boot) run_case boot " (boot)" yes --no-harden --keepalive boot --allow-from 100.64.0.0/10 ;;
+        nat) run_nat_case ;;
+        *) echo "unknown case $c" >&2; exit 2 ;;
+    esac
+done
+[[ "$cases" == "logon boot" || "$cases" == "logon boot nat" ]] && compare "restored-original" before-logon after-boot
 
 kill "$poller_pid" 2>/dev/null || true; poller_pid=""
 ok=$(grep -c . "$work/live.ok" 2>/dev/null || true); fail=$(grep -c . "$work/live.fail" 2>/dev/null || true)

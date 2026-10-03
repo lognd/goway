@@ -20,6 +20,7 @@ fn settings() -> HostSettings {
         distro: "Ubuntu".into(),
         port: 2299,
         allow_from: Vec::new(),
+        network: host::NetworkMode::Mirrored,
     }
 }
 
@@ -51,6 +52,7 @@ fn plan(layout: &Layout, harden: bool) -> Vec<Change> {
             harden,
             allow_from: Vec::new(),
             home: PathBuf::from(HOME),
+            network: host::NetworkMode::Mirrored,
         },
         &HostFacts::assumed(),
     )

@@ -15,6 +15,7 @@ pub mod hostsys;
 pub mod layout;
 pub mod plan;
 pub mod ps;
+pub mod relay;
 pub mod render;
 pub mod sysapi;
 pub mod windows;

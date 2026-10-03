@@ -32,6 +32,27 @@ pub enum SetupError {
     /// The WSL distro name is empty or contains characters unsafe in command lines.
     #[error("invalid distro name {0:?}: use letters, digits, '.', '-' and '_'")]
     BadDistro(String),
+    /// `--network mirrored` was asked for on a Windows build without mirrored networking.
+    #[error(
+        "mirrored networking needs Windows 11 22H2 or newer (build 22621+), this machine is {}; use --network nat (or the default, auto) to relay the port instead",
+        build.map_or_else(|| "of unknown build".to_owned(), |b| format!("build {b}"))
+    )]
+    MirroredUnsupported {
+        /// The Windows build, when it could be read.
+        build: Option<u32>,
+    },
+    /// A portproxy rule goway did not create already listens on the helper's port.
+    #[error(
+        "a Windows portproxy rule already listens on port {port} ({listen} forwarding to {connect}); goway never changes rules it did not create. Pick another port with --port, or remove that rule yourself first: netsh interface portproxy delete v4tov4 listenaddress={listen} listenport={port}"
+    )]
+    RelayPortBusy {
+        /// The helper's port.
+        port: u16,
+        /// The existing rule's listen address.
+        listen: String,
+        /// The existing rule's target (`address:port`).
+        connect: String,
+    },
     /// The host component changes Windows and WSL and only runs on Windows.
     #[error("the host component only runs on Windows (use --dry-run to see its plan)")]
     HostNeedsWindows,

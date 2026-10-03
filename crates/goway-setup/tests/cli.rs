@@ -294,3 +294,27 @@ fn hardening_is_on_by_default_and_allow_from_is_validated_before_anything_happen
         "{err:?}"
     );
 }
+
+// frob:tests crates/goway-setup/src/cli.rs::run
+#[test]
+fn the_network_flag_parses_and_a_nat_host_dry_run_succeeds_on_any_machine() {
+    for mode in ["auto", "mirrored", "nat"] {
+        let cli = Cli::try_parse_from([
+            "goway-setup",
+            "--color",
+            "never",
+            "install",
+            "--host",
+            "--dry-run",
+            "--network",
+            mode,
+            "--profile",
+            "dry-run-network-test",
+        ])
+        .unwrap();
+        run(&cli, Renderer::new(ColorWhen::Never)).unwrap();
+    }
+    assert!(
+        Cli::try_parse_from(["goway-setup", "install", "--host", "--network", "bridged"]).is_err()
+    );
+}

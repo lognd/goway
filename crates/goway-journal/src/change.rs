@@ -26,6 +26,8 @@ pub enum ResourceKind {
     HyperVFirewallRule,
     /// A scheduled task.
     ScheduledTask,
+    /// A Windows `netsh interface portproxy` IPv4 relay; `name` is `<listen address>:<port>`.
+    PortProxy,
     /// A system service.
     Service,
     /// A distro package (exists while installed); managed inside a WSL distro.

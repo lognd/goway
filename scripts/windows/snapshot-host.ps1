@@ -31,6 +31,9 @@ Get-ScheduledTask | Where-Object { $_.TaskPath -notlike '\Microsoft*' } | Sort-O
     '  settings: battery={0} stopbattery={1} limit={2} multiple={3}' -f $_.Settings.DisallowStartIfOnBatteries, $_.Settings.StopIfGoingOnBatteries, $_.Settings.ExecutionTimeLimit, $_.Settings.MultipleInstances
 }
 
+'== portproxy relays'
+& "$env:SystemRoot\System32\netsh.exe" interface portproxy show all
+
 '== .wslconfig'
 $wc = Join-Path $env:USERPROFILE '.wslconfig'
 if (Test-Path -LiteralPath $wc) {
