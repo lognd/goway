@@ -2,7 +2,8 @@
 id = "01M41G47WFREN69859J0PAATV1"
 title = "H2: host firewall rules scoped to local networks; password login off by default once a key works"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "critical"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
