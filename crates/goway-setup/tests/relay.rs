@@ -645,6 +645,7 @@ impl Runner for &Fake {
 // frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.resource_delete
 // frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.wsl_ip
 // frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.portproxy_rules
+// frob:tests crates/goway-setup/src/relay.rs::netsh_delete_args
 #[test]
 fn the_portproxy_resource_runs_netsh_with_the_distros_current_address() {
     let table = "Listen on ipv4:             Connect to ipv4:\n\nAddress         Port        Address         Port\n--------------- ----------  --------------- ----------\n0.0.0.0         2299        172.20.1.5      2299\n";

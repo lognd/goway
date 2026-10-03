@@ -1,0 +1,1 @@
+goway-setup install --host --network auto|mirrored|nat: on Windows 10 and Windows 11 without mirrored networking the helper is reached through a journaled netsh portproxy relay that a scheduled task keeps pointed at WSL, and uninstall removes it exactly.
