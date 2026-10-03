@@ -1,0 +1,13 @@
+kind = "create"
+title = "M2: run work trees must not share inodes with seeds or other runs"
+type = "security"
+category = "todo"
+priority = "high"
+points = 2
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+labels = ["security"]
+scope = ["crates/goway/**"]
+acceptance = ["Given a job that appends to a tracked file in place, when it runs, then the seed, sibling seeds and other runs keep their content"]
+at = "2026-10-03T18:23:54Z"
+actor = "lognd"
+rev = 1
