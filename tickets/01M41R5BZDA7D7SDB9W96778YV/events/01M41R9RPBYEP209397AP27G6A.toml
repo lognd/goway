@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-03T20:46:42Z"
+digest = "9017bd81ae9a49d3c0b2fcf957e8d403d42c990457876770f97a550c098efdb7"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 55b4ee4f-40ba-4a36-b0bb-bf7fdfb6abc3 with nextest profile: default
+    Starting 1 test across 26 binaries (293 tests skipped)
+        PASS [   0.005s] goway sshsetup::tests::goways_own_key_is_preferred_and_becomes_the_identity
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 293 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(goways_own_key_is_preferred_and_becomes_the_identity)'"
+size = 569
+status = "measured"
+tests = ["sshsetup::tests::goways_own_key_is_preferred_and_becomes_the_identity"]
+at = "2026-10-03T20:46:42Z"
+actor = "lognd"
+rev = 1

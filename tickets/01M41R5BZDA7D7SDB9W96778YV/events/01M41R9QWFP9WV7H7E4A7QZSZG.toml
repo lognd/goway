@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:46:42Z"
+digest = "dc25ac65f7c1b6333fdf4b40143ab9abf3be70cdc2a86e9aa7aa908f152985f8"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 517aa191-20bd-4126-a307-ecc0f57309fb with nextest profile: default
+    Starting 1 test across 26 binaries (293 tests skipped)
+        PASS [   0.005s] goway sshsetup::tests::a_stale_scratch_known_hosts_is_removed_before_use
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 293 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_stale_scratch_known_hosts_is_removed_before_use)'"
+size = 566
+status = "measured"
+tests = ["sshsetup::tests::a_stale_scratch_known_hosts_is_removed_before_use"]
+at = "2026-10-03T20:46:42Z"
+actor = "lognd"
+rev = 1

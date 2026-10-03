@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/src/sshsetup.rs", "crates/goway/src/hosts.rs", "docs/ssh-setup.md"]
+new = ["crates/goway/src/sshsetup.rs", "crates/goway/src/hosts.rs", "docs/ssh-setup.md", "crates/goway/tests/ssh_setup.rs"]
+at = "2026-10-03T20:46:02Z"
+actor = "lognd"
+rev = 1
