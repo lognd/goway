@@ -2,13 +2,13 @@
 id = "01M41KY0RME1HZ0SC8SN0ZAD7T"
 title = "CI: unix-only test helpers unused on Windows; purge races the post-run gc"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:30:23Z"
-updated = "2026-10-03T19:30:23Z"
+updated = "2026-10-03T19:30:24Z"
 scope = ["crates/goway/src/**"]
 
 [[acceptance]]
