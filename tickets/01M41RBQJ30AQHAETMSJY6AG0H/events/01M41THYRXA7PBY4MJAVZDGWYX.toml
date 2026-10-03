@@ -1,0 +1,6 @@
+kind = "comment"
+subtype = "note"
+body = "Lane D saw two more load flakes when the suite ran on a helper through goway: run_local::shards_run_on_n_hosts_and_any_failure_fails_the_run (passed alone and in three reruns), and slot_trees tests failing with 'cannot reach host local' in one full-workspace run (passed in later runs). Investigate both under load."
+at = "2026-10-03T21:26:08Z"
+actor = "lognd"
+rev = 1
