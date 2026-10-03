@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T20:41:39Z"
+digest = "cd683503a1449157308a2cafe7ee496396439c7da19c7c00eecd87f7a5e81bd6"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2b8ea1c3-d6fe-4772-b315-022e5e58d8f4 with nextest profile: default
+    Starting 1 test across 26 binaries (288 tests skipped)
+        PASS [   0.009s] goway ssh::tests::a_control_dir_that_is_not_private_turns_multiplexing_off
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.011s] 1 test run: 1 passed, 288 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_control_dir_that_is_not_private_turns_multiplexing_off)'"
+size = 568
+status = "measured"
+tests = ["ssh::tests::a_control_dir_that_is_not_private_turns_multiplexing_off"]
+at = "2026-10-03T20:41:39Z"
+actor = "lognd"
+rev = 1
