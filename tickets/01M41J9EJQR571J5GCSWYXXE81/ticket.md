@@ -2,7 +2,8 @@
 id = "01M41J9EJQR571J5GCSWYXXE81"
 title = "goway add HOST: one command registers a helper (key, pin, toolchain), with --rsudo/--lsudo"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
