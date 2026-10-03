@@ -1,0 +1,12 @@
+kind = "create"
+title = "Rust on Windows hosts: per-repository CARGO_TARGET_DIR, msvc target, warm reruns"
+type = "story"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
+scope = ["crates/goway/src/remote.ps1", "crates/goway/src/run.rs", "crates/goway/tests/**", "docs/usage.md"]
+acceptance = ["Given a Windows host, when goway run -- cargo nextest run --workspace runs twice, then both use a persistent per-repository target directory on the Windows side, the toolchain target is x86_64-pc-windows-msvc, and the second run is warm", "Given a run, when it finishes, then goway reports host, os windows and architecture, and exits with the command's exit code"]
+at = "2026-10-03T20:27:24Z"
+actor = "lognd"
+rev = 1
