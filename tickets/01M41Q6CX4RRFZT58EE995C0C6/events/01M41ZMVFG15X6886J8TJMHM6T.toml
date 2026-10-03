@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T22:55:06Z"
+digest = "f3757985b24f84518171562ff4f9392a8de058d08c41236f7673e003db6af027"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 473272a2-a3cb-435e-9c0b-9c947ff6b607 with nextest profile: default
+    Starting 1 test across 38 binaries (444 tests skipped)
+        PASS [   0.006s] goway::host_kinds windows_over_ssh_uses_openssh_with_powershell_and_the_pinned_key_rules
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.008s] 1 test run: 1 passed, 444 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(windows_over_ssh_uses_openssh_with_powershell_and_the_pinned_key_rules)'"
+size = 582
+status = "measured"
+tests = ["windows_over_ssh_uses_openssh_with_powershell_and_the_pinned_key_rules"]
+at = "2026-10-03T22:55:06Z"
+actor = "lognd"
+rev = 1
