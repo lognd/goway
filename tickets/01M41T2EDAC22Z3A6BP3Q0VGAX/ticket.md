@@ -2,7 +2,8 @@
 id = "01M41T2EDAC22Z3A6BP3Q0VGAX"
 title = "Host facts: discover GPUs, RAM, CPU features, KVM, Docker and disk on every host; show them in status"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
