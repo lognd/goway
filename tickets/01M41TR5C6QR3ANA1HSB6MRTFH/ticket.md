@@ -8,8 +8,12 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:29:31Z"
-updated = "2026-10-03T21:29:31Z"
+updated = "2026-10-03T21:29:32Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/src/sync.rs", "crates/goway/src/state.rs", "crates/goway/src/shard.rs", "crates/goway/src/cli.rs", "crates/goway/src/gc.rs", "crates/goway/tests/**", "docs/design.md", "docs/usage.md", "SECURITY.md"]
+
+[[links]]
+kind = "blocked-by"
+target = "01M41TNZH9N2J377DRPQNTX8FZ"
 
 [[acceptance]]
 text = "Given any run, when the helper has reconciled its slot tree and before the command starts, then it reports bounded, strictly parsed SHA-256 hashes of every path this sync changed and goway compares them with the laptop's; a mismatch stops the command from starting, rebuilds the slot from scratch and says so"
