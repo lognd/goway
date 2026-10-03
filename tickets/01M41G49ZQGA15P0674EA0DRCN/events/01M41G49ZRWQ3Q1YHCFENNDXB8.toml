@@ -1,0 +1,13 @@
+kind = "create"
+title = "M6: validate host names at the CLI boundary before any side effect"
+type = "security"
+category = "todo"
+priority = "high"
+points = 1
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+labels = ["security"]
+scope = ["crates/goway/**"]
+acceptance = ["Given goway host add 'a*' or goway ssh setup ../x, when it runs, then it fails before writing known_hosts or any file"]
+at = "2026-10-03T18:23:55Z"
+actor = "lognd"
+rev = 1
