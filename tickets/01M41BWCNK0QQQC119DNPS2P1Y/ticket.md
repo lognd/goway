@@ -2,7 +2,7 @@
 id = "01M41BWCNK0QQQC119DNPS2P1Y"
 title = "New worktree seeds start from a sibling seed of the same repository"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
