@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:29:31Z"
-updated = "2026-10-03T22:47:08Z"
+updated = "2026-10-03T22:47:11Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/src/sync.rs", "crates/goway/src/state.rs", "crates/goway/src/shard.rs", "crates/goway/src/cli.rs", "crates/goway/src/gc.rs", "crates/goway/tests/**", "docs/design.md", "docs/usage.md", "SECURITY.md"]
 
 [[links]]
@@ -25,7 +25,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a proven mismatch for a repository on a host, when later runs start, then that repository on that host gets full verification and a fresh slot copy every run until 7 days pass without a mismatch, goway gc --repo clears it, or --trust-copy overrides one run; the marker lives only in goway's local state, never in the repository or goway.toml"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a mismatch, when it is reported, then goway says it is a goway bug and prints what to include in a report (host, repository id, paths and sizes, never file contents)"
