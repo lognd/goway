@@ -2,13 +2,13 @@
 id = "01M41SDVD25MA7AX1DHNMXT7K6"
 title = "Local host: --host local runs here in place; [local] pool opt-in; offline failure offers local"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:06:25Z"
-updated = "2026-10-03T21:06:25Z"
+updated = "2026-10-03T22:03:40Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/run.rs", "crates/goway/src/config.rs", "crates/goway/src/local.rs", "crates/goway/src/shard.rs", "crates/goway/src/status.rs", "crates/goway/src/error.rs", "crates/goway/tests/**", "docs/usage.md", "docs/config.md"]
 
 [[acceptance]]
