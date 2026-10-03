@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T19:19:06Z"
+digest = "157eabe0e246f084879fe277858b96866543a84f429db75ed3d45e68a99a7bfb"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID f96761fd-7baf-40b5-a764-61f3379c1ddb with nextest profile: default
+    Starting 2 tests across 23 binaries (234 tests skipped)
+        PASS [   0.008s] goway-setup::helper a_laptop_without_wsl_or_the_distro_stops_with_the_exact_steps
+        PASS [   0.011s] goway-setup::helper the_wsl_probe_lists_distros_only_when_wsl_answers
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.016s] 2 tests run: 2 passed, 234 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_laptop_without_wsl_or_the_distro_stops_with_the_exact_steps) | test(the_wsl_probe_lists_distros_only_when_wsl_answers)'"
+size = 672
+status = "measured"
+tests = ["a_laptop_without_wsl_or_the_distro_stops_with_the_exact_steps", "the_wsl_probe_lists_distros_only_when_wsl_answers"]
+at = "2026-10-03T19:19:06Z"
+actor = "lognd"
+rev = 1
