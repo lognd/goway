@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T17:21:34Z"
+digest = "c24640787be43f7bb1cab1537ef4ac7b2ec3ffef824f530ec770bde19c57b8a8"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.21s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b56a0ee3-7e35-4195-b63b-0b1922a5fb62 with nextest profile: default
+    Starting 1 test across 15 binaries (134 tests skipped)
+        PASS [   1.643s] goway sync::tests::deleting_more_paths_than_one_argument_holds_works
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.645s] 1 test run: 1 passed, 134 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(deleting_more_paths_than_one_argument_holds_works)'"
+size = 562
+status = "measured"
+tests = ["sync::tests::deleting_more_paths_than_one_argument_holds_works"]
+at = "2026-10-03T17:21:34Z"
+actor = "lognd"
+rev = 1
