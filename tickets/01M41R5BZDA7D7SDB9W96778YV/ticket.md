@@ -25,5 +25,5 @@ bound = true
 
 [[acceptance]]
 text = "Given goway already has its own key, When ssh setup chooses a key, Then it uses it and records it as the identity"
-bound = false
+bound = true
 +++
