@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:46:38Z"
+digest = "edca6052fb4097d9c0f35a0c9ba200f10e2b9e85ffaaaa344bcbcf37c4a42ecc"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 3f3205bd-d8be-41ba-9f2c-da2ed47ef5ad with nextest profile: default
+    Starting 1 test across 21 binaries (190 tests skipped)
+        PASS [   0.141s] goway::run_local env_values_never_appear_in_ssh_arguments_or_logs
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.143s] 1 test run: 1 passed, 190 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(env_values_never_appear_in_ssh_arguments_or_logs)'"
+size = 559
+status = "measured"
+tests = ["env_values_never_appear_in_ssh_arguments_or_logs"]
+at = "2026-10-03T18:46:38Z"
+actor = "lognd"
+rev = 1
