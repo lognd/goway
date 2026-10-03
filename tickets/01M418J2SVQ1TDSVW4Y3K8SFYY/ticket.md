@@ -2,7 +2,8 @@
 id = "01M418J2SVQ1TDSVW4Y3K8SFYY"
 title = "Sync work tree to a remote seed mirror with tar deltas"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
