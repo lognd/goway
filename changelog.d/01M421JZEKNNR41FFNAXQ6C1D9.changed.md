@@ -1,0 +1,1 @@
+Releases are cut from goway-vX.Y.Z tags: the workflow checks the tag against the Cargo version before publishing, then publishes the GitHub release and, independently, crates.io and PyPI through their protected environments.
