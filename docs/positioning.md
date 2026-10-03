@@ -60,6 +60,16 @@ runs other build systems rather than replacing them.
 | goway composes rather than replaces. | goway is a command prefix with a faithful exit code: the command's own code, 128+N on signals, 125 for goway failures. It runs unchanged inside make, CI, GNU parallel or frob. `--report` writes host, arch and address as JSON for evidence records. Other systems run through it unchanged: `goway run -- bazel test //...` keeps Bazel's own remote cache, and `goway run -- docker build .` uses the remote's daemon. |
 | goway does not send secret-looking files by default. | Only the git-visible tree is sent. Env files, credential files, private keys and key stores are matched case-insensitively and kept back unless allowed in `secret_allow`. Files under symlinked directories are never read, and keys stay with ssh and its agent. This is a denylist, so a secret with an unusual name that you track in git is still sent. |
 
+## What goway does not isolate
+
+A run executes the repository's code (build scripts, tests) on the host
+**as your user there**. goway separates runs from each other's files.
+Forks and other clones get their own caches, even with the same
+history, and worktrees of one clone share theirs. But nothing separates
+a run from the rest of that user's account on the host. Run code you
+would also run on your own laptop, and do not use a shared account on
+a helper for other people's code.
+
 ## Where goway deliberately stops
 
 - **No cross-compilation and no artifact copy-back.** The remote builds
