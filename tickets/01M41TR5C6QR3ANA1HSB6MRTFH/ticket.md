@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:29:31Z"
-updated = "2026-10-03T22:47:06Z"
+updated = "2026-10-03T22:47:08Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/src/sync.rs", "crates/goway/src/state.rs", "crates/goway/src/shard.rs", "crates/goway/src/cli.rs", "crates/goway/src/gc.rs", "crates/goway/tests/**", "docs/design.md", "docs/usage.md", "SECURITY.md"]
 
 [[links]]
@@ -21,7 +21,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a run that exits non-zero, when it ends, then goway compares hashes of every synced file in the run's tree with the work tree; if all match, the failure is reported with the command's exit code and never rerun; if any differ, goway names the files, rebuilds the slot from scratch, reruns the command exactly once, and the report and --report JSON record both attempts with the first marked invalid"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a proven mismatch for a repository on a host, when later runs start, then that repository on that host gets full verification and a fresh slot copy every run until 7 days pass without a mismatch, goway gc --repo clears it, or --trust-copy overrides one run; the marker lives only in goway's local state, never in the repository or goway.toml"
