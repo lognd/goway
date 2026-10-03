@@ -8,7 +8,7 @@ points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T21:27:11Z"
-updated = "2026-10-03T21:47:23Z"
+updated = "2026-10-03T21:47:27Z"
 scope = ["crates/goway/src/runners.rs", "crates/goway/src/shard.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/usage.md", "crates/goway/src/detect.rs", "crates/goway/src/run.rs", "crates/goway/src/gc.rs", "crates/goway/src/state.rs", "crates/goway/src/lib.rs"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given stripped release binaries of GoogleTest and Catch2 v3 (and a Catch2 v2 binary without sharding flags), when detected, then the first two are sharded natively and the v2 binary falls back to GOWAY_SHARD, proven by tests with real or faithful fixture binaries"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given GOWAY_RUNNER=catch2 or gtest, when set, then it overrides detection"
