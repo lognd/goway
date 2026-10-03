@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:51:28Z"
-updated = "2026-10-03T17:09:36Z"
+updated = "2026-10-03T17:09:37Z"
 scope = ["crates/goway/**", "docs/config.md", "docs/positioning.md", "docs/usage.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a host whose load per core is above its max_load, when goway picks a host, then that host is skipped unless pinned with --host"
-bound = false
+bound = true
 +++
