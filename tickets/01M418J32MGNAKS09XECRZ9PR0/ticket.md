@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a fix that needs root, when goway doctor --fix runs, then it does not run it and tells the user to run it with sudo and why"
-bound = false
+bound = true
 +++
