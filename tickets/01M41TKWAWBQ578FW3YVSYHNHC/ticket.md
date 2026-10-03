@@ -8,7 +8,7 @@ points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T21:27:11Z"
-updated = "2026-10-03T21:30:22Z"
+updated = "2026-10-03T21:32:48Z"
 scope = ["crates/goway/src/runners.rs", "crates/goway/src/shard.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/usage.md"]
 
 [[acceptance]]
@@ -37,5 +37,9 @@ bound = false
 
 [[acceptance]]
 text = "Given a failed detection, when later runs of the same program path in the same repository are sharded, then goway uses the GOWAY_SHARD fallback with a short note, from a marker kept only in local state; GOWAY_RUNNER=gtest|catch2 overrides it and goway gc --repo clears it"
+bound = false
+
+[[acceptance]]
+text = "Given a Catch2 shard that is rejected again after its rerun without shard flags, when it ends, then goway stops (that rerun is the only one, enforced by an explicit attempt argument, never by environment or helper output) and reports the failure; a test with a binary that always rejects proves exactly one rerun"
 bound = false
 +++

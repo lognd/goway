@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T21:37:41Z"
+digest = "a23bf2b646d4a6f55adab01c24e47d6204413815c03eae0f81635a1a88280565"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d30b73b2-344f-4845-8538-e64ad8b02388 with nextest profile: default
+    Starting 1 test across 30 binaries (357 tests skipped)
+        PASS [   0.005s] goway doctor::tests::doctor_flags_a_gpu_invisible_to_wsl
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 357 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "doctor_flags_a_gpu_invisible"
+size = 550
+status = "measured"
+tests = ["doctor::tests::doctor_flags_a_gpu_invisible_to_wsl"]
+at = "2026-10-03T21:37:41Z"
+actor = "lognd"
+rev = 1

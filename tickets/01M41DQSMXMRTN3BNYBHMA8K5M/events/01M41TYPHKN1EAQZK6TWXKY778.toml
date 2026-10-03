@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["scripts/windows/**", ".github/workflows/release.yml", "docs/install-windows.md"]
+new = ["scripts/windows/**", ".github/workflows/release.yml", "docs/install-windows.md", "docs/release.md"]
+at = "2026-10-03T21:33:05Z"
+actor = "lognd"
+rev = 1
