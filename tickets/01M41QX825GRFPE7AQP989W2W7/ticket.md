@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:39:52Z"
-updated = "2026-10-03T20:41:39Z"
+updated = "2026-10-03T20:41:40Z"
 scope = ["crates/goway/src/ssh.rs", "crates/goway/src/add.rs", "crates/goway/src/doctor.rs", "crates/goway/src/remote.sh", "docs/config.md", "docs/hosts.md"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given goway add --lsudo, When sudo is spawned, Then it is /usr/bin/sudo or another root-owned system path, never a PATH lookup"
-bound = false
+bound = true
 +++
