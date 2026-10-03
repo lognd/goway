@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:17:40Z"
-updated = "2026-10-03T22:03:15Z"
+updated = "2026-10-03T22:03:16Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/src/config.rs", "crates/goway/tests/**", "docs/config.md", "crates/goway/src/needs.rs", "crates/goway/src/shard.rs", "crates/goway/src/pool.rs", "crates/goway/src/resolve.rs", "crates/goway/src/status.rs", "crates/goway/src/hosts.rs", "crates/goway/src/sshsetup.rs", "docs/usage.md"]
 
 [[links]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given gpu_jobs = N on a host, when set, then up to N GPU runs share each GPU"
-bound = false
+bound = true
 +++
