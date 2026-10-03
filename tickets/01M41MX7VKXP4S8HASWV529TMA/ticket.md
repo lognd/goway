@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:47:26Z"
-updated = "2026-10-03T20:24:51Z"
+updated = "2026-10-03T20:24:57Z"
 scope = ["crates/goway-setup/**", "docs/install-windows.md", "crates/goway-journal/**", "scripts/windows/**"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given WSL restarts and its internal address changes, when the keepalive task runs, then the relay points at the new address"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway-setup uninstall --host, when it runs, then the relay and everything else the install added are removed exactly"
