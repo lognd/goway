@@ -2,13 +2,13 @@
 id = "01M41MRT8JQQGXY0HXH3K99JS8"
 title = "README: obvious placeholders with how to find each value; install matrix per OS"
 type = "docs"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:45:01Z"
-updated = "2026-10-03T19:45:01Z"
+updated = "2026-10-03T19:45:02Z"
 labels = ["newcomer"]
 scope = ["README.md", "docs/usage.md", "docs/config.md", "docs/hosts.md", "docs/glossary.md", "docs/install-linux.md", "docs/troubleshooting.md"]
 
