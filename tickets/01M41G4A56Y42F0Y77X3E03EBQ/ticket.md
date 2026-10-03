@@ -2,13 +2,13 @@
 id = "01M41G4A56Y42F0Y77X3E03EBQ"
 title = "M7: broader secret denylist, case-insensitive, no files under symlinked parents"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:55Z"
-updated = "2026-10-03T18:46:56Z"
+updated = "2026-10-03T18:46:58Z"
 labels = ["security"]
 scope = ["crates/goway/**", "docs/usage.md", "docs/config.md", "docs/positioning.md"]
 
