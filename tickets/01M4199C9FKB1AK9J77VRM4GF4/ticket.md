@@ -2,7 +2,7 @@
 id = "01M4199C9FKB1AK9J77VRM4GF4"
 title = "Document config file, host add and address resolution"
 type = "docs"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
