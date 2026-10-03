@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:47:47Z"
-updated = "2026-10-03T21:07:40Z"
+updated = "2026-10-03T21:13:50Z"
 scope = ["crates/goway/tests/**"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = false
 
 [[acceptance]]
 text = "Given a detached auto-gc removing an expired seed while a new sync for the same worktree starts, when both race, then the sync never fails (CI run 37153812724 failed with 'seed/<repo>/<wt>/lock: No such file or directory' at remote.sh line 67): gc removes entries under their lock (or renames them away first) and lock acquisition retries when its directory vanished"
-bound = false
+bound = true
 +++
