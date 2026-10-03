@@ -2,13 +2,13 @@
 id = "01M41TY572561EPG8TRX6SY2NM"
 title = "Nested goway is bounded: GOWAY_DEPTH stops goway from recursively spawning itself through the commands it runs"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:32:48Z"
-updated = "2026-10-03T21:32:48Z"
+updated = "2026-10-03T22:56:13Z"
 scope = ["crates/goway/src/run.rs", "crates/goway/src/remote.sh", "crates/goway/src/lib.rs", "crates/goway/src/error.rs", "crates/goway/tests/**", "docs/usage.md"]
 
 [[acceptance]]
