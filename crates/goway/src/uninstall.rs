@@ -396,17 +396,6 @@ fn command_line(argv: &[String]) -> String {
         .join(" ")
 }
 
-impl Removal {
-    /// The removal command as one line, when there is one.
-    pub fn command_line(&self) -> Option<String> {
-        match self {
-            Self::Command { argv, .. } => Some(command_line(argv)),
-            Self::ToolMissing { command, .. } => Some(command.clone()),
-            Self::Journal | Self::Unknown => None,
-        }
-    }
-}
-
 /// Work out how `exe` was installed and the command that removes it.
 /// An install.sh journal wins; then cargo's bin directory, uv's tool
 /// directory, pipx's venvs and any other virtual environment, in that order.
