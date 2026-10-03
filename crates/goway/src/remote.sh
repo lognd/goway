@@ -7,6 +7,8 @@ set -euo pipefail
 umask 077
 
 die() { printf 'goway-remote: %s\n' "$*" >&2; exit 125; }
+# Any failure of the script itself exits 125, never a command-like code.
+trap 'printf "goway-remote: failed at line %s\n" "$LINENO" >&2; exit 125' ERR
 
 # Resolve the state root (relative paths are under $HOME).
 root_dir() {
@@ -45,12 +47,105 @@ receive() {
   find "$seed/tree" -mindepth 1 -depth -type d -empty -delete
 }
 
+# Kill the job's process group when the ssh session that started it dies
+# (sshd does not signal commands without a pty, it orphans them). The job
+# writes its pid (= its process group, it is a session leader) to PIDFILE.
+watchdog() {
+  local session=$1 pidfile=$2 pid=""
+  trap '' HUP PIPE
+  while [ -z "$pid" ]; do
+    kill -0 "$session" 2>/dev/null || return 0
+    sleep 0.2
+    pid=$(cat "$pidfile" 2>/dev/null || true)
+  done
+  while kill -0 "$session" 2>/dev/null && kill -0 "$pid" 2>/dev/null; do
+    sleep 1
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -TERM -- "-$pid" 2>/dev/null || true
+    sleep 5
+    kill -KILL -- "-$pid" 2>/dev/null || true
+  fi
+}
+
+# run ROOT SEED RUN_ID REPO_ID KEEP SLOTS META_B64 CACHE_META_B64 ENV_B64 -- CMD...
+# Snapshot the seed into a fresh work dir, pick a free cargo target slot,
+# run CMD in its own process group with stdio passed through, clean up,
+# and exit with CMD's status (128+N when killed by signal N).
+run() {
+  local root seed work cache slot="" k rc=0 wd
+  root=$(root_dir "$1"); seed="$root/seed/$2"; work="$root/work/$3"
+  cache="$root/cache/$4"
+  local run_id=$3 repo_id=$4 keep=$5 slots=$6 meta=$7 cache_meta=$8 envb=$9
+  shift 9
+  [ "${1:-}" = "--" ] && shift
+  [ $# -gt 0 ] || die "run: no command"
+  [ -d "$seed/tree" ] || die "run: no synced tree at $seed"
+
+  mkdir -p "$work" "$cache"
+  exec 9>"$work/lock"
+  flock -x 9
+  printf '%s' "$meta" | base64 -d >"$work/meta.json"
+  if [ "$keep" = 1 ]; then : >"$work/keep"; fi
+
+  exec 8>"$seed/lock"
+  flock -s 8
+  cp -al "$seed/tree" "$work/tree"
+  touch "$seed/meta.json"
+  exec 8>&-
+
+  [ -f "$cache/meta.json" ] || printf '%s' "$cache_meta" | base64 -d >"$cache/meta.json"
+  touch "$cache/meta.json"
+  for ((k = 0; k < slots; k++)); do
+    exec 7>"$cache/target-$k.lock"
+    if flock -n 7; then slot=$k; break; fi
+    exec 7>&-
+  done
+  if [ -z "$slot" ]; then
+    slot=$((RANDOM % slots))
+    printf 'goway: all %s cargo target slots busy; waiting for slot %s\n' "$slots" "$slot" >&2
+    exec 7>"$cache/target-$slot.lock"
+    flock 7
+  fi
+  export CARGO_TARGET_DIR="$cache/target-$slot"
+
+  if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; fi
+  if [ -z "${RUSTC_WRAPPER:-}" ] && command -v sccache >/dev/null 2>&1; then
+    export RUSTC_WRAPPER=sccache SCCACHE_DIR="$cache/sccache"
+    export SCCACHE_SERVER_PORT=$((4300 + 16#${repo_id:0:4} % 1000))
+  fi
+  if [ -n "$envb" ]; then
+    while IFS= read -r -d '' kv; do export "$kv"; done < <(printf '%s' "$envb" | base64 -d)
+  fi
+  export GOWAY=1 GOWAY_RUN_ID="$run_id" GOWAY_HOST
+  GOWAY_HOST=$(uname -n)
+
+  # sshd hangs up the session's shell when the client goes away; survive
+  # it (a handler, not an ignore, so the job keeps default dispositions)
+  # long enough for the watchdog to stop the job and for cleanup to run.
+  trap 'hangup=1' HUP PIPE
+  cd "$work/tree"
+  : >"$work/pid"
+  # The watchdog must not inherit the lock fds, or a lingering `sleep`
+  # would keep this run's slot and work dir locked after it ends.
+  watchdog "$PPID" "$work/pid" </dev/null >/dev/null 2>&1 7>&- 9>&- &
+  wd=$!
+  # Foreground (not `&`): background jobs of a non-interactive shell start
+  # with SIGINT and SIGQUIT ignored, and the command must not inherit that.
+  setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "$@" || rc=$?
+  kill "$wd" 2>/dev/null || true
+  cd "$root"
+  if [ "$keep" != 1 ]; then rm -rf "$work"; fi
+  exit "$rc"
+}
+
 verb=${1:-}
 [ -n "$verb" ] || die "no verb"
 shift
 case "$verb" in
   manifest) manifest "$@" ;;
   receive) receive "$@" ;;
+  run) run "$@" ;;
   ping) printf 'goway-remote ok\n' ;;
   *) die "unknown verb: $verb" ;;
 esac

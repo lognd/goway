@@ -10,6 +10,7 @@ pub mod remote;
 pub mod render;
 pub mod repo;
 pub mod resolve;
+pub mod run;
 pub mod ssh;
 pub mod sshenv;
 pub mod state;
@@ -58,7 +59,20 @@ pub fn main_with(cli: &Cli) -> ExitCode {
 fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
     let paths = Paths::from_env();
     match command {
-        Command::Run(_) => Err(Error::NotImplemented("run")),
+        Command::Run(args) => {
+            let settings = ssh::Settings::from_paths(&paths);
+            let cwd = std::env::current_dir().map_err(|e| Error::io("read", ".", e))?;
+            let env = run::Env {
+                paths: &paths,
+                lookup: &resolve::SystemLookup,
+                prober: &resolve::SshProber {
+                    settings: settings.clone(),
+                },
+                settings: &settings,
+                cwd: &cwd,
+            };
+            run::run(&env, renderer, args)
+        }
         Command::Status => Err(Error::NotImplemented("status")),
         Command::Gc(_) => Err(Error::NotImplemented("gc")),
         Command::Doctor(_) => Err(Error::NotImplemented("doctor")),

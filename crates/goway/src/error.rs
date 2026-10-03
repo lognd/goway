@@ -71,6 +71,9 @@ pub enum Error {
         /// stderr of ssh or the remote script.
         message: String,
     },
+    /// The command line is inconsistent or incomplete.
+    #[error("{0}")]
+    Usage(String),
     /// A command line feature that is planned but not built yet.
     #[error("`{0}` is not implemented yet")]
     NotImplemented(&'static str),
