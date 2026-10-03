@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T20:36:29Z"
+digest = "41f10c8ec46160e951297c1ea2424100cffd7e3d275f438d1cb443cff0cb2846"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1258e3c2-ff48-491e-b8db-82f5e0ef2e06 with nextest profile: default
+    Starting 1 test across 26 binaries (279 tests skipped)
+        PASS [   0.011s] goway render::tests::host_text_cannot_forge_a_goway_line
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.014s] 1 test run: 1 passed, 279 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(host_text_cannot_forge_a_goway_line)'"
+size = 550
+status = "measured"
+tests = ["render::tests::host_text_cannot_forge_a_goway_line"]
+at = "2026-10-03T20:36:29Z"
+actor = "lognd"
+rev = 1

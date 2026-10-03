@@ -8,12 +8,12 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:34:17Z"
-updated = "2026-10-03T20:34:20Z"
+updated = "2026-10-03T20:36:29Z"
 scope = ["crates/goway/src/render.rs", "crates/goway/src/sync.rs", "crates/goway/src/remotesys.rs", "crates/goway/src/remote.rs", "docs/troubleshooting.md", "SECURITY.md"]
 
 [[acceptance]]
 text = "Given host-derived text with a second line starting with goway:, When it is printed through the renderer, Then no output line starts with goway: except the real one"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given host-derived text with bidi or zero-width format characters or huge length, When it is cleaned, Then they are replaced and the length is capped"
