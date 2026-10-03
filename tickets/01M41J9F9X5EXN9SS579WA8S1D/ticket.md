@@ -2,7 +2,8 @@
 id = "01M41J9F9X5EXN9SS579WA8S1D"
 title = "Public release: GitHub repo, CI on Linux and Windows, release artifacts and one-line installers"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
