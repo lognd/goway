@@ -111,6 +111,10 @@ pub enum Command {
         /// 100.64.0.0/10); by default only the local subnet may connect.
         #[arg(long, value_name = "CIDR")]
         allow_from: Vec<String>,
+        /// Host: allow `--allow-from` ranges wider than /8 (IPv4) or /16 (IPv6). Such ranges
+        /// admit large parts of the internet; the Private and Domain firewall profiles remain.
+        #[arg(long)]
+        allow_wide: bool,
         /// Host: do not reload or restart sshd or start the keepalive task afterwards.
         #[arg(long)]
         no_activate: bool,
@@ -180,6 +184,7 @@ struct InstallRequest {
     network: NetworkChoice,
     harden: bool,
     allow_from: Vec<String>,
+    allow_wide: bool,
     activate: bool,
     yes: bool,
     elevate: Elevate,
@@ -221,6 +226,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             harden: _,
             no_harden,
             allow_from,
+            allow_wide,
             no_activate,
             no_elevate,
             yes,
@@ -238,6 +244,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
                 network: *network,
                 harden: !*no_harden,
                 allow_from: allow_from.clone(),
+                allow_wide: *allow_wide,
                 activate: !*no_activate,
                 yes: *yes,
                 elevate: Elevate::new(*no_elevate, child),
@@ -307,7 +314,7 @@ fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), Setup
     if wants_host {
         host::validate_distro(&req.distro)?;
         for cidr in &req.allow_from {
-            host::validate_allow_from(cidr)?;
+            host::validate_allow_from_with(cidr, req.allow_wide)?;
         }
         if !req.dry_run && !cfg!(windows) {
             return Err(SetupError::HostNeedsWindows);
@@ -529,6 +536,9 @@ fn install_child_args(profile: &str, req: &InstallRequest) -> Vec<String> {
     }
     for cidr in &req.allow_from {
         args.extend(["--allow-from".to_owned(), cidr.clone()]);
+    }
+    if req.allow_wide {
+        args.push("--allow-wide".to_owned());
     }
     if !req.activate {
         args.push("--no-activate".to_owned());

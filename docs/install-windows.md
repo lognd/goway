@@ -77,7 +77,7 @@ replaced, so `uninstall` replays the journal backwards and restores the machine.
 
     goway-setup install [--client] [--host] [--profile NAME] [--dry-run]
                         [--port N] [--distro NAME] [--keepalive logon|boot] [--no-harden]
-                        [--allow-from CIDR]... [--no-activate] [--no-elevate] [--yes]
+                        [--allow-from CIDR]... [--allow-wide] [--no-activate] [--no-elevate] [--yes]
     goway-setup uninstall [--client] [--host] [--profile NAME] [--no-activate] [--no-elevate]
     goway-setup status [--profile NAME]
 
@@ -277,8 +277,12 @@ on, to everyone on that network.
   the Private and Domain profiles and admit only the local subnet.
 * **Widening is explicit.** `--allow-from CIDR` (repeatable) adds a remote address or range to the
   rules, for example `--allow-from 100.64.0.0/10` for Tailscale. The values are checked (an address
-  or CIDR; `0.0.0.0/0` and `::/0` are refused because they would undo the scoping) and are kept in the
-  host settings so uninstall rebuilds the same plan.
+  or CIDR; `0.0.0.0/0` and `::/0` are refused because they would undo the scoping, as is any range
+  that contains `0.0.0.0` or `::` (a firewall reads those as "every address") or IPv4 multicast and
+  broadcast space) and are kept in the host settings so uninstall rebuilds the same plan. Ranges wider
+  than `/8` (IPv4) or `/16` (IPv6) are refused too, because two halves such as `0.0.0.0/1` and
+  `128.0.0.0/1` would re-open every address; `--allow-wide` lets a deliberately wide range such as
+  `128.0.0.0/1` through, and the Private and Domain profile limit still applies.
 * **Password login is switched off by default** by the `PasswordAuthentication no` drop-in, but only
   when the distro's default user already has an authorized key, so you cannot lock yourself out.
   `--no-harden` opts out. With no key yet, the install finishes with a loud warning: run

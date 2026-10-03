@@ -234,8 +234,10 @@ impl HostSettings {
     /// Refuse settings an elevated process must not build its expected plan from.
     pub fn validate(&self, path: &std::path::Path) -> Result<(), crate::error::SetupError> {
         validate_distro(&self.distro)?;
+        // A wide range may have been chosen on purpose at install time (`--allow-wide`), so
+        // replaying must not refuse it; the never-accepted ranges stay refused.
         for cidr in &self.allow_from {
-            validate_allow_from(cidr)?;
+            validate_allow_from_with(cidr, true)?;
         }
         if self.port == 0 {
             return Err(crate::error::SetupError::UntrustedState {
@@ -301,10 +303,26 @@ pub struct HyperVSpec {
     pub scope: Scope,
 }
 
-/// Accept an `--allow-from` value: an IPv4 or IPv6 address, optionally with a prefix length.
-///
-/// A zero-length prefix (`0.0.0.0/0`) is refused because it would undo the scoping entirely.
+/// Shortest IPv4 prefix `--allow-from` accepts without `--allow-wide`.
+pub const MIN_PREFIX_V4: u8 = 8;
+/// Shortest IPv6 prefix `--allow-from` accepts without `--allow-wide`.
+pub const MIN_PREFIX_V6: u8 = 16;
+
+/// Accept an `--allow-from` value: an IPv4 or IPv6 address, optionally with a prefix length,
+/// no wider than `/8` (IPv4) or `/16` (IPv6); see [`validate_allow_from_with`].
 pub fn validate_allow_from(value: &str) -> Result<(), crate::error::SetupError> {
+    validate_allow_from_with(value, false)
+}
+
+/// [`validate_allow_from`], optionally letting prefixes shorter than the minimum through
+/// (`--allow-wide`).
+///
+/// Never accepted, flag or not: a zero-length prefix (it undoes the scoping entirely), a range
+/// that contains the unspecified address (`0.0.0.0/8`, `0.0.0.0/1`, a bare `0.0.0.0` or `::`:
+/// firewalls read these as "any"), and IPv4 multicast or broadcast space. Without the flag the
+/// prefix must also be at least `/8` (IPv4) or `/16` (IPv6), because two halves such as
+/// `0.0.0.0/1` plus `128.0.0.0/1` would together re-open every address.
+pub fn validate_allow_from_with(value: &str, wide: bool) -> Result<(), crate::error::SetupError> {
     let bad = |why: &str| {
         tracing::warn!(value, why, "rejected --allow-from value");
         Err(crate::error::SetupError::BadAllowFrom {
@@ -319,12 +337,41 @@ pub fn validate_allow_from(value: &str) -> Result<(), crate::error::SetupError> 
     let Ok(ip) = addr.parse::<std::net::IpAddr>() else {
         return bad("not an IPv4 or IPv6 address");
     };
-    let max = if ip.is_ipv4() { 32 } else { 128 };
-    if let Some(p) = prefix {
-        match p.parse::<u8>() {
+    let max: u8 = if ip.is_ipv4() { 32 } else { 128 };
+    let prefix = match prefix {
+        None => max,
+        Some(p) => match p.parse::<u8>() {
             Ok(0) => return bad("a /0 prefix would admit every address"),
-            Ok(n) if n <= max => {}
+            Ok(n) if n <= max => n,
             _ => return bad("the prefix length is out of range"),
+        },
+    };
+    let min = if ip.is_ipv4() {
+        MIN_PREFIX_V4
+    } else {
+        MIN_PREFIX_V6
+    };
+    if prefix < min && !wide {
+        return bad(&format!(
+            "a /{prefix} range is wider than /{min}; narrow it, or pass --allow-wide if you really mean it"
+        ));
+    }
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            let mask = u32::MAX.checked_shl(u32::from(32 - prefix)).unwrap_or(0);
+            let net = u32::from(v4) & mask;
+            if net >> 24 == 0 {
+                return bad("the range contains 0.0.0.0, which a firewall reads as every address");
+            }
+            if net >> 28 >= 0xE {
+                return bad("multicast and broadcast addresses are not remote computers");
+            }
+        }
+        std::net::IpAddr::V6(v6) => {
+            let mask = u128::MAX.checked_shl(u32::from(128 - prefix)).unwrap_or(0);
+            if u128::from(v6) & mask == 0 {
+                return bad("the range contains ::, which a firewall reads as every address");
+            }
         }
     }
     Ok(())

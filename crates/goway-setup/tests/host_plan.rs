@@ -672,3 +672,67 @@ fn the_host_plan_registers_its_own_add_remove_programs_entry_running_the_protect
         "goway helper (host)"
     );
 }
+
+// frob:tests crates/goway-setup/src/host.rs::validate_allow_from_with
+#[test]
+fn allow_from_refuses_wide_and_any_like_ranges_unless_allow_wide_and_never_any() {
+    use host::validate_allow_from_with as v;
+    for wide_bad in [
+        "0.0.0.0/1",
+        "128.0.0.0/1",
+        "64.0.0.0/2",
+        "10.0.0.0/7",
+        "2000::/3",
+        "fc00::/7",
+        "fd00::/15",
+    ] {
+        assert!(v(wide_bad, false).is_err(), "{wide_bad} needs --allow-wide");
+    }
+    for wide_ok in [
+        "128.0.0.0/1",
+        "64.0.0.0/2",
+        "10.0.0.0/7",
+        "2000::/3",
+        "fc00::/7",
+    ] {
+        assert!(v(wide_ok, true).is_ok(), "{wide_ok} with --allow-wide");
+    }
+    for never in [
+        "0.0.0.0",
+        "0.0.0.0/1",
+        "0.0.0.0/8",
+        "0.1.2.3",
+        "0.0.0.0/0",
+        "::",
+        "::/16",
+        "::/1",
+        "224.0.0.0/4",
+        "239.1.1.1",
+        "240.0.0.0/4",
+        "255.255.255.255",
+    ] {
+        assert!(v(never, true).is_err(), "{never} is never accepted");
+        assert!(v(never, false).is_err(), "{never} is never accepted");
+    }
+    for fine in [
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "100.64.0.0/10",
+        "fd00::/16",
+        "fd7a:115c:a1e0::/48",
+        "8.8.8.8",
+    ] {
+        assert!(v(fine, false).is_ok(), "{fine}");
+    }
+    // Replaying saved settings accepts a deliberately wide range but not an any-range.
+    let mut settings = HostSettings {
+        distro: "Ubuntu".into(),
+        port: 2222,
+        allow_from: vec!["128.0.0.0/1".into()],
+        network: NetworkMode::Mirrored,
+    };
+    assert!(settings.validate(Path::new("s.json")).is_ok());
+    settings.allow_from = vec!["0.0.0.0/1".into()];
+    assert!(settings.validate(Path::new("s.json")).is_err());
+}
