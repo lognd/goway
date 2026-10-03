@@ -2,13 +2,13 @@
 id = "01M41R6XC8FGG8NC36TYZ9GC8F"
 title = "Output integrity: one write per line under one lock shared by stdout, stderr and goway's own messages; bounded, batched line reads"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:45:09Z"
-updated = "2026-10-03T20:45:09Z"
+updated = "2026-10-03T21:12:59Z"
 scope = ["crates/goway/src/render.rs", "crates/goway/src/shard.rs", "crates/goway/src/termfilter.rs", "crates/goway/src/run.rs", "crates/goway/tests/**", "docs/usage.md"]
 
 [[acceptance]]
