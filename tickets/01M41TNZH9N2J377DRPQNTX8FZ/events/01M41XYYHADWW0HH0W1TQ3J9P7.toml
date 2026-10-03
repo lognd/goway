@@ -1,0 +1,47 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T22:25:39Z"
+digest = "b6a19cc7c8b81fabe28edfe2d47066e544926995d5b394e25fbbb1b8fd277405"
+exit_code = 100
+failed_tests = ["same_size_edit_within_the_same_second_reaches_the_slot"]
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c5ea029e-4ce2-404b-83b2-5ffeb8949e96 with nextest profile: default
+    Starting 2 tests across 36 binaries (419 tests skipped)
+        FAIL [   2.642s] goway::slot_trees same_size_edit_within_the_same_second_reaches_the_slot
+  output \u{2500}\u{2500}\u{2500}
+
+    running 1 test
+
+    thread 'same_size_edit_within_the_same_second_reaches_the_slot' (2297231) panicked at crates/goway/tests/slot_trees.rs:96:9:
+    assertion `left == right` failed
+      left: "aaaa\n"
+     right: "bbbb\n"
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+    test same_size_edit_within_the_same_second_reaches_the_slot ... FAILED
+
+    failures:
+
+    failures:
+        same_size_edit_within_the_same_second_reaches_the_slot
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 2.63s
+
+
+  Cancelling due to test failure: 1 test still running
+        PASS [   2.995s] goway::slot_trees second_run_updates_in_place_and_writes_only_changes
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   3.008s] 2 tests run: 1 passed, 1 failed, 419 skipped
+        FAIL [   2.642s] goway::slot_trees same_size_edit_within_the_same_second_reaches_the_slot
+error: test run failed
+'''
+passed = false
+provider = "nextest"
+ref = "-E 'test(second_run_updates_in_place_and_writes_only_changes) | test(same_size_edit_within_the_same_second_reaches_the_slot)'"
+size = 1467
+status = "measured"
+tests = ["same_size_edit_within_the_same_second_reaches_the_slot", "second_run_updates_in_place_and_writes_only_changes"]
+at = "2026-10-03T22:25:39Z"
+actor = "lognd"
+rev = 1
