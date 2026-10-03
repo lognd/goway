@@ -309,6 +309,87 @@ The helper's entry in Settings > Apps undoes everything the helper
 installer did, exactly as it was before.
 </details>
 
+## How install and uninstall work: the journal
+
+Everything goway's installers and setup commands change is meant to be
+**completely reversible**. That is possible because goway keeps a
+**journal**: a written record of each change it makes, together with
+what was there before.
+
+<details><summary>How the journal works</summary>
+
+1. **Before each change, goway writes it down.** The journal entry
+   says what will change (a file, a setting, a firewall rule, a line
+   in a file, a folder) and records the state before it: the old
+   contents, the old value, or "this did not exist". The entry is saved
+   to disk *before* the change is made, so even a crash or a power cut
+   in the middle leaves a record of everything that was touched.
+2. **Things that were already in place are recorded as "no change".**
+   If the PATH already held goway's folder, or a setting already had
+   the value goway wants, goway writes that down and does not touch it.
+   Uninstall then leaves it alone too, because it was yours.
+3. **Uninstall replays the journal backwards**, newest entry first, and
+   puts each recorded "before" state back:
+   - a file goway created is deleted
+   - a file goway changed gets its old contents back
+   - a setting gets its old value back, or is removed if it did not
+     exist
+   - a folder goway created is removed once it is empty
+   - a rule or task goway created is deleted
+4. **Your later changes are never overwritten.** If you edited something
+   after goway installed it, uninstall leaves your version in place and
+   tells you, instead of clobbering it.
+5. **Running uninstall twice is harmless.** Entries already undone are
+   skipped, and an interrupted uninstall can simply be run again.
+</details>
+
+<details><summary>Where each journal lives</summary>
+
+| What | Journal |
+|---|---|
+| Linux / WSL main laptop install | `~/.local/state/goway/install-journal` |
+| Windows main laptop install | `%LOCALAPPDATA%\goway\install-journal.json` |
+| Helper laptop install (Windows) | `%ProgramData%\goway\goway\host-journal.json`, writable only by administrators, so no ordinary program can plant entries that an administrator's uninstall would then carry out |
+| Key setup for a helper (`goway add`) | `~/.config/goway/ssh-setup-<helper>.json` on the main laptop; it records the changes on the helper too |
+| Tools `goway add` installed on a helper | `~/.config/goway/installed-<helper>.json` on the main laptop |
+</details>
+
+<details><summary>What "completely reversible" covers, and the two deliberate exceptions</summary>
+
+Uninstalling restores every file, setting, PATH entry, registry value,
+firewall rule, scheduled task, folder and `authorized_keys` line that
+goway added or changed, exactly as it was before.
+
+The two exceptions are deliberate:
+- **System packages installed on a helper with `--rsudo`**, such as the
+  C compiler Rust needs, stay installed, because other software on that
+  helper may come to rely on them. `goway uninstall` lists each one
+  with the command that removes it.
+- **Your own changes after install** are kept, as described above.
+
+goway's build caches on helpers are not journaled; they are goway's own
+files in one marked folder, and `goway uninstall` deletes that whole
+folder.
+</details>
+
+<details><summary>How this is checked</summary>
+
+- **Property tests** generate thousands of random machines and install
+  plans. For each one they check that uninstall after install gives
+  back exactly the starting machine, that installing twice changes
+  nothing more, and that uninstalling twice is harmless
+  (`crates/goway-journal/tests/properties.rs`).
+- **Snapshot tests on real machines** install and uninstall the Windows
+  helper and client components on a test laptop. They require the
+  before and after snapshots to be identical. The snapshots cover the
+  registry, PATH, firewall rules, scheduled tasks, `.wslconfig` and the
+  ssh server configuration (`scripts/windows/roundtrip*.sh`).
+- **Linux tests** install, uninstall and compare every file, mode and
+  byte of the home folder (`crates/goway/tests/install_scripts.rs`).
+  The `goway add` / `goway uninstall` tests do the same for the helper
+  side (`crates/goway/tests/ssh_setup.rs`).
+</details>
+
 ## Something went wrong?
 
 See [docs/troubleshooting.md](docs/troubleshooting.md). Every goway
