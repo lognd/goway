@@ -2,7 +2,8 @@
 id = "01M41QY6JHYQHZQG4E2V70YJYH"
 title = "Banner: more space between the wordmark and the subtitle"
 type = "docs"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
