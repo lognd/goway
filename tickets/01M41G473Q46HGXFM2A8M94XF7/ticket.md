@@ -2,13 +2,13 @@
 id = "01M41G473Q46HGXFM2A8M94XF7"
 title = "H1: elevated host install/uninstall must not trust user-writable journal, settings or binaries"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 8
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:52Z"
-updated = "2026-10-03T18:24:06Z"
+updated = "2026-10-03T18:24:53Z"
 labels = ["security"]
 scope = ["crates/goway-setup/**", "crates/goway-journal/**", "scripts/windows/**", "docs/install-windows.md"]
 
