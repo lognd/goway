@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["Given a repository already synced from one worktree, when a second worktree runs for the first time, then only files that differ between the worktrees are sent", "Given a sync that deletes more files than fit in one command-line argument, when goway syncs, then the deletion succeeds"]
+new = ["Given a repository already synced from one worktree, when a second worktree runs for the first time, then only files that differ between the worktrees are sent", "Given a sync that deletes more files than fit in one command-line argument, when goway syncs, then the deletion succeeds", "Given gc removes a seed between the manifest and the upload, when goway syncs, then it detects the changed seed generation and resyncs fully instead of running on a partial tree"]
+moved = [1, 2]
+at = "2026-10-03T17:16:40Z"
+actor = "lognd"
+rev = 1
