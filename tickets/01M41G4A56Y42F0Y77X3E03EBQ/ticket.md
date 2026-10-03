@@ -2,7 +2,8 @@
 id = "01M41G4A56Y42F0Y77X3E03EBQ"
 title = "M7: broader secret denylist, case-insensitive, no files under symlinked parents"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
