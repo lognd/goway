@@ -2,7 +2,8 @@
 id = "01M41T2EH2C5MRX4SBCVY53SJM"
 title = "goway run --needs and --prefers: hardware requirements and preferences"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
