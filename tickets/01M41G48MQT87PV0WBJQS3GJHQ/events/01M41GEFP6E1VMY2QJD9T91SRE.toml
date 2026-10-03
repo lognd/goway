@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:29:28Z"
+digest = "01a786ba0a598186bb1e35658ade1d2ac262b91920de7ed61aedcb4279c8e299"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 6f951d20-d0ff-4954-892c-d32fe130077f with nextest profile: default
+    Starting 2 tests across 21 binaries (179 tests skipped)
+        PASS [   0.156s] goway::host_add nothing_is_pinned_without_a_confirmed_fingerprint
+        PASS [   0.253s] goway::ssh_setup a_new_host_is_confirmed_before_any_password_and_pinned_once
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.254s] 2 tests run: 2 passed, 179 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(nothing_is_pinned_without_a_confirmed_fingerprint) | test(a_new_host_is_confirmed_before_any_password_and_pinned_once)'"
+size = 663
+status = "measured"
+tests = ["nothing_is_pinned_without_a_confirmed_fingerprint", "a_new_host_is_confirmed_before_any_password_and_pinned_once"]
+at = "2026-10-03T18:29:28Z"
+actor = "lognd"
+rev = 1
