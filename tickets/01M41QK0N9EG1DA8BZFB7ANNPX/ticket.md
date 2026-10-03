@@ -2,13 +2,13 @@
 id = "01M41QK0N9EG1DA8BZFB7ANNPX"
 title = "Host-derived text cannot forge goway lines; helper output is size-capped"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:34:17Z"
-updated = "2026-10-03T20:34:17Z"
+updated = "2026-10-03T20:34:20Z"
 scope = ["crates/goway/src/render.rs", "crates/goway/src/sync.rs", "crates/goway/src/remotesys.rs", "crates/goway/src/remote.rs", "docs/troubleshooting.md", "SECURITY.md"]
 
 [[acceptance]]
