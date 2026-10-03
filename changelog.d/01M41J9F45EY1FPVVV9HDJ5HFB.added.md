@@ -1,0 +1,1 @@
+goway-setup install --host now prints the helper's name, ssh host key fingerprint and the exact goway add command, registers its own Add/Remove Programs entry, stops early with WSL setup steps when WSL is missing, and asks before restarting WSL.
