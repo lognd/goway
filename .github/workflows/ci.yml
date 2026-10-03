@@ -39,6 +39,28 @@ jobs:
           python3 -m venv /tmp/wheel-venv
           /tmp/wheel-venv/bin/pip install dist/*.whl
           /tmp/wheel-venv/bin/goway --version
+      - uses: astral-sh/setup-uv@v6
+      - name: uv tool install of the wheel, then goway uninstall --yes removes everything
+        run: |
+          set -eu
+          root="$(mktemp -d)"
+          export HOME="$root/home"
+          export XDG_DATA_HOME="$root/home/.local/share"
+          export XDG_CONFIG_HOME="$root/home/.config"
+          export XDG_STATE_HOME="$root/home/.local/state"
+          export UV_TOOL_BIN_DIR="$HOME/.local/bin"
+          mkdir -p "$HOME" "$XDG_CONFIG_HOME/goway"
+          # the wheel installs as a uv tool; its environment lands under XDG_DATA_HOME
+          uv tool install dist/*.whl
+          export PATH="$UV_TOOL_BIN_DIR:$PATH"
+          goway --version
+          test -d "$XDG_DATA_HOME/uv/tools/goway"
+          : > "$XDG_CONFIG_HOME/goway/config.toml"
+          goway uninstall --yes
+          test ! -e "$XDG_DATA_HOME/uv/tools/goway"
+          test ! -e "$UV_TOOL_BIN_DIR/goway"
+          test ! -e "$XDG_CONFIG_HOME/goway/config.toml"
+          echo "goway, its settings and its uv tool environment are gone"
   windows:
     runs-on: windows-2025
     steps:

@@ -74,13 +74,24 @@ curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | 
 .\goway-setup.exe install --host
 ```
 
-From v0.1.0 goway is also on crates.io and PyPI:
+### Other ways to install
+
+From v0.1.0 goway is also on PyPI and crates.io, so uv, pipx, pip (in a
+virtual environment) and cargo can install it. Each is available from
+v0.1.0; the details, the PEP 668 explanation of why system pip is
+refused on Debian and Ubuntu, and where each puts the program are in
+[docs/install-methods.md](docs/install-methods.md).
 
 ```bash
-cargo install --locked goway   # available from v0.1.0 (needs a Rust toolchain)
-uv tool install goway          # available from v0.1.0
+uv tool install goway          # available from v0.1.0 (preferred; install uv first: https://docs.astral.sh/uv/getting-started/installation/)
 pipx install goway             # available from v0.1.0
+cargo install --locked goway   # available from v0.1.0 (needs a Rust toolchain: https://rustup.rs)
 ```
+
+After any of them, the next step is `goway add`. `goway uninstall`
+recognises the method and removes the program with the matching command
+(`uv tool uninstall goway`, `pipx uninstall goway`, `cargo uninstall
+goway`, or `pip uninstall` inside its virtual environment).
 
 Each download is checked against the release's published checksums.
 The helpers do the building, so they need the toolchain for your
@@ -414,7 +425,11 @@ laptop:
 - goway's key line on each helper
 - the "no password login" setting, with `--rsudo`
 - goway's settings and keys on this laptop
-- the goway program itself
+- the goway program itself, with the command of the tool that
+  installed it (`cargo uninstall goway`, `uv tool uninstall goway`,
+  `pipx uninstall goway`, `pip uninstall` in its virtual environment)
+  or by replaying the install journal; the plan names the exact
+  command, and it runs last, after you confirm
 
 If a helper is switched off, it stops before touching this laptop, so
 you can run it again later.
