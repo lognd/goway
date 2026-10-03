@@ -1,0 +1,12 @@
+kind = "create"
+title = "goway run: per-run work dir, cargo target slots, streaming, faithful exit code, cancel"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 8
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/**", "docs/**"]
+acceptance = ["Given goway run -- sh -c 'exit 7', when it finishes, then goway exits 7 and the work dir is removed", "Given a cargo command, when goway runs it, then CARGO_TARGET_DIR points to a free per-repo target slot", "Given --report FILE, when the run ends, then FILE holds host, arch, address and exit code as JSON"]
+at = "2026-10-03T16:11:38Z"
+actor = "lognd"
+rev = 1
