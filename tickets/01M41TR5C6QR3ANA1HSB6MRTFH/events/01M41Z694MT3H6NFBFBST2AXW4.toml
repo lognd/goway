@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T22:47:08Z"
+digest = "0a5c29a3f83ad8c0916fe60d510a30eadefdd99eb05d3536374cd5bb198b05aa"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 68ed6908-e8f8-4b2b-b26e-81128a56d7b3 with nextest profile: default
+    Starting 3 tests across 37 binaries (432 tests skipped)
+        PASS [   0.854s] goway::copy_integrity files_a_failing_command_changed_itself_are_not_blamed_on_the_copy
+        PASS [   0.860s] goway::copy_integrity a_genuine_failure_is_verified_and_never_rerun
+        PASS [   1.279s] goway::copy_integrity a_failure_with_a_bad_copy_is_rerun_once_on_a_rebuilt_copy
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.280s] 3 tests run: 3 passed, 432 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_genuine_failure_is_verified_and_never_rerun) | test(files_a_failing_command_changed_itself_are_not_blamed_on_the_copy) | test(a_failure_with_a_bad_copy_is_rerun_once_on_a_rebuilt_copy)'"
+size = 781
+status = "measured"
+tests = ["files_a_failing_command_changed_itself_are_not_blamed_on_the_copy", "a_genuine_failure_is_verified_and_never_rerun", "a_failure_with_a_bad_copy_is_rerun_once_on_a_rebuilt_copy"]
+at = "2026-10-03T22:47:08Z"
+actor = "lognd"
+rev = 1

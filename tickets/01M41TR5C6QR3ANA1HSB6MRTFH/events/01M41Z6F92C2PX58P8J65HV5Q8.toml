@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [6]
+captured_at = "2026-10-03T22:47:14Z"
+digest = "bfc1862b875b37cf9352f4b57b8aed2f702df01a86fc2dade5f01839c233e33e"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 6694a719-469c-4d18-b31f-f2f5f327cc80 with nextest profile: default
+    Starting 2 tests across 37 binaries (433 tests skipped)
+        PASS [   1.156s] goway::copy_integrity a_helper_that_always_mismatches_gets_exactly_two_attempts_then_125
+        PASS [   1.165s] goway::copy_integrity every_shard_is_verified_and_reruns_at_most_once
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.167s] 2 tests run: 2 passed, 433 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_helper_that_always_mismatches_gets_exactly_two_attempts_then_125) | test(every_shard_is_verified_and_reruns_at_most_once)'"
+size = 679
+status = "measured"
+tests = ["a_helper_that_always_mismatches_gets_exactly_two_attempts_then_125", "every_shard_is_verified_and_reruns_at_most_once"]
+at = "2026-10-03T22:47:14Z"
+actor = "lognd"
+rev = 1

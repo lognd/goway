@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T22:47:11Z"
+digest = "4ceb84e9601ba19987e91badc98c9cfa5ab13265a0abfb392c081315f1c6e041"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 171548f7-197b-4674-b0ae-7ac785baa38d with nextest profile: default
+    Starting 2 tests across 37 binaries (433 tests skipped)
+        PASS [   0.004s] goway state::tests::distrust_expires_after_seven_clean_days_and_clears_by_repo
+        PASS [   1.987s] goway::copy_integrity a_bad_copy_stops_the_command_reruns_once_and_is_remembered
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.989s] 2 tests run: 2 passed, 433 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_bad_copy_stops_the_command_reruns_once_and_is_remembered) | test(distrust_expires_after_seven_clean_days_and_clears_by_repo)'"
+size = 680
+status = "measured"
+tests = ["state::tests::distrust_expires_after_seven_clean_days_and_clears_by_repo", "a_bad_copy_stops_the_command_reruns_once_and_is_remembered"]
+at = "2026-10-03T22:47:11Z"
+actor = "lognd"
+rev = 1
