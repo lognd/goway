@@ -411,6 +411,8 @@ doctor() {
   pa=$(grep -rhiE '^\s*PasswordAuthentication\s' /etc/ssh/sshd_config.d/ /etc/ssh/sshd_config 2>/dev/null | head -1 | awk '{print tolower($2)}' || true)
   printf 'password_auth=%s\n' "${pa:-default-yes}"
   printf 'home=%s\n' "$HOME"
+  # Whether a cargo home existed before any goway fix (so uninstall never removes it).
+  if [ -e "${CARGO_HOME:-$HOME/.cargo}" ]; then printf 'cargo_home=1\n'; else printf 'cargo_home=0\n'; fi
 }
 
 # purge ROOT: remove all of goway's state on this host (goway uninstall).

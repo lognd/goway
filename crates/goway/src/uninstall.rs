@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 
 use crate::cli::UninstallArgs;
 use crate::config::{self, Config, HostConfig};
-use crate::doctor::{self, FixRunner as _};
+use crate::doctor::{self, FixRunner as _, Undo};
 use crate::error::{Error, Result};
 use crate::paths::Paths;
 use crate::remote;
@@ -71,14 +71,80 @@ pub fn install_journal() -> PathBuf {
     state.join("goway/install-journal")
 }
 
+/// Whether `path` is an absolute path inside `home` with no `..` component.
+fn inside(home: &Path, path: &Path) -> bool {
+    path.is_absolute()
+        && path.starts_with(home)
+        && !path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+}
+
+/// The file the install put on PATH: this program itself, or a file named
+/// `goway` inside the user's home (`GOWAY_PREFIX` defaults to `~/.local`).
+fn is_installed_binary(home: &Path, exe: Option<&Path>, path: &Path) -> bool {
+    exe.is_some_and(|e| e == path)
+        || (inside(home, path) && path.file_name().is_some_and(|n| n == "goway"))
+}
+
+/// The one profile the install edits: `~/.profile`.
+fn is_profile(home: &Path, path: &Path) -> bool {
+    path == home.join(".profile")
+}
+
+/// Replace `path` with `bytes` through a temporary file in the same
+/// directory, keeping the file's permissions.
+fn rewrite(path: &Path, bytes: &[u8]) -> Result<()> {
+    let tmp = path.with_extension(format!("goway-uninstall.{}", std::process::id()));
+    std::fs::write(&tmp, bytes).map_err(|e| Error::io("write", &tmp, e))?;
+    if let Ok(meta) = std::fs::metadata(path) {
+        let _ = std::fs::set_permissions(&tmp, meta.permissions());
+    }
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        Error::io("write", path, e)
+    })
+}
+
+/// `content` without the lines equal to `line` (terminators ignored when
+/// comparing, kept on every other line, so CRLF files stay CRLF).
+fn without_line(content: &[u8], line: &str) -> Vec<u8> {
+    let mut kept = Vec::with_capacity(content.len());
+    for l in content.split_inclusive(|b| *b == b'\n') {
+        let bare = l.strip_suffix(b"\n").unwrap_or(l);
+        let bare = bare.strip_suffix(b"\r").unwrap_or(bare);
+        if bare != line.as_bytes() {
+            kept.extend_from_slice(l);
+        }
+    }
+    kept
+}
+
 /// Undo scripts/install.sh by replaying its journal backwards (the same
 /// rules as scripts/uninstall.sh: the binary only while it is still the
 /// installed build, the exact PATH line, the added newline, created
-/// directories only when empty). Returns what it did, for the user.
-pub fn revert_install_journal(journal: &Path) -> Result<Vec<String>> {
+/// directories only when empty). The journal is a plain file, so it is not
+/// trusted: only a file named `goway` under `home` (or this program),
+/// `home/.profile`, and directories under `home` are ever touched; other
+/// entries are skipped and reported. Returns what it did, for the user.
+pub fn revert_install_journal(
+    journal: &Path,
+    home: &Path,
+    exe: Option<&Path>,
+) -> Result<Vec<String>> {
     let text = std::fs::read_to_string(journal).map_err(|e| Error::io("read", journal, e))?;
     let mut done = Vec::new();
     let mut dirs = Vec::new();
+    let skip = |done: &mut Vec<String>, what: &str, path: &str| {
+        tracing::warn!(
+            entry = what,
+            path,
+            "install journal entry outside its scope skipped"
+        );
+        done.push(format!(
+            "skipped journal entry for {path}: not a file the install makes"
+        ));
+    };
     for entry in text.lines().rev() {
         let (kind, rest) = entry.split_once(' ').unwrap_or((entry, ""));
         match kind {
@@ -87,6 +153,10 @@ pub fn revert_install_journal(journal: &Path) -> Result<Vec<String>> {
                     continue;
                 };
                 let path = Path::new(path);
+                if !is_installed_binary(home, exe, path) {
+                    skip(&mut done, "file", &path.display().to_string());
+                    continue;
+                }
                 match crate::sync::file_sha256(path) {
                     Some(actual) if actual == sum => {
                         std::fs::remove_file(path).map_err(|e| Error::io("remove", path, e))?;
@@ -106,21 +176,17 @@ pub fn revert_install_journal(journal: &Path) -> Result<Vec<String>> {
                     continue;
                 };
                 let profile = Path::new(profile);
-                let Ok(content) = std::fs::read_to_string(profile) else {
-                    continue;
-                };
-                if !content.lines().any(|l| l == line) {
+                if !is_profile(home, profile) {
+                    skip(&mut done, "line", &profile.display().to_string());
                     continue;
                 }
-                let kept: String =
-                    content
-                        .lines()
-                        .filter(|l| *l != line)
-                        .fold(String::new(), |mut acc, l| {
-                            acc.push_str(l);
-                            acc.push('\n');
-                            acc
-                        });
+                let Ok(content) = std::fs::read(profile) else {
+                    continue;
+                };
+                let kept = without_line(&content, line);
+                if kept.len() == content.len() {
+                    continue;
+                }
                 if existed == "0" && kept.is_empty() {
                     std::fs::remove_file(profile).map_err(|e| Error::io("remove", profile, e))?;
                     done.push(format!(
@@ -128,20 +194,31 @@ pub fn revert_install_journal(journal: &Path) -> Result<Vec<String>> {
                         profile.display()
                     ));
                 } else {
-                    std::fs::write(profile, kept).map_err(|e| Error::io("write", profile, e))?;
+                    rewrite(profile, &kept)?;
                     done.push(format!("removed the PATH line from {}", profile.display()));
                 }
             }
             "newline" => {
                 let profile = Path::new(rest);
-                if let Ok(mut content) = std::fs::read_to_string(profile)
-                    && content.ends_with('\n')
+                if !is_profile(home, profile) {
+                    skip(&mut done, "newline", rest);
+                    continue;
+                }
+                if let Ok(mut content) = std::fs::read(profile)
+                    && content.last() == Some(&b'\n')
                 {
                     content.pop();
-                    std::fs::write(profile, content).map_err(|e| Error::io("write", profile, e))?;
+                    rewrite(profile, &content)?;
                 }
             }
-            "dir" => dirs.push(PathBuf::from(rest)),
+            "dir" => {
+                let dir = PathBuf::from(rest);
+                if inside(home, &dir) {
+                    dirs.push(dir);
+                } else {
+                    skip(&mut done, "dir", rest);
+                }
+            }
             _ => {}
         }
     }
@@ -161,14 +238,24 @@ fn host_plan(paths: &Paths, config: &Config, host: &HostConfig) -> Vec<String> {
         config.defaults.remote_root
     )];
     for item in doctor::load_installed(paths, &host.name) {
-        match (&item.undo, item.root) {
-            (Some(_), false) => out.push(format!("remove {} (goway installed it)", item.check)),
-            (Some(_), true) => out.push(format!(
-                "undo the {} change (needs --rsudo: administrator rights there)",
+        match item.undo() {
+            Undo::Run { root: false, .. } => {
+                out.push(format!("remove {} (goway installed it)", item.check));
+            }
+            Undo::Run { command, root: true } => out.push(format!(
+                "undo the {} change (needs --rsudo: administrator rights there; runs `{command}`)",
                 item.check
             )),
-            (None, _) => out.push(format!(
+            Undo::KeepPackage => out.push(format!(
                 "keep the system package for {} (other software may use it; listed with its removal command)",
+                item.check
+            )),
+            Undo::KeepCargo => out.push(
+                "keep rustup and ~/.cargo (they may have existed before goway; remove them yourself if you want)"
+                    .to_owned(),
+            ),
+            Undo::Unknown => out.push(format!(
+                "ignore the unknown record `{}` (goway does not run commands from records)",
                 item.check
             )),
         }
@@ -209,7 +296,7 @@ fn show_plan(renderer: Renderer, paths: &Paths, config: &Config) {
 
 /// Clean one helper. Errors leave the local record intact so a rerun can
 /// finish the job.
-#[allow(clippy::too_many_arguments)] // the verb's environment, as for doctor
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // the verb's environment, as for doctor
 fn clean_host(
     paths: &Paths,
     renderer: Renderer,
@@ -254,9 +341,12 @@ fn clean_host(
     let items = doctor::load_installed(paths, &host.name);
     let mut root_undos = Vec::new();
     for item in &items {
-        match (&item.undo, item.root) {
-            (Some(undo), false) => {
-                if runner.run(undo, false) {
+        match item.undo() {
+            Undo::Run {
+                command,
+                root: false,
+            } => {
+                if runner.run(&command, false) {
                     renderer.ok(format_args!("{}: removed {}", host.name, item.check));
                 } else {
                     renderer.warn(format_args!(
@@ -265,15 +355,29 @@ fn clean_host(
                     ));
                 }
             }
-            (Some(undo), true) => root_undos.push(doctor::Fix {
-                command: undo.clone(),
+            Undo::Run {
+                command,
+                root: true,
+            } => root_undos.push(doctor::Fix {
+                command,
                 root: true,
                 why: format!("undoes goway's {} change", item.check),
             }),
-            (None, _) => renderer.note(format_args!(
+            Undo::KeepPackage => renderer.note(format_args!(
                 "{}: kept the system package goway installed for {}",
                 host.name, item.check
             )),
+            Undo::KeepCargo => renderer.note(format_args!(
+                "{}: kept rustup and ~/.cargo (they may have existed before goway)",
+                host.name
+            )),
+            Undo::Unknown => {
+                tracing::warn!(host = %host.name, check = %item.check, "unknown install record ignored");
+                renderer.warn(format_args!(
+                    "{}: ignored the unknown record `{}`; goway only runs undo actions it knows",
+                    host.name, item.check
+                ));
+            }
         }
     }
     if !root_undos.is_empty() {
@@ -367,7 +471,9 @@ pub fn uninstall(
     renderer.ok("removed goway's config, keys and state from this laptop");
     let journal = install_journal();
     if journal.exists() {
-        for line in revert_install_journal(&journal)? {
+        let home = dirs::home_dir().unwrap_or_default();
+        let exe = std::env::current_exe().ok();
+        for line in revert_install_journal(&journal, &home, exe.as_deref())? {
             renderer.ok(line);
         }
         renderer.ok("goway is uninstalled; open a new terminal to refresh PATH");
@@ -382,4 +488,68 @@ pub fn uninstall(
         ));
     }
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn journal(dir: &Path, lines: &[String]) -> PathBuf {
+        let path = dir.join("install-journal");
+        std::fs::write(&path, lines.join("\n") + "\n").unwrap();
+        path
+    }
+
+    #[test]
+    fn journal_entries_outside_the_install_scope_are_skipped() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path().join("home");
+        std::fs::create_dir_all(home.join("sub")).unwrap();
+        let precious = home.join("precious.txt");
+        std::fs::write(&precious, "keep me").unwrap();
+        let sum = crate::sync::file_sha256(&precious).unwrap();
+        let outside = tmp.path().join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        let other_profile = home.join("sub/.bashrc");
+        std::fs::write(&other_profile, "x\nEVIL\n").unwrap();
+        let j = journal(
+            tmp.path(),
+            &[
+                format!("file {} {sum}", precious.display()),
+                format!("line 1 {} EVIL", other_profile.display()),
+                format!("dir {}", outside.display()),
+            ],
+        );
+        let done = revert_install_journal(&j, &home, None).unwrap();
+        assert_eq!(
+            done.iter().filter(|d| d.contains("skipped")).count(),
+            3,
+            "{done:?}"
+        );
+        assert_eq!(std::fs::read_to_string(&precious).unwrap(), "keep me");
+        assert_eq!(
+            std::fs::read_to_string(&other_profile).unwrap(),
+            "x\nEVIL\n"
+        );
+        assert!(outside.exists());
+        assert!(!j.exists());
+    }
+
+    #[test]
+    fn a_crlf_profile_keeps_its_bytes_when_the_path_line_goes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path().to_owned();
+        let profile = home.join(".profile");
+        let before = b"export A=1\r\nexport B=2\r\n";
+        let line = "export PATH=\"/h/.local/bin:$PATH\" # added by goway install";
+        let mut after = before.to_vec();
+        after.extend_from_slice(format!("{line}\n").as_bytes());
+        std::fs::write(&profile, &after).unwrap();
+        let j = journal(
+            tmp.path(),
+            &[format!("line 1 {} {line}", profile.display())],
+        );
+        revert_install_journal(&j, &home, None).unwrap();
+        assert_eq!(std::fs::read(&profile).unwrap(), before);
+    }
 }

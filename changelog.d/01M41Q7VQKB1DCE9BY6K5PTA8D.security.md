@@ -1,0 +1,1 @@
+Uninstall no longer runs command text read from the local install record or journal: undo commands are derived from known check names, the install journal is only applied to the goway binary, ~/.profile and directories under home (CRLF kept), and rustup is kept when ~/.cargo existed before.

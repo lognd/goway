@@ -173,7 +173,9 @@ goway uninstall --dry-run       # only lists
 On every helper this removes:
 - goway's state directory (refused while a run is in progress)
 - the tools goway installed there (cargo-nextest, sccache, and rustup if
-  goway installed it)
+  goway installed it and `~/.cargo` did not exist before). The record of
+  what was installed holds only check names; the undo commands are goway's
+  own, so an edited record cannot make uninstall run anything else
 - goway's key line in `~/.ssh/authorized_keys`, with the previous modes
   restored
 
@@ -184,7 +186,9 @@ use them; goway lists them with their removal command. If a helper is
 off, nothing on this laptop is removed, so you can run it again later.
 
 On this laptop it then removes goway's config, keys and state, and
-finally the goway program and its PATH line, using the install record.
+finally the goway program and its PATH line, using the install record
+(which is only trusted for the goway binary, `~/.profile` and
+directories under your home).
 On Windows, remove the program in Settings > Apps. On each helper
 laptop, its own uninstall entry in Settings > Apps removes the helper
 setup.
