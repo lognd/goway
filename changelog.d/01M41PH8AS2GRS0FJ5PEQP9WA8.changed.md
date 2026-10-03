@@ -1,0 +1,1 @@
+goway is now published to PyPI on every release tag as maturin wheels (manylinux and musllinux for x86_64 and aarch64, Windows x86_64) plus an sdist through trusted publishing, so uv tool install goway and pipx install goway work; CI builds a wheel and runs goway --version from a clean venv on every push.

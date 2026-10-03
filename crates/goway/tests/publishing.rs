@@ -61,3 +61,48 @@ fn release_publishes_to_crates_io_after_the_github_release() {
     assert!(job.contains("CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}"));
     assert!(job.contains("cargo publish --workspace --exclude goway-setup"));
 }
+
+#[test]
+fn pyproject_builds_the_bin_with_maturin_and_takes_the_version_from_cargo() {
+    let py: toml::Table = read("pyproject.toml").parse().unwrap();
+    assert_eq!(py["project"]["name"].as_str(), Some("goway"));
+    assert_eq!(py["project"]["license"].as_str(), Some("MIT"));
+    assert_eq!(py["project"]["dynamic"][0].as_str(), Some("version"));
+    assert_eq!(
+        py["build-system"]["build-backend"].as_str(),
+        Some("maturin")
+    );
+    assert_eq!(py["tool"]["maturin"]["bindings"].as_str(), Some("bin"));
+    assert_eq!(
+        py["tool"]["maturin"]["manifest-path"].as_str(),
+        Some("crates/goway/Cargo.toml")
+    );
+}
+
+#[test]
+fn release_publishes_wheels_to_pypi_with_trusted_publishing_after_the_github_release() {
+    let release = read(".github/workflows/release.yml");
+    let job = release.split("  pypi:").nth(1).expect("pypi job");
+    assert!(job.contains("needs: [publish, wheels, sdist]"));
+    assert!(job.contains("environment: pypi"));
+    assert!(job.contains("id-token: write"));
+    assert!(job.contains("pypa/gh-action-pypi-publish"));
+    assert!(!job.contains("password"), "no stored token");
+    for target in [
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-musl",
+        "x86_64-pc-windows-msvc",
+    ] {
+        assert!(release.contains(&format!("target: {target}")), "{target}");
+    }
+    assert!(release.contains("command: sdist"));
+}
+
+#[test]
+fn ci_builds_a_wheel_and_runs_goway_version_from_a_venv() {
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("PyO3/maturin-action"));
+    assert!(ci.contains("goway --version"));
+}

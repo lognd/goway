@@ -1,5 +1,6 @@
 # Checks every push and pull request: format, lints, the whole test suite on
-# Linux, and that the Windows crates build and pass their tests on Windows.
+# Linux, that the Windows crates build and pass their tests on Windows, that
+# packaging for crates.io works, and that the PyPI wheel builds and runs.
 name: ci
 on:
   push:
@@ -21,6 +22,20 @@ jobs:
       - run: cargo nextest run --workspace --locked
       - name: Packaging dry run (goway-setup is publish = false and skipped)
         run: cargo publish --workspace --dry-run --exclude goway-setup --locked
+  wheel:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          manylinux: auto
+          args: --release --locked --out dist
+      - name: The wheel installs into a clean venv and goway --version runs
+        run: |
+          python3 -m venv /tmp/wheel-venv
+          /tmp/wheel-venv/bin/pip install dist/*.whl
+          /tmp/wheel-venv/bin/goway --version
   windows:
     runs-on: windows-2025
     steps:

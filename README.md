@@ -58,10 +58,12 @@ curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | 
 .\goway-setup.exe install --host
 ```
 
-From v0.1.0 goway is also on crates.io (any platform with a Rust toolchain):
+From v0.1.0 goway is also on crates.io and PyPI:
 
 ```bash
-cargo install --locked goway   # available from v0.1.0
+cargo install --locked goway   # available from v0.1.0 (needs a Rust toolchain)
+uv tool install goway          # available from v0.1.0
+pipx install goway             # available from v0.1.0
 ```
 
 Each download is checked against the release's published checksums.

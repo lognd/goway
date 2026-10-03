@@ -39,6 +39,38 @@ resolutions skip it), then publish a fixed patch version:
     cargo yank --version 0.1.1 goway
     cargo yank --version 0.1.1 goway-journal
 
+## Publishing to PyPI
+
+The same tag publishes `goway` to PyPI so that `uv tool install goway`
+or `pipx install goway` works. `pyproject.toml` at the repository root
+tells maturin to build the `goway` executable into a wheel
+(`bindings = "bin"`: there is no Python module, only the program) and
+to take the version from Cargo.
+
+| Wheel | Built on |
+|---|---|
+| manylinux, x86_64 and aarch64 | glibc systems (most distributions) |
+| musllinux, x86_64 and aarch64 | Alpine and other musl systems (static binary) |
+| Windows x86_64 | Windows |
+| source distribution (sdist) | everything else, built with cargo |
+
+A musllinux wheel is not accepted by pip on a glibc system, which is why
+both Linux families are built. There are no macOS wheels yet: goway's
+macOS support is experimental (see the README), so macOS users get the
+sdist and need a Rust toolchain. Add the macOS targets to the `wheels`
+matrix in `release.yml` once macOS is supported.
+
+The `pypi` job runs after the GitHub release succeeds, in the GitHub
+environment `pypi`, with `permissions: id-token: write`. It uses PyPI
+trusted publishing (OIDC), so no token is stored anywhere. The trusted
+publisher on PyPI is configured for owner `lognd`, repository `goway`,
+workflow `release.yml`, environment `pypi`. CI builds a wheel on every
+push, installs it into a clean virtual environment and runs
+`goway --version`.
+
+To withdraw a bad PyPI release, yank it on the project's page on PyPI
+(Manage, Releases, Options, Yank); pip then skips it unless pinned.
+
 ## Verifying a download
 
 `install.sh` checks the archive against `SHA256SUMS` before installing,

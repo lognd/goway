@@ -1,0 +1,39 @@
+# Python packaging for the goway binary: maturin builds the Rust executable
+# into a wheel (bindings = "bin", no Python module), so `uv tool install goway`
+# and `pipx install goway` put a ready-made `goway` on PATH. The version is
+# taken from Cargo, so there is one place to bump it.
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "goway"
+description = "Run a command on the least-loaded machine of a pool, natively, from the current git work tree."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "lognd" }]
+requires-python = ">=3.9"
+keywords = ["remote", "ssh", "build", "cargo", "nextest"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Rust",
+  "Topic :: Software Development :: Build Tools",
+  "Topic :: System :: Distributed Computing",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/lognd/goway"
+Repository = "https://github.com/lognd/goway"
+Changelog = "https://github.com/lognd/goway/releases"
+
+[tool.maturin]
+bindings = "bin"
+manifest-path = "crates/goway/Cargo.toml"
+locked = true
