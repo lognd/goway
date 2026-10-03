@@ -37,9 +37,9 @@ pub fn can_prompt() -> bool {
     std::env::var_os("SESSIONNAME").is_some_and(|v| !v.is_empty())
 }
 
-/// Whether this process holds an elevated (administrator) token.
 #[cfg(windows)]
 #[allow(unsafe_code)] // token query FFI; see SAFETY
+/// Whether this process holds an elevated (administrator) token.
 pub fn is_elevated() -> bool {
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
     use windows_sys::Win32::Security::{
@@ -75,9 +75,9 @@ pub fn is_elevated() -> bool {
     true
 }
 
-/// Run `cmd.exe <parameters>` elevated (UAC prompt), wait, and return its exit code.
 #[cfg(windows)]
 #[allow(unsafe_code)] // ShellExecuteExW FFI; see SAFETY
+/// Run `cmd.exe <parameters>` elevated (UAC prompt), wait, and return its exit code.
 pub fn run_elevated(parameters: &str) -> std::io::Result<u32> {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{
