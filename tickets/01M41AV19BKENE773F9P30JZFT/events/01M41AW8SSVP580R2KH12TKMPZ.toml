@@ -1,0 +1,11 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T16:52:09Z"
+digest = "7ccc2d234e0a0c982176f38afbdf8d72d1cebe13e2b5efddcfac3da87e90ff9a"
+provider = "file"
+ref = "docs/positioning.md"
+size = 6272
+status = "measured"
+at = "2026-10-03T16:52:09Z"
+actor = "lognd"
+rev = 1
