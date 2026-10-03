@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T16:19:22Z"
+digest = "aa9a4e83f6e4875ad31c8e49945f0a099fe478680e840c5dbc000fe70c13e074"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9298c150-15f5-4766-bcb9-5ee63daf47ce with nextest profile: default
+    Starting 2 tests across 3 binaries (18 tests skipped)
+        PASS [   0.017s] goway config::tests::parses_hosts_defaults_and_durations
+        PASS [   0.023s] goway config::tests::rejects_unknown_keys
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.028s] 2 tests run: 2 passed, 18 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(parses_hosts_defaults_and_durations) | test(rejects_unknown_keys)'"
+size = 616
+status = "measured"
+tests = ["config::tests::parses_hosts_defaults_and_durations", "config::tests::rejects_unknown_keys"]
+at = "2026-10-03T16:19:22Z"
+actor = "lognd"
+rev = 1

@@ -8,12 +8,12 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:19:17Z"
+updated = "2026-10-03T16:19:22Z"
 scope = ["crates/goway/**"]
 
 [[acceptance]]
 text = "Given a config.toml with hosts, when goway loads it, then hosts, defaults and durations parse and unknown keys are rejected"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a host, when goway builds an ssh command, then it uses HostKeyAlias goway-NAME, StrictHostKeyChecking yes and goway's known_hosts file"
