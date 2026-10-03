@@ -8,14 +8,25 @@ kept in git, for example Rust projects. goway:
 - shows you the output as if the command ran on your main laptop
 
 You need:
-- a **main laptop** running Linux, or Windows with WSL (Linux inside
-  Windows)
-- one or more **helper laptops** running Windows 11 (22H2 or newer)
-  with WSL
+- a **main laptop**: the one you type on
+- one or more **helper laptops**: the ones that do the work
 - all of them on the **same network**
 
 Words you have not seen before are explained in
 [docs/glossary.md](docs/glossary.md).
+
+## Which computers can do what
+
+| Operating system | As your main laptop | As a helper laptop |
+|---|---|---|
+| Windows 10/11 **with WSL** | yes: install inside WSL ([Linux and WSL](#main-laptop-linux-or-wsl)) | Windows 11 22H2 or newer: one installer ([Windows with WSL](#helper-windows-with-wsl)); Windows 10: no |
+| Windows 10/11 **without WSL** | yes: `goway-setup.exe install` ([Windows](#main-laptop-windows-without-wsl)) | no: a helper needs Linux; install WSL first |
+| **Linux** (Ubuntu, Debian, Fedora, Arch, ...) | yes: one command ([Linux and WSL](#main-laptop-linux-or-wsl)) | yes: a few manual steps ([Linux](#helper-linux)) |
+| **macOS** | experimental: build from source ([macOS](#main-laptop-macos-experimental)) | no: goway's helper side needs Linux tools macOS lacks |
+
+The helpers do the building, so they need the toolchain for your
+project, such as Rust. `goway add` installs it for you. The main laptop
+needs only goway, git and ssh.
 
 ## Quick start
 
@@ -99,13 +110,36 @@ release and run `.\goway-setup.exe install` in PowerShell.
 
 ### 3. On your main laptop, once per helper
 
-Type the line the helper's installer printed in step 1.4, for example:
+Type the line the helper's installer printed in step 1.4. It looks like
+this, with the helper's own values in place of the `<...>` parts:
 
-    goway add helios --fingerprint SHA256:Ei5... --user user --rsudo
+    goway add <YOUR-COMPUTER-NAME-HERE> --fingerprint <FINGERPRINT-FROM-THE-INSTALLER> --user <YOUR-LINUX-USER-NAME-HERE> --rsudo
 
 goway shows what it is about to do, asks for the **helper's Linux
 password** once (not its Windows password), and finishes with
-`goway: done: helios is ready`.
+`goway: done: <YOUR-COMPUTER-NAME-HERE> is ready`.
+
+<details><summary>What to put in place of each &lt;...&gt; and how to find it</summary>
+
+The helper's installer prints all three values at the end. If you no
+longer have that output, run `.\goway-setup.exe status --host` on the
+helper to see it again, or find each value by hand:
+
+- `<YOUR-COMPUTER-NAME-HERE>`: the helper laptop's name, which goway
+  uses to find it on the network.
+  - On Windows: Settings > System > About, the line **Device name**,
+    for example `DESKTOP-4K2J9`.
+  - On a Linux helper: type `hostname` in its terminal.
+  - Upper or lower case does not matter.
+- `<YOUR-LINUX-USER-NAME-HERE>`: the user name you chose when Ubuntu
+  (WSL) first started on the helper. In the helper's Ubuntu window,
+  type `whoami`. goway asks for this user's password.
+- `<FINGERPRINT-FROM-THE-INSTALLER>`: the helper's identity, which looks
+  like `SHA256:` followed by 43 letters and digits. goway compares it,
+  so it never sends your password to a different machine that answers
+  to the same name. In the helper's Ubuntu window:
+  `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
+</details>
 
 <details><summary>What this changes, and why goway needs no password afterwards</summary>
 
@@ -152,6 +186,79 @@ disappears on its own after 7 idle days. Details:
 [docs/usage.md](docs/usage.md).
 </details>
 
+## Installing on each operating system
+
+The quick start above covers the common case: Windows helpers with WSL
+and a Linux or WSL main laptop. Here is every supported combination.
+
+### Main laptop: Linux or WSL
+
+    curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | bash
+
+This works on any Linux on Intel/AMD (x86_64) or ARM (aarch64), and
+inside WSL. It needs `curl`, `git` and `ssh`, which most systems have.
+If one is missing, `goway add ... --lsudo` installs it on Ubuntu or
+Debian. Remove goway again with `goway uninstall`.
+
+### Main laptop: Windows (without WSL)
+
+1. Install **Git for Windows** (https://git-scm.com). Windows 10 and 11
+   already include the ssh client goway uses.
+2. Download `goway-setup.exe` from the
+   [latest release](https://github.com/lognd/goway/releases/latest).
+   On a Windows-on-ARM laptop, take `goway-setup-arm64.exe`.
+3. In PowerShell, in the download folder:
+
+       .\goway-setup.exe install
+
+4. Open a new PowerShell window and type `goway --help`.
+
+Remove it in Settings > Apps > goway, or with
+`goway-setup.exe uninstall`. Details:
+[docs/install-windows.md](docs/install-windows.md).
+
+### Main laptop: macOS (experimental)
+
+macOS has no prebuilt goway yet, and goway has not been tested on it.
+The main-laptop side uses only portable tools (git, ssh), so it is
+expected to work. With Rust installed (https://rustup.rs):
+
+    cargo install --locked --git https://github.com/lognd/goway goway
+
+A Mac cannot be a helper: goway's helper side needs Linux tools
+(GNU findutils, `flock`, `setsid`).
+
+### Helper: Windows with WSL
+
+See step 1 of the [quick start](#1-on-each-helper-laptop-once). The
+helper must run Windows 11 22H2 or newer, with WSL 2 and Ubuntu. Windows 10
+cannot be a helper, because WSL there lacks the "mirrored networking" that
+lets other computers reach it.
+If WSL is missing, the installer stops and tells you how to add it.
+
+### Helper: Linux
+
+There is no installer for Linux helpers yet. These steps are for
+Ubuntu or Debian; other distributions use their own package names.
+
+1. On the helper, install the ssh server and goway's needs:
+
+       sudo apt-get install -y openssh-server git tar util-linux findutils
+
+2. Make sure your main laptop can reach it on port 22. Many desktop
+   systems allow this by default; with the `ufw` firewall, run
+   `sudo ufw allow from <YOUR-LOCAL-NETWORK> to any port 22`, for
+   example `192.168.1.0/24`.
+3. Find its name with `hostname`, and its fingerprint with
+   `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
+4. On your main laptop:
+
+       goway add <YOUR-COMPUTER-NAME-HERE> --port 22 --fingerprint <FINGERPRINT> --user <YOUR-LINUX-USER-NAME-HERE> --rsudo
+
+goway finds Linux helpers as `<name>.local` when the helper runs the
+`avahi-daemon` service (Ubuntu desktop does). Otherwise, add
+`--address <ITS-IP-OR-DNS-NAME>`.
+
 ## Day to day
 
 - `goway run -- COMMAND` runs a command on the least busy helper;
@@ -163,7 +270,7 @@ disappears on its own after 7 idle days. Details:
 
 Using a screen reader? Add `--plain` (or set `GOWAY_PLAIN=1`), and
 tables are printed as labelled lines such as
-`host: helios, load: 0.40, jobs: 0`. Every goway line starts with its
+`host: <YOUR-COMPUTER-NAME-HERE>, load: 0.40, jobs: 0`. Every goway line starts with its
 kind in words (`error:`, `warning:`, `done:`, `next:` ...), so color is
 never needed.
 

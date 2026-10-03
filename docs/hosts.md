@@ -49,8 +49,8 @@ match).
 ## `goway host add NAME`
 
 ```
-goway host add helios                 # finds it by name, pins the key
-goway host add xl --address Orion-Notebook.local
+goway host add <YOUR-COMPUTER-NAME-HERE>   # finds it by name, pins the key
+goway host add laptop2 --address <ITS-DNS-NAME-OR-IP>
 goway host add box --address 192.168.1.20 --port 22 --user me --max-jobs 2
 ```
 

@@ -15,7 +15,7 @@ Plain explanations of the words goway's documentation uses.
 | WSL | Windows Subsystem for Linux: a Linux system that runs inside Windows. |
 | distro, Ubuntu | The kind of Linux inside WSL. Ubuntu is the default. |
 | network address, IP | The number a computer has on the network. Wi-Fi often changes it, so goway finds helpers by name instead. |
-| `.local` name | A way computers on the same network find each other by name, such as `helios.local`. |
+| `.local` name | A way computers on the same network find each other by name, such as `my-helper.local`. |
 | port | A numbered door on a computer that one program listens at. goway's helpers listen at 2222. |
 | firewall rule | A permission that lets other computers reach a port. |
 | Public / Private network | How Windows classifies a network. Cafes are Public. Your home should be Private. |
