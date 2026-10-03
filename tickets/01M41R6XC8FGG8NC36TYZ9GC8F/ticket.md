@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:45:09Z"
-updated = "2026-10-03T21:17:53Z"
+updated = "2026-10-03T21:17:58Z"
 scope = ["crates/goway/src/render.rs", "crates/goway/src/shard.rs", "crates/goway/src/termfilter.rs", "crates/goway/src/run.rs", "crates/goway/tests/**", "docs/usage.md", "docs/design.md"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given goway's own messages (info, note, warning, error) printed while remote output streams, when both happen at once, then goway's message is assembled into one buffer and written whole under the same lock"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a host whose output ends without a newline, or a line longer than the cap (64 KiB), when it is relayed with a prefix, then the partial line is terminated (or split with a continuation prefix) so the next host's line never joins it, and memory per stream stays bounded"
