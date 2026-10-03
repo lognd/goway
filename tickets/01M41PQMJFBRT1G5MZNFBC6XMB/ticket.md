@@ -2,7 +2,8 @@
 id = "01M41PQMJFBRT1G5MZNFBC6XMB"
 title = "Filter terminal control sequences from remote output when stdout or stderr is a terminal"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
