@@ -1,0 +1,12 @@
+kind = "create"
+title = "Workspace skeleton: CLI, render module, tracing, error and exit-code types"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/**", "docs/**"]
+acceptance = ["Given the workspace, when cargo clippy runs, then print macros outside render.rs are denied", "Given any goway failure, when goway exits, then the exit code is 125 and the error is rendered on stderr"]
+at = "2026-10-03T16:11:37Z"
+actor = "lognd"
+rev = 1
