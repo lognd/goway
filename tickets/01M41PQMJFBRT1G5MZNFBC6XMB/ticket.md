@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:19:20Z"
-updated = "2026-10-03T20:23:48Z"
+updated = "2026-10-03T20:23:49Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**", "SECURITY.md", "docs/usage.md", "docs/design.md"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given --output=raw or GOWAY_OUTPUT=raw, When the stream is a terminal, Then bytes pass through untouched"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given stdout is a pipe or file, When remote output holds escape sequences, Then the bytes arrive identical"

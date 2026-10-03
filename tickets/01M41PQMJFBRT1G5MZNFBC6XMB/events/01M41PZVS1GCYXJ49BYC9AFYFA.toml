@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:23:49Z"
+digest = "4f4afaea56a4f6ef1316d98d7e0ee826cebfd141dbf053c3120c2bbffdc370d8"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9b09ce72-33d3-4cd8-87d1-f7b510d43015 with nextest profile: default
+    Starting 1 test across 24 binaries (255 tests skipped)
+        PASS [   0.015s] goway termfilter::tests::raw_mode_and_plain_streams_are_not_filtered
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.019s] 1 test run: 1 passed, 255 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(raw_mode_and_plain_streams_are_not_filtered)'"
+size = 562
+status = "measured"
+tests = ["termfilter::tests::raw_mode_and_plain_streams_are_not_filtered"]
+at = "2026-10-03T20:23:49Z"
+actor = "lognd"
+rev = 1
