@@ -2,7 +2,8 @@
 id = "01M41G473Q46HGXFM2A8M94XF7"
 title = "H1: elevated host install/uninstall must not trust user-writable journal, settings or binaries"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "critical"
 points = 8
 parent = "01M418GXXC6312Z4N151DYH3Y4"
