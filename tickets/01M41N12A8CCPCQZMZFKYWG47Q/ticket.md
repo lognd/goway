@@ -2,13 +2,13 @@
 id = "01M41N12A8CCPCQZMZFKYWG47Q"
 title = "README: how install and uninstall work, and why they are reversible (the journal)"
 type = "docs"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:49:32Z"
-updated = "2026-10-03T19:49:32Z"
+updated = "2026-10-03T19:49:33Z"
 labels = ["newcomer"]
 scope = ["README.md"]
 
