@@ -1,0 +1,45 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T17:22:45Z"
+digest = "076e1b974e24f379e698a2b1e6e0592ba66db8001cef78028e84cf33374cac36"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (/home/user/projects/goway-wt/RN5XHS5/crates/goway-setup)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.86s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 01551cdd-619e-4fb2-bfed-ffa6c940800d with nextest profile: default
+    Starting 22 tests across 2 binaries (7 binaries skipped)
+        PASS [   0.026s] goway-setup::host_plan changing_wsl_settings_asks_for_a_restart
+        PASS [   0.026s] goway-setup::host_plan a_test_profile_gets_its_own_names_and_files
+        PASS [   0.025s] goway-setup::host_plan on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall_keeps_it_all
+        PASS [   0.022s] goway-setup::hostsys deactivation_leaves_a_port_that_is_still_configured_and_starts_tasks_by_name
+        PASS [   0.022s] goway-setup::host_plan optional_steps_follow_the_probed_facts
+        PASS [   0.024s] goway-setup::host_plan the_default_profile_reuses_the_names_of_the_hand_made_setup
+        PASS [   0.033s] goway-setup::hostsys activation_restarts_only_when_the_port_is_not_yet_listening
+        PASS [   0.040s] goway-setup::host_plan the_host_journal_and_settings_live_beside_the_client_journal_and_are_cleaned_up
+        PASS [   0.023s] goway-setup::hostsys packages_install_noninteractively_and_are_removed_never_purged
+        PASS [   0.016s] goway-setup::hostsys scripts_name_the_right_cmdlets_and_quote_their_values
+        PASS [   0.047s] goway-setup::host_plan distro_names_are_restricted_to_safe_characters
+        PASS [   0.025s] goway-setup::hostsys port_lists_are_parsed_from_sshd_and_ss_output
+        PASS [   0.064s] goway-setup::host_plan a_user_change_after_install_is_left_alone_and_reported
+        PASS [   0.037s] goway-setup::hostsys probing_collects_the_facts_the_plan_depends_on
+        PASS [   0.040s] goway-setup::hostsys packages_in_odd_dpkg_states_are_refused_and_no_apt_command_runs
+        PASS [   0.025s] goway-setup::hostsys unix_paths_go_to_the_distro_as_root_and_windows_paths_stay_local
+        PASS [   0.044s] goway-setup::hostsys directory_digest_and_mode_operations_map_to_plain_commands
+        PASS [   0.069s] goway-setup::host_plan a_new_port_on_a_set_up_machine_is_a_pure_addition_that_uninstall_removes
+        PASS [   0.047s] goway-setup::hostsys powershell_encoding_and_quoting_are_exact
+        PASS [   0.023s] goway-setup::hostsys wsl_resources_exist_by_package_state_and_unit_enablement
+        PASS [   0.028s] goway-setup::hostsys windows_resources_run_the_matching_powershell_and_report_failures
+        PASS [   0.166s] goway-setup::host_plan reverting_the_host_plan_restores_any_machine_including_ones_where_parts_pre_exist
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.171s] 22 tests run: 22 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup -E 'binary(host_plan) | binary(hostsys)'"
+size = 2906
+status = "measured"
+tests = ["deactivation_leaves_a_port_that_is_still_configured_and_starts_tasks_by_name", "activation_restarts_only_when_the_port_is_not_yet_listening", "packages_install_noninteractively_and_are_removed_never_purged", "scripts_name_the_right_cmdlets_and_quote_their_values", "port_lists_are_parsed_from_sshd_and_ss_output", "probing_collects_the_facts_the_plan_depends_on", "packages_in_odd_dpkg_states_are_refused_and_no_apt_command_runs", "unix_paths_go_to_the_distro_as_root_and_windows_paths_stay_local", "directory_digest_and_mode_operations_map_to_plain_commands", "powershell_encoding_and_quoting_are_exact", "wsl_resources_exist_by_package_state_and_unit_enablement", "windows_resources_run_the_matching_powershell_and_report_failures", "changing_wsl_settings_asks_for_a_restart", "a_test_profile_gets_its_own_names_and_files", "on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall_keeps_it_all", "optional_steps_follow_the_probed_facts", "the_default_profile_reuses_the_names_of_the_hand_made_setup", "the_host_journal_and_settings_live_beside_the_client_journal_and_are_cleaned_up", "distro_names_are_restricted_to_safe_characters", "a_user_change_after_install_is_left_alone_and_reported", "a_new_port_on_a_set_up_machine_is_a_pure_addition_that_uninstall_removes", "reverting_the_host_plan_restores_any_machine_including_ones_where_parts_pre_exist"]
+at = "2026-10-03T17:22:45Z"
+actor = "lognd"
+rev = 1
