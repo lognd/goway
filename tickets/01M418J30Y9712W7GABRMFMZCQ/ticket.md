@@ -2,7 +2,7 @@
 id = "01M418J30Y9712W7GABRMFMZCQ"
 title = "goway status: hosts, load, jobs and disk"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
