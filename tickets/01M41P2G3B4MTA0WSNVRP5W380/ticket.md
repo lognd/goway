@@ -2,7 +2,8 @@
 id = "01M41P2G3B4MTA0WSNVRP5W380"
 title = "README: operating system and language support matrices, each row marked tested or untested"
 type = "docs"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
