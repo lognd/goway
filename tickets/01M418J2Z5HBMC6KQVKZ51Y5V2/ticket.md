@@ -2,7 +2,8 @@
 id = "01M418J2Z5HBMC6KQVKZ51Y5V2"
 title = "Cleanup: labels, expiry, auto gc and goway gc filters"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
