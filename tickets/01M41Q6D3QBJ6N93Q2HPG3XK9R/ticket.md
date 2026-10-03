@@ -8,7 +8,7 @@ points = 8
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-03T20:27:24Z"
+updated = "2026-10-03T20:29:33Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/src/remote.rs", "crates/goway/tests/**", ".github/workflows/ci.yml"]
 
 [[acceptance]]
@@ -21,5 +21,9 @@ bound = false
 
 [[acceptance]]
 text = "Given Ctrl-C or a dropped connection, when a run is in flight, then the Windows job tree is stopped and its slot released"
+bound = false
+
+[[acceptance]]
+text = "Given a run on a Windows host, when it ends (success, failure, Ctrl-C or dropped connection), then its run folder is removed unless --keep, and a detached auto-gc removes every expired labelled entry, exactly as remote.sh does on Linux"
 bound = false
 +++

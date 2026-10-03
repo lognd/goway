@@ -19,6 +19,8 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo nextest run --workspace --locked
+      - name: Packaging dry run (goway-setup is publish = false and skipped)
+        run: cargo publish --workspace --dry-run --exclude goway-setup --locked
   windows:
     runs-on: windows-2025
     steps:

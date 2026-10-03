@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T20:33:28Z"
+digest = "46c04227ae68ea05cddff085a9efa2ac19922176c66fb746b17966abd88b9f56"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 36036dd7-f7a6-437f-9e97-74414dfd28eb with nextest profile: default
+    Starting 1 test across 25 binaries (272 tests skipped)
+        PASS [   0.011s] goway doctor::tests::records_never_supply_the_command_uninstall_runs
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.013s] 1 test run: 1 passed, 272 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(records_never_supply_the_command_uninstall_runs)'"
+size = 562
+status = "measured"
+tests = ["doctor::tests::records_never_supply_the_command_uninstall_runs"]
+at = "2026-10-03T20:33:28Z"
+actor = "lognd"
+rev = 1

@@ -6,14 +6,21 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-publish.workspace = true
+publish = true
+readme.workspace = true
+# The integration tests read workspace files (scripts/, root Cargo.toml) that are not in the crate.
+exclude = ["tests/"]
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 anstream = "0.6"
 anstyle = "1"
 base64 = "0.22"
 dirs = "6"
-goway-journal = { path = "../goway-journal" }
+goway-journal = { workspace = true }
 humantime = "2"
 humantime-serde = "1"
 serde = { version = "1", features = ["derive"] }

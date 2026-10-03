@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T20:31:15Z"
+digest = "993cd209b1fc05dc5a9ae71ba7429a94311161d96bc3a05ce69ea3fad7dcac87"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 07532478-ff6d-484b-8149-b99b3974849d with nextest profile: default
+    Starting 3 tests across 26 binaries (270 tests skipped)
+        PASS [   0.015s] goway::publishing release_publishes_to_crates_io_after_the_github_release
+        PASS [   0.023s] goway::publishing journal_dependency_carries_a_version_for_crates_io
+        PASS [   0.028s] goway::publishing ci_dry_runs_the_publish_on_every_push
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.030s] 3 tests run: 3 passed, 270 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(release_publishes_to_crates_io_after_the_github_release) | test(ci_dry_runs_the_publish_on_every_push) | test(journal_dependency_carries_a_version_for_crates_io)'"
+size = 744
+status = "measured"
+tests = ["release_publishes_to_crates_io_after_the_github_release", "journal_dependency_carries_a_version_for_crates_io", "ci_dry_runs_the_publish_on_every_push"]
+at = "2026-10-03T20:31:15Z"
+actor = "lognd"
+rev = 1
