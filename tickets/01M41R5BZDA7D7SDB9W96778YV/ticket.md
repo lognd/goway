@@ -2,13 +2,13 @@
 id = "01M41R5BZDA7D7SDB9W96778YV"
 title = "ssh setup pins only the confirmed host key, restricts the authorized key and prefers goway's own key"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:44:18Z"
-updated = "2026-10-03T20:44:18Z"
+updated = "2026-10-03T20:44:21Z"
 scope = ["crates/goway/src/sshsetup.rs", "crates/goway/src/hosts.rs", "docs/ssh-setup.md"]
 
 [[acceptance]]
