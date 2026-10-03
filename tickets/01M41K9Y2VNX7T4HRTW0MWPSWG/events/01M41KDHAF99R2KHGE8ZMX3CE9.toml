@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T19:21:23Z"
+digest = "748c4392b5771507807276fe8eec526e1a18d4b3c7efd55275361c53dd8d38f0"
+exit_code = 0
+inline = '''
+   Compiling goway v0.1.0 (/home/user/projects/goway-wt/0MWPSWG/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.41s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 0defadb3-d319-4236-8375-98bed5f357c7 with nextest profile: default
+    Starting 2 tests across 22 binaries (230 tests skipped)
+        PASS [   0.007s] goway render::tests::plain_tables_read_as_labelled_lines
+        PASS [   0.219s] goway::run_local plain_status_reads_as_labelled_lines
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.221s] 2 tests run: 2 passed, 230 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(plain_status_reads_as_labelled_lines) | test(plain_tables_read_as_labelled_lines)'"
+size = 710
+status = "measured"
+tests = ["render::tests::plain_tables_read_as_labelled_lines", "plain_status_reads_as_labelled_lines"]
+at = "2026-10-03T19:21:23Z"
+actor = "lognd"
+rev = 1
