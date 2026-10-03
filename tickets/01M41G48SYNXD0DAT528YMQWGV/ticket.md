@@ -2,13 +2,13 @@
 id = "01M41G48SYNXD0DAT528YMQWGV"
 title = "M1: a stale deletions file must never delete files on a later sync"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:54Z"
-updated = "2026-10-03T18:23:54Z"
+updated = "2026-10-03T18:29:42Z"
 labels = ["security"]
 scope = ["crates/goway/**"]
 
