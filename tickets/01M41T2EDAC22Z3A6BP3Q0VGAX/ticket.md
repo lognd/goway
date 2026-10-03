@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:17:40Z"
-updated = "2026-10-03T21:37:40Z"
+updated = "2026-10-03T21:37:41Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/pool.rs", "crates/goway/src/facts.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs", "crates/goway/src/state.rs", "crates/goway/tests/**", "docs/usage.md"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a WSL helper on a Windows laptop with an NVIDIA GPU but no WSL CUDA driver, when goway doctor runs, then it says the GPU is invisible to WSL and how to fix it"
-bound = false
+bound = true
 +++
