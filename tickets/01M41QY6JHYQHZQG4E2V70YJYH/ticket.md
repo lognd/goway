@@ -8,7 +8,7 @@ points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:40:23Z"
-updated = "2026-10-03T20:40:33Z"
+updated = "2026-10-03T20:40:51Z"
 scope = ["docs/assets/goway-banner.svg"]
 
 [[acceptance]]
