@@ -3,7 +3,7 @@
 //! Each remote entry (work dir, seed, per-repository cache) carries a
 //! `meta.json` label and a lock. An entry is removed when its lock is free
 //! and it has been idle longer than its TTL: orphaned work dirs after
-//! `orphan_ttl`, `--keep` work dirs after `kept_ttl`, seeds and caches after
+//! `orphan_ttl`, `--keep` work dirs after `kept_ttl`, seeds and caches (with their slot trees) after
 //! `cache_ttl`. `--older-than` replaces every TTL and `--all` sets them to 0.
 //! A locked entry is reported busy and never touched. Every `goway run`
 //! also triggers this with the default TTLs on its host.

@@ -3,7 +3,7 @@
 # so the remote needs nothing installed beyond bash, GNU findutils, tar,
 # coreutils and util-linux (flock). Every directory goway owns carries a
 # meta.json label and a lock file that is flock-held while in use.
-set -euo pipefail
+set -Eeuo pipefail
 umask 077
 
 die() { printf 'goway-remote: %s\n' "$*" >&2; exit 125; }
@@ -36,6 +36,30 @@ mark_root() {
   printf 'goway state; safe to delete with goway gc --all\n' >"$1/.goway-root"
 }
 
+# lock_dir FD DIR FLOCK_OPT: create DIR if needed and hold DIR/lock on FD
+# (FLOCK_OPT is -x or -s). gc may remove DIR at any moment, so the open can
+# fail (DIR vanished) or lock an unlinked file; both retry until the held
+# lock file is the one DIR currently has. GOWAY_TEST_HOOK (tests only) is
+# evaluated once between the open and the flock to make that race happen.
+lock_dir() {
+  local fd=$1 dir=$2 opt=$3 tries=0
+  while [ $tries -lt 200 ]; do
+    tries=$((tries + 1))
+    mkdir -p "$dir" 2>/dev/null || true
+    if eval "exec $fd>\"\$dir/lock\"" 2>/dev/null; then
+      if [ -n "${GOWAY_TEST_HOOK:-}" ]; then
+        local hook=$GOWAY_TEST_HOOK
+        unset GOWAY_TEST_HOOK
+        eval "$hook"
+      fi
+      flock "$opt" "$fd"
+      if [ "$dir/lock" -ef "/proc/self/fd/$fd" ]; then return 0; fi
+    fi
+    sleep 0.05
+  done
+  die "cannot lock $dir (kept vanishing)"
+}
+
 new_generation() { printf '%s-%s-%s\n' "$(date +%s%N)" "$$" "$RANDOM"; }
 
 # Start a new worktree's seed as a hard-link copy of the most recently used
@@ -48,8 +72,7 @@ seed_from_sibling() {
     if [ "$d" != "$seed" ] && [ -d "$d/tree" ]; then sib=$d; break; fi
   done
   [ -n "$sib" ] || return 0
-  exec 6>"$sib/lock"
-  flock -s 6
+  lock_dir 6 "$sib" -s
   rm -rf "$seed/tree.new"
   cp -al "$sib/tree" "$seed/tree.new"
   new_generation >"$seed/generation"
@@ -63,13 +86,11 @@ manifest() {
   local root seed
   root=$(root_dir "$1"); seed="$root/seed/$2"
   mark_root "$root"
-  mkdir -p "$seed"
-  exec 8>"$seed/lock"
   if [ ! -d "$seed/tree" ]; then
-    flock -x 8
+    lock_dir 8 "$seed" -x
     [ -d "$seed/tree" ] || seed_from_sibling "$seed"
   fi
-  flock -s 8
+  lock_dir 8 "$seed" -s
   [ -d "$seed/tree" ] || return 0
   # The generation names this incarnation of the tree; receive refuses to
   # patch a tree whose generation changed since this manifest (gc removed
@@ -84,8 +105,7 @@ manifest() {
 hashes() {
   local root seed
   root=$(root_dir "$1"); seed="$root/seed/$2"
-  exec 8>"$seed/lock"
-  flock -s 8
+  lock_dir 8 "$seed" -s
   cd "$seed/tree"
   xargs -0 -r sha256sum -z -- 2>/dev/null || true
 }
@@ -99,9 +119,7 @@ deletions() {
   root=$(root_dir "$1"); seed="$root/seed/$2"
   case "$3" in *[!A-Za-z0-9-]* | "") die "deletions: bad attempt id" ;; esac
   mark_root "$root"
-  mkdir -p "$seed"
-  exec 8>"$seed/lock"
-  flock -x 8
+  lock_dir 8 "$seed" -x
   cat >"$seed/deletions.$3"
 }
 
@@ -109,16 +127,14 @@ deletions() {
 # under the seed's exclusive lock, check that the seed is still the one the
 # manifest described (GENERATION, empty for "no tree yet"), apply pending
 # deletions, extract the tar on stdin, and (when RUN_ID is given) snapshot
-# the tree into the run's fresh work dir in the same critical section.
-# Files are replaced by unlink and recreate, so hard-linked snapshots keep
-# their content. Exit 75 with "seed changed" when the generation differs.
+# the tree into the run's fresh work dir (a hard-link farm) in the same
+# critical section. Files are replaced by unlink and recreate, so
+# hard-linked snapshots keep their content. Exit 75 with "seed changed" when the generation differs.
 receive() {
   local root seed gen work
   root=$(root_dir "$1"); seed="$root/seed/$2"
   mark_root "$root"
-  mkdir -p "$seed"
-  exec 8>"$seed/lock"
-  flock -x 8
+  lock_dir 8 "$seed" -x
   gen=$(cat "$seed/generation" 2>/dev/null || true)
   if [ ! -d "$seed/tree" ]; then gen=""; fi
   local attempt=${8:-}
@@ -145,10 +161,114 @@ receive() {
     mkdir -p "$work"
     printf '%s' "$6" | base64 -d >"$work/meta.json"
     if [ "${7:-0}" = 1 ]; then : >"$work/keep"; fi
-    # A real copy (reflinked where the filesystem can): a job that
-    # writes a file in place must never change the seed or other runs.
-    cp -a --reflink=auto "$seed/tree" "$work/tree"
+    printf '%s' "$2" >"$work/seed"
+    # A hard-link snapshot: no data is copied. The seed is only ever
+    # changed by unlink and recreate (above and in seed_from_sibling), so a
+    # later sync never changes what this snapshot holds, and nothing writes
+    # through the snapshot: the job runs in a slot tree (see sync_slot).
+    cp -al "$seed/tree" "$work/tree"
   fi
+}
+
+# One tree entry as a record sorted and compared as a whole: type, size,
+# mtime, mode, link target, then the path last (so it may hold any byte
+# but NUL). Fields are separated by SOH.
+SOH=$'\001'
+REC='%y\001%s\001%T@\001%m\001%l\001%P\0'
+
+# The path part of each record on stdin.
+rec_paths() { sed -z "s/^\\([^$SOH]*$SOH\\)\\{5\\}//"; }
+
+# Escape glob characters so a directory name matches only itself in find -path.
+glob_escape() {
+  local s=$1
+  s=${s//\\/\\\\}; s=${s//\*/\\*}; s=${s//\?/\\?}; s=${s//\[/\\[}
+  printf '%s' "$s"
+}
+
+# detect_keep TREE: the dependency and build directories this project is
+# known to produce, from the marker files present, one entry per line. An
+# entry with a leading / is relative to the tree root (and a glob); one
+# without matches a directory of that name at any depth.
+detect_keep() {
+  local tree=$1 name rel dir pre
+  while IFS=$SOH read -r -d '' name rel; do
+    dir=""; [ "$rel" = "${rel%/*}" ] || dir=$(glob_escape "${rel%/*}")
+    pre="/${dir:+$dir/}"
+    case "$name" in
+      package.json) printf '%s\n' node_modules "${pre}.next" "${pre}.nuxt" ;;
+      pyproject.toml | requirements*.txt)
+        printf '%s\n' __pycache__ "${pre}.venv" "${pre}venv" "${pre}.tox" "${pre}.nox" \
+          "${pre}.pytest_cache" "${pre}.mypy_cache" "${pre}.ruff_cache" ;;
+      CMakeLists.txt) printf '%s\n' "${pre}build" "${pre}cmake-build-*" ;;
+      pom.xml) printf '%s\n' "${pre}target" ;;
+      build.gradle | build.gradle.kts) printf '%s\n' "${pre}.gradle" "${pre}build" ;;
+    esac
+  done < <(find "$tree" \( -type d \( -name node_modules -o -name .git \) -prune \) -o \
+    -type f \( -name package.json -o -name pyproject.toml -o -name 'requirements*.txt' \
+    -o -name CMakeLists.txt -o -name pom.xml -o -name build.gradle -o -name build.gradle.kts \) \
+    -printf "%f\\001%P\\0")
+}
+
+# sync_slot FARM SLOT WORK KEEP_IGNORED KEEP_B64: update SLOT in place so it
+# holds exactly the files of FARM (the run's snapshot) plus what the keep
+# set preserves. Only files that are missing or differ (type, size, mtime,
+# mode, link target) are written, with the seed's mtimes, so cargo, make
+# and ninja fingerprints stay valid; files in neither FARM nor the keep
+# set are removed, so no run sees another run's leftovers. The keep set:
+# detected dependency/build dirs, the configured entries, and (when
+# KEEP_IGNORED is 1 and git exists) every path the tree's .gitignore rules
+# ignore. Prints "written=N removed=M" to the file SLOT.stats.
+sync_slot() {
+  local farm=$1 slot=$2 work=$3 keepignored=$4 keepb64=$5
+  local tmp="$work/reconcile" e kexpr=() prune=() written removed
+  export LC_ALL=C
+  rm -rf "$tmp"; mkdir -p "$tmp" "$slot"
+
+  # The keep set as a find expression over SLOT.
+  { detect_keep "$farm"; printf '%s' "$keepb64" | base64 -d; printf '\n'; } | sort -u >"$tmp/keep"
+  while IFS= read -r e; do
+    [ -n "$e" ] || continue
+    e=${e#./}
+    case "$e" in
+      /*) kexpr+=(-o -path "$(glob_escape "$slot")$e") ;;
+      */*) kexpr+=(-o -path "$(glob_escape "$slot")/$e") ;;
+      *) kexpr+=(-o -name "$e") ;;
+    esac
+  done <"$tmp/keep"
+  if [ ${#kexpr[@]} -gt 0 ]; then
+    prune=('(' "${kexpr[@]:1}" ')' -prune -o)
+  fi
+
+  find "$farm" -mindepth 1 \( -type f -o -type l \) -printf "$REC" | sort -z >"$tmp/snap"
+  find "$slot" -mindepth 1 "${prune[@]}" \( -type f -o -type l \) -printf "$REC" | sort -z >"$tmp/slot"
+  # Records only in the snapshot: files missing from the slot or different.
+  comm -z -23 "$tmp/snap" "$tmp/slot" >"$tmp/todo"
+  rec_paths <"$tmp/snap" | sort -z >"$tmp/snap.p"
+  # Slot paths the snapshot does not have at all.
+  comm -z -13 "$tmp/snap" "$tmp/slot" | rec_paths | sort -z | comm -z -23 - "$tmp/snap.p" >"$tmp/stale"
+  if [ "$keepignored" = 1 ] && [ -s "$tmp/stale" ] && command -v git >/dev/null 2>&1; then
+    git init -q --bare "$tmp/git"
+    GIT_DIR="$tmp/git" GIT_WORK_TREE="$farm" git -c core.excludesFile=/dev/null \
+      check-ignore --no-index -z --stdin <"$tmp/stale" >"$tmp/ignored" 2>/dev/null || true
+    sort -z "$tmp/ignored" | comm -z -23 "$tmp/stale" - >"$tmp/stale.final"
+  else
+    mv "$tmp/stale" "$tmp/stale.final"
+  fi
+  removed=$(tr -cd '\0' <"$tmp/stale.final" | wc -c)
+  written=$(tr -cd '\0' <"$tmp/todo" | wc -c)
+  (cd "$slot" && xargs -0 -r rm -f -- <"$tmp/stale.final")
+  # Directories left empty (not the kept ones) go too, innermost first.
+  while :; do
+    find "$slot" -mindepth 1 "${prune[@]}" -type d -empty -print0 >"$tmp/empty"
+    [ -s "$tmp/empty" ] || break
+    xargs -0 -r rmdir -- <"$tmp/empty"
+  done
+  # Write the differing files, keeping mtime and mode, replacing by unlink.
+  rec_paths <"$tmp/todo" | (cd "$farm" && xargs -0 -r cp --no-dereference \
+    --preserve=mode,timestamps --parents --remove-destination --reflink=auto -t "$slot" --)
+  printf 'written=%s removed=%s\n' "$written" "$removed" >"$slot.stats"
+  rm -rf "$tmp"
 }
 
 # Kill the job's process group when the ssh session that started it dies
@@ -183,22 +303,24 @@ envfile() {
   chmod 600 "$work/env"
 }
 
-# run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 TTLS PRIORITY -- CMD...
-# The work dir was created by receive (snapshot of the seed).
+# run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 TTLS PRIORITY KEEP_IGNORED
+#     KEEP_B64 -- CMD...
+# The work dir was created by receive (a hard-link snapshot of the seed).
 # TTLS is "cache:orphan:kept" in seconds, for the automatic gc afterwards.
-# Snapshot the seed into a fresh work dir, pick a free cargo target slot,
-# run CMD in its own process group with stdio passed through, clean up,
-# and exit with CMD's status (128+N when killed by signal N).
+# Take a free slot (preferring the one this worktree used last), update the
+# slot's persistent tree in place from the snapshot (sync_slot), run CMD there
+# in its own process group with stdio passed through, clean up, and exit with
+# CMD's status (128+N when killed by signal N). With KEEP=1 the finished
+# tree is copied to work/<run-id>/tree for inspection; the slot stays usable.
 run() {
-  local root work cache slot="" k rc=0 wd rundir
+  local root work cache slot="" k rc=0 wd rundir order=() aff="" seedkey
   root=$(root_dir "$1"); work="$root/work/$2"; cache="$root/cache/$3"
   local root_arg=$1 run_id=$2 repo_id=$3 keep=$4 slots=$5 cache_meta=$6
-  local ttls=$7 priority=$8 nicer=()
-  shift 8
+  local ttls=$7 priority=$8 keepignored=$9 keepb64=${10} nicer=()
+  shift 10
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
-  rundir="$work/tree"
 
   mark_root "$root"
   mkdir -p "$cache"
@@ -216,26 +338,48 @@ run() {
     while IFS= read -r -d '' kv; do export "$kv"; done <"$work/env"
     rm -f "$work/env"
   fi
-  if [ -z "${CARGO_TARGET_DIR:-}" ]; then
-    for ((k = 0; k < slots; k++)); do
-      exec 7>"$cache/target-$k.lock"
-      if flock -n 7; then slot=$k; break; fi
-      exec 7>&-
-    done
-    if [ -z "$slot" ]; then
-      slot=$((RANDOM % slots))
-      printf 'goway: all %s cargo target slots busy; waiting for slot %s\n' "$slots" "$slot" >&2
+
+  # A slot is a persistent build tree (tree-k) plus its cargo target dir
+  # (target-k), held by target-k.lock. Prefer the slot this worktree used
+  # last, so its tree is already close to the snapshot.
+  seedkey=$(cat "$work/seed" 2>/dev/null || true)
+  seedkey=${seedkey##*/}
+  case "$seedkey" in "" | *[!A-Za-z0-9._-]*) ;; *) aff="$cache/affinity-$seedkey" ;; esac
+  k=$(cat "$aff" 2>/dev/null || true)
+  case "$k" in "" | *[!0-9]*) ;; *) [ "$k" -lt "$slots" ] && order+=("$k") ;; esac
+  for ((k = 0; k < slots; k++)); do
+    [ "${order[0]:-}" = "$k" ] || order+=("$k")
+  done
+  for k in "${order[@]}"; do
+    # gc may have removed an expired cache dir just now: re-create it and
+    # accept the lock only if it is the file the dir currently has.
+    mkdir -p "$cache"
+    exec 7>"$cache/target-$k.lock"
+    if flock -n 7 && [ "$cache/target-$k.lock" -ef /proc/self/fd/7 ]; then slot=$k; break; fi
+    exec 7>&-
+  done
+  if [ -z "$slot" ]; then
+    slot=$((RANDOM % slots))
+    printf 'goway: all %s build slots busy; waiting for slot %s\n' "$slots" "$slot" >&2
+    while :; do
+      mkdir -p "$cache"
       exec 7>"$cache/target-$slot.lock"
       flock 7
-    fi
+      [ "$cache/target-$slot.lock" -ef /proc/self/fd/7 ] && break
+    done
+  fi
+  [ -f "$cache/meta.json" ] || printf '%s' "$cache_meta" | base64 -d >"$cache/meta.json"
+  touch "$cache/meta.json"
+  [ -z "$aff" ] || printf '%s' "$slot" >"$aff"
+  # Builds bake absolute source paths into binaries (CARGO_MANIFEST_DIR,
+  # file!()), and cargo reuses them when only the workspace moved. So a
+  # slot's binaries always run against a tree at the same path: tree-<slot>.
+  rundir="$cache/tree-$slot"
+  sync_slot "$work/tree" "$rundir" "$work" "$keepignored" "$keepb64"
+  # The snapshot has done its job; its links hold no data of their own.
+  rm -rf "$work/tree"
+  if [ -z "${CARGO_TARGET_DIR:-}" ]; then
     export CARGO_TARGET_DIR="$cache/target-$slot"
-    # Builds bake absolute source paths into binaries (CARGO_MANIFEST_DIR,
-    # file!()), and cargo reuses them when only the workspace moved. So a
-    # slot's binaries always run against a tree at the same path: the
-    # snapshot moves to tree-<slot> (a rename) for the length of the run.
-    rundir="$cache/tree-$slot"
-    rm -rf "$rundir"
-    mv "$work/tree" "$rundir"
   fi
   if [ -z "${RUSTC_WRAPPER+set}" ] && command -v sccache >/dev/null 2>&1; then
     export RUSTC_WRAPPER=sccache
@@ -272,9 +416,7 @@ run() {
   setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "${nicer[@]}" "$@" || rc=$?
   kill "$wd" 2>/dev/null || true
   cd "$root"
-  if [ "$rundir" != "$work/tree" ]; then
-    if [ "$keep" = 1 ]; then mv "$rundir" "$work/tree"; else rm -rf "$rundir"; fi
-  fi
+  if [ "$keep" = 1 ]; then cp -a --reflink=auto "$rundir" "$work/tree"; fi
   if [ "$keep" != 1 ]; then rm -rf "$work"; fi
   # Cheap automatic gc of expired entries, detached so it never delays
   # the exit (and never holds the ssh session open).
