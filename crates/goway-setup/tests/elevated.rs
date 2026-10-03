@@ -24,7 +24,10 @@ fn settings() -> HostSettings {
 }
 
 fn layout_in(root: &Path) -> Layout {
-    let mut l = Layout::new(Path::new("/Local"), &root.join("ProgramData"), "p").unwrap();
+    // The real ProgramData always exists; only the goway directories below it are created.
+    let program_data = root.join("ProgramData");
+    std::fs::create_dir_all(&program_data).unwrap();
+    let mut l = Layout::new(Path::new("/Local"), &program_data, "p").unwrap();
     l.state_dir = root.join("user-state");
     l.journal_path = l.state_dir.join("install-journal.json");
     l

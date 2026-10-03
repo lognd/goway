@@ -10,6 +10,7 @@ use goway_setup::hostsys::{
     parse_sshd_ports,
 };
 use goway_setup::ps;
+use goway_setup::sysapi::{Tool, tool_path};
 
 /// Answers each command from a script of `(substring of the command line, exit code, stdout)`.
 struct Fake {
@@ -92,7 +93,7 @@ fn decode_base64(text: &str) -> Vec<u8> {
 
 /// The script text a PowerShell invocation carried.
 fn script_of(inv: &Invocation) -> String {
-    assert_eq!(inv.program, "powershell.exe");
+    assert_eq!(inv.program, tool_path(Tool::PowerShell));
     assert_eq!(
         inv.args[..3],
         ["-NoProfile", "-NonInteractive", "-EncodedCommand"]
@@ -124,7 +125,7 @@ fn powershell_encoding_and_quoting_are_exact() {
     assert_eq!(ps::quote("WSL SSH 2222"), "'WSL SSH 2222'");
     let script = "Write-Output 'caf\u{e9}'";
     let inv = Invocation {
-        program: "powershell.exe".into(),
+        program: tool_path(Tool::PowerShell),
         args: vec![
             "-NoProfile".into(),
             "-NonInteractive".into(),
@@ -235,7 +236,7 @@ fn unix_paths_go_to_the_distro_as_root_and_windows_paths_stay_local() {
     s.write_file(Path::new("/etc/x"), "a\nb\n").unwrap();
     let log = fake.log.borrow();
     let last = log.last().unwrap();
-    assert_eq!(last.program, "wsl.exe");
+    assert_eq!(last.program, tool_path(Tool::Wsl));
     assert_eq!(
         last.args,
         [
@@ -667,7 +668,6 @@ fn powershell_resources_with_wildcard_names_never_reach_powershell() {
 // frob:tests crates/goway-setup/src/sysapi.rs::tool_path
 #[test]
 fn system_tools_are_started_by_the_expected_path() {
-    use goway_setup::sysapi::{Tool, tool_path};
     let ps = tool_path(Tool::PowerShell);
     let wsl = tool_path(Tool::Wsl);
     if cfg!(windows) {

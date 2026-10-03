@@ -455,6 +455,8 @@ fn the_host_journal_and_settings_live_in_the_admin_dir_apart_from_the_client_jou
     let mut l = layout("p");
     l.state_dir = tmp.path().join("state");
     l.journal_path = l.state_dir.join("install-journal.json");
+    // The real ProgramData always exists; only the goway directories below it are created.
+    std::fs::create_dir_all(tmp.path().join("ProgramData")).unwrap();
     l.admin_root = tmp.path().join("ProgramData").join("goway");
     l.admin_dir = l.admin_root.join("p");
     l.host_journal_path = l.admin_dir.join("host-journal.json");

@@ -63,6 +63,9 @@ fn profile_names_are_restricted_to_safe_characters() {
 fn uninstall_entry_has_the_add_remove_programs_values() {
     let l = layout("goway-test");
     let values = uninstall_values(&l, "1.2.3");
+    // Built the way the layout builds it, so the separators match the platform.
+    let install_dir = Path::new("/local").join("Programs").join("goway-test");
+    let setup_exe = install_dir.join("goway-setup.exe");
     let get = |n: &str| values.iter().find(|(k, _)| *k == n).map(|(_, v)| v.clone());
     assert_eq!(
         get("DisplayName"),
@@ -75,19 +78,20 @@ fn uninstall_entry_has_the_add_remove_programs_values() {
     assert_eq!(get("Publisher"), Some(RegValue::String("goway".into())));
     assert_eq!(
         get("InstallLocation"),
-        Some(RegValue::String("/local/Programs/goway-test".into()))
+        Some(RegValue::String(install_dir.display().to_string()))
     );
     assert_eq!(
         get("UninstallString"),
-        Some(RegValue::String(
-            "\"/local/Programs/goway-test/goway-setup.exe\" uninstall --profile goway-test".into()
-        ))
+        Some(RegValue::String(format!(
+            "\"{}\" uninstall --profile goway-test",
+            setup_exe.display()
+        )))
     );
     assert_eq!(get("NoModify"), Some(RegValue::Dword(1)));
     assert_eq!(get("NoRepair"), Some(RegValue::Dword(1)));
     assert_eq!(
         uninstall_string(&l),
-        "\"/local/Programs/goway-test/goway-setup.exe\" uninstall --profile goway-test"
+        format!("\"{}\" uninstall --profile goway-test", setup_exe.display())
     );
     assert_eq!(display_name("goway"), "goway");
 }
