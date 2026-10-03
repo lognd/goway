@@ -1,0 +1,12 @@
+kind = "create"
+title = "Cleanup: labels, expiry, auto gc and goway gc filters"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/**", "docs/**"]
+acceptance = ["Given entries past their TTL with free locks, when gc runs, then they are removed and locked or fresh entries are kept", "Given goway gc --repo R --older-than D --dry-run, when it runs, then it lists exactly the matching entries and removes nothing"]
+at = "2026-10-03T16:11:38Z"
+actor = "lognd"
+rev = 1
