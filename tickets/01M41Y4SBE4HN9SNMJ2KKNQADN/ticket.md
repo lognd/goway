@@ -2,13 +2,13 @@
 id = "01M41Y4SBE4HN9SNMJ2KKNQADN"
 title = "Real Catch2 v3 binaries are not detected: the marker Catch2TestRun does not exist in them"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T22:28:51Z"
-updated = "2026-10-03T22:28:51Z"
+updated = "2026-10-03T23:23:54Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/**", ".github/workflows/ci.yml", "docs/usage.md"]
 
 [[acceptance]]
