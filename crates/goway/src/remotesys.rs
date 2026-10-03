@@ -56,10 +56,20 @@ impl RemoteSystem {
                 source: e,
             })?;
         }
-        let out = child.wait_with_output().map_err(|e| SystemError::Io {
+        let out = crate::sync::capture(
+            child,
+            crate::sync::MAX_HELPER_STDOUT,
+            crate::sync::MAX_HELPER_STDERR,
+        )
+        .map_err(|e| SystemError::Io {
             path: "ssh".into(),
             source: e,
         })?;
+        if out.stdout_overflow {
+            return Err(SystemError::InvalidState(
+                "the helper's answer is larger than goway accepts".to_owned(),
+            ));
+        }
         let stderr = String::from_utf8_lossy(&out.stderr).trim().to_owned();
         if out.status.code() == Some(255) {
             return Err(SystemError::InvalidState(format!("ssh failed: {stderr}")));
