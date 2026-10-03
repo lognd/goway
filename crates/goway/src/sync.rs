@@ -1009,8 +1009,10 @@ mod tests {
     }
 
     /// Runs the remote script through a local shell.
+    #[cfg(unix)]
     struct LocalTransport;
 
+    #[cfg(unix)]
     impl Transport for LocalTransport {
         fn output(&self, cmd: &str) -> Result<Vec<u8>> {
             let out = std::process::Command::new("sh")
@@ -1040,6 +1042,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     fn tree(dir: &Path) -> BTreeMap<String, (String, u64)> {
         let mut out = BTreeMap::new();
         let mut stack = vec![dir.to_path_buf()];
@@ -1309,11 +1312,13 @@ mod tests {
     }
 
     /// Deletes the seed (as a racing gc would) right before the first upload.
+    #[cfg(unix)]
     struct RacingGc {
         seed: PathBuf,
         raced: std::cell::Cell<bool>,
     }
 
+    #[cfg(unix)]
     impl Transport for RacingGc {
         fn output(&self, cmd: &str) -> Result<Vec<u8>> {
             LocalTransport.output(cmd)
@@ -1387,10 +1392,12 @@ mod tests {
 
     /// Fails the first upload (after deletions were stored), like a
     /// dropped connection.
+    #[cfg(unix)]
     struct DropFirstUpload {
         dropped: std::cell::Cell<bool>,
     }
 
+    #[cfg(unix)]
     impl Transport for DropFirstUpload {
         fn output(&self, cmd: &str) -> Result<Vec<u8>> {
             LocalTransport.output(cmd)

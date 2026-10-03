@@ -409,7 +409,8 @@ purge() {
   [ -e "$root/.goway-root" ] || die "$root is not marked as goway state; not removing it"
   for l in "$root"/work/*/lock "$root"/cache/*/target-*.lock; do
     [ -e "$l" ] || continue
-    flock -n "$l" true || die "a goway run is in progress on this host; try again when it ends"
+    # gc and the end of a run hold locks for moments; a real run for longer.
+    flock -w 10 "$l" true || die "a goway run is in progress on this host; try again when it ends"
   done
   for s in "$root"/cache/*/sccache.sock; do
     [ -S "$s" ] || continue
