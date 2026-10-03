@@ -2,13 +2,13 @@
 id = "01M41Q5QV6WPG98DFF5WMMTNRW"
 title = "Helper next-steps: validate and quote the WSL user, clean system text in the setup renderer"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:27:02Z"
-updated = "2026-10-03T20:27:02Z"
+updated = "2026-10-03T20:51:53Z"
 scope = ["crates/goway-setup/**"]
 
 [[acceptance]]
