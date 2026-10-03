@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:24:35Z"
-updated = "2026-10-03T20:34:38Z"
+updated = "2026-10-03T20:34:39Z"
 scope = ["docs/release.md"]
 
 [[links]]
@@ -18,6 +18,10 @@ target = "01M41P2FRR6AYWFFZA2FKHDK2A"
 [[links]]
 kind = "blocked-by"
 target = "01M41P2FTWWZGR0Q5JTNW5SF9B"
+
+[[links]]
+kind = "blocked-by"
+target = "01M41P2FWVAT5AP3XD121HE9YF"
 
 [[links]]
 kind = "blocked-by"
