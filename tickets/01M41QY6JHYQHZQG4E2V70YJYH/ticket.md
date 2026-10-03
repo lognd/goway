@@ -8,10 +8,10 @@ points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:40:23Z"
-updated = "2026-10-03T20:40:24Z"
+updated = "2026-10-03T20:40:33Z"
 scope = ["docs/assets/goway-banner.svg"]
 
 [[acceptance]]
 text = "Given the banner, when rendered, then the subtitle sits clearly below the wordmark's descenders"
-bound = false
+bound = true
 +++
