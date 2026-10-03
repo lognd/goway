@@ -2,7 +2,8 @@
 id = "01M41MRT8JQQGXY0HXH3K99JS8"
 title = "README: obvious placeholders with how to find each value; install matrix per OS"
 type = "docs"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
