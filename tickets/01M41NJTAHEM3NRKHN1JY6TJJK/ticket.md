@@ -2,7 +2,8 @@
 id = "01M41NJTAHEM3NRKHN1JY6TJJK"
 title = "README in the house style (banner, badges, tour, feature table) plus LICENSE, SECURITY, CONTRIBUTING, CODE_OF_CONDUCT"
 type = "docs"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
