@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:34:17Z"
-updated = "2026-10-03T20:36:29Z"
+updated = "2026-10-03T20:36:30Z"
 scope = ["crates/goway/src/render.rs", "crates/goway/src/sync.rs", "crates/goway/src/remotesys.rs", "crates/goway/src/remote.rs", "docs/troubleshooting.md", "SECURITY.md"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a helper that prints more than the cap on stdout or stderr, When goway captures it, Then memory stays bounded, stderr is truncated and oversize stdout is an error"
-bound = false
+bound = true
 +++
