@@ -4,6 +4,8 @@
 #
 #   scripts/windows/roundtrip.sh HOST_NAME [path/to/goway-setup.exe]
 #
+# frob command evidence needs a bare tool name on PATH: symlink this script as goway-roundtrip
+# (ln -s .../scripts/windows/roundtrip.sh ~/.local/bin/goway-roundtrip).
 # HOST_NAME (for example Helios) is resolved at run time through Windows mDNS, because the
 # hosts' addresses are DHCP leases; a dotted IPv4 address is used as given. Two cases run:
 #   1. fresh install, uninstalled with the staged exe (synchronous);
@@ -14,7 +16,7 @@
 set -euo pipefail
 
 host_name="${1:?usage: roundtrip.sh HOST_NAME [goway-setup.exe]}"
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.." && pwd)"  # also works through a PATH symlink
 here="$root/scripts/windows"
 exe="${2:-$root/target/x86_64-pc-windows-gnu/release/goway-setup.exe}"
 profile=goway-test
