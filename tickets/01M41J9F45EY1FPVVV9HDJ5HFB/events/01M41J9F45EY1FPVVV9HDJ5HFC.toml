@@ -1,0 +1,13 @@
+kind = "create"
+title = "Helper laptop one command: install --host prints the fingerprint and the exact next command, owns its uninstall entry"
+type = "story"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+labels = ["newcomer"]
+scope = ["crates/goway-setup/**"]
+acceptance = ["Given a Windows laptop with WSL, when goway-setup.exe install --host finishes, then it prints the host key fingerprint and the exact goway add command to run on the main laptop", "Given a host-only install, when it finishes, then Add/Remove Programs lists it and uninstall works without the downloaded file", "Given a Windows laptop without WSL, when install --host runs, then it stops before changing anything and prints the exact steps to install WSL"]
+at = "2026-10-03T19:01:41Z"
+actor = "lognd"
+rev = 1
