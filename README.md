@@ -161,6 +161,12 @@ disappears on its own after 7 idle days. Details:
 - `goway doctor` checks everything and says how to fix what is wrong.
 - Press Ctrl-C to stop a run; goway stops it on the helper too.
 
+Using a screen reader? Add `--plain` (or set `GOWAY_PLAIN=1`), and
+tables are printed as labelled lines such as
+`host: helios, load: 0.40, jobs: 0`. Every goway line starts with its
+kind in words (`error:`, `warning:`, `done:`, `next:` ...), so color is
+never needed.
+
 Old copies and caches on the helpers are cleaned up automatically
 (`goway gc --dry-run` shows what would go). More:
 [docs/usage.md](docs/usage.md).

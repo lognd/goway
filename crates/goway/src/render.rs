@@ -36,6 +36,9 @@ pub enum ColorWhen {
 #[derive(Debug, Clone, Copy)]
 pub struct Renderer {
     choice: ColorChoice,
+    /// Tables as labelled lines (`--plain`, `GOWAY_PLAIN=1`): screen
+    /// readers read "host: helios, load: 0.40" instead of bare columns.
+    plain: bool,
 }
 
 impl Renderer {
@@ -46,7 +49,17 @@ impl Renderer {
             ColorWhen::Always => ColorChoice::Always,
             ColorWhen::Never => ColorChoice::Never,
         };
-        Self { choice }
+        Self {
+            choice,
+            plain: std::env::var_os("GOWAY_PLAIN").is_some_and(|v| !v.is_empty() && v != "0"),
+        }
+    }
+
+    /// Render tables as labelled lines instead of columns.
+    #[must_use]
+    pub fn with_plain(mut self, plain: bool) -> Self {
+        self.plain |= plain;
+        self
     }
 
     fn err(self) -> AutoStream<std::io::Stderr> {
@@ -121,6 +134,12 @@ impl Renderer {
             .iter()
             .map(|r| r.iter().map(|c| clean(c)).collect())
             .collect();
+        if self.plain {
+            for line in plain_table(&rows) {
+                let _ = writeln!(out, "{line}");
+            }
+            return;
+        }
         for (i, row) in format_table(&rows).iter().enumerate() {
             let _ = if i == 0 {
                 writeln!(out, "{ACCENT}{row}{ACCENT:#}")
@@ -179,6 +198,27 @@ pub fn prefixed_line(to_stderr: bool, prefix: &str, line: &[u8]) {
     }
 }
 
+/// One line per data row of "label: value" pairs (empty cells and "-"
+/// skipped); pure so it can be tested.
+pub fn plain_table(rows: &[Vec<String>]) -> Vec<String> {
+    let Some((header, data)) = rows.split_first() else {
+        return Vec::new();
+    };
+    data.iter()
+        .map(|row| {
+            row.iter()
+                .enumerate()
+                .filter(|(_, v)| !v.trim().is_empty() && v.trim() != "-")
+                .map(|(i, v)| match header.get(i) {
+                    Some(label) if !label.is_empty() => format!("{label}: {}", v.trim()),
+                    _ => v.trim().to_owned(),
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .collect()
+}
+
 /// Pad cells so columns line up; pure so it can be tested.
 pub fn format_table(rows: &[Vec<String>]) -> Vec<String> {
     let columns = rows.iter().map(Vec::len).max().unwrap_or(0);
@@ -232,6 +272,15 @@ mod tests {
     fn remote_control_characters_never_reach_the_terminal() {
         let hostile = "evil\u{1b}]0;pwned\u{7}\u{1b}[2J\r\u{9b}x\nnext\tcol";
         assert_eq!(clean(hostile), "evil?]0;pwned??[2J??x\nnext\tcol");
+    }
+
+    #[test]
+    fn plain_tables_read_as_labelled_lines() {
+        let rows = vec![
+            vec!["host".to_owned(), "load".to_owned(), "jobs".to_owned()],
+            vec!["helios".to_owned(), "0.40".to_owned(), "-".to_owned()],
+        ];
+        assert_eq!(plain_table(&rows), ["host: helios, load: 0.40"]);
     }
 
     #[test]

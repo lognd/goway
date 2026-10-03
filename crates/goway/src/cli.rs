@@ -31,6 +31,10 @@ pub struct Cli {
     #[arg(long, value_enum, default_value_t, global = true)]
     pub color: ColorWhen,
 
+    /// Print tables as labelled lines, for screen readers (also `GOWAY_PLAIN=1`).
+    #[arg(long, global = true)]
+    pub plain: bool,
+
     /// The verb to run.
     #[command(subcommand)]
     pub command: Command,

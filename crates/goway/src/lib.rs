@@ -53,7 +53,7 @@ pub fn init_tracing(verbose: u8) {
 /// Run a parsed command line and turn the outcome into the process exit code.
 pub fn main_with(cli: &Cli) -> ExitCode {
     init_tracing(cli.verbose);
-    let renderer = Renderer::new(cli.color);
+    let renderer = Renderer::new(cli.color).with_plain(cli.plain);
     // Only the verb: arguments can carry --env values.
     tracing::debug!(verb = cli.command.verb(), "dispatch");
     match dispatch(&cli.command, renderer) {
