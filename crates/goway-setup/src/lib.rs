@@ -1,14 +1,18 @@
 //! goway-setup: install and provably uninstall goway.
 //!
 //! Every change goes through `goway-journal`, so `uninstall` replays the recorded priors
-//! backwards. Components (`client` now, `host` later) are planned independently in [`plan`].
+//! backwards. Components (`client`, `host`) are planned independently in [`plan`] and [`host`], one journal each.
 
 pub mod app;
 pub mod cli;
+pub mod elevate;
 pub mod entry;
 pub mod error;
+pub mod host;
+pub mod hostsys;
 pub mod layout;
 pub mod plan;
+pub mod ps;
 pub mod render;
 pub mod windows;
 

@@ -16,6 +16,14 @@ pub enum SystemError {
     /// The target is in a state the operation refuses to act on (for example a non-empty directory).
     #[error("invalid state: {0}")]
     InvalidState(String),
+    /// An external command (PowerShell, `wsl.exe`) could not run or reported failure.
+    #[error("command failed: {what}: {detail}")]
+    Command {
+        /// What was being attempted.
+        what: String,
+        /// Exit status and the command's own error text.
+        detail: String,
+    },
     /// An operating-system I/O failure.
     #[error("i/o error on {path}: {source}")]
     Io {

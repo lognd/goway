@@ -1,0 +1,363 @@
+//! The host component's plan: turn a Windows machine with WSL2 into a goway build host.
+//!
+//! Pure construction only (no probing, no side effects), so the plan is unit and property tested
+//! against the model system. Windows-side changes use the ordinary `Change` vocabulary with
+//! Windows paths; WSL-side changes use the same vocabulary with absolute `/unix/paths`, which
+//! [`crate::hostsys::HostSystem`] routes into the distro (see its module docs).
+
+use std::path::PathBuf;
+
+use goway_journal::{Change, Entry, Journal, Prior, ResourceKind};
+use serde::{Deserialize, Serialize};
+
+use crate::layout::{DEFAULT_PROFILE, Layout};
+
+/// Default TCP port of the WSL sshd.
+pub const DEFAULT_PORT: u16 = 2222;
+/// Default WSL distro.
+pub const DEFAULT_DISTRO: &str = "Ubuntu";
+/// The WSL VM's Hyper-V firewall creator id (the same on every machine).
+pub const WSL_VM_CREATOR_ID: &str = "{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}";
+/// The sshd package goway installs when absent.
+pub const SSHD_PACKAGE: &str = "openssh-server";
+/// Where the distro reads sshd drop-ins.
+pub const SSHD_DROPIN_DIR: &str = "/etc/ssh/sshd_config.d";
+/// The distro's WSL settings file.
+pub const WSL_CONF: &str = "/etc/wsl.conf";
+/// The systemd units enabled so sshd starts with the distro.
+pub const SSHD_UNITS: [&str; 2] = ["ssh.socket", "ssh.service"];
+
+/// When the keepalive task starts the distro.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, clap::ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub enum Keepalive {
+    /// At the user's logon, as the invoking user (no administrator rights for the task itself).
+    #[default]
+    Logon,
+    /// At boot without a logon (the task runs with `S4U`; needs administrator rights to register).
+    Boot,
+}
+
+/// What the user asked the host component to set up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostParams {
+    /// TCP port the WSL sshd listens on.
+    pub port: u16,
+    /// WSL distro name.
+    pub distro: String,
+    /// When the keepalive task starts.
+    pub keepalive: Keepalive,
+    /// Add a drop-in disabling password authentication (only applied when a key is authorized).
+    pub harden: bool,
+    /// The user's home directory, where `.wslconfig` lives.
+    pub home: PathBuf,
+}
+
+/// What probing the machine found; it decides which optional steps the plan contains.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostFacts {
+    /// Whether the Hyper-V firewall cmdlets exist (Windows 11 22H2 or later).
+    pub hyperv_firewall: bool,
+    /// Ports the distro's sshd already listens on by configuration (empty when not installed).
+    pub sshd_ports: Vec<u16>,
+    /// Whether the distro's default user has at least one authorized key.
+    pub authorized_keys: bool,
+}
+
+impl HostFacts {
+    /// What a dry run assumes on a fresh, capable machine.
+    pub fn assumed() -> Self {
+        Self {
+            hyperv_firewall: true,
+            sshd_ports: Vec::new(),
+            authorized_keys: true,
+        }
+    }
+}
+
+/// Settings persisted next to the host journal so uninstall can reach the same distro.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostSettings {
+    /// WSL distro the install changed.
+    pub distro: String,
+    /// The sshd port the install configured.
+    pub port: u16,
+}
+
+/// Spec of a Windows Defender Firewall rule resource (JSON in `Change::EnsureResource::spec`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FirewallSpec {
+    /// Inbound TCP port to allow.
+    pub port: u16,
+    /// Free-text description stored on the rule.
+    pub description: String,
+}
+
+/// Spec of a Hyper-V firewall rule resource.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HyperVSpec {
+    /// Inbound TCP port to allow.
+    pub port: u16,
+    /// The VM creator the rule applies to.
+    pub vm_creator_id: String,
+    /// Free-text description stored on the rule.
+    pub description: String,
+}
+
+/// Spec of the keepalive scheduled task resource.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TaskSpec {
+    /// Distro the task keeps alive.
+    pub distro: String,
+    /// When it starts.
+    pub keepalive: Keepalive,
+    /// Free-text description stored on the task.
+    pub description: String,
+}
+
+/// Accept only distro names that are safe inside a task command line and a PowerShell literal.
+pub fn validate_distro(distro: &str) -> Result<(), crate::error::SetupError> {
+    let ok = !distro.is_empty()
+        && distro
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'));
+    if ok {
+        Ok(())
+    } else {
+        tracing::warn!(distro, "rejected distro name");
+        Err(crate::error::SetupError::BadDistro(distro.to_owned()))
+    }
+}
+
+/// The profile prefix of resource names: empty for the default profile.
+fn prefix(profile: &str) -> String {
+    if profile == DEFAULT_PROFILE {
+        String::new()
+    } else {
+        format!("{profile} ")
+    }
+}
+
+/// Display name of the inbound Windows Firewall rule (the default profile matches the hand-made rule).
+pub fn firewall_rule_name(profile: &str, port: u16) -> String {
+    format!("{}WSL SSH {port}", prefix(profile))
+}
+
+/// Name of the Hyper-V firewall rule.
+pub fn hyperv_rule_name(profile: &str, port: u16) -> String {
+    format!("{}WSL SSH {port} (Hyper-V)", prefix(profile))
+}
+
+/// Name of the keepalive scheduled task (the default logon task matches the hand-made one).
+pub fn task_name(profile: &str, keepalive: Keepalive) -> String {
+    let suffix = match keepalive {
+        Keepalive::Logon => "",
+        Keepalive::Boot => " (boot)",
+    };
+    format!("{}WSL Keepalive{suffix}", prefix(profile))
+}
+
+/// Path of the sshd drop-in that adds the listening port.
+pub fn port_dropin_path(profile: &str) -> String {
+    format!("{SSHD_DROPIN_DIR}/20-{profile}-port.conf")
+}
+
+/// Path of the sshd drop-in that disables password authentication.
+pub fn hardening_dropin_path(profile: &str) -> String {
+    format!("{SSHD_DROPIN_DIR}/10-{profile}-hardening.conf")
+}
+
+/// Contents of the port drop-in.
+pub fn port_dropin(profile: &str, port: u16) -> String {
+    format!(
+        "# Managed by goway-setup (profile {profile}); removed by `goway-setup uninstall`.\nPort {port}\n"
+    )
+}
+
+/// Contents of the hardening drop-in.
+pub fn hardening_dropin(profile: &str) -> String {
+    format!(
+        "# Managed by goway-setup (profile {profile}); removed by `goway-setup uninstall`.\nPasswordAuthentication no\n"
+    )
+}
+
+fn resource(kind: ResourceKind, name: String, spec: &impl Serialize) -> Change {
+    Change::EnsureResource {
+        kind,
+        name,
+        spec: serde_json::to_string(spec).expect("specs are plain structs and always serialize"),
+    }
+}
+
+/// The changes of the host component, in application order (reverted in the opposite order).
+///
+/// Windows side: `.wslconfig` mirrored networking, the inbound firewall rule, the Hyper-V
+/// firewall rule (when the cmdlets exist) and the keepalive task. WSL side: systemd in
+/// `/etc/wsl.conf`, the sshd package, the port (and optional hardening) drop-ins, and sshd
+/// enabled at boot. The drop-ins are written before the package so a first install starts
+/// listening on the right port.
+pub fn host_plan(layout: &Layout, params: &HostParams, facts: &HostFacts) -> Vec<Change> {
+    let profile = layout.profile.as_str();
+    let port = params.port;
+    let note = format!("goway-setup profile {profile}");
+    let mut plan = vec![
+        Change::SetIniKey {
+            path: params.home.join(".wslconfig"),
+            section: "wsl2".into(),
+            key: "networkingMode".into(),
+            value: "mirrored".into(),
+        },
+        resource(
+            ResourceKind::FirewallRule,
+            firewall_rule_name(profile, port),
+            &FirewallSpec {
+                port,
+                description: format!("WSL sshd; {note}"),
+            },
+        ),
+    ];
+    if facts.hyperv_firewall {
+        plan.push(resource(
+            ResourceKind::HyperVFirewallRule,
+            hyperv_rule_name(profile, port),
+            &HyperVSpec {
+                port,
+                vm_creator_id: WSL_VM_CREATOR_ID.into(),
+                description: format!("WSL sshd; {note}"),
+            },
+        ));
+    }
+    plan.push(resource(
+        ResourceKind::ScheduledTask,
+        task_name(profile, params.keepalive),
+        &TaskSpec {
+            distro: params.distro.clone(),
+            keepalive: params.keepalive,
+            description: format!(
+                "keeps the {} WSL distro and its sshd running; {note}",
+                params.distro
+            ),
+        },
+    ));
+    plan.push(Change::SetIniKey {
+        path: WSL_CONF.into(),
+        section: "boot".into(),
+        key: "systemd".into(),
+        value: "true".into(),
+    });
+    plan.push(Change::EnsureDir {
+        path: SSHD_DROPIN_DIR.into(),
+    });
+    if !facts.sshd_ports.contains(&port) {
+        plan.push(Change::WriteFile {
+            path: port_dropin_path(profile).into(),
+            contents: port_dropin(profile, port),
+        });
+    }
+    if params.harden && facts.authorized_keys {
+        plan.push(Change::WriteFile {
+            path: hardening_dropin_path(profile).into(),
+            contents: hardening_dropin(profile),
+        });
+    }
+    plan.push(Change::EnsureResource {
+        kind: ResourceKind::WslPackage,
+        name: SSHD_PACKAGE.into(),
+        spec: String::new(),
+    });
+    plan.extend(SSHD_UNITS.iter().map(|unit| Change::EnsureResource {
+        kind: ResourceKind::WslUnit,
+        name: (*unit).into(),
+        spec: String::new(),
+    }));
+    plan
+}
+
+/// Whether `entry` really changed something (a no-op entry means the state pre-existed).
+fn changed(entry: &Entry) -> bool {
+    entry.prior != Prior::Noop && !entry.reverted
+}
+
+fn is_wsl_change(change: &Change) -> bool {
+    match change {
+        Change::WriteFile { path, .. }
+        | Change::SetIniKey { path, .. }
+        | Change::EnsureDir { path } => path.to_str().is_some_and(|s| s.starts_with('/')),
+        Change::EnsureResource { kind, .. } => {
+            matches!(kind, ResourceKind::WslPackage | ResourceKind::WslUnit)
+        }
+        _ => false,
+    }
+}
+
+/// Whether the journal holds a live change to the distro's sshd (so a reload or restart is due).
+pub fn sshd_changed(journal: &Journal) -> bool {
+    journal
+        .entries
+        .iter()
+        .any(|e| changed(e) && is_wsl_change(&e.change) && !is_wsl_conf(&e.change))
+}
+
+fn is_wsl_conf(change: &Change) -> bool {
+    matches!(change, Change::SetIniKey { path, .. } if path.to_str() == Some(WSL_CONF))
+}
+
+/// The keepalive task this journal created (the one worth starting now), if any.
+pub fn created_task(journal: &Journal) -> Option<&str> {
+    journal.entries.iter().find_map(|e| match &e.change {
+        Change::EnsureResource {
+            kind: ResourceKind::ScheduledTask,
+            name,
+            ..
+        } if changed(e) => Some(name.as_str()),
+        _ => None,
+    })
+}
+
+/// Follow-ups the user must perform after a host install: settings only WSL's restart applies.
+pub fn restart_notices(journal: &Journal) -> Vec<String> {
+    let mut notices = Vec::new();
+    for e in journal.entries.iter().filter(|e| changed(e)) {
+        match &e.change {
+            Change::SetIniKey { path, key, .. } if key == "networkingMode" => notices.push(format!(
+                "{} changed; run `wsl --shutdown` (this ends all WSL sessions) for mirrored networking to apply",
+                path.display()
+            )),
+            c @ Change::SetIniKey { .. } if is_wsl_conf(c) => notices.push(
+                "/etc/wsl.conf changed; run `wsl --terminate <distro>` for it to apply".to_owned(),
+            ),
+            _ => {}
+        }
+    }
+    notices
+}
+
+/// Whether the journal creates or removes the distro's port drop-in (the listening port changes).
+pub fn dropin_in_journal(journal: &Journal, profile: &str) -> bool {
+    let want = port_dropin_path(profile);
+    journal.entries.iter().any(|e| {
+        changed_or_reverted(e)
+            && matches!(&e.change, Change::WriteFile { path, .. } if path.to_str() == Some(want.as_str()))
+    })
+}
+
+fn changed_or_reverted(entry: &Entry) -> bool {
+    entry.prior != Prior::Noop
+}
+
+/// Whether reverting the journal still changes firewall rules or tasks (needs administrator rights).
+pub fn needs_admin(journal: &Journal) -> bool {
+    journal.entries.iter().any(|e| {
+        !e.reverted
+            && e.prior != Prior::Noop
+            && matches!(
+                &e.change,
+                Change::EnsureResource {
+                    kind: ResourceKind::FirewallRule
+                        | ResourceKind::HyperVFirewallRule
+                        | ResourceKind::ScheduledTask,
+                    ..
+                }
+            )
+    })
+}

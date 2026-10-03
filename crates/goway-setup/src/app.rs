@@ -8,6 +8,7 @@ use goway_journal::{
 };
 
 use crate::error::SetupError;
+use crate::host::HostSettings;
 use crate::layout::Layout;
 
 /// How hard uninstall retries a revert that fails on locked files.
@@ -54,6 +55,31 @@ pub struct UninstallReport {
     pub outcomes: Vec<(usize, Outcome)>,
 }
 
+/// Persist the host settings so a later uninstall reaches the same distro.
+pub fn save_settings(layout: &Layout, settings: &HostSettings) -> Result<(), SetupError> {
+    std::fs::create_dir_all(&layout.state_dir).map_err(|e| SetupError::io(&layout.state_dir, e))?;
+    let json = serde_json::to_string_pretty(settings).map_err(JournalError::from)?;
+    std::fs::write(&layout.host_settings_path, json)
+        .map_err(|e| SetupError::io(&layout.host_settings_path, e))
+}
+
+/// Read the saved host settings; `None` when there are none.
+pub fn load_settings(layout: &Layout) -> Result<Option<HostSettings>, SetupError> {
+    match std::fs::read_to_string(&layout.host_settings_path) {
+        Ok(text) => Ok(serde_json::from_str(&text).ok()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(SetupError::io(&layout.host_settings_path, e)),
+    }
+}
+
+/// Delete the saved host settings, then the state directory if nothing else is in it.
+pub fn remove_settings(layout: &Layout) {
+    if let Err(e) = std::fs::remove_file(&layout.host_settings_path) {
+        tracing::debug!(path = %layout.host_settings_path.display(), error = %e, "no settings to remove");
+    }
+    let _ = std::fs::remove_dir(&layout.state_dir);
+}
+
 /// Load the profile's journal; `None` when it has none.
 pub fn load_journal(layout: &Layout) -> Result<Option<Journal>, SetupError> {
     if !layout.journal_path.exists() {
@@ -62,12 +88,8 @@ pub fn load_journal(layout: &Layout) -> Result<Option<Journal>, SetupError> {
     Ok(Some(Journal::load(&layout.journal_path)?))
 }
 
-/// Apply `plan`, persisting the journal after every entry; roll back on failure.
-pub fn install(
-    sys: &mut (impl System + ?Sized),
-    layout: &Layout,
-    plan: &[Change],
-) -> Result<Journal, SetupError> {
+/// Refuse when the journal records a live (not fully reverted) install.
+pub fn ensure_not_installed(layout: &Layout) -> Result<(), SetupError> {
     if let Some(existing) = load_journal(layout)? {
         if existing.entries.iter().any(|e| !e.reverted) {
             tracing::warn!(profile = %layout.profile, "install refused: journal records a live install");
@@ -78,6 +100,16 @@ pub fn install(
         }
         tracing::info!(profile = %layout.profile, "replacing a fully reverted journal");
     }
+    Ok(())
+}
+
+/// Apply `plan`, persisting the journal after every entry; roll back on failure.
+pub fn install(
+    sys: &mut (impl System + ?Sized),
+    layout: &Layout,
+    plan: &[Change],
+) -> Result<Journal, SetupError> {
+    ensure_not_installed(layout)?;
     std::fs::create_dir_all(&layout.state_dir).map_err(|e| SetupError::io(&layout.state_dir, e))?;
     let path = layout.journal_path.clone();
     let result = apply_with(plan, sys, Journal::generate(), &mut |j| j.save(&path));

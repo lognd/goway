@@ -62,6 +62,8 @@ fn kind() -> impl Strategy<Value = ResourceKind> {
         Just(ResourceKind::HyperVFirewallRule),
         Just(ResourceKind::ScheduledTask),
         Just(ResourceKind::Service),
+        Just(ResourceKind::WslPackage),
+        Just(ResourceKind::WslUnit),
     ]
 }
 

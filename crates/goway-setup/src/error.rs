@@ -1,6 +1,6 @@
 //! Typed errors for the installer.
 
-use goway_journal::JournalError;
+use goway_journal::{JournalError, SystemError};
 
 /// Everything that can make an install, uninstall or status command fail.
 #[derive(Debug, thiserror::Error)]
@@ -21,6 +21,32 @@ pub enum SetupError {
         /// Journal path.
         journal: String,
     },
+    /// The WSL distro name is empty or contains characters unsafe in command lines.
+    #[error("invalid distro name {0:?}: use letters, digits, '.', '-' and '_'")]
+    BadDistro(String),
+    /// The host component changes Windows and WSL and only runs on Windows.
+    #[error("the host component only runs on Windows (use --dry-run to see its plan)")]
+    HostNeedsWindows,
+    /// The host component needs administrator rights and cannot get them.
+    #[error("the host component needs administrator rights (firewall rules): {0}")]
+    NeedsAdmin(String),
+    /// The WSL distro is missing or does not start.
+    #[error("WSL distro {0} did not respond; check `wsl -l -v` and pass --distro NAME")]
+    DistroUnreachable(String),
+    /// systemd is not running in the distro, so sshd cannot be managed.
+    #[error(
+        "systemd is not running in WSL distro {distro}; enable it, then run the install again:\n  wsl -d {distro} -u root --exec sh -c \"printf '[boot]\\nsystemd=true\\n' >> /etc/wsl.conf\"\n  wsl --terminate {distro}"
+    )]
+    SystemdOff {
+        /// The distro.
+        distro: String,
+    },
+    /// The elevated re-run failed; its own output was printed above.
+    #[error("the elevated run failed with exit code {0}; its output is shown above")]
+    ElevatedRunFailed(u32),
+    /// A probe or activation command against the machine failed.
+    #[error(transparent)]
+    System(#[from] SystemError),
     /// This build carries no goway.exe payload.
     #[error(
         "this goway-setup was built without a goway.exe payload; build it with scripts/windows/build.sh"
