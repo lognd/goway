@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [6]
+captured_at = "2026-10-03T21:47:47Z"
+digest = "6fbcd91abd918927f7ec6e15565fe384660ffdc22a449f460e4d5883633f9698"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 3390e325-2149-40f4-8b6d-fa79de579555 with nextest profile: default
+    Starting 1 test across 31 binaries (371 tests skipped)
+        PASS [   0.959s] goway::shard_detect an_uncertain_failure_is_flagged_and_never_rerun
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.961s] 1 test run: 1 passed, 371 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "an_uncertain_failure_is_flagged"
+size = 561
+status = "measured"
+tests = ["an_uncertain_failure_is_flagged_and_never_rerun"]
+at = "2026-10-03T21:47:47Z"
+actor = "lognd"
+rev = 1
