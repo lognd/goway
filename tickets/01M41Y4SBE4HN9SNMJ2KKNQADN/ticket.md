@@ -2,7 +2,8 @@
 id = "01M41Y4SBE4HN9SNMJ2KKNQADN"
 title = "Real Catch2 v3 binaries are not detected: the marker Catch2TestRun does not exist in them"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
