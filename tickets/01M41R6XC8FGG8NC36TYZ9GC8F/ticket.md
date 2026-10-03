@@ -21,7 +21,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a host whose output ends without a newline, or a line longer than the cap (64 KiB), when it is relayed with a prefix, then the partial line is terminated (or split with a continuation prefix) so the next host's line never joins it, and memory per stream stays bounded"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given heavy output, when lines are relayed, then all complete lines already buffered are written in one batch per lock, and a slow terminal applies back-pressure to the remote command instead of growing memory"
