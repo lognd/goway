@@ -436,7 +436,7 @@ fn two_hosts() -> common::World {
 
 // frob:tests crates/goway/src/shard.rs::run_sharded
 // frob:tests crates/goway/src/pool.rs::choose_many
-// frob:tests crates/goway/src/render.rs::prefixed_line
+// frob:tests crates/goway/src/render.rs::prefixed_batch
 #[test]
 fn shards_run_on_n_hosts_and_any_failure_fails_the_run() {
     let w = two_hosts();

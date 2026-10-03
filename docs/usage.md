@@ -131,6 +131,27 @@ passes through. When a stream is a pipe or a file (`goway run ... > log`,
 frob evidence), the output is never touched, byte for byte. Sharded runs
 (`--shard`) follow the same rules per `[host]`-prefixed stream.
 
+#### Output integrity
+
+Everything goway writes to your terminal or pipe goes through one global
+output lock: goway's own messages (info, note, warning, error), the
+`[host]`-prefixed lines of sharded runs, and the pass-through of a
+single-host run. Each logical line, prefix included, is assembled in one
+buffer and written with one write call, so a line from the other stream
+or another host can never land inside it. In a sharded run:
+
+- all complete lines already read are written as one batch per lock;
+- a line longer than 64 KiB is split, each continuation starting with
+  `[host]+ ` instead of `[host] `, and no memory beyond one such line is
+  held per stream;
+- a last line with no newline is terminated, so the next host's line
+  never joins it;
+- a slow terminal blocks the writer while it holds the lock, which
+  stops reading from the remote command (ssh back-pressure); there is no
+  unbounded queue anywhere.
+
+A single-host run to a pipe stays byte-identical to the command's output.
+
 ## Status
 
 `goway status` prints for every host:

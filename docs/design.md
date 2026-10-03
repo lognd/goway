@@ -182,6 +182,18 @@ keys, environment), docs/install-windows.md (installer) and
 docs/positioning.md (niche and coexistence rules). This page keeps the
 problem tree and the measured facts behind the design.
 
+### Output integrity
+
+`render.rs` owns one static output lock. Every writer takes it: the
+`Renderer` messages (built whole, then written once), `write_locked` for
+pass-through bytes and `LineFramer` batches for sharded runs. The framer
+holds at most one partial line (64 KiB) per stream, splits longer lines
+with a `[host]+ ` continuation prefix, and terminates a partial last line
+at EOF. `shard::pump` reads with a 64 KiB `BufReader`, frames everything
+buffered and writes it as one batch; a blocked write stops further reads,
+which is the back-pressure. `tracing` diagnostics still go to stderr
+unlocked; they are developer output and off by default.
+
 ## 4. Configuration
 
 `~/.config/goway/config.toml` (Windows: `%LOCALAPPDATA%\goway\config.toml`):
