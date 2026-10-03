@@ -8,6 +8,7 @@ use goway_setup::error::SetupError;
 use goway_setup::layout::Layout;
 use goway_setup::plan::{Sources, client_plan};
 use proptest::prelude::*;
+use proptest::test_runner::{Config, TestRunner};
 
 const BIN: &str = "/Local/Programs/p/bin";
 
@@ -212,29 +213,38 @@ fn arbitrary_path() -> impl Strategy<Value = Option<String>> {
 
 // frob:tests crates/goway-setup/src/plan.rs::client_plan
 // frob:tests crates/goway-setup/src/app.rs::uninstall
-proptest! {
-    /// Uninstall after install is the identity over arbitrary Path values and registry states.
-    #[test]
-    fn client_plan_reverts_exactly(
-        path in arbitrary_path(),
-        programs in any::<bool>(),
-        key_exists in any::<bool>(),
-        old_name in proptest::option::of("[a-z]{1,6}"),
-    ) {
-        let f = fixture();
-        let mut initial = machine(path.as_deref(), programs);
-        if key_exists {
-            initial.reg_keys.insert(f.layout.uninstall_key.clone());
-        }
-        if let Some(n) = old_name {
-            initial.registry.insert((f.layout.uninstall_key.clone(), n), RegValue::String("keep".into()));
-        }
-        let mut sys = initial.clone();
-        app::install(&mut sys, &f.layout, &f.plan).unwrap();
-        prop_assert!(sys.vars["Path"].split(';').any(|e| e == BIN));
-        app::uninstall(&mut sys, &f.layout, Retry::ONCE).unwrap().unwrap();
-        prop_assert_eq!(sys, initial);
-    }
+/// Uninstall after install is the identity over arbitrary Path values and registry states.
+#[test]
+fn client_plan_reverts_exactly() {
+    let inputs = (
+        arbitrary_path(),
+        any::<bool>(),
+        any::<bool>(),
+        proptest::option::of("[a-z]{1,6}"),
+    );
+    TestRunner::new(Config::with_cases(300))
+        .run(&inputs, |(path, programs, key_exists, old_name)| {
+            let f = fixture();
+            let mut initial = machine(path.as_deref(), programs);
+            if key_exists {
+                initial.reg_keys.insert(f.layout.uninstall_key.clone());
+            }
+            if let Some(n) = old_name {
+                initial.registry.insert(
+                    (f.layout.uninstall_key.clone(), n),
+                    RegValue::String("keep".into()),
+                );
+            }
+            let mut sys = initial.clone();
+            app::install(&mut sys, &f.layout, &f.plan).unwrap();
+            prop_assert!(sys.vars["Path"].split(';').any(|e| e == BIN));
+            app::uninstall(&mut sys, &f.layout, Retry::ONCE)
+                .unwrap()
+                .unwrap();
+            prop_assert_eq!(sys, initial);
+            Ok(())
+        })
+        .unwrap();
 }
 
 // frob:tests crates/goway-setup/src/app.rs::load_journal

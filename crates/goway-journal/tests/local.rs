@@ -123,3 +123,22 @@ fn registry_acl_vars_and_resources_are_unsupported() {
         JournalError::System(SystemError::Unsupported(_))
     ));
 }
+
+#[test]
+fn install_file_copies_binary_bytes_and_reverts_on_disk() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let bytes: Vec<u8> = (0..=255u8).collect();
+    std::fs::write(root.join("src.bin"), &bytes).unwrap();
+    let plan = [Change::InstallFile {
+        path: root.join("dest.bin"),
+        source: root.join("src.bin"),
+        digest: goway_journal::sha256_hex(&bytes),
+    }];
+    let mut sys = LocalSystem;
+    let mut journal = apply(&plan, &mut sys).unwrap();
+    assert_eq!(std::fs::read(root.join("dest.bin")).unwrap(), bytes);
+    revert(&mut journal, &mut sys).unwrap();
+    assert!(!root.join("dest.bin").exists());
+    assert!(root.join("src.bin").exists());
+}

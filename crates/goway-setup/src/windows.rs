@@ -3,12 +3,12 @@
 
 use std::path::Path;
 
+#[cfg(windows)]
+#[allow(unsafe_code)] // one FFI call with a NUL-terminated static string; see SAFETY
 /// Tell running programs (Explorer, new consoles) that the user environment changed.
 ///
 /// Broadcasts `WM_SETTINGCHANGE` with the string "Environment" so new shells see the new Path.
 /// Best effort: a timeout or failure is logged, never fatal.
-#[cfg(windows)]
-#[allow(unsafe_code)] // one FFI call with a NUL-terminated static string; see SAFETY
 pub fn broadcast_environment_change() {
     use windows_sys::Win32::Foundation::LPARAM;
     use windows_sys::Win32::UI::WindowsAndMessaging::{

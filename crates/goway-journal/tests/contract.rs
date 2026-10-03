@@ -81,3 +81,37 @@ fn model_system_honours_the_system_contract() {
     s.resource_delete(ResourceKind::ScheduledTask, "t").unwrap();
     assert_eq!(s, ModelSystem::new());
 }
+
+// frob:tests crates/goway-journal/src/system.rs::System.file_digest
+// frob:tests crates/goway-journal/src/system.rs::System.copy_file
+// frob:tests crates/goway-journal/src/system.rs::System.reg_key_exists
+// frob:tests crates/goway-journal/src/system.rs::System.reg_key_create
+// frob:tests crates/goway-journal/src/system.rs::System.reg_key_is_empty
+// frob:tests crates/goway-journal/src/system.rs::System.reg_key_remove
+#[test]
+fn model_system_honours_the_file_copy_and_registry_key_contract() {
+    let mut s = ModelSystem::new();
+    s.create_dir(Path::new("/d")).unwrap();
+    s.write_file(Path::new("/d/a"), "x").unwrap();
+    assert_eq!(s.file_digest(Path::new("/d/none")).unwrap(), None);
+    let digest = s.file_digest(Path::new("/d/a")).unwrap().unwrap();
+    assert_eq!(digest, goway_journal::sha256_hex(b"x"));
+    s.copy_file(Path::new("/d/a"), Path::new("/d/b")).unwrap();
+    assert_eq!(s.file_digest(Path::new("/d/b")).unwrap(), Some(digest));
+    assert!(
+        s.copy_file(Path::new("/d/none"), Path::new("/d/c"))
+            .is_err()
+    );
+
+    assert!(!s.reg_key_exists("K").unwrap());
+    s.reg_key_create("K").unwrap();
+    assert!(s.reg_key_exists("K").unwrap());
+    assert!(s.reg_key_is_empty("K").unwrap());
+    s.reg_set("K", "n", &RegValue::Dword(1)).unwrap();
+    assert!(!s.reg_key_is_empty("K").unwrap());
+    assert!(s.reg_key_remove("K").is_err(), "non-empty keys are refused");
+    s.reg_delete("K", "n").unwrap();
+    s.reg_key_remove("K").unwrap();
+    s.reg_key_remove("K").unwrap();
+    assert!(!s.reg_key_exists("K").unwrap());
+}
