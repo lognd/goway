@@ -8,7 +8,7 @@ points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-03T21:30:50Z"
+updated = "2026-10-03T21:31:41Z"
 scope = ["scripts/install.sh", ".github/workflows/release.yml", "crates/goway/tests/install_scripts.rs", "docs/release.md", "scripts/uninstall.sh", ".github/workflows/ci.yml", "README.md", "crates/goway/src/sync.rs"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given macOS, when the one-line installer runs, then it downloads the right binary, verifies it with shasum, and installs it"
-bound = false
+bound = true
 +++

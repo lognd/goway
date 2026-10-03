@@ -1,0 +1,252 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T21:31:41Z"
+digest = "e7641b2c30cdff4b566069db141628ce03d3a02c0d8e86d836fdd7ecdbe0a898"
+exit_code = 0
+inline = '''
+   Compiling libc v0.2.190
+   Compiling cfg-if v1.0.5
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+   Compiling bitflags v2.13.2
+   Compiling serde_core v1.0.229
+   Compiling rustix v1.1.5
+   Compiling linux-raw-sys v0.12.1
+   Compiling version_check v0.9.5
+   Compiling once_cell v1.21.4
+   Compiling typenum v1.20.1
+   Compiling zmij v1.0.23
+   Compiling regex-syntax v0.8.11
+   Compiling tracing-core v0.1.36
+   Compiling serde v1.0.229
+   Compiling generic-array v0.14.7
+   Compiling thiserror v2.0.21
+   Compiling pin-project-lite v0.2.17
+   Compiling serde_json v1.0.151
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling getrandom v0.4.3
+   Compiling utf8parse v0.2.2
+   Compiling fastrand v2.5.0
+   Compiling colorchoice v1.0.5
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling anstyle v1.0.14
+   Compiling anstyle-query v1.1.5
+   Compiling anstyle-parse v1.0.0
+   Compiling lazy_static v1.5.1
+   Compiling heck v0.5.0
+   Compiling anstream v1.0.0
+   Compiling strsim v0.11.1
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling syn v3.0.6
+   Compiling syn v2.0.119
+   Compiling option-ext v0.2.0
+   Compiling clap_lex v1.1.1
+   Compiling digest v0.10.7
+   Compiling log v0.4.34
+   Compiling sharded-slab v0.1.7
+   Compiling anstyle-parse v0.2.7
+   Compiling tracing-log v0.2.0
+   Compiling thread_local v1.1.10
+   Compiling regex-automata v0.4.18
+   Compiling nu-ansi-term v0.50.3
+   Compiling smallvec v1.16.2
+   Compiling anstream v0.6.21
+   Compiling cpufeatures v0.2.17
+   Compiling sha2 v0.10.9
+   Compiling dirs-sys v0.5.0
+   Compiling getrandom v0.3.4
+   Compiling zerocopy v0.8.59
+   Compiling autocfg v1.5.1
+   Compiling tempfile v3.27.0
+   Compiling terminal_size v0.4.4
+   Compiling dirs v6.0.0
+   Compiling clap_builder v4.6.7
+   Compiling wait-timeout v0.2.1
+   Compiling num-traits v0.2.19
+   Compiling fnv v1.0.7
+   Compiling quick-error v1.2.3
+   Compiling rand_core v0.9.5
+   Compiling bit-vec v0.8.0
+   Compiling rusty-fork v0.3.1
+   Compiling unarray v0.1.4
+   Compiling rand v0.9.5
+   Compiling bit-set v0.8.0
+   Compiling rand_xorshift v0.4.0
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling cfg_aliases v0.2.2
+   Compiling winnow v1.0.4
+   Compiling nix v0.31.3
+   Compiling matchers v0.2.0
+   Compiling toml_datetime v0.7.5+spec-1.1.0
+   Compiling serde_spanned v1.1.1
+   Compiling hashbrown v0.17.1
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling toml_writer v1.1.2+spec-1.1.0
+   Compiling winnow v0.7.15
+   Compiling equivalent v1.0.2
+   Compiling xattr v1.6.1
+   Compiling filetime v0.2.29
+   Compiling humantime v2.4.0
+   Compiling indexmap v2.14.2
+   Compiling tar v0.4.46
+   Compiling base64 v0.22.1
+   Compiling ctrlc v3.5.2
+   Compiling tracing-attributes v0.1.31
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling clap_derive v4.6.7
+   Compiling toml v0.9.12+spec-1.1.0
+   Compiling toml_edit v0.23.10+spec-1.0.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling rand_chacha v0.9.0
+   Compiling proptest v1.11.0
+   Compiling tracing v0.1.44
+   Compiling tracing-subscriber v0.3.23
+   Compiling clap v4.6.7
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling humantime-serde v1.1.1
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 36.54s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e2722ec9-f6e0-4f7a-abb8-826bb3f937ec with nextest profile: default
+    Starting 125 tests across 28 binaries (208 tests skipped)
+        PASS [   0.016s] goway doctor::tests::cargo_undo_spares_a_cargo_home_that_existed_before
+        PASS [   0.017s] goway doctor::tests::an_unknown_arch_never_reaches_a_command
+        PASS [   0.017s] goway doctor::tests::other_package_managers_and_arm
+        PASS [   0.016s] goway doctor::tests::root_fixes_never_run_without_sudo
+        PASS [   0.024s] goway doctor::tests::records_never_supply_the_command_uninstall_runs
+        PASS [   0.024s] goway doctor::tests::missing_nextest_names_the_exact_fix
+        PASS [   0.025s] goway doctor::tests::healthy_host_is_all_ok
+        PASS [   0.026s] goway doctor::tests::root_fixes_need_confirmation_and_share_one_sudo_session
+        PASS [   0.026s] goway config::tests::remote_root_must_be_a_dedicated_directory
+        PASS [   0.025s] goway doctor::tests::missing_linker_and_password_login_need_root
+        PASS [   0.010s] goway error::tests::every_goway_error_exits_125
+        PASS [   0.030s] goway cli::tests::cli_is_well_formed
+        PASS [   0.032s] goway cli::tests::host_names_are_checked_before_anything_runs
+        PASS [   0.020s] goway hosts::tests::hostname_must_match_name_or_address
+        PASS [   0.011s] goway resolve::tests::configured_then_dns_then_mdns_order_and_dedup
+        PASS [   0.013s] goway render::tests::every_style_renders_without_color
+        PASS [   0.009s] goway ssh::tests::force_tty_prepends_t
+        PASS [   0.013s] goway resolve::tests::working_cache_never_touches_slow_lookups
+        PASS [   0.021s] goway render::tests::host_text_cannot_forge_a_goway_line
+        PASS [   0.009s] goway sshsetup::tests::key_blob_ignores_comments
+        PASS [   0.010s] goway sshsetup::tests::a_stale_scratch_known_hosts_is_removed_before_use
+        PASS [   0.009s] goway sshsetup::tests::windows_key_acl_grants_the_sid_before_removing_inheritance
+        PASS [   0.026s] goway pool::tests::pinned_host_ignores_max_load
+        PASS [   0.012s] goway sshsetup::tests::the_authorized_key_line_is_restricted_and_still_recognised
+        PASS [   0.038s] goway doctor::tests::tool_undo_removes_only_empty_directories_it_left
+        PASS [   0.008s] goway termfilter::tests::keeps_text_colors_and_the_five_allowed_controls
+        PASS [   0.014s] goway state::tests::corrupt_state_is_a_typed_error
+        PASS [   0.043s] goway render::tests::many_writers_never_split_or_interleave_a_line
+        PASS [   0.149s] goway doctor::tests::sshd_reload_falls_back_to_the_sshd_unit_and_never_aborts
+        PASS [   0.009s] goway::publishing journal_dependency_carries_a_version_for_crates_io
+        PASS [   0.136s] goway::remote_root gc_all_never_removes_a_work_dir_created_moments_ago
+        PASS [   0.086s] goway::remote_root purge_keeps_foreign_files_in_a_marked_root
+        PASS [   0.361s] goway::contract goway_failure_exits_125_with_rendered_error
+        PASS [   0.022s] goway::remote_root receive_refuses_a_foreign_directory
+        PASS [   0.813s] goway::install_scripts a_journal_left_by_an_aborted_install_is_cleared
+        PASS [   0.838s] goway::install_scripts install_then_uninstall_restores_an_empty_home
+        PASS [   1.524s] goway sync::tests::a_stale_deletion_list_never_deletes_restored_files
+        PASS [   3.016s] goway state::tests::remember_save_load_forget
+        PASS [   3.085s] goway hosts::tests::only_the_confirmed_key_is_kept_for_pinning
+        PASS [   3.260s] goway sync::tests::a_second_worktree_only_sends_what_differs
+        PASS [   3.014s] goway::run_local doctor_reports_every_check_with_status
+        PASS [   4.085s] goway::run_local env_values_never_appear_in_ssh_arguments_or_logs
+        PASS [   1.646s] goway::run_local outside_a_git_project_the_error_says_what_to_do
+        PASS [   4.559s] goway::run_local a_failing_command_is_labelled_failed_in_words
+        PASS [   4.949s] goway sync::tests::deleting_more_paths_than_one_argument_holds_works
+        PASS [   5.005s] goway repo::tests::ids_are_stable_across_worktrees_and_distinct_per_tree
+        PASS [   5.589s] goway::install_scripts shasum_verifies_the_download_when_sha256sum_is_missing
+        PASS [   6.027s] goway::run_local exit_code_passes_through_and_work_dir_is_removed
+        PASS [   1.747s] goway::ssh_setup existing_ssh_dir_and_keys_are_restored_exactly_by_undo
+        PASS [   0.021s] goway-journal::local non_empty_directory_is_kept_on_revert
+        PASS [   0.028s] goway-journal::local registry_acl_vars_and_resources_are_unsupported
+        PASS [   0.044s] goway-journal::local unix_mode_is_set_and_restored
+        PASS [   2.599s] goway::run_local sccache_listens_on_an_owner_only_socket_not_a_tcp_port
+        PASS [   0.019s] goway-journal::scenarios apply_with_calls_the_sink_before_each_mutation
+        PASS [   2.551s] goway::ssh_setup a_new_host_is_confirmed_before_any_password_and_pinned_once
+        PASS [   0.021s] goway-journal::scenarios ensure_dir_creates_ancestors_and_keeps_non_empty_ones
+        PASS [   2.663s] goway::run_local report_names_host_arch_address_and_exit_code
+        PASS [   4.509s] goway::run_local low_priority_jobs_run_niced_with_idle_io
+        PASS [   0.015s] goway-journal::scenarios failed_apply_returns_a_journal_that_reverts_the_partial_work
+        PASS [   0.025s] goway-journal::scenarios list_entry_preserves_order_and_never_removes_a_preexisting_entry
+        PASS [   0.031s] goway-journal::scenarios ini_appends_a_new_section_after_a_blank_separator
+        PASS [   0.028s] goway-journal::scenarios ini_replaces_a_value_and_restores_the_original_line
+        PASS [   0.079s] goway-journal::scenarios applying_the_same_plan_twice_records_only_noops_the_second_time
+        PASS [   0.020s] goway-journal::scenarios list_entry_rejects_empty_or_separator_containing_entries
+        PASS [   0.020s] goway-journal::scenarios mode_on_a_missing_path_fails_with_a_typed_error
+        PASS [   0.020s] goway-journal::scenarios mode_and_acl_restore_prior_values
+        PASS [   0.028s] goway-journal::scenarios registry_value_restores_prior_type_and_value_or_deletes
+        PASS [   0.012s] goway-journal::scenarios revert_twice_reports_already_reverted
+        PASS [   0.032s] goway-setup::app edits_made_after_install_are_kept_and_reported
+        PASS [   0.015s] goway-setup::app uninstall_without_a_journal_reports_nothing_to_do
+        PASS [   0.041s] goway-setup::app load_journal_is_none_before_install_and_some_after
+        PASS [   0.048s] goway-setup::app install_then_uninstall_restores_the_machine_and_removes_the_journal
+        PASS [   0.064s] goway-setup::app a_path_that_already_contains_the_directory_keeps_it_after_uninstall
+        PASS [   0.021s] goway-setup::cli a_bad_profile_is_rejected_before_anything_happens
+        PASS [   0.017s] goway-setup::cli hardening_is_on_by_default_and_allow_from_is_validated_before_anything_happens
+        PASS [   0.019s] goway-setup::cli status_and_uninstall_of_an_unknown_profile_report_nothing_to_do
+        PASS [   0.020s] goway-setup::cli the_network_flag_parses_and_a_nat_host_dry_run_succeeds_on_any_machine
+        PASS [   0.035s] goway-setup::cli platform_helpers_are_harmless_off_windows
+        PASS [   0.023s] goway-setup::elevate quoting_follows_the_windows_rules_for_backslashes_and_quotes
+        PASS [   0.022s] goway-setup::elevated a_directory_removal_prior_cannot_reach_outside_its_own_path
+        PASS [   0.040s] goway-setup::client_plan client_plan_orders_directory_files_path_then_registry
+        PASS [   0.012s] goway-setup::elevated a_loosened_or_linked_state_directory_is_refused_off_windows_too
+        PASS [   0.048s] goway-setup::elevated settings_with_a_bad_distro_or_port_are_refused_when_loaded
+        PASS [   0.068s] goway-setup::elevated a_journal_in_an_untrusted_directory_is_not_read
+        PASS [   6.264s] goway::run_local gc_never_removes_unlabelled_entries_or_anything_under_an_unmarked_root
+        PASS [   0.062s] goway-setup::elevated a_planted_write_file_outside_the_host_plan_is_refused_before_anything_is_reverted
+        PASS [   0.012s] goway-setup::elevated the_admin_dir_acl_check_refuses_a_wrong_owner_or_a_writable_acl
+        PASS [   0.013s] goway-setup::elevated the_protected_exe_is_copied_and_purged_with_the_state_directory
+        PASS [   0.068s] goway-setup::elevated a_planted_prior_is_refused_before_anything_is_reverted
+        PASS [   0.011s] goway-setup::helper a_laptop_without_wsl_or_the_distro_stops_with_the_exact_steps
+        PASS [   0.012s] goway-setup::helper the_public_network_warning_explains_in_plain_words_and_gives_the_fix
+        PASS [   0.018s] goway-setup::host_plan a_new_port_on_a_set_up_machine_is_a_pure_addition_that_uninstall_removes
+        PASS [   0.013s] goway-setup::host_plan a_user_change_after_install_is_left_alone_and_reported
+        PASS [   0.033s] goway-setup::elevated the_elevated_validator_accepts_exactly_the_host_arp_entry
+        PASS [   0.024s] goway-setup::host_plan a_journal_from_before_scoping_can_still_be_uninstalled
+        PASS [   0.021s] goway-setup::host_plan changing_wsl_settings_asks_for_a_restart
+        PASS [   0.012s] goway-setup::hostsys activation_restarts_only_when_the_port_is_not_yet_listening
+        PASS [   0.016s] goway-setup::hostsys deactivation_leaves_a_port_that_is_still_configured_and_starts_tasks_by_name
+        PASS [   0.018s] goway-setup::hostsys port_lists_are_parsed_from_sshd_and_ss_output
+        PASS [   0.015s] goway-setup::hostsys public_networks_are_listed_one_per_line
+        PASS [   0.022s] goway-setup::hostsys firewall_rules_are_scoped_to_local_networks_and_never_open_to_everyone
+        PASS [   0.029s] goway-setup::hostsys directory_digest_and_mode_operations_map_to_plain_commands
+        PASS [   0.018s] goway-setup::hostsys windows_resources_run_the_matching_powershell_and_report_failures
+        PASS [   0.016s] goway-setup::relay a_foreign_portproxy_rule_on_the_port_refuses_a_nat_install_and_explains
+        PASS [   0.028s] goway-setup::hostsys the_elevated_side_never_writes_or_reads_through_a_link
+        PASS [   0.014s] goway-setup::relay networking_mode_is_read_from_the_wsl2_section_only
+        PASS [   0.019s] goway-setup::relay only_a_rule_shaped_like_the_relay_is_reported_and_removed_as_goways
+        PASS [   0.019s] goway-setup::relay the_networking_mode_follows_the_flag_the_build_and_an_explicit_nat_setting
+        PASS [   0.024s] goway-setup::relay the_firewall_rule_exists_before_the_relay_listens_and_the_script_lives_in_the_admin_dir
+        PASS [   0.023s] goway-setup::relay the_portproxy_resource_runs_netsh_with_the_distros_current_address
+        PASS [   0.014s] goway-setup::relay the_relay_task_runs_the_script_as_the_user_with_highest_privileges_and_stores_no_password
+        PASS [   0.021s] goway-setup::relay the_portproxy_table_and_relay_names_parse
+        PASS [   4.540s] goway::run_local paths_baked_by_a_build_stay_valid_for_later_runs_in_the_slot
+        PASS [   0.016s] goway-setup::stage a_missing_source_fails_and_leaves_no_directory
+        PASS [   0.025s] goway-setup::stage each_staging_gets_its_own_owner_only_directory
+        PASS [   0.054s] goway-setup::relay the_validator_refuses_variants_of_the_relay_entries
+        PASS [   0.133s] goway-setup::relay installing_then_uninstalling_the_nat_plan_restores_any_machine_and_foreign_relays_survive
+        PASS [   0.184s] goway-setup::host_plan reverting_the_host_plan_restores_any_machine_including_ones_where_parts_pre_exist
+        PASS [   0.108s] goway-setup::relay the_validator_accepts_exactly_the_nat_plans_entries
+        PASS [   1.171s] goway::ssh_setup setup_authorizes_a_key_with_one_password_login_and_undo_restores_everything
+        PASS [   3.256s] goway::slot_trees gitignored_paths_stay_unless_switched_off_and_config_keep_list_stays
+        PASS [   4.761s] goway::slot_trees a_run_prefers_the_slot_its_worktree_used_last
+        PASS [   2.240s] goway-journal::properties revert_after_apply_restores_initial_state
+        PASS [  10.139s] goway::install_scripts macos_machines_get_the_apple_darwin_archive_for_their_cpu
+        PASS [   8.588s] goway::run_local gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  11.653s] 125 tests run: 125 passed, 208 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "macos_machines_get_the_apple_darwin_archive_for_their_cpu or shasum_verifies_the_download_when_sha256sum_is_missing"
+size = 16058
+status = "measured"
+tests = ["journal_dependency_carries_a_version_for_crates_io", "goway_failure_exits_125_with_rendered_error", "gc_all_never_removes_a_work_dir_created_moments_ago", "purge_keeps_foreign_files_in_a_marked_root", "receive_refuses_a_foreign_directory", "doctor::tests::cargo_undo_spares_a_cargo_home_that_existed_before", "doctor::tests::an_unknown_arch_never_reaches_a_command", "doctor::tests::other_package_managers_and_arm", "doctor::tests::root_fixes_never_run_without_sudo", "doctor::tests::records_never_supply_the_command_uninstall_runs", "doctor::tests::missing_nextest_names_the_exact_fix", "doctor::tests::healthy_host_is_all_ok", "doctor::tests::root_fixes_need_confirmation_and_share_one_sudo_session", "config::tests::remote_root_must_be_a_dedicated_directory", "doctor::tests::missing_linker_and_password_login_need_root", "error::tests::every_goway_error_exits_125", "cli::tests::cli_is_well_formed", "cli::tests::host_names_are_checked_before_anything_runs", "hosts::tests::hostname_must_match_name_or_address", "resolve::tests::configured_then_dns_then_mdns_order_and_dedup", "render::tests::every_style_renders_without_color", "ssh::tests::force_tty_prepends_t", "resolve::tests::working_cache_never_touches_slow_lookups", "render::tests::host_text_cannot_forge_a_goway_line", "sshsetup::tests::key_blob_ignores_comments", "sshsetup::tests::a_stale_scratch_known_hosts_is_removed_before_use", "sshsetup::tests::windows_key_acl_grants_the_sid_before_removing_inheritance", "pool::tests::pinned_host_ignores_max_load", "sshsetup::tests::the_authorized_key_line_is_restricted_and_still_recognised", "doctor::tests::tool_undo_removes_only_empty_directories_it_left", "termfilter::tests::keeps_text_colors_and_the_five_allowed_controls", "state::tests::corrupt_state_is_a_typed_error", "render::tests::many_writers_never_split_or_interleave_a_line", "doctor::tests::sshd_reload_falls_back_to_the_sshd_unit_and_never_aborts", "sync::tests::a_stale_deletion_list_never_deletes_restored_files", "state::tests::remember_save_load_forget", "hosts::tests::only_the_confirmed_key_is_kept_for_pinning", "sync::tests::a_second_worktree_only_sends_what_differs", "sync::tests::deleting_more_paths_than_one_argument_holds_works", "repo::tests::ids_are_stable_across_worktrees_and_distinct_per_tree", "non_empty_directory_is_kept_on_revert", "registry_acl_vars_and_resources_are_unsupported", "unix_mode_is_set_and_restored", "apply_with_calls_the_sink_before_each_mutation", "ensure_dir_creates_ancestors_and_keeps_non_empty_ones", "failed_apply_returns_a_journal_that_reverts_the_partial_work", "list_entry_preserves_order_and_never_removes_a_preexisting_entry", "ini_appends_a_new_section_after_a_blank_separator", "ini_replaces_a_value_and_restores_the_original_line", "applying_the_same_plan_twice_records_only_noops_the_second_time", "list_entry_rejects_empty_or_separator_containing_entries", "mode_on_a_missing_path_fails_with_a_typed_error", "mode_and_acl_restore_prior_values", "registry_value_restores_prior_type_and_value_or_deletes", "revert_twice_reports_already_reverted", "edits_made_after_install_are_kept_and_reported", "uninstall_without_a_journal_reports_nothing_to_do", "load_journal_is_none_before_install_and_some_after", "install_then_uninstall_restores_the_machine_and_removes_the_journal", "a_path_that_already_contains_the_directory_keeps_it_after_uninstall", "a_bad_profile_is_rejected_before_anything_happens", "hardening_is_on_by_default_and_allow_from_is_validated_before_anything_happens", "status_and_uninstall_of_an_unknown_profile_report_nothing_to_do", "the_network_flag_parses_and_a_nat_host_dry_run_succeeds_on_any_machine", "platform_helpers_are_harmless_off_windows", "quoting_follows_the_windows_rules_for_backslashes_and_quotes", "client_plan_orders_directory_files_path_then_registry", "a_laptop_without_wsl_or_the_distro_stops_with_the_exact_steps", "the_public_network_warning_explains_in_plain_words_and_gives_the_fix", "a_directory_removal_prior_cannot_reach_outside_its_own_path", "a_loosened_or_linked_state_directory_is_refused_off_windows_too", "settings_with_a_bad_distro_or_port_are_refused_when_loaded", "a_journal_in_an_untrusted_directory_is_not_read", "a_planted_write_file_outside_the_host_plan_is_refused_before_anything_is_reverted", "the_admin_dir_acl_check_refuses_a_wrong_owner_or_a_writable_acl", "the_protected_exe_is_copied_and_purged_with_the_state_directory", "a_planted_prior_is_refused_before_anything_is_reverted", "the_elevated_validator_accepts_exactly_the_host_arp_entry", "activation_restarts_only_when_the_port_is_not_yet_listening", "deactivation_leaves_a_port_that_is_still_configured_and_starts_tasks_by_name", "port_lists_are_parsed_from_sshd_and_ss_output", "public_networks_are_listed_one_per_line", "firewall_rules_are_scoped_to_local_networks_and_never_open_to_everyone", "directory_digest_and_mode_operations_map_to_plain_commands", "windows_resources_run_the_matching_powershell_and_report_failures", "the_elevated_side_never_writes_or_reads_through_a_link", "a_missing_source_fails_and_leaves_no_directory", "each_staging_gets_its_own_owner_only_directory", "a_new_port_on_a_set_up_machine_is_a_pure_addition_that_uninstall_removes", "a_user_change_after_install_is_left_alone_and_reported", "a_journal_from_before_scoping_can_still_be_uninstalled", "changing_wsl_settings_asks_for_a_restart", "reverting_the_host_plan_restores_any_machine_including_ones_where_parts_pre_exist", "a_foreign_portproxy_rule_on_the_port_refuses_a_nat_install_and_explains", "networking_mode_is_read_from_the_wsl2_section_only", "only_a_rule_shaped_like_the_relay_is_reported_and_removed_as_goways", "the_networking_mode_follows_the_flag_the_build_and_an_explicit_nat_setting", "the_firewall_rule_exists_before_the_relay_listens_and_the_script_lives_in_the_admin_dir", "the_portproxy_resource_runs_netsh_with_the_distros_current_address", "the_relay_task_runs_the_script_as_the_user_with_highest_privileges_and_stores_no_password", "the_portproxy_table_and_relay_names_parse", "the_validator_refuses_variants_of_the_relay_entries", "installing_then_uninstalling_the_nat_plan_restores_any_machine_and_foreign_relays_survive", "the_validator_accepts_exactly_the_nat_plans_entries", "existing_ssh_dir_and_keys_are_restored_exactly_by_undo", "a_new_host_is_confirmed_before_any_password_and_pinned_once", "setup_authorizes_a_key_with_one_password_login_and_undo_restores_everything", "gitignored_paths_stay_unless_switched_off_and_config_keep_list_stays", "a_run_prefers_the_slot_its_worktree_used_last", "revert_after_apply_restores_initial_state", "a_journal_left_by_an_aborted_install_is_cleared", "install_then_uninstall_restores_an_empty_home", "shasum_verifies_the_download_when_sha256sum_is_missing", "macos_machines_get_the_apple_darwin_archive_for_their_cpu", "doctor_reports_every_check_with_status", "env_values_never_appear_in_ssh_arguments_or_logs", "outside_a_git_project_the_error_says_what_to_do", "a_failing_command_is_labelled_failed_in_words", "exit_code_passes_through_and_work_dir_is_removed", "sccache_listens_on_an_owner_only_socket_not_a_tcp_port", "report_names_host_arch_address_and_exit_code", "low_priority_jobs_run_niced_with_idle_io", "gc_never_removes_unlabelled_entries_or_anything_under_an_unmarked_root", "paths_baked_by_a_build_stay_valid_for_later_runs_in_the_slot", "gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones"]
+at = "2026-10-03T21:31:41Z"
+actor = "lognd"
+rev = 1
