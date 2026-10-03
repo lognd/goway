@@ -94,6 +94,10 @@ pub struct DoctorArgs {
     /// Run the fixes that need no root; explain the ones that do.
     #[arg(long)]
     pub fix: bool,
+    /// With --fix, also run the fixes that need root, through sudo on an
+    /// interactive ssh session (sudo asks for your password on the host).
+    #[arg(long, requires = "fix")]
+    pub sudo: bool,
 }
 
 /// `goway host` verbs.

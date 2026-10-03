@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T17:21:41Z"
+digest = "fae53855b4809eb15c7c42ea59cd99a1e89e4f3419a8b3c344921e9631a91af2"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 0ce7f08a-6828-4b4b-82a6-68069d306c09 with nextest profile: default
+    Starting 2 tests across 15 binaries (133 tests skipped)
+        PASS [   1.136s] goway sync::tests::a_seed_replaced_mid_sync_is_detected_and_resynced_fully
+        PASS [   5.392s] goway::run_local gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   5.398s] 2 tests run: 2 passed, 133 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_seed_replaced_mid_sync_is_detected_and_resynced_fully) | test(gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones)'"
+size = 679
+status = "measured"
+tests = ["sync::tests::a_seed_replaced_mid_sync_is_detected_and_resynced_fully", "gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones"]
+at = "2026-10-03T17:21:41Z"
+actor = "lognd"
+rev = 1

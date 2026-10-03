@@ -139,6 +139,15 @@ pub fn command(target: &Target, settings: &Settings, policy: KeyPolicy, remote: 
     cmd
 }
 
+/// Make `cmd` (built by [`command`]) allocate a remote tty, for commands
+/// that must prompt, such as sudo.
+pub fn force_tty(cmd: &mut Command) {
+    let args: Vec<OsString> = cmd.get_args().map(OsString::from).collect();
+    let mut rebuilt = Command::new(cmd.get_program());
+    rebuilt.arg("-t").args(args);
+    *cmd = rebuilt;
+}
+
 /// Quote `s` for a POSIX shell (single quotes, embedded quotes escaped).
 pub fn shell_quote(s: &str) -> String {
     if !s.is_empty()
@@ -277,6 +286,18 @@ mod tests {
             runtime_dir: None,
         };
         assert_eq!(Settings::from_paths(&paths).control_dir, None);
+    }
+
+    #[test]
+    fn force_tty_prepends_t() {
+        let mut cmd = command(&target(), &settings(), KeyPolicy::Strict, "sudo true");
+        force_tty(&mut cmd);
+        let all: Vec<String> = cmd
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(all[0], "-t");
+        assert_eq!(all.last().map(String::as_str), Some("sudo true"));
     }
 
     #[test]

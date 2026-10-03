@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["docs/config.md", "docs/hosts.md", "README.md"]
+new = ["docs/config.md", "docs/hosts.md", "README.md", "docs/usage.md", "docs/design.md"]
+at = "2026-10-03T17:02:52Z"
+actor = "lognd"
+rev = 1

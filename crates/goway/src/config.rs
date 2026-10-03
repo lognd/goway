@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Error, Result};
 
 /// The whole config file.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     /// Settings shared by all hosts.
@@ -22,8 +22,29 @@ pub struct Config {
     pub hosts: Vec<HostConfig>,
 }
 
+/// CPU and I/O priority of remote jobs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Priority {
+    /// `nice -n 10` and idle-class I/O: the host's own user comes first.
+    #[default]
+    Low,
+    /// The remote user's normal priority.
+    Normal,
+}
+
+impl Priority {
+    /// The word the remote script understands.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Normal => "normal",
+        }
+    }
+}
+
 /// Settings shared by all hosts.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Defaults {
     /// Root of goway's remote state, relative to the remote home if not absolute.
@@ -43,6 +64,11 @@ pub struct Defaults {
     pub send_env_files: bool,
     /// The ssh port tried when a host does not set one.
     pub port: u16,
+    /// Priority of remote jobs unless a host overrides it.
+    pub priority: Priority,
+    /// Skip hosts whose 1-minute load per core is above this (unless pinned).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_load: Option<f64>,
 }
 
 const DAY: u64 = 24 * 60 * 60;
@@ -57,12 +83,14 @@ impl Default for Defaults {
             target_slots: 4,
             send_env_files: false,
             port: 2222,
+            priority: Priority::Low,
+            max_load: None,
         }
     }
 }
 
 /// One host of the pool. Its identity is `name` plus the pinned host key.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HostConfig {
     /// Identity and ssh `HostKeyAlias` (`goway-<name>`); also tried as `<name>.local`.
@@ -79,6 +107,12 @@ pub struct HostConfig {
     /// Most goway jobs at once on this host (default: unlimited).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_jobs: Option<u32>,
+    /// Priority of jobs here (default: `defaults.priority`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub priority: Option<Priority>,
+    /// Skip this host above this load per core (default: `defaults.max_load`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_load: Option<f64>,
 }
 
 impl HostConfig {
@@ -158,6 +192,16 @@ impl Config {
             .iter()
             .find(|h| h.name.eq_ignore_ascii_case(name))
             .ok_or_else(|| Error::UnknownHost(name.to_owned()))
+    }
+
+    /// The effective job priority on `host`.
+    pub fn priority_of(&self, host: &HostConfig) -> Priority {
+        host.priority.unwrap_or(self.defaults.priority)
+    }
+
+    /// The effective load ceiling of `host`.
+    pub fn max_load_of(&self, host: &HostConfig) -> Option<f64> {
+        host.max_load.or(self.defaults.max_load)
     }
 
     /// The effective port of `host`.
@@ -321,6 +365,8 @@ user = "user"
             port: Some(2222),
             user: None,
             max_jobs: None,
+            priority: None,
+            max_load: None,
         };
         add_host(&path, &host).unwrap();
         assert!(add_host(&path, &host).is_err());
@@ -349,6 +395,8 @@ user = "user"
             port: None,
             user: None,
             max_jobs: Some(1),
+            priority: None,
+            max_load: None,
         };
         add_host(&path, &host).unwrap();
         assert_eq!(Config::load(&path).unwrap().hosts, vec![host]);

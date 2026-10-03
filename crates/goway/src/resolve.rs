@@ -392,6 +392,8 @@ mod tests {
             port: None,
             user: None,
             max_jobs: None,
+            priority: None,
+            max_load: None,
         }
     }
 

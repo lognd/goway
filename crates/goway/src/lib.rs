@@ -3,9 +3,12 @@
 
 pub mod cli;
 pub mod config;
+pub mod doctor;
 pub mod error;
+pub mod gc;
 pub mod hosts;
 pub mod paths;
+pub mod pool;
 pub mod remote;
 pub mod render;
 pub mod repo;
@@ -14,6 +17,7 @@ pub mod run;
 pub mod ssh;
 pub mod sshenv;
 pub mod state;
+pub mod status;
 pub mod sync;
 
 use std::process::ExitCode;
@@ -73,9 +77,38 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
             };
             run::run(&env, renderer, args)
         }
-        Command::Status => Err(Error::NotImplemented("status")),
-        Command::Gc(_) => Err(Error::NotImplemented("gc")),
-        Command::Doctor(_) => Err(Error::NotImplemented("doctor")),
+        Command::Status => {
+            let settings = ssh::Settings::from_paths(&paths);
+            status::status(
+                &paths,
+                renderer,
+                &resolve::SystemLookup,
+                &resolve::SshProber { settings },
+            )
+        }
+        Command::Gc(args) => {
+            let settings = ssh::Settings::from_paths(&paths);
+            gc::gc(
+                &paths,
+                renderer,
+                args,
+                &resolve::SystemLookup,
+                &resolve::SshProber { settings },
+            )
+        }
+        Command::Doctor(args) => {
+            let settings = ssh::Settings::from_paths(&paths);
+            doctor::doctor(
+                &paths,
+                renderer,
+                args,
+                &resolve::SystemLookup,
+                &resolve::SshProber {
+                    settings: settings.clone(),
+                },
+                &settings,
+            )
+        }
         Command::Host(HostCommand::List) => host_list(&paths, renderer),
         Command::Host(HostCommand::Remove { name }) => host_remove(&paths, renderer, name),
         Command::Host(HostCommand::Add(args)) => {

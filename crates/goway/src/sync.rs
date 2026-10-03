@@ -174,6 +174,9 @@ pub fn parse_manifest(bytes: &[u8]) -> BTreeMap<String, RemoteEntry> {
             tracing::warn!(record = %rec, "malformed manifest record");
             continue;
         };
+        if ty == "G" {
+            continue;
+        }
         let mtime = mtime
             .split('.')
             .next()
@@ -201,6 +204,30 @@ pub fn parse_manifest(bytes: &[u8]) -> BTreeMap<String, RemoteEntry> {
     out
 }
 
+/// The seed generation named in a manifest ("" when there is no tree).
+pub fn manifest_generation(bytes: &[u8]) -> String {
+    bytes
+        .split(|b| *b == 0)
+        .find_map(|rec| {
+            let rec = String::from_utf8_lossy(rec);
+            let rest = rec.strip_prefix("G\t")?;
+            Some(rest.rsplit('\t').next().unwrap_or("").to_owned())
+        })
+        .unwrap_or_default()
+}
+
+/// The run's work dir, snapshotted from the seed in the same critical
+/// section as the upload.
+#[derive(Debug, Clone)]
+pub struct Snapshot {
+    /// The run id (work dir name).
+    pub run_id: String,
+    /// The work dir's `meta.json`, base64.
+    pub meta_b64: String,
+    /// Keep the work dir after the run.
+    pub keep: bool,
+}
+
 /// What to send and what to delete.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Plan {
@@ -208,6 +235,9 @@ pub struct Plan {
     pub send: Vec<usize>,
     /// Remote paths to delete.
     pub delete: Vec<String>,
+    /// Indices of files whose size and mode match but mtime differs: sent
+    /// only if their content differs (a new worktree has new mtimes).
+    pub verify: Vec<usize>,
 }
 
 /// Compare the local file set with the remote manifest.
@@ -216,17 +246,26 @@ pub fn diff(local: &[LocalFile], remote: &BTreeMap<String, RemoteEntry>) -> Plan
     let mut local_paths = BTreeSet::new();
     for (i, f) in local.iter().enumerate() {
         local_paths.insert(f.path.as_str());
-        let same = remote
-            .get(&f.path)
-            .is_some_and(|r| match (&f.kind, &r.kind) {
-                (Kind::Symlink { target: a }, Kind::Symlink { target: b }) => a == b,
-                (Kind::File { exec: a }, Kind::File { exec: b }) => {
-                    a == b && f.size == r.size && f.mtime == r.mtime
+        match remote.get(&f.path).map(|r| (&f.kind, r)) {
+            Some((
+                Kind::Symlink { target: a },
+                RemoteEntry {
+                    kind: Kind::Symlink { target: b },
+                    ..
+                },
+            )) if a == b => {}
+            Some((
+                Kind::File { exec: a },
+                r @ RemoteEntry {
+                    kind: Kind::File { exec: b },
+                    ..
+                },
+            )) if a == b && f.size == r.size => {
+                if f.mtime != r.mtime {
+                    plan.verify.push(i);
                 }
-                _ => false,
-            });
-        if !same {
-            plan.send.push(i);
+            }
+            _ => plan.send.push(i),
         }
     }
     plan.delete = remote
@@ -310,6 +349,8 @@ pub struct Stats {
 pub trait Transport {
     /// Run `cmd` and return its stdout.
     fn output(&self, cmd: &str) -> Result<Vec<u8>>;
+    /// Run `cmd` with `input` on its stdin and return its stdout.
+    fn exchange(&self, cmd: &str, input: &[u8]) -> Result<Vec<u8>>;
     /// Run `cmd`, streaming what `feed` writes into its stdin.
     fn feed(
         &self,
@@ -348,6 +389,17 @@ impl Transport for SshTransport<'_> {
         Ok(out.stdout)
     }
 
+    fn exchange(&self, cmd: &str, input: &[u8]) -> Result<Vec<u8>> {
+        exchange_child(
+            ssh::command(self.target, self.settings, KeyPolicy::Strict, cmd),
+            input,
+        )
+        .map_err(|e| match e {
+            Error::Ssh { message, .. } => self.fail(message),
+            other => other,
+        })
+    }
+
     fn feed(
         &self,
         cmd: &str,
@@ -362,6 +414,72 @@ impl Transport for SshTransport<'_> {
             other => other,
         })
     }
+}
+
+/// Spawn `cmd`, write `input` to its stdin (from a thread, so a large
+/// output cannot deadlock), and return its stdout on success.
+pub fn exchange_child(mut cmd: std::process::Command, input: &[u8]) -> Result<Vec<u8>> {
+    let spawn_err = |e: std::io::Error| Error::Ssh {
+        host: String::new(),
+        message: format!("cannot spawn: {e}"),
+    };
+    let mut child = cmd
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(spawn_err)?;
+    let mut stdin = child.stdin.take();
+    let out = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            if let Some(mut w) = stdin.take() {
+                let _ = w.write_all(input);
+            }
+        });
+        child.wait_with_output()
+    })
+    .map_err(spawn_err)?;
+    if !out.status.success() {
+        return Err(Error::Ssh {
+            host: String::new(),
+            message: String::from_utf8_lossy(&out.stderr).trim().to_owned(),
+        });
+    }
+    Ok(out.stdout)
+}
+
+/// sha256 of a local file, hex.
+pub fn file_sha256(path: &Path) -> Option<String> {
+    use sha2::Digest as _;
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut hasher = sha2::Sha256::new();
+    std::io::copy(&mut file, &mut hasher).ok()?;
+    Some(hasher.finalize().iter().fold(String::new(), |mut s, b| {
+        use std::fmt::Write as _;
+        let _ = write!(s, "{b:02x}");
+        s
+    }))
+}
+
+/// Parse `sha256sum -z` output: `hash  path\0` records.
+pub fn parse_hashes(bytes: &[u8]) -> BTreeMap<String, String> {
+    bytes
+        .split(|b| *b == 0)
+        .filter_map(|rec| {
+            let rec = String::from_utf8_lossy(rec);
+            let (hash, path) = rec.split_once("  ")?;
+            Some((path.to_owned(), hash.to_owned()))
+        })
+        .collect()
+}
+
+fn nul_list<'a>(items: impl Iterator<Item = &'a str>) -> Vec<u8> {
+    let mut out = Vec::new();
+    for item in items {
+        out.extend_from_slice(item.as_bytes());
+        out.push(0);
+    }
+    out
 }
 
 /// Spawn `cmd`, write its stdin with `feed`, and require success.
@@ -401,19 +519,70 @@ pub fn feed_child(
     Ok(())
 }
 
-/// Bring the remote seed of `repo` up to date with the local work tree.
+/// How often a sync restarts when the seed changed underneath it.
+const SYNC_ATTEMPTS: u32 = 3;
+
+/// Bring the remote seed of `repo` up to date with the local work tree and,
+/// with `snapshot`, create the run's work dir from it atomically. Restarts
+/// from the manifest when the seed was replaced mid-sync (gc raced it).
 pub fn sync(
     transport: &dyn Transport,
     remote_root: &str,
     repo: &Repo,
     send_env_files: bool,
+    snapshot: Option<&Snapshot>,
+) -> Result<Stats> {
+    let mut attempt = 1;
+    loop {
+        match sync_once(transport, remote_root, repo, send_env_files, snapshot) {
+            Err(Error::Ssh { message, .. })
+                if message.contains("seed changed") && attempt < SYNC_ATTEMPTS =>
+            {
+                tracing::warn!(attempt, message, "seed changed during sync; starting over");
+                attempt += 1;
+            }
+            other => return other,
+        }
+    }
+}
+
+fn sync_once(
+    transport: &dyn Transport,
+    remote_root: &str,
+    repo: &Repo,
+    send_env_files: bool,
+    snapshot: Option<&Snapshot>,
 ) -> Result<Stats> {
     let started = std::time::Instant::now();
     let local = file_set(&repo.root, send_env_files)?;
     let seed = repo.seed_key();
     let manifest = transport.output(&remote::invocation("manifest", &[remote_root, &seed]))?;
+    let generation = manifest_generation(&manifest);
     let remote_entries = parse_manifest(&manifest);
-    let plan = diff(&local, &remote_entries);
+    let mut plan = diff(&local, &remote_entries);
+    let mut unchanged = 0usize;
+    if !plan.verify.is_empty() {
+        let paths = nul_list(plan.verify.iter().map(|&i| local[i].path.as_str()));
+        let remote_hashes = parse_hashes(
+            &transport.exchange(&remote::invocation("hashes", &[remote_root, &seed]), &paths)?,
+        );
+        for &i in &plan.verify {
+            let f = &local[i];
+            let same = remote_hashes.get(&f.path).is_some_and(|h| {
+                file_sha256(&repo.root.join(&f.path)).as_deref() == Some(h.as_str())
+            });
+            if same {
+                unchanged += 1;
+            } else {
+                plan.send.push(i);
+            }
+        }
+        tracing::info!(
+            checked = plan.verify.len(),
+            unchanged,
+            "content check of mtime-only changes"
+        );
+    }
     let to_send: Vec<&LocalFile> = plan.send.iter().map(|&i| &local[i]).collect();
     let stats = Stats {
         files: local.len(),
@@ -422,6 +591,12 @@ pub fn sync(
         deleted: plan.delete.len(),
     };
     tracing::info!(?stats, remote_files = remote_entries.len(), "sync plan");
+    if !plan.delete.is_empty() {
+        transport.exchange(
+            &remote::invocation("deletions", &[remote_root, &seed]),
+            &nul_list(plan.delete.iter().map(String::as_str)),
+        )?;
+    }
     let label = Label {
         kind: "seed",
         repo: &repo.name,
@@ -432,13 +607,25 @@ pub fn sync(
     };
     let b64 = base64::engine::general_purpose::STANDARD;
     let meta = b64.encode(serde_json::to_vec(&label).unwrap_or_default());
-    let mut deletes = Vec::new();
-    for d in &plan.delete {
-        deletes.extend_from_slice(d.as_bytes());
-        deletes.push(0);
-    }
-    let deletes = b64.encode(deletes);
-    let cmd = remote::invocation("receive", &[remote_root, &seed, &meta, &deletes]);
+    let (run_id, work_meta, keep) = snapshot.map_or(("", "", "0"), |s| {
+        (
+            s.run_id.as_str(),
+            s.meta_b64.as_str(),
+            if s.keep { "1" } else { "0" },
+        )
+    });
+    let cmd = remote::invocation(
+        "receive",
+        &[
+            remote_root,
+            &seed,
+            &meta,
+            &generation,
+            run_id,
+            work_meta,
+            keep,
+        ],
+    );
     transport.feed(&cmd, &mut |w| {
         write_tar(&repo.root, &to_send, w).map(|_| ())
     })?;
@@ -456,6 +643,7 @@ mod tests {
             vec!["init", "-q", "-b", "main"],
             vec!["config", "user.email", "t@example.com"],
             vec!["config", "user.name", "t"],
+            vec!["config", "core.autocrlf", "false"],
         ] {
             git(dir, &args).unwrap();
         }
@@ -544,7 +732,17 @@ mod tests {
         assert_eq!(remote.len(), 6);
         let plan = diff(&local, &remote);
         let sent: Vec<&str> = plan.send.iter().map(|&i| local[i].path.as_str()).collect();
-        assert_eq!(sent, ["newer", "bigger", "new", "chmod"]);
+        assert_eq!(sent, ["bigger", "new", "chmod"]);
+        let verify: Vec<&str> = plan
+            .verify
+            .iter()
+            .map(|&i| local[i].path.as_str())
+            .collect();
+        assert_eq!(
+            verify,
+            ["newer"],
+            "same size, new mtime: content is checked first"
+        );
         assert_eq!(plan.delete, ["gone", "gone link"]);
     }
 
@@ -604,6 +802,11 @@ mod tests {
                 String::from_utf8_lossy(&out.stderr)
             );
             Ok(out.stdout)
+        }
+        fn exchange(&self, cmd: &str, input: &[u8]) -> Result<Vec<u8>> {
+            let mut c = std::process::Command::new("sh");
+            c.args(["-c", cmd]);
+            exchange_child(c, input)
         }
         fn feed(
             &self,
@@ -668,14 +871,14 @@ mod tests {
             .join(repo.seed_key())
             .join("tree");
 
-        let first = sync(&LocalTransport, &remote_root, &repo, false).unwrap();
+        let first = sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
         assert_eq!((first.files, first.sent, first.deleted), (4, 4, 0));
         let mut local = tree(&root);
         local.remove(".env");
         local.retain(|k, _| !k.starts_with(".git/") && k != ".git");
         assert_eq!(tree(&seed_tree), local, "content and mtimes match");
 
-        let again = sync(&LocalTransport, &remote_root, &repo, false).unwrap();
+        let again = sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
         assert_eq!(
             (again.sent, again.deleted),
             (0, 0),
@@ -693,7 +896,7 @@ mod tests {
         assert!(ok.success());
         std::fs::write(root.join("src/lib.rs"), "v2 longer").unwrap();
         std::fs::remove_dir_all(root.join("src/deep")).unwrap();
-        let third = sync(&LocalTransport, &remote_root, &repo, false).unwrap();
+        let third = sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
         assert_eq!((third.sent, third.deleted), (1, 1));
         assert_eq!(
             std::fs::read_to_string(seed_tree.join("src/lib.rs")).unwrap(),
@@ -741,12 +944,176 @@ mod tests {
             settings: &settings,
         };
         let root = ".cache/goway-test";
-        let first = sync(&transport, root, &repo, false).unwrap();
+        let first = sync(&transport, root, &repo, false, None).unwrap();
         assert_eq!(first.sent, 1);
-        let again = sync(&transport, root, &repo, false).unwrap();
+        let again = sync(&transport, root, &repo, false, None).unwrap();
         assert_eq!(again.sent, 0);
         transport
             .output(&format!("rm -rf {root}/seed/{}", repo.id))
             .unwrap();
+    }
+
+    // frob:tests crates/goway/src/sync.rs::exchange_child
+    // frob:tests crates/goway/src/sync.rs::file_sha256
+    // frob:tests crates/goway/src/sync.rs::parse_hashes
+    #[cfg(unix)]
+    #[test]
+    fn a_second_worktree_only_sends_what_differs() {
+        let dir = tempfile::tempdir().unwrap();
+        let main = dir.path().join("proj");
+        std::fs::create_dir(&main).unwrap();
+        init(&main);
+        for i in 0..20 {
+            std::fs::write(main.join(format!("f{i}.rs")), format!("fn f{i}() {{}}\n")).unwrap();
+        }
+        git(&main, &["add", "."]).unwrap();
+        git(&main, &["commit", "-qm", "init"]).unwrap();
+        let remote_root = dir.path().join("remote").to_string_lossy().into_owned();
+        let first = sync(
+            &LocalTransport,
+            &remote_root,
+            &Repo::discover(&main).unwrap(),
+            false,
+            None,
+        )
+        .unwrap();
+        assert_eq!(first.sent, 20);
+
+        // A new worktree: same content, new mtimes, one edit, one new file.
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        let wt = dir.path().join("wt");
+        git(&main, &["worktree", "add", "-q", wt.to_str().unwrap()]).unwrap();
+        std::fs::write(wt.join("f3.rs"), "fn changed() {}\n").unwrap();
+        std::fs::write(wt.join("new.rs"), "fn new() {}\n").unwrap();
+        let repo = Repo::discover(&wt).unwrap();
+        let second = sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
+        assert_eq!(
+            (second.sent, second.deleted),
+            (2, 0),
+            "only f3.rs and new.rs"
+        );
+        let seed = dir
+            .path()
+            .join("remote/seed")
+            .join(repo.seed_key())
+            .join("tree");
+        assert_eq!(
+            std::fs::read_to_string(seed.join("f3.rs")).unwrap(),
+            "fn changed() {}\n"
+        );
+        let main_seed = dir
+            .path()
+            .join("remote/seed")
+            .join(Repo::discover(&main).unwrap().seed_key())
+            .join("tree");
+        assert_eq!(
+            std::fs::read_to_string(main_seed.join("f3.rs")).unwrap(),
+            "fn f3() {}\n",
+            "the sibling seed is untouched"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn deleting_more_paths_than_one_argument_holds_works() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("proj");
+        std::fs::create_dir(&root).unwrap();
+        init(&root);
+        let long = "x".repeat(100);
+        for i in 0..1500 {
+            std::fs::write(root.join(format!("{long}{i:05}.txt")), "x").unwrap();
+        }
+        let repo = Repo::discover(&root).unwrap();
+        let remote_root = dir.path().join("remote").to_string_lossy().into_owned();
+        assert_eq!(
+            sync(&LocalTransport, &remote_root, &repo, false, None)
+                .unwrap()
+                .sent,
+            1500
+        );
+        for i in 0..1500 {
+            std::fs::remove_file(root.join(format!("{long}{i:05}.txt"))).unwrap();
+        }
+        // 1500 * 110 bytes = 165 KB of paths: more than MAX_ARG_STRLEN (128 KiB).
+        let gone = sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
+        assert_eq!(gone.deleted, 1500);
+        let tree = dir
+            .path()
+            .join("remote/seed")
+            .join(repo.seed_key())
+            .join("tree");
+        assert_eq!(std::fs::read_dir(tree).map_or(0, Iterator::count), 0);
+    }
+
+    /// Deletes the seed (as a racing gc would) right before the first upload.
+    struct RacingGc {
+        seed: PathBuf,
+        raced: std::cell::Cell<bool>,
+    }
+
+    impl Transport for RacingGc {
+        fn output(&self, cmd: &str) -> Result<Vec<u8>> {
+            LocalTransport.output(cmd)
+        }
+        fn exchange(&self, cmd: &str, input: &[u8]) -> Result<Vec<u8>> {
+            LocalTransport.exchange(cmd, input)
+        }
+        fn feed(
+            &self,
+            cmd: &str,
+            feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
+        ) -> Result<()> {
+            if !self.raced.replace(true) {
+                std::fs::remove_dir_all(&self.seed).unwrap();
+            }
+            LocalTransport.feed(cmd, feed)
+        }
+    }
+
+    // frob:tests crates/goway/src/sync.rs::manifest_generation
+    #[cfg(unix)]
+    #[test]
+    fn a_seed_replaced_mid_sync_is_detected_and_resynced_fully() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("proj");
+        std::fs::create_dir(&root).unwrap();
+        init(&root);
+        for i in 0..5 {
+            std::fs::write(root.join(format!("f{i}")), format!("{i}")).unwrap();
+        }
+        let repo = Repo::discover(&root).unwrap();
+        let remote_root = dir.path().join("remote").to_string_lossy().into_owned();
+        assert_eq!(
+            sync(&LocalTransport, &remote_root, &repo, false, None)
+                .unwrap()
+                .sent,
+            5
+        );
+        std::fs::write(root.join("f0"), "changed").unwrap();
+        let seed = dir.path().join("remote/seed").join(repo.seed_key());
+        let racing = RacingGc {
+            seed: seed.clone(),
+            raced: std::cell::Cell::new(false),
+        };
+        let stats = sync(&racing, &remote_root, &repo, false, None).unwrap();
+        assert_eq!(
+            stats.sent, 5,
+            "the retry sends everything, not just the delta"
+        );
+        let mut names: Vec<String> = std::fs::read_dir(seed.join("tree"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            ["f0", "f1", "f2", "f3", "f4"],
+            "complete tree, never a partial one"
+        );
+        assert_eq!(
+            std::fs::read_to_string(seed.join("tree/f0")).unwrap(),
+            "changed"
+        );
     }
 }

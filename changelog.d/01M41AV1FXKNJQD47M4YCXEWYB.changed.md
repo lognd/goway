@@ -1,0 +1,1 @@
+goway now only fills in build settings that are unset: an existing CARGO_TARGET_DIR, RUSTC_WRAPPER (empty disables sccache), SCCACHE_DIR or SCCACHE_SERVER_PORT from the remote environment or --env wins, and runs leave no files outside the remote root and no processes behind.

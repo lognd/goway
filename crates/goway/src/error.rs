@@ -71,6 +71,9 @@ pub enum Error {
         /// stderr of ssh or the remote script.
         message: String,
     },
+    /// No host of the pool can take a job now.
+    #[error("no usable host:\n  {}", .0.join("\n  "))]
+    NoHost(Vec<String>),
     /// The command line is inconsistent or incomplete.
     #[error("{0}")]
     Usage(String),

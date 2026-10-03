@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T16:56:12Z"
+digest = "f2e89e0488cd2c740c0faa3c82c507401b977389584efda67c6478f969cc71c2"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 82521ef2-4c30-42bf-b113-be8d2bf2eff7 with nextest profile: default
+    Starting 2 tests across 15 binaries (118 tests skipped)
+        PASS [   0.165s] goway::run_local every_run_triggers_automatic_gc_of_expired_entries
+        PASS [   4.207s] goway::run_local gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   4.208s] 2 tests run: 2 passed, 118 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones) | test(every_run_triggers_automatic_gc_of_expired_entries)'"
+size = 672
+status = "measured"
+tests = ["every_run_triggers_automatic_gc_of_expired_entries", "gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones"]
+at = "2026-10-03T16:56:12Z"
+actor = "lognd"
+rev = 1

@@ -14,19 +14,17 @@ use base64::Engine as _;
 use serde::Serialize;
 
 use crate::cli::RunArgs;
-use crate::config::{Config, HostConfig};
+use crate::config::Config;
 use crate::error::{Error, Result};
 use crate::paths::Paths;
+use crate::pool;
 use crate::remote;
 use crate::render::Renderer;
 use crate::repo::Repo;
-use crate::resolve::{self, Found, Lookup, Prober};
+use crate::resolve::{Found, Lookup, Prober};
 use crate::ssh::{self, KeyPolicy};
 use crate::state::State;
 use crate::sync::{self, Label, SshTransport};
-
-/// The probe run while resolving: arch and hostname.
-pub const IDENTIFY: &str = "uname -m; uname -n";
 
 /// Provenance of one run, written by `--report`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -99,29 +97,14 @@ pub fn exit_code_of(status: std::process::ExitStatus) -> u8 {
     crate::error::EXIT_GOWAY_FAILURE
 }
 
-/// Choose the host: `--host`, else the only configured one. (Least-loaded
-/// selection over the pool lives in `pool`.)
-fn choose<'a>(config: &'a Config, wanted: Option<&str>) -> Result<&'a HostConfig> {
-    match wanted {
-        Some(name) => config.host(name),
-        None => match config.hosts.as_slice() {
-            [] => Err(Error::Usage(
-                "no hosts configured; add one with `goway host add NAME`".to_owned(),
-            )),
-            [only] => Ok(only),
-            [first, ..] => Ok(first),
-        },
-    }
-}
-
 /// Everything `run` needs from the environment, injectable for tests.
 pub struct Env<'a> {
     /// Local paths.
     pub paths: &'a Paths,
     /// Name lookups.
-    pub lookup: &'a dyn Lookup,
+    pub lookup: &'a (dyn Lookup + Sync),
     /// Host probing.
-    pub prober: &'a dyn Prober,
+    pub prober: &'a (dyn Prober + Sync),
     /// ssh settings.
     pub settings: &'a ssh::Settings,
     /// Directory the run starts from.
@@ -133,43 +116,58 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     let started = Instant::now();
     let env_b64 = encode_env(&args.env)?;
     let config = Config::load(&env.paths.config_file())?;
-    let host = choose(&config, args.host.as_deref())?;
     let repo = Repo::discover(env.cwd)?;
     let mut state = State::load(&env.paths.state_file())?;
-    let found: Found = resolve::resolve(
+    let (host, found, probe) = pool::choose(
         &config,
-        host,
         &mut state,
         env.lookup,
         env.prober,
-        KeyPolicy::Strict,
-        IDENTIFY,
+        args.host.as_deref(),
     )?;
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host address");
     }
-    let mut ident = found.output.lines().map(str::trim);
-    let arch = ident.next().unwrap_or("unknown").to_owned();
-    let hostname = ident.next().unwrap_or("unknown").to_owned();
+    let arch = probe.arch.clone();
+    let hostname = probe.hostname.clone();
+    if args.host.is_none() && config.hosts.len() > 1 {
+        renderer.note(format_args!(
+            "picked {} (load {:.2} on {} cores, {} goway jobs)",
+            host.name, probe.load[0], probe.cores, probe.jobs
+        ));
+    }
 
     let transport = SshTransport {
         target: &found.target,
         settings: env.settings,
     };
     let remote_root = config.defaults.remote_root.as_str();
+    let run_id = new_run_id();
+    let snapshot = sync::Snapshot {
+        run_id: run_id.clone(),
+        meta_b64: label_b64(&repo, "work"),
+        keep: args.keep,
+    };
     let synced = sync::sync(
         &transport,
         remote_root,
         &repo,
         config.defaults.send_env_files,
+        Some(&snapshot),
     )?;
     renderer.note(format_args!(
         "synced {} files ({} sent, {} bytes, {} deleted)",
         synced.files, synced.sent, synced.bytes, synced.deleted
     ));
 
-    let run_id = new_run_id();
-    let cmd = run_invocation(&config, &repo, &run_id, args, &env_b64);
+    let cmd = run_invocation(
+        &config,
+        config.priority_of(&host).as_str(),
+        &repo,
+        &run_id,
+        args,
+        &env_b64,
+    );
 
     renderer.headline(format_args!(
         "running on {} ({arch}, {hostname}) at {}: {}",
@@ -219,16 +217,9 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     Ok(code)
 }
 
-/// The remote `run` invocation for this run.
-fn run_invocation(
-    config: &Config,
-    repo: &Repo,
-    run_id: &str,
-    args: &RunArgs,
-    env_b64: &str,
-) -> String {
-    let b64 = base64::engine::general_purpose::STANDARD;
-    let label = |kind| Label {
+/// A base64 `meta.json` label of `kind` for this repository.
+fn label_b64(repo: &Repo, kind: &str) -> String {
+    let label = Label {
         kind,
         repo: &repo.name,
         repo_id: &repo.id,
@@ -236,21 +227,38 @@ fn run_invocation(
         client: &repo.client,
         updated: crate::state::now_secs(),
     };
-    let meta = b64.encode(serde_json::to_vec(&label("work")).unwrap_or_default());
-    let cache_meta = b64.encode(serde_json::to_vec(&label("cache")).unwrap_or_default());
+    base64::engine::general_purpose::STANDARD.encode(serde_json::to_vec(&label).unwrap_or_default())
+}
+
+/// The remote `run` invocation for this run (its work dir already exists).
+fn run_invocation(
+    config: &Config,
+    priority: &str,
+    repo: &Repo,
+    run_id: &str,
+    args: &RunArgs,
+    env_b64: &str,
+) -> String {
+    let cache_meta = label_b64(repo, "cache");
     let slots = config.defaults.target_slots.max(1).to_string();
-    let seed = repo.seed_key();
     let keep = if args.keep { "1" } else { "0" };
+    let d = &config.defaults;
+    let ttls = format!(
+        "{}:{}:{}",
+        d.cache_ttl.as_secs(),
+        d.orphan_ttl.as_secs(),
+        d.kept_ttl.as_secs()
+    );
     let mut words: Vec<&str> = vec![
         &config.defaults.remote_root,
-        &seed,
         run_id,
         &repo.id,
         keep,
         &slots,
-        &meta,
         &cache_meta,
         env_b64,
+        &ttls,
+        priority,
         "--",
     ];
     words.extend(args.command.iter().map(String::as_str));
@@ -326,20 +334,5 @@ mod tests {
         };
         assert_eq!(exit_code_of(status("exit 7")), 7);
         assert_eq!(exit_code_of(status("kill -INT $$")), 130);
-    }
-
-    #[test]
-    fn choose_prefers_named_then_only_host() {
-        let mut config = Config::default();
-        assert!(choose(&config, None).is_err());
-        config.hosts.push(HostConfig {
-            name: "a".to_owned(),
-            address: None,
-            port: None,
-            user: None,
-            max_jobs: None,
-        });
-        assert_eq!(choose(&config, None).unwrap().name, "a");
-        assert!(choose(&config, Some("b")).is_err());
     }
 }
