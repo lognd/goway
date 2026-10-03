@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T16:14:15Z"
+digest = "aefcc0945f65fbbeb5c89454c078f2fffd0281fff6c58b05fc46bc8090c846af"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2fab9fbd-1f0a-4dfb-b04f-8771d57a5024 with nextest profile: default
+    Starting 1 test across 3 binaries (6 tests skipped)
+        PASS [   0.016s] goway::contract goway_failure_exits_125_with_rendered_error
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.019s] 1 test run: 1 passed, 6 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E test(goway_failure_exits_125_with_rendered_error)"
+size = 548
+status = "measured"
+tests = ["goway_failure_exits_125_with_rendered_error"]
+at = "2026-10-03T16:14:15Z"
+actor = "lognd"
+rev = 1
