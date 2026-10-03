@@ -18,5 +18,5 @@ bound = true
 
 [[acceptance]]
 text = "Given README.md, when a reader looks for their operating system, then an install matrix covers Windows, Windows with WSL, Linux and macOS for both the main laptop and helper roles, stating what is supported, how, and what is not"
-bound = false
+bound = true
 +++
