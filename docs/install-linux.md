@@ -11,7 +11,7 @@ Install puts the binary at `~/.local/bin/goway` (`GOWAY_PREFIX`
 overrides `~/.local`). If that directory is not on `PATH` yet, it
 appends one marked line to `~/.profile`:
 
-    export PATH="$HOME/.local/bin:$PATH" # added by goway install
+    export PATH="$PATH:$HOME/.local/bin" # added by goway install
 
 No root is needed, and nothing outside your home directory is touched.
 `GOWAY_INSTALL_BINARY=path` installs a prebuilt binary instead of

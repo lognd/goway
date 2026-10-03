@@ -74,7 +74,7 @@ fn install_then_uninstall_restores_an_empty_home() {
     run("install.sh", home.path(), SYS_PATH);
     let profile = std::fs::read_to_string(home.path().join(".profile")).unwrap();
     assert!(
-        profile.contains(".local/bin:$PATH\" # added by goway install"),
+        profile.contains("$PATH:") && profile.contains(".local/bin\" # added by goway install"),
         "{profile}"
     );
     run("uninstall.sh", home.path(), SYS_PATH);
@@ -252,4 +252,64 @@ fn a_checksum_mismatch_installs_nothing() {
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("checksum mismatch"));
     assert!(!home.path().join(".local/bin/goway").exists());
+}
+
+// A `curl | bash` cut off at any point must run nothing: the script is one
+// function called on its last line.
+#[test]
+fn a_truncated_download_leaves_no_state() {
+    let home = tempfile::tempdir().unwrap();
+    let full = std::fs::read_to_string(script("install.sh")).unwrap();
+    let lines: Vec<&str> = full.lines().collect();
+    let before = snapshot(home.path());
+    for keep in 1..lines.len() {
+        let partial = lines[..keep].join("\n");
+        let mut child = Command::new("bash")
+            .arg("-s")
+            .env_clear()
+            .env("HOME", home.path())
+            .env("PATH", SYS_PATH)
+            .env("GOWAY_INSTALL_BINARY", env!("CARGO_BIN_EXE_goway"))
+            .current_dir(home.path())
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        std::io::Write::write_all(&mut child.stdin.take().unwrap(), partial.as_bytes()).unwrap();
+        let _ = child.wait();
+        assert_eq!(
+            snapshot(home.path()),
+            before,
+            "script cut after line {keep} left state"
+        );
+    }
+}
+
+#[test]
+fn a_plain_http_release_url_is_refused() {
+    let home = tempfile::tempdir().unwrap();
+    let out = install_piped(home.path(), "http://example.invalid/release");
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("must start with https://"));
+    assert!(!home.path().join(".local/bin/goway").exists());
+}
+
+#[test]
+fn a_journal_left_by_an_aborted_install_is_cleared() {
+    let home = tempfile::tempdir().unwrap();
+    let state = home.path().join(".local/state/goway");
+    std::fs::create_dir_all(&state).unwrap();
+    std::fs::write(
+        state.join("install-journal"),
+        format!(
+            "dir {}\ndir {}\n",
+            home.path().join(".local/state").display(),
+            state.display()
+        ),
+    )
+    .unwrap();
+    run("install.sh", home.path(), SYS_PATH);
+    assert!(home.path().join(".local/bin/goway").exists());
+    run("uninstall.sh", home.path(), SYS_PATH);
 }

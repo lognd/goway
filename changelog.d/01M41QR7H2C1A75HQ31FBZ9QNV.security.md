@@ -1,0 +1,1 @@
+install.sh is now a single function called on its last line so a truncated download runs nothing, it refuses non-https release URLs, appends the goway directory to PATH instead of prepending it, and clears the journal of an aborted install.
