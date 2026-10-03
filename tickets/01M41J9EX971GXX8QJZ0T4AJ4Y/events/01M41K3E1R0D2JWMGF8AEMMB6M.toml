@@ -1,0 +1,11 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T19:15:52Z"
+digest = "2cdcfefa185d60e305f96616b21281f91d2501380286be20dc72ed5610f06b3f"
+provider = "file"
+ref = "docs/glossary.md"
+size = 4473
+status = "measured"
+at = "2026-10-03T19:15:52Z"
+actor = "lognd"
+rev = 1

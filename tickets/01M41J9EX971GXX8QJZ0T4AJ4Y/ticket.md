@@ -18,5 +18,5 @@ bound = true
 
 [[acceptance]]
 text = "Given the docs, when a term like ssh, WSL, key or fingerprint first appears, then the glossary defines it in one plain sentence"
-bound = false
+bound = true
 +++
