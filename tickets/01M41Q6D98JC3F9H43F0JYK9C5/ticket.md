@@ -11,6 +11,10 @@ created = "2026-10-03T20:27:24Z"
 updated = "2026-10-03T20:34:37Z"
 scope = ["crates/goway/src/sync.rs", "crates/goway/src/interop.rs", "crates/goway/tests/**", "docs/design.md", "crates/goway/src/gc.rs"]
 
+[[links]]
+kind = "blocked-by"
+target = "01M41P2FZ22KC8PJVR9RY6QS01"
+
 [[acceptance]]
 text = "Given an interop host, when goway syncs, then the file set is git ls-files -co --exclude-standard minus secrets, written into goway's own NTFS directory for that repository and worktree, never another repository's"
 bound = false
