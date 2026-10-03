@@ -8,7 +8,7 @@ points = 8
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-03T21:25:11Z"
+updated = "2026-10-03T21:25:12Z"
 scope = ["crates/goway/src/shard.rs", "crates/goway/src/runners.rs", "crates/goway/src/lib.rs", "crates/goway/tests/shard_*.rs", "docs/usage.md", "crates/goway/src/render.rs"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given an unknown command, when it is sharded, then it gets GOWAY_SHARD and GOWAY_SHARD_COUNT and runs unchanged"
-bound = false
+bound = true
 +++
