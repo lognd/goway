@@ -27,7 +27,7 @@ A tag push publishes:
 | `goway-aarch64-apple-darwin.tar.gz` | macOS on Apple Silicon (goway only) |
 | `goway-x86_64-apple-darwin.tar.gz` | macOS on Intel (goway only) |
 | `goway-setup.exe` | Windows x64 (also runs on Windows on ARM) |
-| `goway-setup-arm64.exe` | Windows on ARM, native |
+| `goway-setup-arm64.exe` | Windows on ARM, native (built on an ARM64 runner) |
 | `install.sh` | the Linux, WSL and macOS installer (`curl ... \| bash`) |
 | `SHA256SUMS` | checksums of all of the above |
 
@@ -44,7 +44,7 @@ archive from `uname`, verifies it with `sha256sum` or, on macOS, `shasum -a
 | macOS Apple Silicon | release workflow (`macos-14`) | `ci` `macos` job: client unit tests and the install script tests; never run by the maintainer on a real Mac |
 | macOS Intel | release workflow (`macos-15-intel`) | built only |
 | Windows x64 | release workflow | `ci` `windows` job |
-| Windows ARM64 | release workflow (`windows-11-arm`) | built only |
+| Windows ARM64 | release workflow (`windows-11-arm`, native; `scripts/windows/build.sh --arch arm64`) | the release job checks the PE machine type and runs `--version` natively on the ARM runner |
 
 Only Linux can be a helper; macOS is a main laptop only.
 
@@ -82,6 +82,7 @@ to take the version from Cargo.
 | manylinux, x86_64 and aarch64 | glibc systems (most distributions) |
 | musllinux, x86_64 and aarch64 | Alpine and other musl systems (static binary) |
 | Windows x86_64 | Windows |
+| Windows ARM64 | Windows on ARM (native, built on `windows-11-arm`) |
 | macOS arm64 and x86_64 | macOS (Apple Silicon and Intel) |
 | source distribution (sdist) | everything else, built with cargo |
 
