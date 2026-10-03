@@ -2,7 +2,8 @@
 id = "01M41PH8825T7M1779CNW25FJX"
 title = "Publish goway and goway-journal to crates.io from the release workflow"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
