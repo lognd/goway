@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T23:29:01Z"
-updated = "2026-10-03T23:56:29Z"
+updated = "2026-10-03T23:56:30Z"
 scope = [".github/workflows/release.yml", "crates/goway/tests/publishing.rs", "docs/release.md", ".github/workflows/ci.yml"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a successful GitHub release, when it finishes, then both the crates-io job (environment crates-io) and the pypi job (environment pypi, trusted publishing) run, independently of each other, and the release is titled goway X.Y.Z"
-bound = false
+bound = true
 +++
