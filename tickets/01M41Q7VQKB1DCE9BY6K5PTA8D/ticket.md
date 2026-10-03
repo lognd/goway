@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:28:11Z"
-updated = "2026-10-03T20:33:29Z"
+updated = "2026-10-03T20:33:30Z"
 scope = ["crates/goway/src/uninstall.rs", "crates/goway/src/doctor.rs", "crates/goway/src/remote.sh", "crates/goway/tests/uninstall_records.rs", "crates/goway/tests/install_scripts.rs", "scripts/uninstall.sh", "docs/usage.md"]
 
 [[acceptance]]
@@ -21,7 +21,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a journal naming a file outside the install prefix or a profile outside HOME, When the journal is reverted, Then those entries are skipped"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a CRLF profile with goway PATH line, When the journal is reverted, Then the other lines keep their CRLF bytes exactly"
