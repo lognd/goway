@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T21:54:10Z"
+digest = "8f64126075b1e133507e41c6d428f12a784d947b2e05b306c217dd91456fa779"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID f1442305-a7b5-4b47-8d03-c15e62c81cdf with nextest profile: default
+    Starting 1 test across 32 binaries (385 tests skipped)
+        PASS [   1.110s] goway::needs a_host_that_lacks_a_need_is_never_used_and_the_error_lists_why
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.112s] 1 test run: 1 passed, 385 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_host_that_lacks_a_need"
+size = 569
+status = "measured"
+tests = ["a_host_that_lacks_a_need_is_never_used_and_the_error_lists_why"]
+at = "2026-10-03T21:54:10Z"
+actor = "lognd"
+rev = 1
