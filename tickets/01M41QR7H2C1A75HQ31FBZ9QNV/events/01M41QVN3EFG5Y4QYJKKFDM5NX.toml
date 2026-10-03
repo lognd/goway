@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T20:39:00Z"
+digest = "34d79780b05ff07907cc56a0c4d225e204055e3a051837d69d0da9b16e1022cd"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 12a171a1-091a-48df-bdce-1e80d10f394b with nextest profile: default
+    Starting 1 test across 26 binaries (285 tests skipped)
+        PASS [   0.811s] goway::install_scripts a_journal_left_by_an_aborted_install_is_cleared
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.813s] 1 test run: 1 passed, 285 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_journal_left_by_an_aborted_install_is_cleared)'"
+size = 564
+status = "measured"
+tests = ["a_journal_left_by_an_aborted_install_is_cleared"]
+at = "2026-10-03T20:39:00Z"
+actor = "lognd"
+rev = 1
