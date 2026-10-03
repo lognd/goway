@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:54:28Z"
+digest = "30083ba452db9b60d54499519b138903e54571bc7a077fc5a0b496697c507b1c"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID a7643a68-74d2-408e-a635-1a3b8c155e45 with nextest profile: default
+    Starting 1 test across 22 binaries (210 tests skipped)
+        PASS [   0.197s] goway repo::tests::ids_are_stable_across_worktrees_and_distinct_per_tree
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.200s] 1 test run: 1 passed, 210 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(ids_are_stable_across_worktrees_and_distinct_per_tree)'"
+size = 566
+status = "measured"
+tests = ["repo::tests::ids_are_stable_across_worktrees_and_distinct_per_tree"]
+at = "2026-10-03T18:54:28Z"
+actor = "lognd"
+rev = 1

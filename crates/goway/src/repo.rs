@@ -99,10 +99,16 @@ impl Repo {
             .map_or_else(|| "repo".to_owned(), |n| n.to_string_lossy().into_owned());
         let roots = git(&root, &["rev-list", "--max-parents=0", "HEAD"]).unwrap_or_default();
         let first_root = roots.lines().last().unwrap_or("").to_owned();
+        // Worktrees of one clone share caches; a fork or another clone with
+        // the same history but a different origin gets its own, so code
+        // from one cannot poison the build artifacts of the other.
+        let origin = git(&root, &["config", "--get", "remote.origin.url"]).unwrap_or_default();
         let id = if first_root.is_empty() {
             short_hash(&["path", &common.to_string_lossy()])
+        } else if origin.is_empty() {
+            short_hash(&["root", &first_root, "clone", &common.to_string_lossy()])
         } else {
-            short_hash(&["root", &first_root])
+            short_hash(&["root", &first_root, "origin", &origin])
         };
         let client = client_name();
         let worktree_id = short_hash(&[&client, &root.to_string_lossy()]);
@@ -159,5 +165,42 @@ mod tests {
         assert_ne!(r1.worktree_id, r2.worktree_id);
         assert_eq!(r1.seed_key(), format!("{}/{}", r1.id, r1.worktree_id));
         assert!(Repo::discover(dir.path()).is_err());
+
+        // A fork: same root commit, different origin -> separate caches.
+        let fork = dir.path().join("fork");
+        git(
+            dir.path(),
+            &[
+                "clone",
+                "-q",
+                main.to_str().unwrap(),
+                fork.to_str().unwrap(),
+            ],
+        )
+        .unwrap();
+        let upstream = dir.path().join("upstream");
+        git(
+            dir.path(),
+            &[
+                "clone",
+                "-q",
+                main.to_str().unwrap(),
+                upstream.to_str().unwrap(),
+            ],
+        )
+        .unwrap();
+        git(
+            &fork,
+            &[
+                "remote",
+                "set-url",
+                "origin",
+                "https://example.com/someone-else/proj",
+            ],
+        )
+        .unwrap();
+        let f = Repo::discover(&fork).unwrap();
+        let u = Repo::discover(&upstream).unwrap();
+        assert_ne!(f.id, u.id, "forks with the same root commit share no cache");
     }
 }

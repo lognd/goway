@@ -28,7 +28,8 @@ cache_ttl = "7d"               # seeds and per-repository caches expire after th
 orphan_ttl = "1d"              # unlocked work dirs left by crashed runs
 kept_ttl = "3d"                # work dirs kept with `goway run --keep`
 target_slots = 4               # most cargo target dirs per repository per host
-send_env_files = false         # .env and .env.* are never sent unless true
+send_secret_files = false      # secret-looking files are never sent unless true
+secret_allow = []              # ...or send these anyway, e.g. ["tests/fixtures/*.pem"]
 port = 2222                    # ssh port when a host does not set one (WSL sshd)
 priority = "low"               # "low": jobs run under nice 10 with idle-class I/O; "normal"
 # max_load = 0.8               # skip hosts whose 1-minute load per core is above this
@@ -63,7 +64,7 @@ On the remote, a job sees these variables:
 | `GOWAY_HOST` | the host's hostname |
 | `GOWAY_RUN_ID` | the run's id |
 | `CARGO_TARGET_DIR` | a free per-repository target slot, unless already set |
-| `RUSTC_WRAPPER`, `SCCACHE_DIR`, `SCCACHE_SERVER_PORT`, `SCCACHE_IDLE_TIMEOUT` | sccache with a per-repository cache, port and a 300 s idle timeout. These are set only when sccache is installed and `RUSTC_WRAPPER` is unset, and each one only if it is still unset. |
+| `RUSTC_WRAPPER`, `SCCACHE_DIR`, `SCCACHE_SERVER_UDS`, `SCCACHE_IDLE_TIMEOUT` | sccache with a per-repository cache, a server socket in goway's owner-only cache directory (no TCP port), and a 300 s idle timeout. These are set only when sccache is installed and `RUSTC_WRAPPER` is unset, and each one only if it is still unset. |
 
 The remote environment, `~/.cargo/env` and `--env KEY=VALUE` values are
 applied first. goway only fills in what is still unset, so your settings

@@ -1,0 +1,1 @@
+Security: a fork or other clone that shares a repository's root commit but not its origin now gets separate remote caches (worktrees of one clone still share theirs), and the docs state that runs execute repository code as your user on the host.

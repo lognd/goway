@@ -97,6 +97,73 @@ fn install(facts: &BTreeMap<String, String>, apt: &str, dnf: &str, pacman: &str)
     }
 }
 
+/// Pinned releases goway installs, with their sha256 per architecture.
+struct Pinned {
+    url: &'static str,
+    sha256: &'static str,
+    /// The member to extract (sccache's tarball nests it in a directory).
+    member: &'static str,
+    strip: u8,
+}
+
+const NEXTEST: [(&str, Pinned); 2] = [
+    (
+        "x86_64",
+        Pinned {
+            url: "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.146/cargo-nextest-0.9.146-x86_64-unknown-linux-gnu.tar.gz",
+            sha256: "682c21b777c333e96fd532e114d3a5a894e0729ab88d94c0a9f20f8419695428",
+            member: "cargo-nextest",
+            strip: 0,
+        },
+    ),
+    (
+        "aarch64",
+        Pinned {
+            url: "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.146/cargo-nextest-0.9.146-aarch64-unknown-linux-gnu.tar.gz",
+            sha256: "b2e33d7c72de7ade0ff7b3a948ac37516b24f8a836b7a8870c1f634a94be9de9",
+            member: "cargo-nextest",
+            strip: 0,
+        },
+    ),
+];
+
+const SCCACHE: [(&str, Pinned); 2] = [
+    (
+        "x86_64",
+        Pinned {
+            url: "https://github.com/mozilla/sccache/releases/download/v0.18.0/sccache-v0.18.0-x86_64-unknown-linux-musl.tar.gz",
+            sha256: "45f1447fbe231e3037bde351ef70677dd212216c8d62ae7ca409fecc4d6acc89",
+            member: "sccache-v0.18.0-x86_64-unknown-linux-musl/sccache",
+            strip: 1,
+        },
+    ),
+    (
+        "aarch64",
+        Pinned {
+            url: "https://github.com/mozilla/sccache/releases/download/v0.18.0/sccache-v0.18.0-aarch64-unknown-linux-musl.tar.gz",
+            sha256: "2b3284d5da3b46a47dc4229e75bb7b88ac4aa99c8d754fb7d2f84997e5a4354a",
+            member: "sccache-v0.18.0-aarch64-unknown-linux-musl/sccache",
+            strip: 1,
+        },
+    ),
+];
+
+/// The install command for a pinned release on `arch`: download, verify
+/// the sha256, then extract into the user's cargo bin. `None` for an
+/// architecture goway has no pinned build for (the host's report of its
+/// own arch is never pasted into a command).
+fn pinned_install(table: &[(&str, Pinned)], arch: &str) -> Option<String> {
+    let (_, p) = table.iter().find(|(a, _)| *a == arch)?;
+    Some(format!(
+        "t=$(mktemp -d) && curl -fsSL {url} -o \"$t/a.tgz\" && echo \"{sha}  $t/a.tgz\" | sha256sum -c --quiet && mkdir -p {bin} && tar xzf \"$t/a.tgz\" -C {bin} --strip-components={strip} {member}; rc=$?; rm -rf \"$t\"; exit $rc",
+        url = p.url,
+        sha = p.sha256,
+        bin = CARGO_BIN,
+        strip = p.strip,
+        member = p.member,
+    ))
+}
+
 const CARGO_BIN: &str = "\"${CARGO_HOME:-$HOME/.cargo}/bin\"";
 const MIN_FREE: u64 = 10 * 1024 * 1024 * 1024;
 
@@ -196,45 +263,31 @@ fn toolchain_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
             }),
         ),
     }
-    let nextest_url = if arch == "aarch64" {
-        "https://get.nexte.st/latest/linux-arm"
-    } else {
-        "https://get.nexte.st/latest/linux"
-    };
     match present("cargo-nextest") {
         Some(v) => push("cargo-nextest", Level::Ok, v, None),
         None => push(
             "cargo-nextest",
             Level::Warn,
             "missing; `cargo nextest run` will not work".to_owned(),
-            Some(Fix {
-                command: format!(
-                    "mkdir -p {CARGO_BIN} && curl -LsSf {nextest_url} | tar zxf - -C {CARGO_BIN}"
-                ),
+            pinned_install(&NEXTEST, arch).map(|command| Fix {
+                command,
                 root: false,
-                why: "installs the prebuilt binary into the user's cargo bin".to_owned(),
+                why: "installs the pinned, checksum-verified prebuilt binary into the user's cargo bin".to_owned(),
             }),
         ),
     }
-    if let Some(v) = present("sccache") {
-        push("sccache", Level::Ok, v, None);
-    } else {
-        {
-            let triple = format!("{arch}-unknown-linux-musl");
-            push(
-                "sccache",
-                Level::Warn,
-                "missing; cold builds in new target slots will be slower".to_owned(),
-                Some(Fix {
-                    command: format!(
-                        "v=$(curl -fsSL https://api.github.com/repos/mozilla/sccache/releases/latest | sed -n 's/.*\"tag_name\": *\"\\([^\"]*\\)\".*/\\1/p') && mkdir -p {CARGO_BIN} && curl -fsSL \"https://github.com/mozilla/sccache/releases/download/$v/sccache-$v-{triple}.tar.gz\" | tar xz --strip-components=1 -C {CARGO_BIN} \"sccache-$v-{triple}/sccache\""
-                    ),
-                    root: false,
-                    why: "installs the prebuilt release binary into the user's cargo bin"
-                        .to_owned(),
-                }),
-            );
-        }
+    match present("sccache") {
+        Some(v) => push("sccache", Level::Ok, v, None),
+        None => push(
+            "sccache",
+            Level::Warn,
+            "missing; cold builds in new target slots will be slower".to_owned(),
+            pinned_install(&SCCACHE, arch).map(|command| Fix {
+                command,
+                root: false,
+                why: "installs the pinned, checksum-verified release binary into the user's cargo bin".to_owned(),
+            }),
+        ),
     }
     out
 }
@@ -562,6 +615,17 @@ mod tests {
     }
 
     #[test]
+    fn an_unknown_arch_never_reaches_a_command() {
+        let mut f = facts(&["cargo-nextest", "sccache"]);
+        f.insert("arch".to_owned(), "x86_64; touch /tmp/pwned".to_owned());
+        for c in assess(&f) {
+            if let Some(fix) = &c.fix {
+                assert!(!fix.command.contains("pwned"), "{}", fix.command);
+            }
+        }
+    }
+
+    #[test]
     fn healthy_host_is_all_ok() {
         assert!(assess(&facts(&[])).iter().all(|c| c.level == Level::Ok));
     }
@@ -573,10 +637,12 @@ mod tests {
         assert_eq!(c.level, Level::Warn);
         let fix = c.fix.as_ref().unwrap();
         assert!(!fix.root);
-        assert_eq!(
-            fix.command,
-            "mkdir -p \"${CARGO_HOME:-$HOME/.cargo}/bin\" && curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C \"${CARGO_HOME:-$HOME/.cargo}/bin\""
+        assert!(
+            fix.command
+                .contains("682c21b777c333e96fd532e114d3a5a894e0729ab88d94c0a9f20f8419695428")
         );
+        assert!(fix.command.contains("sha256sum -c"), "{}", fix.command);
+        assert!(!fix.command.contains("latest"), "{}", fix.command);
     }
 
     #[test]
@@ -641,7 +707,7 @@ mod tests {
         assert!(checks.iter().any(|c| {
             c.fix
                 .as_ref()
-                .is_some_and(|x| x.command.contains("linux-arm"))
+                .is_some_and(|x| x.command.contains("aarch64-unknown-linux-gnu"))
         }));
     }
 }

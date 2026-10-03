@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:52:20Z"
+digest = "6b75e36a62499c8e70fa0d69e44ee1483a95a7982a4e514fe271d417b7cae1bb"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e87f0ca0-d4e2-4526-9fba-49512e85cf8e with nextest profile: default
+    Starting 1 test across 22 binaries (210 tests skipped)
+        PASS [   0.263s] goway::run_local sccache_listens_on_an_owner_only_socket_not_a_tcp_port
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.271s] 1 test run: 1 passed, 210 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(sccache_listens_on_an_owner_only_socket_not_a_tcp_port)'"
+size = 565
+status = "measured"
+tests = ["sccache_listens_on_an_owner_only_socket_not_a_tcp_port"]
+at = "2026-10-03T18:52:20Z"
+actor = "lognd"
+rev = 1

@@ -125,3 +125,23 @@ fn a_changed_binary_is_kept_and_a_second_install_is_refused() {
     assert_eq!(std::fs::read_to_string(&bin).unwrap(), "user replaced it");
     assert!(!home.path().join(".profile").exists());
 }
+
+#[test]
+fn a_prefix_that_could_run_code_is_refused() {
+    let home = tempfile::tempdir().unwrap();
+    let out = Command::new("bash")
+        .arg(script("install.sh"))
+        .env_clear()
+        .env("HOME", home.path())
+        .env("PATH", SYS_PATH)
+        .env(
+            "GOWAY_PREFIX",
+            format!("{}/x$(touch pwned)", home.path().display()),
+        )
+        .env("GOWAY_INSTALL_BINARY", env!("CARGO_BIN_EXE_goway"))
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(!home.path().join(".profile").exists());
+    assert!(!home.path().join("pwned").exists());
+}

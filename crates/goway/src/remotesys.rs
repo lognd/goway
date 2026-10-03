@@ -3,8 +3,8 @@
 //! Used by `goway ssh setup` so the changes it makes on the host
 //! (`~/.ssh`, `authorized_keys`, their modes) are journaled and undone the
 //! same way the installers' local changes are. Only file, directory and
-//! mode operations are supported; files are rewritten in place so their
-//! inode and mode stay what they were.
+//! mode operations are supported; files are replaced atomically and keep
+//! their mode.
 
 use std::io::Write as _;
 use std::path::Path;
@@ -115,8 +115,13 @@ impl System for RemoteSystem {
 
     fn write_file(&mut self, path: &Path, contents: &str) -> SysResult<()> {
         tracing::info!(host = %self.target.name, path = %path.display(), "remote: write file");
-        // In place (`>` truncates the same inode), so the mode is kept.
-        let out = self.exec(&format!("cat > {}", q(path)), Some(contents.as_bytes()))?;
+        // Atomic (a dropped connection cannot leave a truncated
+        // authorized_keys): write a temp file with the old mode, then rename.
+        let p = q(path);
+        let script = format!(
+            "t={p}.goway-tmp.$$; cat > \"$t\" && {{ if [ -e {p} ]; then chmod --reference={p} \"$t\"; fi; }} && mv -f \"$t\" {p} || {{ rm -f \"$t\"; exit 1; }}"
+        );
+        let out = self.exec(&script, Some(contents.as_bytes()))?;
         if out.code == Some(0) {
             Ok(())
         } else {

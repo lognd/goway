@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:50:18Z"
+digest = "8c00608f9c66035f83daadce01261d068f9997a386c35ccd6f17eaa38021f907"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9e2d456e-5189-4258-8ad4-038697c70fc2 with nextest profile: default
+    Starting 2 tests across 21 binaries (190 tests skipped)
+        PASS [   0.007s] goway sync::tests::secret_files_are_recognized_case_insensitively
+        PASS [   0.041s] goway sync::tests::secrets_and_files_under_symlinked_dirs_stay_local
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.046s] 2 tests run: 2 passed, 190 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(secret_files_are_recognized_case_insensitively) | test(secrets_and_files_under_symlinked_dirs_stay_local)'"
+size = 655
+status = "measured"
+tests = ["sync::tests::secret_files_are_recognized_case_insensitively", "sync::tests::secrets_and_files_under_symlinked_dirs_stay_local"]
+at = "2026-10-03T18:50:18Z"
+actor = "lognd"
+rev = 1

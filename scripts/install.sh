@@ -23,6 +23,11 @@ profile="$HOME/.profile"
 marker="# added by goway install"
 
 [ -e "$journal" ] && die "already installed (journal $journal); run scripts/uninstall.sh first"
+# The bin path is written into ~/.profile; refuse anything a shell could
+# read as code (quotes, $, backticks, newlines, ...).
+case "$bin" in
+  *[!A-Za-z0-9/._+@-]*) die "install prefix '$prefix' has characters goway will not write into ~/.profile; set GOWAY_PREFIX to a plain path" ;;
+esac
 
 src=${GOWAY_INSTALL_BINARY:-}
 if [ -z "$src" ]; then
