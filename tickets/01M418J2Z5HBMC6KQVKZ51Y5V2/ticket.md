@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:11:38Z"
-scope = ["crates/goway/**", "docs/**"]
+updated = "2026-10-03T16:53:51Z"
+scope = ["crates/goway/**"]
 
 [[acceptance]]
 text = "Given entries past their TTL with free locks, when gc runs, then they are removed and locked or fresh entries are kept"
