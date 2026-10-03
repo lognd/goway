@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T17:02:40Z"
+digest = "786bbf75d2f02a3b4cea96e2f27b7dd1b8cdacb4ce096615949db3cd9938f64a"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c0a041f8-b7c4-48ff-a121-5033f296c02e with nextest profile: default
+    Starting 2 tests across 15 binaries (125 tests skipped)
+        PASS [   0.009s] goway doctor::tests::missing_linker_and_password_login_need_root
+        PASS [   0.011s] goway doctor::tests::root_fixes_never_run_without_sudo
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.012s] 2 tests run: 2 passed, 125 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(root_fixes_never_run_without_sudo) | test(missing_linker_and_password_login_need_root)'"
+size = 640
+status = "measured"
+tests = ["doctor::tests::missing_linker_and_password_login_need_root", "doctor::tests::root_fixes_never_run_without_sudo"]
+at = "2026-10-03T17:02:40Z"
+actor = "lognd"
+rev = 1
