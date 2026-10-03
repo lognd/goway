@@ -8,11 +8,11 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:56Z"
-updated = "2026-10-03T18:54:53Z"
+updated = "2026-10-03T18:59:22Z"
 labels = ["security"]
 scope = ["crates/goway/**", "scripts/install.sh", "scripts/uninstall.sh", "docs/ssh-setup.md", "docs/usage.md"]
 
 [[acceptance]]
 text = "Given each LOW finding L1-L6 of the 2026-10-03 audit, when its regression test runs, then the unsafe behaviour is gone"
-bound = false
+bound = true
 +++
