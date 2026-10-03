@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given host-derived text with bidi or zero-width format characters or huge length, When it is cleaned, Then they are replaced and the length is capped"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a helper that prints more than the cap on stdout or stderr, When goway captures it, Then memory stays bounded, stderr is truncated and oversize stdout is an error"

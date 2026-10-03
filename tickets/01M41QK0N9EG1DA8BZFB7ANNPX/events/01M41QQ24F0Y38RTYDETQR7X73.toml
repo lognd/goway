@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:36:29Z"
+digest = "b71e63b8795ed3a423364d1144fabc5e3208dde1353d0803ed92f753f0a007b0"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 21c57d1c-b71f-442c-af5a-1267bd4aa140 with nextest profile: default
+    Starting 1 test across 26 binaries (279 tests skipped)
+        PASS [   0.013s] goway render::tests::bidi_and_zero_width_characters_are_replaced_and_length_is_capped
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.015s] 1 test run: 1 passed, 279 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(bidi_and_zero_width_characters_are_replaced_and_length_is_capped)'"
+size = 579
+status = "measured"
+tests = ["render::tests::bidi_and_zero_width_characters_are_replaced_and_length_is_capped"]
+at = "2026-10-03T20:36:29Z"
+actor = "lognd"
+rev = 1
