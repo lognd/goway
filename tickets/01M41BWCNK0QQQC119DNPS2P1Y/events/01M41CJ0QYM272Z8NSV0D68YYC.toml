@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T17:21:30Z"
+digest = "11c7128ce85c4485416baddcfeedae79c5db3a445e4afadfb22b5ace0b756383"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.41s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e6aa7c11-4fba-45dc-bc47-54352585d67e with nextest profile: default
+    Starting 1 test across 15 binaries (134 tests skipped)
+        PASS [   1.577s] goway sync::tests::a_second_worktree_only_sends_what_differs
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.582s] 1 test run: 1 passed, 134 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_second_worktree_only_sends_what_differs)'"
+size = 710
+status = "measured"
+tests = ["sync::tests::a_second_worktree_only_sends_what_differs"]
+at = "2026-10-03T17:21:30Z"
+actor = "lognd"
+rev = 1
