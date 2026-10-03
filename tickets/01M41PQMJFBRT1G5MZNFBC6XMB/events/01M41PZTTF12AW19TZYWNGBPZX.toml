@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T20:23:48Z"
+digest = "19eb0a541072a2cb03732958f1f7570dbf02d17019e5a94c9f103a9d6f897469"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 705733fa-15b1-49b8-8623-468fcaf61749 with nextest profile: default
+    Starting 3 tests across 24 binaries (253 tests skipped)
+        PASS [   0.015s] goway termfilter::tests::strips_osc_clipboard_title_and_queries
+        PASS [   0.015s] goway termfilter::tests::never_emits_an_escape_that_is_not_sgr
+        PASS [   0.015s] goway termfilter::tests::handles_sequences_split_across_chunks_at_every_offset
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.017s] 3 tests run: 3 passed, 253 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(strips_osc_clipboard_title_and_queries) | test(handles_sequences_split_across_chunks_at_every_offset) | test(never_emits_an_escape_that_is_not_sgr)'"
+size = 751
+status = "measured"
+tests = ["termfilter::tests::strips_osc_clipboard_title_and_queries", "termfilter::tests::never_emits_an_escape_that_is_not_sgr", "termfilter::tests::handles_sequences_split_across_chunks_at_every_offset"]
+at = "2026-10-03T20:23:48Z"
+actor = "lognd"
+rev = 1
