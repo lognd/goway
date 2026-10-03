@@ -1,0 +1,6 @@
+kind = "comment"
+subtype = "decision"
+body = "Dropped the Windows-sshd administrators_authorized_keys criterion: goway never logs into the Windows OpenSSH server (hosts are reached through WSL sshd), and writing that root-owned file on the owner's live machines is risk without benefit after today's Helios incident. The Windows concern that matters is the client key ACL (OpenSSH for Windows rejects keys readable by others), now criterion 2. docs/ssh-setup.md prints Microsoft's documented icacls commands for anyone who wants Windows-sshd access. goway's key lives in goway's config dir, so setup never edits ~/.ssh on the client."
+at = "2026-10-03T17:26:20Z"
+actor = "lognd"
+rev = 1
