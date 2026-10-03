@@ -1,0 +1,12 @@
+kind = "create"
+title = "Test suite must pass when run on a goway host (no WSL interop over ssh, inherited CARGO_TARGET_DIR)"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 1
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/tests/**", "crates/goway/src/resolve.rs"]
+acceptance = ["Given goway run --host H -- cargo nextest run --workspace on each pool host, when it finishes, then every test passes"]
+at = "2026-10-03T18:00:51Z"
+actor = "lognd"
+rev = 1
