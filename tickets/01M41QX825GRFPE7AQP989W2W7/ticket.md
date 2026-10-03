@@ -2,7 +2,8 @@
 id = "01M41QX825GRFPE7AQP989W2W7"
 title = "Verify the ssh control dir, call sudo by absolute path, validate sshd config before reload"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
