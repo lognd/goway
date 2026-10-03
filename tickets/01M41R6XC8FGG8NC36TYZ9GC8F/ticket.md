@@ -8,12 +8,12 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:45:09Z"
-updated = "2026-10-03T21:17:14Z"
+updated = "2026-10-03T21:17:53Z"
 scope = ["crates/goway/src/render.rs", "crates/goway/src/shard.rs", "crates/goway/src/termfilter.rs", "crates/goway/src/run.rs", "crates/goway/tests/**", "docs/usage.md", "docs/design.md"]
 
 [[acceptance]]
 text = "Given a sharded run where many hosts stream stdout and stderr to the same terminal or pipe, when lines arrive concurrently, then every output line is written by one write call under one lock shared by both streams, so no line is ever split or interleaved with another (a stress test with many writer threads checks every line arrives whole)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway's own messages (info, note, warning, error) printed while remote output streams, when both happen at once, then goway's message is assembled into one buffer and written whole under the same lock"
