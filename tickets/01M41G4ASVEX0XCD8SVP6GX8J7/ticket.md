@@ -2,7 +2,8 @@
 id = "01M41G4ASVEX0XCD8SVP6GX8J7"
 title = "L1-L6: non-UTF-8 names, atomic private writes, 0700 control dir, true key-only verify, pinned doctor downloads, safe profile line"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
