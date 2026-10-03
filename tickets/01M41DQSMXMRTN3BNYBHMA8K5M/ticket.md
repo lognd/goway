@@ -2,13 +2,14 @@
 id = "01M41DQSMXMRTN3BNYBHMA8K5M"
 title = "Native aarch64 Windows build of goway.exe and goway-setup.exe"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T17:42:08Z"
-updated = "2026-10-03T21:37:47Z"
+updated = "2026-10-03T21:38:14Z"
 scope = ["scripts/windows/**", ".github/workflows/release.yml", "docs/install-windows.md", "docs/release.md"]
 
 [[acceptance]]

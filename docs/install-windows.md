@@ -431,13 +431,18 @@ this proves the mechanism but not a real NAT address change; that needs a Window
 
 <details><summary>Details</summary>
 
-    rustup target add x86_64-pc-windows-gnu      # once, for the pinned toolchain
-    scripts/windows/build.sh                      # needs mingw-w64 (x86_64-w64-mingw32-gcc)
+    scripts/windows/build.sh                      # x64: needs mingw-w64 on Linux/WSL
+    scripts/windows/build.sh --arch arm64         # ARM64: cargo-xwin on Linux, MSVC on Windows
+    scripts/windows/build.sh --arch all           # both
 
-This builds `goway.exe`, then `goway-setup.exe` with it embedded (`GOWAY_PAYLOAD` is read by the
+This builds `goway.exe`, then the installer with it embedded (`GOWAY_PAYLOAD` is read by the
 crate's build script; without it the crate still builds, with an empty payload, and refuses to
-install). Output: `target/x86_64-pc-windows-gnu/release/goway-setup.exe`. x86_64 binaries run on
-x64 Windows and under emulation on Windows on ARM.
+install). Output in `dist/`: `goway-setup.exe` (x64) and `goway-setup-arm64.exe` (ARM64). The
+ARM64 installer is a native aarch64 binary and runs on Windows on ARM without emulation; the x64
+one runs there under emulation. `scripts/windows/pe-machine.ps1 FILE` prints which CPU a file is
+built for. The release workflow runs this same script on `windows-2025` (x64) and `windows-11-arm`
+(ARM64), checks each file's CPU, and runs it with `--version`, so the ARM64 files are proven to
+run natively on every release build.
 
 </details>
 

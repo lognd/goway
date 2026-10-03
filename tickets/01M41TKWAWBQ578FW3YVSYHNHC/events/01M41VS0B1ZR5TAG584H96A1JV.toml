@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T21:47:27Z"
+digest = "455f05ae8b537ab9441cdb109a82292173174e27388ee9fd844db266257c6f0f"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 92021b58-b092-469d-8e10-6e7ec59e838f with nextest profile: default
+    Starting 1 test across 31 binaries (371 tests skipped)
+        PASS [   4.194s] goway::shard_detect a_stripped_googletest_binary_is_sharded_natively
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   4.197s] 1 test run: 1 passed, 371 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_stripped_googletest_binary_is_sharded"
+size = 562
+status = "measured"
+tests = ["a_stripped_googletest_binary_is_sharded_natively"]
+at = "2026-10-03T21:47:27Z"
+actor = "lognd"
+rev = 1

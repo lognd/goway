@@ -61,21 +61,33 @@ jobs:
         include:
           - os: windows-2025
             target: x86_64-pc-windows-msvc
+            arch: x64
             asset: goway-setup.exe
           - os: windows-11-arm
             target: aarch64-pc-windows-msvc
+            arch: arm64
             asset: goway-setup-arm64.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - run: rustup target add ${{ matrix.target }}
-      - run: cargo build --release --locked -p goway --target ${{ matrix.target }}
-      - name: Build the installer with goway.exe embedded
+      - name: Build goway.exe and the installer with goway.exe embedded
         shell: bash
         run: |
-          GOWAY_PAYLOAD="$PWD/target/${{ matrix.target }}/release/goway.exe" \
-            cargo build --release --locked -p goway-setup --target ${{ matrix.target }}
-          cp target/${{ matrix.target }}/release/goway-setup.exe ${{ matrix.asset }}
+          bash scripts/windows/build.sh --arch ${{ matrix.arch }}
+          cp dist/${{ matrix.asset }} ${{ matrix.asset }}
+      - name: The binaries are for this CPU and run natively
+        shell: pwsh
+        run: |
+          $want = '${{ matrix.arch }}'
+          foreach ($f in 'target/${{ matrix.target }}/release/goway.exe', '${{ matrix.asset }}') {
+            $got = scripts/windows/pe-machine.ps1 $f
+            if ($got -ne $want) { throw "$f is $got, expected $want" }
+          }
+          # windows-11-arm runs the arm64 files without emulation; windows-2025 runs the x64 ones.
+          & 'target/${{ matrix.target }}/release/goway.exe' --version
+          if ($LASTEXITCODE -ne 0) { throw "goway.exe --version failed" }
+          & './${{ matrix.asset }}' --version
+          if ($LASTEXITCODE -ne 0) { throw "${{ matrix.asset }} --version failed" }
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
@@ -102,6 +114,9 @@ jobs:
             manylinux: musllinux_1_2
           - os: windows-2025
             target: x86_64-pc-windows-msvc
+            manylinux: "off"
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
             manylinux: "off"
           - os: macos-14
             target: aarch64-apple-darwin

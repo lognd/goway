@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [5]
+captured_at = "2026-10-03T21:47:45Z"
+digest = "6c779687aff6a9d6e91c0cf15ad267828732cb152ace53bd30a5b1f3eb48dabc"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 47fc37fb-33e6-40dc-8803-5bc758524e03 with nextest profile: default
+    Starting 1 test across 31 binaries (371 tests skipped)
+        PASS [   1.358s] goway::shard_detect googletest_that_ignores_sharding_is_warned_not_rerun_and_remembered
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.360s] 1 test run: 1 passed, 371 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "googletest_that_ignores_sharding"
+size = 581
+status = "measured"
+tests = ["googletest_that_ignores_sharding_is_warned_not_rerun_and_remembered"]
+at = "2026-10-03T21:47:45Z"
+actor = "lognd"
+rev = 1
