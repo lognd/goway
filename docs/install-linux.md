@@ -7,6 +7,10 @@
     scripts/uninstall.sh    # removes exactly what install added
     goway uninstall         # removes goway everywhere: helpers, config, then the program
 
+Other ways to install (uv, pipx, pip in a virtual environment, cargo) are in
+[install-methods.md](install-methods.md); `goway uninstall` removes the program
+the way it was installed.
+
 Install puts the binary at `~/.local/bin/goway` (`GOWAY_PREFIX`
 overrides `~/.local`). If that directory is not on `PATH` yet, it
 appends one marked line to `~/.profile`:

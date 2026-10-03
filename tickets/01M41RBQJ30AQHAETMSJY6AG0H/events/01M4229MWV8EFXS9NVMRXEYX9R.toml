@@ -1,0 +1,6 @@
+kind = "comment"
+subtype = "note"
+body = "Lane C saw slot_trees::same_size_edit_within_the_same_second_reaches_the_slot fail once under load on a helper and pass on rerun."
+at = "2026-10-03T23:41:24Z"
+actor = "lognd"
+rev = 1
