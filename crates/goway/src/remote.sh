@@ -71,18 +71,21 @@ hashes() {
   xargs -0 -r sha256sum -z -- 2>/dev/null || true
 }
 
-# deletions ROOT SEED: NUL-separated paths on stdin to delete at the next
-# receive (stdin, not an argument: one argument is limited to 128 KiB).
+# deletions ROOT SEED ATTEMPT: NUL-separated paths on stdin to delete at
+# the receive of the same sync ATTEMPT (stdin, not an argument: one
+# argument is limited to 128 KiB). A list left by a failed attempt is
+# never applied by a later one.
 deletions() {
   local root seed
   root=$(root_dir "$1"); seed="$root/seed/$2"
+  case "$3" in *[!A-Za-z0-9-]* | "") die "deletions: bad attempt id" ;; esac
   mkdir -p "$seed"
   exec 8>"$seed/lock"
   flock -x 8
-  cat >"$seed/deletions"
+  cat >"$seed/deletions.$3"
 }
 
-# receive ROOT SEED META_B64 GENERATION RUN_ID WORK_META_B64 KEEP:
+# receive ROOT SEED META_B64 GENERATION RUN_ID WORK_META_B64 KEEP ATTEMPT:
 # under the seed's exclusive lock, check that the seed is still the one the
 # manifest described (GENERATION, empty for "no tree yet"), apply pending
 # deletions, extract the tar on stdin, and (when RUN_ID is given) snapshot
@@ -97,8 +100,10 @@ receive() {
   flock -x 8
   gen=$(cat "$seed/generation" 2>/dev/null || true)
   if [ ! -d "$seed/tree" ]; then gen=""; fi
+  local attempt=${8:-}
+  case "$attempt" in *[!A-Za-z0-9-]*) die "receive: bad attempt id" ;; esac
   if [ "$gen" != "$4" ]; then
-    rm -f "$seed/deletions"
+    rm -f "$seed"/deletions.*
     printf 'goway-remote: seed changed (have "%s", expected "%s")\n' "$gen" "$4" >&2
     cat >/dev/null
     exit 75
@@ -108,10 +113,10 @@ receive() {
     new_generation >"$seed/generation"
   fi
   printf '%s' "$3" | base64 -d >"$seed/meta.json"
-  if [ -f "$seed/deletions" ]; then
-    (cd "$seed/tree" && xargs -0 -r rm -f -- <"$seed/deletions")
-    rm -f "$seed/deletions"
+  if [ -n "$attempt" ] && [ -f "$seed/deletions.$attempt" ]; then
+    (cd "$seed/tree" && xargs -0 -r rm -f -- <"$seed/deletions.$attempt")
   fi
+  rm -f "$seed"/deletions.*
   tar -x --unlink-first --recursive-unlink --no-same-owner -C "$seed/tree" -f -
   find "$seed/tree" -mindepth 1 -depth -type d -empty -delete
   if [ -n "${5:-}" ]; then
