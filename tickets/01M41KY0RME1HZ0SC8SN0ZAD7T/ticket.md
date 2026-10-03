@@ -8,7 +8,7 @@ points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:30:23Z"
-updated = "2026-10-03T19:30:24Z"
+updated = "2026-10-03T19:33:02Z"
 scope = ["crates/goway/src/**"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = false
 
 [[acceptance]]
 text = "Given goway uninstall right after a run, when the post-run gc still holds a lock briefly, then purge waits for it instead of reporting a run in progress"
-bound = false
+bound = true
 +++

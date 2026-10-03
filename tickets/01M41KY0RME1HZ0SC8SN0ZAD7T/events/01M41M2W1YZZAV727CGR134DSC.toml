@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T19:33:02Z"
+digest = "6d54de70dbebd6b7b2c26d465b197969393ddc8d7cb13c616028d0e107dc5a79"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 42eed1ab-e1e8-4019-85b4-2fa58d2c3b12 with nextest profile: default
+    Starting 1 test across 23 binaries (244 tests skipped)
+        PASS [   1.158s] goway::ssh_setup uninstall_everywhere_removes_goway_from_helper_and_laptop
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.161s] 1 test run: 1 passed, 244 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(uninstall_everywhere_removes_goway_from_helper_and_laptop)'"
+size = 568
+status = "measured"
+tests = ["uninstall_everywhere_removes_goway_from_helper_and_laptop"]
+at = "2026-10-03T19:33:02Z"
+actor = "lognd"
+rev = 1
