@@ -2,13 +2,13 @@
 id = "01M418J39QGM7X2XQ32RN5XHS5"
 title = "Windows installer: host component (firewall, Hyper-V firewall, keepalive, wslconfig, WSL sshd)"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 8
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:47:41Z"
+updated = "2026-10-03T16:48:17Z"
 scope = ["crates/goway-setup/**", "docs/install-windows.md", "scripts/windows/**", "crates/goway-journal/**"]
 
 [[acceptance]]
