@@ -2,7 +2,8 @@
 id = "01M41RBQN1TKQ4AM7HMYNB953N"
 title = "Audit 2 leftovers: resolve keeps trying candidates after a host-key refusal (L14), tar leaf TOCTOU and NTFS junctions (L8), helper resource limits (L10)"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
