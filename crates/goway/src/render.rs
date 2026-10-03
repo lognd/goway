@@ -105,6 +105,22 @@ impl Renderer {
     }
 }
 
+/// Write one line of a remote command's output with a `[host] ` prefix
+/// (sharded runs, where several hosts stream at once). The line's bytes
+/// pass through unchanged; the stream is locked so lines never interleave.
+pub fn prefixed_line(to_stderr: bool, prefix: &str, line: &[u8]) {
+    use std::io::Write as _;
+    if to_stderr {
+        let mut err = std::io::stderr().lock();
+        let _ = err.write_all(prefix.as_bytes());
+        let _ = err.write_all(line);
+    } else {
+        let mut out = std::io::stdout().lock();
+        let _ = out.write_all(prefix.as_bytes());
+        let _ = out.write_all(line);
+    }
+}
+
 /// Pad cells so columns line up; pure so it can be tested.
 pub fn format_table(rows: &[Vec<String>]) -> Vec<String> {
     let columns = rows.iter().map(Vec::len).max().unwrap_or(0);

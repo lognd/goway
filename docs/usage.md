@@ -47,6 +47,23 @@ A line on stderr says where the job ran:
 `--report FILE` writes the same as JSON (host, address, arch, hostname,
 command, exit code, duration, run id, repository) for evidence records.
 
+### Sharding one run across hosts
+
+```
+goway run --shard 2 -- cargo nextest run --workspace
+```
+
+`--shard N` picks the N least-loaded usable hosts, syncs to all of them
+in parallel and runs part i of N on each. goway does not invent its own
+partitioning: for `cargo nextest run` it adds nextest's own
+`--partition count:i/N` (before any `--`). Every command sees
+`GOWAY_SHARD=i` and `GOWAY_SHARD_COUNT=N`, so other test runners can
+split their work the same way. Output lines are prefixed with
+`[host] `. goway exits with the first failing shard's code, or 0 when
+every shard passed. `--report` lists every shard's host, arch, address,
+command and exit code. Each host builds for itself, so give every host
+the toolchain (`goway doctor --fix`).
+
 ### Exit codes
 
 | Code | Meaning |

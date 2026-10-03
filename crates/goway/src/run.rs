@@ -113,6 +113,9 @@ pub struct Env<'a> {
 
 /// `goway run`.
 pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
+    if let Some(count) = args.shard {
+        return crate::shard::run_sharded(env, renderer, args, count);
+    }
     let started = Instant::now();
     let env_b64 = encode_env(&args.env)?;
     let config = Config::load(&env.paths.config_file())?;
@@ -137,24 +140,9 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         ));
     }
 
-    let transport = SshTransport {
-        target: &found.target,
-        settings: env.settings,
-    };
     let remote_root = config.defaults.remote_root.as_str();
     let run_id = new_run_id();
-    let snapshot = sync::Snapshot {
-        run_id: run_id.clone(),
-        meta_b64: label_b64(&repo, "work"),
-        keep: args.keep,
-    };
-    let synced = sync::sync(
-        &transport,
-        remote_root,
-        &repo,
-        config.defaults.send_env_files,
-        Some(&snapshot),
-    )?;
+    let synced = sync_snapshot(env, &config, &repo, &found, &run_id, args.keep)?;
     renderer.note(format_args!(
         "synced {} files ({} sent, {} bytes, {} deleted)",
         synced.files, synced.sent, synced.bytes, synced.deleted
@@ -165,7 +153,8 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         config.priority_of(&host).as_str(),
         &repo,
         &run_id,
-        args,
+        args.keep,
+        &args.command,
         &env_b64,
     );
 
@@ -183,15 +172,15 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
             "interrupted; the remote job is stopped by its watchdog (run {run_id})"
         ));
     }
-    let summary = format_args!(
-        "exit {code} on {} in {:.1}s{}",
+    let kept = if args.keep {
+        format!(" (kept {remote_root}/work/{run_id})")
+    } else {
+        String::new()
+    };
+    let summary = format!(
+        "exit {code} on {} in {:.1}s{kept}",
         host.name,
-        elapsed.as_secs_f64(),
-        if args.keep {
-            format!(" (kept {remote_root}/work/{run_id})")
-        } else {
-            String::new()
-        }
+        elapsed.as_secs_f64()
     );
     if code == 0 {
         renderer.ok(summary);
@@ -199,26 +188,59 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         renderer.note(summary);
     }
     if let Some(path) = &args.report {
-        let report = Report {
-            host: host.name.clone(),
-            address: found.target.address.clone(),
-            arch,
-            hostname,
-            command: args.command.clone(),
-            exit_code: code,
-            duration_secs: elapsed.as_secs_f64(),
-            run_id,
-            repo: repo.name.clone(),
-        };
-        let text =
-            serde_json::to_string_pretty(&report).map_err(|e| Error::Usage(e.to_string()))?;
-        crate::config::write_atomic(path, text.as_bytes())?;
+        write_report(
+            path,
+            &Report {
+                host: host.name.clone(),
+                address: found.target.address.clone(),
+                arch,
+                hostname,
+                command: args.command.clone(),
+                exit_code: code,
+                duration_secs: elapsed.as_secs_f64(),
+                run_id,
+                repo: repo.name.clone(),
+            },
+        )?;
     }
     Ok(code)
 }
 
+/// Sync the work tree to `found` and snapshot it as work dir `run_id`.
+pub(crate) fn sync_snapshot(
+    env: &Env<'_>,
+    config: &Config,
+    repo: &Repo,
+    found: &Found,
+    run_id: &str,
+    keep: bool,
+) -> Result<sync::Stats> {
+    let transport = SshTransport {
+        target: &found.target,
+        settings: env.settings,
+    };
+    let snapshot = sync::Snapshot {
+        run_id: run_id.to_owned(),
+        meta_b64: label_b64(repo, "work"),
+        keep,
+    };
+    sync::sync(
+        &transport,
+        &config.defaults.remote_root,
+        repo,
+        config.defaults.send_env_files,
+        Some(&snapshot),
+    )
+}
+
+/// Write a `--report` file as pretty JSON.
+pub(crate) fn write_report(path: &std::path::Path, report: &impl Serialize) -> Result<()> {
+    let text = serde_json::to_string_pretty(report).map_err(|e| Error::Usage(e.to_string()))?;
+    crate::config::write_atomic(path, text.as_bytes())
+}
+
 /// A base64 `meta.json` label of `kind` for this repository.
-fn label_b64(repo: &Repo, kind: &str) -> String {
+pub(crate) fn label_b64(repo: &Repo, kind: &str) -> String {
     let label = Label {
         kind,
         repo: &repo.name,
@@ -231,17 +253,18 @@ fn label_b64(repo: &Repo, kind: &str) -> String {
 }
 
 /// The remote `run` invocation for this run (its work dir already exists).
-fn run_invocation(
+pub(crate) fn run_invocation(
     config: &Config,
     priority: &str,
     repo: &Repo,
     run_id: &str,
-    args: &RunArgs,
+    keep: bool,
+    command: &[String],
     env_b64: &str,
 ) -> String {
     let cache_meta = label_b64(repo, "cache");
     let slots = config.defaults.target_slots.max(1).to_string();
-    let keep = if args.keep { "1" } else { "0" };
+    let keep = if keep { "1" } else { "0" };
     let d = &config.defaults;
     let ttls = format!(
         "{}:{}:{}",
@@ -261,24 +284,28 @@ fn run_invocation(
         priority,
         "--",
     ];
-    words.extend(args.command.iter().map(String::as_str));
+    words.extend(command.iter().map(String::as_str));
     remote::invocation("run", &words)
+}
+
+/// A flag set when the user presses Ctrl-C. ssh receives the terminal's
+/// Ctrl-C itself; goway only waits for it to exit so the exit code stays
+/// faithful.
+pub(crate) fn interrupt_flag() -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+    let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let setter = flag.clone();
+    if let Err(e) = ctrlc::set_handler(move || {
+        setter.store(true, std::sync::atomic::Ordering::SeqCst);
+    }) {
+        tracing::debug!(error = %e, "ctrl-c handler not installed");
+    }
+    flag
 }
 
 /// Run `cmd` on the found host with stdio passed through; returns the exit
 /// code and whether the user interrupted.
 fn stream(found: &Found, settings: &ssh::Settings, cmd: &str) -> Result<(u8, bool)> {
-    let interrupted = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    {
-        let flag = interrupted.clone();
-        // ssh receives the terminal's Ctrl-C itself; goway only waits for it
-        // to exit so the exit code stays faithful.
-        if let Err(e) = ctrlc::set_handler(move || {
-            flag.store(true, std::sync::atomic::Ordering::SeqCst);
-        }) {
-            tracing::debug!(error = %e, "ctrl-c handler not installed");
-        }
-    }
+    let interrupted = interrupt_flag();
     let mut command = ssh::command(&found.target, settings, KeyPolicy::Strict, cmd);
     if std::io::IsTerminal::is_terminal(&std::io::stderr()) {
         command.env("CARGO_TERM_COLOR", "always");

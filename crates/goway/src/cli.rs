@@ -58,6 +58,11 @@ pub struct RunArgs {
     /// Write host, arch, address and exit code as JSON to this file.
     #[arg(long, env = "GOWAY_REPORT")]
     pub report: Option<PathBuf>,
+    /// Split the run across N hosts: each runs part i of N (nextest gets
+    /// `--partition count:i/N`; every command sees `GOWAY_SHARD` and
+    /// `GOWAY_SHARD_COUNT`). Output lines are prefixed with the host.
+    #[arg(long, value_name = "N", conflicts_with = "host", value_parser = clap::value_parser!(u16).range(1..))]
+    pub shard: Option<u16>,
     /// Extra environment for the remote command (KEY=VALUE, repeatable).
     #[arg(long = "env", short = 'e', value_name = "KEY=VALUE")]
     pub env: Vec<String>,

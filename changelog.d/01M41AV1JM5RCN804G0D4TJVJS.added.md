@@ -1,0 +1,1 @@
+goway run --shard N splits one run across the N least-loaded hosts: cargo nextest run gets nextest's own --partition count:i/N, every command sees GOWAY_SHARD and GOWAY_SHARD_COUNT, output lines are prefixed with the host, and any failing shard fails the run.

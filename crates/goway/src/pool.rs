@@ -65,10 +65,10 @@ pub struct Probed<'a> {
     pub result: Result<(Found, Probe)>,
 }
 
-/// Index of the best host among `probed`, if any is usable. Hosts at
-/// `max_jobs` or above their `max_load` (load per core) are skipped.
-pub fn pick(config: &Config, probed: &[Probed<'_>]) -> Option<usize> {
-    probed
+/// Indices of the usable hosts among `probed`, best first. Hosts at
+/// `max_jobs` or above their `max_load` (load per core) are left out.
+pub fn ranked(config: &Config, probed: &[Probed<'_>]) -> Vec<usize> {
+    let mut usable: Vec<(usize, f64, u32)> = probed
         .iter()
         .enumerate()
         .filter_map(|(i, p)| {
@@ -84,11 +84,66 @@ pub fn pick(config: &Config, probed: &[Probed<'_>]) -> Option<usize> {
             }
             Some((i, score(probe), probe.jobs))
         })
-        .min_by(|a, b| a.1.total_cmp(&b.1).then(a.2.cmp(&b.2)).then(a.0.cmp(&b.0)))
-        .map(|(i, s, _)| {
-            tracing::info!(host = %probed[i].host.name, score = s, "picked");
-            i
+        .collect();
+    usable.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.2.cmp(&b.2)).then(a.0.cmp(&b.0)));
+    usable.into_iter().map(|(i, _, _)| i).collect()
+}
+
+/// Index of the best host among `probed`, if any is usable.
+pub fn pick(config: &Config, probed: &[Probed<'_>]) -> Option<usize> {
+    let best = ranked(config, probed).first().copied();
+    if let Some(i) = best {
+        tracing::info!(host = %probed[i].host.name, "picked");
+    }
+    best
+}
+
+/// Why no (or not enough) hosts are usable, one line per host.
+fn unusable(results: &[Probed<'_>]) -> Vec<String> {
+    results
+        .iter()
+        .map(|p| match &p.result {
+            Ok((_, probe)) => format!(
+                "{}: load {:.2} on {} cores, {} goway jobs",
+                p.host.name, probe.load[0], probe.cores, probe.jobs
+            ),
+            Err(e) => format!("{}: {e}", p.host.name),
         })
+        .collect()
+}
+
+/// The `n` least-loaded usable hosts, best first (for sharding).
+///
+/// # Panics
+///
+/// Never: each ranked index is taken once.
+pub fn choose_many(
+    config: &Config,
+    state: &mut State,
+    lookup: &(dyn Lookup + Sync),
+    prober: &(dyn Prober + Sync),
+    n: usize,
+) -> Result<Vec<(HostConfig, Found, Probe)>> {
+    let results = probe_all(config, state, lookup, prober, false);
+    let order = ranked(config, &results);
+    if order.len() < n {
+        let mut why = vec![format!(
+            "{n} shards need {n} usable hosts, {} are usable",
+            order.len()
+        )];
+        why.extend(unusable(&results));
+        return Err(Error::NoHost(why));
+    }
+    let mut slots: Vec<Option<Probed<'_>>> = results.into_iter().map(Some).collect();
+    order
+        .into_iter()
+        .take(n)
+        .map(|i| {
+            let p = slots[i].take().expect("each index once");
+            let (found, probe) = p.result?;
+            Ok((p.host.clone(), found, probe))
+        })
+        .collect()
 }
 
 /// The remote command that probes a host.
@@ -215,18 +270,7 @@ pub fn choose(
             let (found, probe) = chosen.result?;
             Ok((chosen.host.clone(), found, probe))
         }
-        None => Err(Error::NoHost(
-            results
-                .iter()
-                .map(|p| match &p.result {
-                    Ok((_, probe)) => format!(
-                        "{}: busy (load {:.2} on {} cores, {} goway jobs)",
-                        p.host.name, probe.load[0], probe.cores, probe.jobs
-                    ),
-                    Err(e) => format!("{}: {e}", p.host.name),
-                })
-                .collect(),
-        )),
+        None => Err(Error::NoHost(unusable(&results))),
     }
 }
 

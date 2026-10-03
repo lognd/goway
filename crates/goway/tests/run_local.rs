@@ -423,3 +423,69 @@ fn low_priority_jobs_run_niced_with_idle_io() {
         "{normal}"
     );
 }
+
+/// Two configured hosts that are both the fake local one.
+fn two_hosts() -> common::World {
+    let w = world();
+    let mut config = std::fs::read_to_string(w.config.join("config.toml")).unwrap();
+    config = config.replace("name = \"local\"", "name = \"alpha\"");
+    config.push_str("\n[[host]]\nname = \"beta\"\naddress = \"127.0.0.1\"\n");
+    std::fs::write(w.config.join("config.toml"), config).unwrap();
+    w
+}
+
+// frob:tests crates/goway/src/shard.rs::run_sharded
+// frob:tests crates/goway/src/pool.rs::choose_many
+// frob:tests crates/goway/src/render.rs::prefixed_line
+#[test]
+fn shards_run_on_n_hosts_and_any_failure_fails_the_run() {
+    let w = two_hosts();
+    let report = w.root.join("shards.json");
+    let script = "echo shard=$GOWAY_SHARD/$GOWAY_SHARD_COUNT; [ \"$GOWAY_SHARD\" != 2 ]";
+    let out = w.run(&[
+        "run",
+        "--shard",
+        "2",
+        "--report",
+        report.to_str().unwrap(),
+        "--",
+        "sh",
+        "-c",
+        script,
+    ]);
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    let mut lines: Vec<&str> = stdout.lines().collect();
+    lines.sort_unstable();
+    assert_eq!(lines.len(), 2, "{stdout}");
+    assert!(lines.iter().any(|l| l.ends_with("shard=1/2")), "{stdout}");
+    assert!(lines.iter().any(|l| l.ends_with("shard=2/2")), "{stdout}");
+    assert!(
+        lines
+            .iter()
+            .all(|l| l.starts_with("[alpha] ") || l.starts_with("[beta ] ")),
+        "{stdout}"
+    );
+    let json: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
+    assert_eq!(json["exit_code"], 1);
+    let hosts: Vec<&str> = json["shards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["host"].as_str().unwrap())
+        .collect();
+    assert_eq!(hosts.len(), 2);
+    assert_ne!(hosts[0], hosts[1], "each shard on its own host");
+
+    let ok = w.run(&["run", "--shard", "2", "--", "true"]);
+    assert_eq!(ok.status.code(), Some(0));
+    let too_many = w.run(&["run", "--shard", "3", "--", "true"]);
+    assert_eq!(too_many.status.code(), Some(125));
+    assert!(String::from_utf8_lossy(&too_many.stderr).contains("3 shards need 3 usable hosts"));
+}

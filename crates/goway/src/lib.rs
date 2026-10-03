@@ -15,6 +15,7 @@ pub mod render;
 pub mod repo;
 pub mod resolve;
 pub mod run;
+pub mod shard;
 pub mod ssh;
 pub mod sshenv;
 pub mod sshsetup;
