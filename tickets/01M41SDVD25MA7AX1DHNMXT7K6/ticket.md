@@ -8,8 +8,8 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:06:25Z"
-updated = "2026-10-03T22:03:40Z"
-scope = ["crates/goway/src/pool.rs", "crates/goway/src/run.rs", "crates/goway/src/config.rs", "crates/goway/src/local.rs", "crates/goway/src/shard.rs", "crates/goway/src/status.rs", "crates/goway/src/error.rs", "crates/goway/tests/**", "docs/usage.md", "docs/config.md"]
+updated = "2026-10-03T22:12:06Z"
+scope = ["crates/goway/src/pool.rs", "crates/goway/src/run.rs", "crates/goway/src/config.rs", "crates/goway/src/local.rs", "crates/goway/src/shard.rs", "crates/goway/src/status.rs", "crates/goway/src/error.rs", "crates/goway/tests/**", "docs/usage.md", "docs/config.md", "crates/goway/src/resolve.rs", "crates/goway/src/lib.rs"]
 
 [[acceptance]]
 text = "Given goway run --host local -- CMD, when it runs, then CMD runs in the current work tree with no sync, at the configured priority, with live output, the command's exit code, and host local plus this machine's architecture in the report"
