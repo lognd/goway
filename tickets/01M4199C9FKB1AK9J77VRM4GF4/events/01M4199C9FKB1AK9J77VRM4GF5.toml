@@ -1,0 +1,12 @@
+kind = "create"
+title = "Document config file, host add and address resolution"
+type = "docs"
+category = "todo"
+priority = "medium"
+points = 1
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["docs/config.md", "docs/hosts.md", "README.md"]
+acceptance = ["Given docs/config.md and docs/hosts.md, when a user reads them, then every config key, the resolution order and the trust rules of host add are described"]
+at = "2026-10-03T16:24:21Z"
+actor = "lognd"
+rev = 1
