@@ -1,0 +1,14 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:48:58Z"
+digest = "6591b2e4aae087aea32f918e05e001631a0afc2addc05289c6a0344290a97344"
+exit_code = 0
+passed = true
+provider = "command"
+ref = "goway-roundtrip-host Orion-Notebook"
+size = 23933
+status = "measured"
+uri = "dir:.git/frob/artifacts/6591b2e4aae087aea32f918e05e001631a0afc2addc05289c6a0344290a97344"
+at = "2026-10-03T18:48:58Z"
+actor = "lognd"
+rev = 1

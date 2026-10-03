@@ -8,7 +8,7 @@ points = 8
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:52Z"
-updated = "2026-10-03T18:47:01Z"
+updated = "2026-10-03T18:48:58Z"
 labels = ["security"]
 scope = ["crates/goway-setup/**", "crates/goway-journal/**", "scripts/windows/**", "docs/install-windows.md"]
 
