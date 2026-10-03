@@ -2,13 +2,13 @@
 id = "01M418J37YMHXD44VH1PPMS0PF"
 title = "Windows installer: client component (goway.exe, user PATH, uninstall entry)"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:25:45Z"
+updated = "2026-10-03T16:26:18Z"
 scope = ["crates/goway-setup/**", "docs/install-windows.md", "scripts/windows/**", "crates/goway-journal/**"]
 
 [[acceptance]]
