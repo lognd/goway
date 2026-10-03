@@ -22,6 +22,25 @@ pub enum Error {
         /// The underlying OS error.
         source: std::io::Error,
     },
+    /// The config file is malformed or inconsistent.
+    #[error("config {path}: {message}")]
+    Config {
+        /// The config file.
+        path: PathBuf,
+        /// What is wrong, from the parser or validation.
+        message: String,
+    },
+    /// The cached host state file is malformed.
+    #[error("state {path}: {message}")]
+    State {
+        /// The state file.
+        path: PathBuf,
+        /// What is wrong.
+        message: String,
+    },
+    /// No configured host has this name.
+    #[error("no host named `{0}` in the config; add it with `goway host add {0}`")]
+    UnknownHost(String),
     /// A command line feature that is planned but not built yet.
     #[error("`{0}` is not implemented yet")]
     NotImplemented(&'static str),
@@ -54,6 +73,7 @@ mod tests {
     fn every_goway_error_exits_125() {
         let errors = [
             Error::NotImplemented("gc"),
+            Error::UnknownHost("q".to_owned()),
             Error::io("read", "/x", std::io::Error::other("boom")),
         ];
         for e in errors {
