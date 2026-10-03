@@ -2,7 +2,8 @@
 id = "01M41NTZB23WDHTKT7YH79PW2Y"
 title = "Banner: center the text in the laptop screens"
 type = "docs"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
