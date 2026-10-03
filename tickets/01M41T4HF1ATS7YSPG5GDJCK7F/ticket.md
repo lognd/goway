@@ -8,8 +8,12 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:18:48Z"
-updated = "2026-10-03T21:18:48Z"
+updated = "2026-10-03T21:18:49Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/facts.rs", "crates/goway-setup/src/tune.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/tests/**", "crates/goway/tests/**", "docs/install-windows.md", "docs/troubleshooting.md"]
+
+[[links]]
+kind = "blocked-by"
+target = "01M41T2EDAC22Z3A6BP3Q0VGAX"
 
 [[acceptance]]
 text = "Given a WSL helper whose RAM, swap or cores are far below the laptop's, when goway doctor runs, then it shows what WSL gets versus what the laptop has and the exact goway-setup command to change it, with a suggested size that leaves Windows at least 4 GiB or 25% of RAM"
