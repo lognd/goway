@@ -2,13 +2,13 @@
 id = "01M41T2EH2C5MRX4SBCVY53SJM"
 title = "goway run --needs and --prefers: hardware requirements and preferences"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:17:40Z"
-updated = "2026-10-03T21:17:40Z"
+updated = "2026-10-03T21:48:11Z"
 scope = ["crates/goway/src/cli.rs", "crates/goway/src/pool.rs", "crates/goway/src/needs.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs", "crates/goway/src/error.rs", "crates/goway/tests/**", "docs/usage.md"]
 
 [[links]]
