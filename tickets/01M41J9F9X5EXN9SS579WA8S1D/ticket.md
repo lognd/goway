@@ -18,5 +18,5 @@ bound = true
 
 [[acceptance]]
 text = "Given .github/workflows/ci.yml and release.yml, when they are read, then they define CI on push and a tag-triggered release of Linux x86_64/aarch64 binaries, goway-setup.exe x64/arm64, SHA256SUMS, install.sh and provenance attestations"
-bound = false
+bound = true
 +++
