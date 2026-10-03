@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:51:51Z"
-updated = "2026-10-03T20:59:36Z"
+updated = "2026-10-03T20:59:37Z"
 scope = ["crates/goway-setup/**", "crates/goway-journal/**", "docs/**", "scripts/windows/**", "crates/goway/**"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a distro that prints any address, when the NAT relay is created or refreshed, then only a private address inside the WSL adapter subnet other than the gateway is ever forwarded to"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given scheduled tasks and the relay refresh task, when they are registered, then every program and script path is absolute and the system directory comes from Windows, not the environment"
