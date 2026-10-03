@@ -8,12 +8,12 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:37Z"
-updated = "2026-10-03T16:11:55Z"
+updated = "2026-10-03T16:14:15Z"
 scope = ["crates/goway/**", "docs/**", "Cargo.toml", "Cargo.lock", "clippy.toml", "rustfmt.toml", "rust-toolchain.toml", "README.md"]
 
 [[acceptance]]
 text = "Given the workspace, when cargo clippy runs, then print macros outside render.rs are denied"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given any goway failure, when goway exits, then the exit code is 125 and the error is rendered on stderr"
