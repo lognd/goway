@@ -8,8 +8,8 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:39:56Z"
-updated = "2026-10-03T21:09:54Z"
-scope = [".github/workflows/release.yml", ".github/workflows/ci.yml", "docs/release.md"]
+updated = "2026-10-03T21:18:25Z"
+scope = [".github/workflows/release.yml", ".github/workflows/ci.yml", "docs/release.md", "crates/goway/tests/publishing.rs"]
 
 [[acceptance]]
 text = "Given a manual workflow_dispatch of release.yml with publish off, when it runs, then every binary, wheel, sdist and checksum builds and uploads as workflow artifacts, and nothing is published to GitHub releases, crates.io or PyPI"
