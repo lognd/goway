@@ -293,6 +293,49 @@ runs, so concurrent GPU runs get different GPUs instead of fighting over one:
 Runs that do not ask for a GPU never take a slot. GPU locks live under the
 remote root's `gpu/` directory, which `goway uninstall` removes.
 
+### Running on this machine: `--host local`
+
+```
+goway run --host local -- cargo test      # here, in place, no sync
+```
+
+`--host local` runs the command on this machine, in the current directory
+(the work tree as it is: nothing is synced, nothing is copied), with live
+output and the command's own exit code. A command that cannot be started
+exits 127 (not found) or 126, as a shell would. Priority follows
+`[local] priority` (default: `defaults.priority`, so `low` runs under `nice`
+and `ionice`). `--needs` still applies, and `--report` records host `local`
+and this machine's architecture. A `[[host]]` called `local` in your config
+wins over this meaning of the name (and keeps this machine out of the pool).
+
+The rest is opt-in, in the config (see [config.md](config.md)):
+
+```toml
+[local]
+pool = true        # compete with the helpers (default false)
+max_jobs = 1       # most goway jobs here at once when pooled (default 1)
+margin = 0.5       # added to this machine's score; helpers win unless it is clearly less loaded
+fallback = true    # run here, with a note, when no helper is reachable (default false)
+```
+
+- Without `[local]`, or with `pool = false`, goway never picks this machine for
+  a normal run or a shard.
+- With `pool = true` this machine is probed like a helper (RAM, GPUs and
+  load, so `--needs` works) and competes on load with its `margin`; it can take
+  shards (its shard runs in place, and the GoogleTest/Catch2 detection above is
+  only done on helpers). Running local jobs are counted in files under goway's
+  state directory, so `max_jobs` holds across processes and a crashed run frees
+  its slot.
+- Without `fallback`, when no helper is reachable `goway run` exits 125 with the
+  reason for each helper and names both ways out: `--host local` and
+  `[local] fallback = true`. With `fallback = true` it runs here and says so
+  (`no helper is reachable; running on this machine because ...`); the report
+  records host `local`. Only a run where *every* helper failed to answer falls
+  back; busy or overloaded helpers do not, and a run with `--needs` this
+  machine cannot meet fails instead.
+- `goway status` shows a `local` row (load, RAM, jobs against `max_jobs`) when
+  `[local]` exists, saying whether it is in the pool.
+
 ### Exit codes
 
 | Code | Meaning |

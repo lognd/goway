@@ -1,0 +1,1 @@
+goway run --host local runs the command in the current work tree without syncing, and a [local] section can opt this machine into the pool (pool, max_jobs, margin) or make it the fallback when no helper is reachable; goway status shows its row.

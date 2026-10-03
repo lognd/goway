@@ -20,6 +20,40 @@ pub struct Config {
     /// The host pool, in file order.
     #[serde(default, rename = "host")]
     pub hosts: Vec<HostConfig>,
+    /// This machine as a place to run (`[local]`); absent means never.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local: Option<Local>,
+}
+
+/// `[local]`: running on this machine. `--host local` always works; the
+/// rest is opt-in.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Local {
+    /// Let this machine compete with the helpers when goway picks hosts and shards.
+    pub pool: bool,
+    /// Run here (with a note) when no helper is reachable.
+    pub fallback: bool,
+    /// Most goway jobs at once on this machine when it is in the pool.
+    pub max_jobs: u32,
+    /// Priority of jobs here (default: `defaults.priority`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority: Option<Priority>,
+    /// Added to this machine's score so helpers win unless it is clearly
+    /// less loaded (the machine is also somebody's laptop).
+    pub margin: f64,
+}
+
+impl Default for Local {
+    fn default() -> Self {
+        Self {
+            pool: false,
+            fallback: false,
+            max_jobs: 1,
+            priority: None,
+            margin: 0.5,
+        }
+    }
 }
 
 /// CPU and I/O priority of remote jobs.
@@ -266,6 +300,20 @@ impl Config {
                 });
             }
         }
+        if let Some(l) = &self.local {
+            if !(1..=1024).contains(&l.max_jobs) {
+                return Err(Error::Config {
+                    path: origin.to_owned(),
+                    message: format!("[local] max_jobs {} must be 1-1024", l.max_jobs),
+                });
+            }
+            if !(l.margin.is_finite() && (0.0..=10.0).contains(&l.margin)) {
+                return Err(Error::Config {
+                    path: origin.to_owned(),
+                    message: format!("[local] margin {} must be between 0 and 10", l.margin),
+                });
+            }
+        }
         if !(1..=64).contains(&self.defaults.gpu_jobs) {
             return Err(Error::Config {
                 path: origin.to_owned(),
@@ -338,6 +386,17 @@ impl Config {
     /// The effective load ceiling of `host`.
     pub fn max_load_of(&self, host: &HostConfig) -> Option<f64> {
         host.max_load.or(self.defaults.max_load)
+    }
+
+    /// Whether this machine competes with the helpers (`[local] pool = true`)
+    /// and is not shadowed by a configured host named `local`.
+    pub fn local_in_pool(&self) -> bool {
+        self.local.as_ref().is_some_and(|l| l.pool) && self.host(crate::local::NAME).is_err()
+    }
+
+    /// Whether goway falls back to this machine when no helper is reachable.
+    pub fn local_fallback(&self) -> bool {
+        self.local.as_ref().is_some_and(|l| l.fallback) && self.host(crate::local::NAME).is_err()
     }
 
     /// The effective number of GPU runs per GPU on `host`.
@@ -711,5 +770,40 @@ user = "user"
             Config::load(&dir.path().join("none.toml")).unwrap(),
             Config::default()
         );
+    }
+    // frob:tests crates/goway/src/config.rs::Local
+    #[test]
+    fn the_local_section_is_opt_in_validated_and_closed() {
+        let origin = Path::new("config.toml");
+        assert!(Config::parse("", origin).unwrap().local.is_none());
+        let c = Config::parse("[local]\n", origin).unwrap();
+        assert!(
+            !c.local_in_pool() && !c.local_fallback(),
+            "a bare section opts into nothing"
+        );
+        let c = Config::parse(
+            "[local]\npool = true\nfallback = true\nmax_jobs = 2\nmargin = 0.25\npriority = \"normal\"\n",
+            origin,
+        )
+        .unwrap();
+        let l = c.local.as_ref().unwrap();
+        assert_eq!((l.max_jobs, l.priority), (2, Some(Priority::Normal)));
+        assert!(c.local_in_pool() && c.local_fallback());
+        for bad in [
+            "[local]\nbogus = 1\n",
+            "[local]\nmax_jobs = 0\n",
+            "[local]\nmargin = 11\n",
+            "[local]\nmargin = -1\n",
+            "[local]\nmargin = nan\n",
+        ] {
+            assert!(Config::parse(bad, origin).is_err(), "{bad}");
+        }
+        // A configured host called local wins over this machine.
+        let c = Config::parse(
+            "[local]\npool = true\n\n[[host]]\nname = \"local\"\n",
+            origin,
+        )
+        .unwrap();
+        assert!(!c.local_in_pool());
     }
 }

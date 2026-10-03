@@ -2,6 +2,7 @@
 
 use crate::config::Config;
 use crate::error::Result;
+use crate::local;
 use crate::paths::Paths;
 use crate::pool::{self, Probed};
 use crate::render::Renderer;
@@ -40,7 +41,7 @@ fn gpu_summary(f: &crate::facts::Facts) -> String {
 }
 
 /// The status table rows (header first); pure so it can be tested.
-pub fn rows(probed: &[Probed<'_>]) -> Vec<Vec<String>> {
+pub fn rows(probed: &[Probed<'_>], local_in_pool: bool) -> Vec<Vec<String>> {
     let mut rows = vec![
         [
             "host",
@@ -63,7 +64,19 @@ pub fn rows(probed: &[Probed<'_>]) -> Vec<Vec<String>> {
         match &p.result {
             Ok((found, probe)) => rows.push(vec![
                 p.host.name.clone(),
-                format!("{} ({})", found.target.address, found.source),
+                if found.is_local() {
+                    format!(
+                        "{} ({})",
+                        found.target.address,
+                        if local_in_pool {
+                            "in the pool"
+                        } else {
+                            "not in the pool"
+                        }
+                    )
+                } else {
+                    format!("{} ({})", found.target.address, found.source)
+                },
                 probe.arch.clone(),
                 probe.cores.to_string(),
                 crate::facts::ram_summary(&probe.facts),
@@ -109,7 +122,7 @@ pub fn status(
     refresh: bool,
 ) -> Result<u8> {
     let config = Config::load(&paths.config_file())?;
-    if config.hosts.is_empty() {
+    if config.hosts.is_empty() && config.local.is_none() {
         renderer.note(format_args!(
             "no hosts configured in {}; add one with `goway host add NAME`",
             paths.config_file().display()
@@ -118,11 +131,27 @@ pub fn status(
     }
     let mut state = State::load(&paths.state_file())?;
     state.refresh_facts = refresh;
-    let results = pool::probe_all(&config, &mut state, lookup, prober, true);
+    let local_host = local::host(&config);
+    let mut results = pool::probe_all(&config, &mut state, lookup, prober, true);
+    // `[local]` configured (and not shadowed by a host called local): a row for this machine.
+    if config.local.is_some() && config.host(local::NAME).is_err() {
+        let result = local::candidate(
+            &config,
+            &local::jobs_dir(paths),
+            &mut state,
+            true,
+            crate::resolve::Source::Local,
+        )
+        .map(|(_, found, probe)| (found, probe));
+        results.push(Probed {
+            host: &local_host,
+            result,
+        });
+    }
     if let Err(e) = state.save(&paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
     }
-    renderer.table(&rows(&results));
+    renderer.table(&rows(&results, config.local_in_pool()));
     for p in &results {
         if let Err(e) = &p.result {
             renderer.warn(format_args!("{}: {e}", p.host.name));
@@ -203,7 +232,7 @@ mod tests {
                 result: Err(crate::error::Error::Usage("x".to_owned())),
             },
         ];
-        let rows = rows(&probed);
+        let rows = rows(&probed, false);
         assert!(rows.iter().all(|r| r.len() == rows[0].len()));
         let line = rows[1].join(" | ");
         assert!(line.contains("8.0/16.0 GiB"), "{line}");

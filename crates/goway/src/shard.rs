@@ -17,6 +17,7 @@ use crate::cli::RunArgs;
 use crate::config::Config;
 use crate::detect::{self, Detection, ResultSplitter};
 use crate::error::{Error, Result};
+use crate::local;
 use crate::needs::Matched;
 use crate::pool;
 use crate::project::{self, Applied};
@@ -188,7 +189,13 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
         }
     }
     let hosts = pool::choose_many(
-        &config, &selection, &mut state, env.lookup, env.prober, count,
+        &config,
+        &selection,
+        &mut state,
+        &local::jobs_dir(env.paths),
+        env.lookup,
+        env.prober,
+        count,
     )?;
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
@@ -219,28 +226,49 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                     let index = i + 1;
                     let prefix = format!("[{:<width$}] ", host.name);
                     let run_id = run::new_run_id() + &format!("-s{index}");
-                    run::sync_snapshot(env, config, repo, found, &run_id, args.keep)?;
                     let mut pairs = args.env.clone();
                     pairs.push(format!("GOWAY_SHARD={index}"));
                     pairs.push(format!("GOWAY_SHARD_COUNT={count}"));
                     pairs.extend(plan.env.iter().cloned());
                     let command = plan.command.clone();
-                    run::send_env(env, config, found, &run_id, &run::encode_env(&pairs)?)?;
                     let nonce = detect::nonce();
-                    let mut extra = run::gpu_words(selection, config, host);
-                    if plan.detect {
-                        extra.push(detect::request_word(index, count, &nonce));
-                    }
-                    let cmd = run::run_invocation_with(
-                        config,
-                        config.priority_of(host).as_str(),
-                        repo,
-                        &run_id,
-                        args.keep,
-                        &extra,
-                        &command,
-                    );
-                    let mut child =
+                    // Held until this shard ends (only a local shard takes one).
+                    let mut _slot = None;
+                    let mut child = if found.is_local() {
+                        // This machine: nothing to sync; the command runs in the current directory.
+                        _slot = Some(local::Slot::acquire(&local::jobs_dir(env.paths), &run_id)?);
+                        let job = local::Job {
+                            command: &command,
+                            env: &pairs,
+                            priority: config.priority_of(host),
+                            cwd: env.cwd,
+                            run_id: &run_id,
+                            hostname: &probe.hostname,
+                        };
+                        local::process(&job)
+                            .stdin(Stdio::null())
+                            .stdout(Stdio::piped())
+                            .stderr(Stdio::piped())
+                            .spawn()
+                            .map_err(|e| {
+                                Error::Usage(format!("cannot run `{}`: {e}", command[0]))
+                            })?
+                    } else {
+                        run::sync_snapshot(env, config, repo, found, &run_id, args.keep)?;
+                        run::send_env(env, config, found, &run_id, &run::encode_env(&pairs)?)?;
+                        let mut extra = run::gpu_words(selection, config, host);
+                        if plan.detect {
+                            extra.push(detect::request_word(index, count, &nonce));
+                        }
+                        let cmd = run::run_invocation_with(
+                            config,
+                            config.priority_of(host).as_str(),
+                            repo,
+                            &run_id,
+                            args.keep,
+                            &extra,
+                            &command,
+                        );
                         ssh::command(&found.target, env.settings, KeyPolicy::Strict, &cmd)
                             .stdin(Stdio::null())
                             .stdout(Stdio::piped())
@@ -249,7 +277,8 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                             .map_err(|e| Error::Ssh {
                                 host: host.name.clone(),
                                 message: format!("cannot run ssh: {e}"),
-                            })?;
+                            })?
+                    };
                     let (out, err) = (child.stdout.take(), child.stderr.take());
                     let filter_out = termfilter::should_filter(
                         args.output,
@@ -267,7 +296,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                         }
                         if let Some(err) = err {
                             let p = prefix.clone();
-                            if plan.detect {
+                            if plan.detect && !found.is_local() {
                                 let (split, line) = ResultSplitter::new(err, &nonce);
                                 result_line = Some(line);
                                 s.spawn(move || pump(split, true, &p, filter_err));

@@ -16,6 +16,7 @@ use serde::Serialize;
 use crate::cli::RunArgs;
 use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
+use crate::local;
 use crate::needs::{self, Matched, Selection};
 use crate::paths::Paths;
 use crate::pool;
@@ -164,12 +165,26 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         &config,
         &selection,
         &mut state,
+        &local::jobs_dir(env.paths),
         env.lookup,
         env.prober,
         args.host.as_deref(),
     )?;
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host address");
+    }
+    if found.is_local() {
+        return local::run_here(
+            env,
+            renderer,
+            args,
+            &config,
+            &repo,
+            &selection,
+            rule,
+            (host, found, probe),
+            started,
+        );
     }
     let arch = probe.arch.clone();
     let hostname = probe.hostname.clone();

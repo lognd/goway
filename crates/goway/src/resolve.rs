@@ -37,6 +37,10 @@ pub enum Source {
     Mdns,
     /// `<name>.local` through Windows (WSL interop).
     WindowsMdns,
+    /// This machine, chosen with `--host local` or by the `[local]` pool.
+    Local,
+    /// This machine, because no helper was reachable and `[local] fallback` is set.
+    Fallback,
 }
 
 impl std::fmt::Display for Source {
@@ -47,6 +51,8 @@ impl std::fmt::Display for Source {
             Self::Name => "dns",
             Self::Mdns => "mdns",
             Self::WindowsMdns => "windows-mdns",
+            Self::Local => "this machine",
+            Self::Fallback => "this machine (fallback)",
         })
     }
 }
@@ -78,6 +84,13 @@ pub struct Found {
     pub source: Source,
     /// stdout of the probe command.
     pub output: String,
+}
+
+impl Found {
+    /// Whether this is this machine rather than a remote host.
+    pub fn is_local(&self) -> bool {
+        matches!(self.source, Source::Local | Source::Fallback)
+    }
 }
 
 /// One failed candidate, for the final error message.
@@ -159,6 +172,7 @@ fn stage(source: Source, host: &HostConfig, state: &State, lookup: &dyn Lookup) 
         Source::Name => addresses(lookup.system(&host.name)),
         Source::Mdns => addresses(lookup.system(&local)),
         Source::WindowsMdns => addresses(lookup.windows(&local)),
+        Source::Local | Source::Fallback => Vec::new(),
     }
 }
 

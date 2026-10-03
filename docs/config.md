@@ -45,6 +45,13 @@ priority = "low"               # "low": jobs run under nice 10 with idle-class I
 # gpu_jobs = 1                 # GPU runs that may share each GPU (override per host)
 # mem_per_core = 0.5           # GiB of free RAM per core below which a host scores worse (0 = off)
 
+[local]                        # this machine as a place to run; `--host local` works without it
+# pool = false                 # true: compete with the helpers when goway picks hosts and shards
+# fallback = false             # true: run here (with a note) when no helper is reachable
+# max_jobs = 1                 # most goway jobs here at once when pooled
+# margin = 0.5                 # added to this machine's score so helpers win unless it is clearly freer
+# priority = "low"             # default: defaults.priority
+
 [[host]]
 name = "my-helper"             # the helper's computer name; also tried as my-helper.local
 # address = "my-helper"        # optional: a DNS name or IP to try first

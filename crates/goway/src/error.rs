@@ -72,7 +72,7 @@ pub enum Error {
         message: String,
     },
     /// No host of the pool can take a job now.
-    #[error("no usable host:\n  {}\n  next: `goway status` shows each host's state; `goway add NAME` adds another helper", .0.join("\n  "))]
+    #[error("no usable host:\n  {}\n  next: `goway status` shows each host's state; `goway add NAME` adds another helper; `goway run --host local -- CMD` runs on this machine, and `[local] fallback = true` in the config does that automatically when no helper is reachable", .0.join("\n  "))]
     NoHost(Vec<String>),
     /// Hosts answered, but none meets the run's `--needs`.
     #[error("no host meets the requirements:\n  {}\n  next: `goway status` shows each host's hardware; relax --needs, or label/add a host that fits", .0.join("\n  "))]

@@ -11,13 +11,15 @@
 //! is still used when nothing else is.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
 use crate::facts::{self, Facts};
+use crate::local;
 use crate::needs::Selection;
 use crate::remote;
-use crate::resolve::{self, Found, Lookup, Prober};
+use crate::resolve::{self, Found, Lookup, Prober, Source};
 use crate::ssh::KeyPolicy;
 use crate::state::State;
 
@@ -143,9 +145,14 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
             }
             #[allow(clippy::cast_precision_loss)] // a handful of terms
             let bonus = PREFER_BONUS * a.preferences_met as f64;
+            // This machine competes with a margin: it is somebody's laptop too.
+            let margin = match &p.result {
+                Ok((found, _)) if found.is_local() => crate::local::settings(config).margin,
+                _ => 0.0,
+            };
             Some((
                 i,
-                score(probe, config.defaults.mem_per_core) - bonus,
+                score(probe, config.defaults.mem_per_core) - bonus + margin,
                 probe.jobs,
             ))
         })
@@ -217,11 +224,16 @@ pub fn choose_many(
     config: &Config,
     selection: &Selection,
     state: &mut State,
+    jobs: &Path,
     lookup: &(dyn Lookup + Sync),
     prober: &(dyn Prober + Sync),
     n: usize,
 ) -> Result<Vec<(HostConfig, Found, Probe)>> {
-    let results = probe_all(config, state, lookup, prober, selection.wants_disk());
+    let local_host = local::host(config);
+    let mut results = probe_all(config, state, lookup, prober, selection.wants_disk());
+    if config.local_in_pool() {
+        push_local(config, &local_host, jobs, state, selection, &mut results);
+    }
     let order = ranked_for(config, selection, &results);
     if order.len() < n {
         let mut why = vec![format!(
@@ -286,12 +298,24 @@ pub fn probe_one(
         KeyPolicy::Strict,
         &probe_command(config, disk, statics),
     )?;
-    let mut probe = parse_probe(&found.output).ok_or_else(|| Error::Ssh {
-        host: host.name.clone(),
-        message: format!("unexpected probe output: {}", found.output.trim()),
+    let probe = complete_probe(&host.name, &found.output, state, now)?;
+    Ok((found, probe))
+}
+
+/// Parse a probe's output for host `name`, caching any static facts in
+/// `state` and attaching the cached ones to the result.
+///
+/// # Errors
+///
+/// [`Error::Ssh`] when the output is not a probe's.
+pub fn complete_probe(name: &str, output: &str, state: &mut State, now: u64) -> Result<Probe> {
+    let key = name.to_ascii_lowercase();
+    let mut probe = parse_probe(output).ok_or_else(|| Error::Ssh {
+        host: name.to_owned(),
+        message: format!("unexpected probe output: {}", output.trim()),
     })?;
-    if let Some(hw) = facts::parse_static(&facts::kv(&found.output)) {
-        tracing::info!(host = %host.name, gpus = hw.gpus.len(), "host facts refreshed");
+    if let Some(hw) = facts::parse_static(&facts::kv(output)) {
+        tracing::info!(host = name, gpus = hw.gpus.len(), "host facts refreshed");
         state
             .facts
             .insert(key.clone(), facts::Cached { at: now, facts: hw });
@@ -300,8 +324,8 @@ pub fn probe_one(
         probe.facts.hw = Some(c.facts.clone());
         probe.facts.hw_age = Some(now.saturating_sub(c.at));
     }
-    tracing::debug!(host = %host.name, ?probe, "probed");
-    Ok((found, probe))
+    tracing::debug!(host = name, ?probe, "probed");
+    Ok(probe)
 }
 
 /// Run `f` for each of `hosts` in parallel, each with its own copy of
@@ -377,11 +401,17 @@ pub fn choose(
     config: &Config,
     selection: &Selection,
     state: &mut State,
+    jobs: &Path,
     lookup: &(dyn Lookup + Sync),
     prober: &(dyn Prober + Sync),
     wanted: Option<&str>,
 ) -> Result<(HostConfig, Found, Probe)> {
     if let Some(name) = wanted {
+        if local::names_this_machine(config, name) {
+            let chosen =
+                local::candidate(config, jobs, state, selection.wants_disk(), Source::Local)?;
+            return needs_met(selection, chosen);
+        }
         let host = config.host(name)?;
         let (found, probe) =
             probe_one(config, host, state, lookup, prober, selection.wants_disk())?;
@@ -396,20 +426,69 @@ pub fn choose(
         }
         return Ok((host.clone(), found, probe));
     }
-    if config.hosts.is_empty() {
+    if config.hosts.is_empty() && !config.local_fallback() && !config.local_in_pool() {
         return Err(Error::Usage(
-            "no hosts configured; add one with `goway host add NAME`".to_owned(),
+            "no hosts configured; add one with `goway host add NAME` (or run here with `goway run --host local`)".to_owned(),
         ));
     }
+    let local_host = local::host(config);
     let mut results = probe_all(config, state, lookup, prober, selection.wants_disk());
+    if config.local_in_pool() {
+        push_local(config, &local_host, jobs, state, selection, &mut results);
+    }
     match pick_for(config, selection, &results) {
         Some(i) => {
             let chosen = results.swap_remove(i);
             let (found, probe) = chosen.result?;
             Ok((chosen.host.clone(), found, probe))
         }
+        None if config.local_fallback() && results.iter().all(|p| p.result.is_err()) => {
+            tracing::warn!("no helper is reachable; falling back to this machine");
+            let chosen = local::candidate(
+                config,
+                jobs,
+                state,
+                selection.wants_disk(),
+                Source::Fallback,
+            )?;
+            needs_met(selection, chosen)
+        }
         None => Err(none_usable(selection, &results)),
     }
+}
+
+/// `chosen` unless it lacks a need (a pinned or fallback host is still held to the needs).
+fn needs_met(
+    selection: &Selection,
+    chosen: (HostConfig, Found, Probe),
+) -> Result<(HostConfig, Found, Probe)> {
+    let a = selection.assess(&chosen.0, &chosen.2);
+    if a.qualifies() {
+        Ok(chosen)
+    } else {
+        Err(Error::NeedsUnmet(vec![format!(
+            "{}: lacks {}",
+            chosen.0.name,
+            a.lacks.join("; lacks ")
+        )]))
+    }
+}
+
+/// Add this machine (`[local] pool = true`) to the candidates.
+fn push_local<'a>(
+    config: &Config,
+    host: &'a HostConfig,
+    jobs: &Path,
+    state: &mut State,
+    selection: &Selection,
+    results: &mut Vec<Probed<'a>>,
+) {
+    let result = local::candidate(config, jobs, state, selection.wants_disk(), Source::Local)
+        .map(|(_, found, probe)| (found, probe));
+    if let Err(e) = &result {
+        tracing::warn!(error = %e, "this machine cannot be probed; not in the pool");
+    }
+    results.push(Probed { host, result });
 }
 
 #[cfg(test)]
@@ -599,6 +678,7 @@ mod tests {
                 &config,
                 &Selection::default(),
                 &mut state,
+                Path::new(""),
                 &NoLookup,
                 &ByAddress,
                 None
@@ -610,6 +690,7 @@ mod tests {
                 &config,
                 &Selection::default(),
                 &mut state,
+                Path::new(""),
                 &NoLookup,
                 &ByAddress,
                 Some("a")
@@ -660,6 +741,7 @@ mod tests {
             &config,
             &Selection::default(),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &ByAddress,
             None,
@@ -675,6 +757,7 @@ mod tests {
             &config,
             &Selection::default(),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &ByAddress,
             Some("a"),
@@ -686,6 +769,7 @@ mod tests {
                 &config,
                 &Selection::default(),
                 &mut state,
+                Path::new(""),
                 &NoLookup,
                 &ByAddress,
                 Some("c")
@@ -697,6 +781,7 @@ mod tests {
                 &Config::default(),
                 &Selection::default(),
                 &mut state,
+                Path::new(""),
                 &NoLookup,
                 &ByAddress,
                 None
@@ -763,6 +848,7 @@ mod tests {
             &config,
             &Selection::default(),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &GpuProber,
             None,
@@ -773,6 +859,7 @@ mod tests {
             &config,
             &selection("gpu,gpu-mem>=8G,label=gpu-box", ""),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &GpuProber,
             None,
@@ -785,6 +872,7 @@ mod tests {
             &config,
             &selection("gpu-mem>=48G", ""),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &GpuProber,
             None,
@@ -805,6 +893,7 @@ mod tests {
             &config,
             &selection("kvm", ""),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &GpuProber,
             Some("idle"),
@@ -820,6 +909,7 @@ mod tests {
                 &config,
                 &selection("kvm", ""),
                 &mut state,
+                Path::new(""),
                 &NoLookup,
                 &GpuProber,
                 Some("gpu")
@@ -838,6 +928,7 @@ mod tests {
             &config,
             &selection("", "gpu,kvm"),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &GpuProber,
             None,
@@ -849,6 +940,7 @@ mod tests {
             &config,
             &selection("", "gpu=rocm"),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &GpuProber,
             None,
@@ -859,6 +951,7 @@ mod tests {
             &config,
             &selection("", "gpu=rocm"),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &GpuProber,
             3,
@@ -876,6 +969,7 @@ mod tests {
             &config,
             &selection("cores>=8,os=linux", ""),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &GpuProber,
             3,
@@ -887,6 +981,7 @@ mod tests {
             &config,
             &selection("gpu", ""),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &GpuProber,
             2,
@@ -902,11 +997,50 @@ mod tests {
             &config,
             &selection("gpu", ""),
             &mut state,
+            Path::new(""),
             &NoLookup,
             &GpuProber,
             1,
         )
         .unwrap();
         assert_eq!(one[0].0.name, "gpu");
+    }
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn this_machine_competes_with_a_margin_and_its_max_jobs() {
+        let mut config = Config::default();
+        config.local = Some(crate::config::Local {
+            pool: true,
+            margin: 0.5,
+            ..crate::config::Local::default()
+        });
+        let remote = host("helper", None);
+        let local_host = local::host(&config);
+        let probed = |remote_load: f64, local_jobs: u32| {
+            vec![
+                (remote.clone(), found("helper"), probe(4, remote_load, 0)),
+                (
+                    local_host.clone(),
+                    local::found(Source::Local),
+                    probe(4, 0.0, local_jobs),
+                ),
+            ]
+        };
+        let pick_of = |cands: &[(HostConfig, Found, Probe)]| {
+            let p: Vec<Probed<'_>> = cands
+                .iter()
+                .map(|(h, f, pr)| Probed {
+                    host: h,
+                    result: Ok((f.clone(), pr.clone())),
+                })
+                .collect();
+            pick(&config, &p).map(|i| p[i].host.name.clone())
+        };
+        // The helper is a little busier (0.25 per core): the margin keeps the run there.
+        assert_eq!(pick_of(&probed(1.0, 0)).as_deref(), Some("helper"));
+        // Much busier (1.5 per core): this machine wins.
+        assert_eq!(pick_of(&probed(6.0, 0)).as_deref(), Some("local"));
+        // At [local] max_jobs (default 1) it is skipped however idle it is.
+        assert_eq!(pick_of(&probed(6.0, 1)).as_deref(), Some("helper"));
     }
 }
