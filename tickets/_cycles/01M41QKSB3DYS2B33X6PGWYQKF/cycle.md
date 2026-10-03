@@ -4,6 +4,7 @@ start = "2026-10-07"
 end = "2026-10-08"
 goal = "Windows hosts complete; macOS helpers"
 state = "planned"
+tickets = ["01M41Q6D98JC3F9H43F0JYK9C5"]
 created = "2026-10-03T20:34:42Z"
-updated = "2026-10-03T20:34:42Z"
+updated = "2026-10-03T20:34:50Z"
 +++
