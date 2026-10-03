@@ -2,13 +2,13 @@
 id = "01M41RBQJ30AQHAETMSJY6AG0H"
 title = "Timing-sensitive integration tests fail under machine load"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:47:47Z"
-updated = "2026-10-03T22:20:46Z"
+updated = "2026-10-03T23:28:22Z"
 scope = ["crates/goway/tests/**"]
 
 [[acceptance]]
