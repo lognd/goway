@@ -1,0 +1,12 @@
+kind = "create"
+title = "Host kinds: windows over interop (powershell.exe, no ssh) and windows over OpenSSH, behind one transport"
+type = "story"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
+scope = ["crates/goway/src/config.rs", "crates/goway/src/ssh.rs", "crates/goway/src/transport.rs", "crates/goway/src/interop.rs", "crates/goway/src/hosts.rs", "crates/goway/tests/**", "docs/config.md", "docs/hosts.md"]
+acceptance = ["Given a [[host]] with os = windows and transport = interop, when goway runs on it from WSL, then it reaches the local Windows through powershell.exe with no ssh and no network listener", "Given a [[host]] with os = windows over ssh, when goway runs on it, then it uses OpenSSH with PowerShell as the remote shell and the same pinned-key rules as other hosts", "Given goway add for a Windows machine, when it runs, then it detects Windows, records the kind, and never confuses it with that machine's WSL host"]
+at = "2026-10-03T20:27:23Z"
+actor = "lognd"
+rev = 1
