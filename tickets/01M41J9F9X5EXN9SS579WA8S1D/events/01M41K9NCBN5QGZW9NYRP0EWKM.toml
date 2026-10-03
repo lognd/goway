@@ -1,0 +1,7 @@
+kind = "transition"
+from = "in-progress"
+to = "todo"
+reason = "needs the first real release run on GitHub for criterion 1; resumes at publish time"
+at = "2026-10-03T19:19:16Z"
+actor = "lognd"
+rev = 1
