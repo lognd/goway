@@ -1,0 +1,1 @@
+The README now explains how goway's installers and setup commands are undone: every change is journaled with its prior state before it is made, uninstall replays the journal backwards, and the exact guarantee (everything restored, your later edits kept, system packages listed rather than removed) and the tests that prove it are stated.

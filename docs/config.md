@@ -35,8 +35,8 @@ priority = "low"               # "low": jobs run under nice 10 with idle-class I
 # max_load = 0.8               # skip hosts whose 1-minute load per core is above this
 
 [[host]]
-name = "helios"                # identity; also tried as helios.local
-# address = "Helios"           # optional: a DNS name or IP to try first
+name = "my-helper"             # the helper's computer name; also tried as my-helper.local
+# address = "my-helper"        # optional: a DNS name or IP to try first
 # port = 22
 # user = "user"               # default: whatever ssh config says
 # max_jobs = 2                 # skip this host while it runs this many goway jobs

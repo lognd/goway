@@ -1,0 +1,1 @@
+The README now opens with a table of what each operating system can be (Windows with or without WSL, Linux, macOS; main laptop or helper) with install steps for each, and every command uses obvious placeholders like <YOUR-COMPUTER-NAME-HERE> with a note on how to find the value.

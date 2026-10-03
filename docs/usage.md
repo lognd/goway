@@ -3,11 +3,13 @@
 ## Add a helper laptop
 
 ```
-goway add HELPER --fingerprint SHA256:... --user LINUXUSER
-goway add HELPER --rsudo        # also make the administrator changes there
+goway add <YOUR-COMPUTER-NAME-HERE> --fingerprint <FINGERPRINT-FROM-THE-INSTALLER> --user <YOUR-LINUX-USER-NAME-HERE>
+goway add <YOUR-COMPUTER-NAME-HERE> --rsudo   # also make the administrator changes there
 ```
 
-The helper's installer prints this exact command, fingerprint included.
+The helper's installer prints this exact command with its values filled
+in. The README says how to find each value by hand
+("What to put in place of each <...>").
 `goway add` does the following:
 1. Checks that this laptop has ssh and git. With `--lsudo` it installs
    what is missing here.
@@ -26,7 +28,7 @@ Running `goway add` again changes nothing that is already in place.
 
 ```
 goway run -- cargo nextest run --workspace
-goway run --host helios -- cargo build --release
+goway run --host <YOUR-COMPUTER-NAME-HERE> -- cargo build --release
 goway run --keep -e RUST_LOG=debug -- ./scripts/integration.sh
 goway run --report run.json -- make test
 ```
@@ -72,7 +74,7 @@ What happens:
    with the command's exit code.
 
 A line on stderr says where the job ran:
-`goway: running on helios (x86_64, Helios) at 192.0.2.10: cargo test`.
+`goway: info: running on my-helper (x86_64, MY-HELPER) at 192.0.2.10: cargo test`.
 `--report FILE` writes the same as JSON (host, address, arch, hostname,
 command, exit code, duration, run id, repository) for evidence records.
 
@@ -138,7 +140,7 @@ Every run collects expired entries on its host. To clean up on demand:
 ```
 goway gc --dry-run                    # what would go
 goway gc --repo goway --older-than 2d
-goway gc --host helios --all          # everything not in use
+goway gc --host <YOUR-COMPUTER-NAME-HERE> --all   # everything not in use
 ```
 
 Locked entries (a run in progress) are reported `busy` and never
@@ -177,8 +179,8 @@ setup.
 
 ```
 goway doctor                 # every host
-goway doctor helios --fix    # run the fixes that need no root
-goway doctor helios --fix --sudo
+goway doctor <YOUR-COMPUTER-NAME-HERE> --fix          # run the fixes that need no root
+goway doctor <YOUR-COMPUTER-NAME-HERE> --fix --rsudo  # also the administrator fixes
 ```
 
 Checks:
