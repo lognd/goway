@@ -131,7 +131,10 @@ fn release_job(name: &str) -> String {
 fn every_publishing_job_runs_only_on_a_version_tag_push() {
     let guard = "if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'";
     for job in ["publish", "crates-io", "pypi"] {
-        assert!(release_job(job).contains(guard), "{job} lacks the tag guard");
+        assert!(
+            release_job(job).contains(guard),
+            "{job} lacks the tag guard"
+        );
     }
 }
 
@@ -141,7 +144,11 @@ fn only_the_publishing_jobs_publish_and_a_dry_run_is_possible() {
     assert!(release.contains("workflow_dispatch:"));
     for job in ["linux", "windows", "wheels", "sdist", "checksums"] {
         let text = release_job(job);
-        for needle in ["gh release create", "cargo publish", "gh-action-pypi-publish"] {
+        for needle in [
+            "gh release create",
+            "cargo publish",
+            "gh-action-pypi-publish",
+        ] {
             assert!(!text.contains(needle), "{job} must not publish");
         }
     }
