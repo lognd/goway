@@ -8,11 +8,11 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:54Z"
-updated = "2026-10-03T18:29:42Z"
+updated = "2026-10-03T18:32:28Z"
 labels = ["security"]
 scope = ["crates/goway/**"]
 
 [[acceptance]]
 text = "Given a sync whose upload failed after its deletions were stored, when the file is restored locally and goway syncs again, then the file is present on the remote"
-bound = false
+bound = true
 +++
