@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T21:57:48Z"
+digest = "574f521ccfe2282a0cf9d0390cfd45bdfcca6cb630d83b5183c292f74f6483fc"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 67b8c0d2-e1a4-437f-aedb-c099ca9fe37d with nextest profile: default
+    Starting 1 test across 33 binaries (394 tests skipped)
+        PASS [   0.084s] goway::project_rules a_goway_toml_with_hosts_or_unknown_keys_is_refused_with_file_and_line
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.086s] 1 test run: 1 passed, 394 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_goway_toml_with_hosts"
+size = 584
+status = "measured"
+tests = ["a_goway_toml_with_hosts_or_unknown_keys_is_refused_with_file_and_line"]
+at = "2026-10-03T21:57:48Z"
+actor = "lognd"
+rev = 1
