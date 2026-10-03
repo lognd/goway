@@ -55,9 +55,11 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
    2. Remote seed mirror per (repo, worktree); the remote reports its
       manifest (path, size, mtime); goway sends a tar of changed files and
       a list of deletions. No rsync, so Windows clients work.
-   3. The run's work directory is a hard-link copy of the seed (`cp -al`),
-      created under the seed lock. Seed updates replace files by rename,
-      so a running job keeps its snapshot.
+   3. The run's work directory is a real copy of the seed
+      (`cp -a --reflink=auto`), made under the seed lock in the same step
+      as the upload. A job's writes never reach the seed or other runs.
+      Seeds of sibling worktrees may share inodes; only `receive` changes
+      a seed, and it replaces files by unlink and recreate.
 4. Run (`run`)
    1. Remote layout under `~/.cache/goway/`:
       `work/<run-id>/{tree,meta.json,lock}`,

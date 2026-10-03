@@ -518,3 +518,32 @@ fn paths_baked_by_a_build_stay_valid_for_later_runs_in_the_slot() {
         "--keep keeps the tree in the work dir"
     );
 }
+
+#[test]
+fn in_place_writes_by_a_job_never_reach_the_seed() {
+    let w = world();
+    let out = w.run(&["run", "--", "sh", "-c", "echo INJECTED >> hello.txt"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let seeds = w.remote.join("seed");
+    let repo_dir = std::fs::read_dir(&seeds)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let seed = std::fs::read_dir(repo_dir)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    assert_eq!(
+        std::fs::read_to_string(seed.join("tree/hello.txt")).unwrap(),
+        "hello\n",
+        "the job's in-place append leaked into the seed"
+    );
+}

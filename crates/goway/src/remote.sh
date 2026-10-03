@@ -124,7 +124,9 @@ receive() {
     mkdir -p "$work"
     printf '%s' "$6" | base64 -d >"$work/meta.json"
     if [ "${7:-0}" = 1 ]; then : >"$work/keep"; fi
-    cp -al "$seed/tree" "$work/tree"
+    # A real copy (reflinked where the filesystem can): a job that
+    # writes a file in place must never change the seed or other runs.
+    cp -a --reflink=auto "$seed/tree" "$work/tree"
   fi
 }
 

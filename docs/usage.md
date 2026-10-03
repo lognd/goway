@@ -28,7 +28,9 @@ What happens:
    reading its manifest and uploading, the upload is refused and the
    sync starts over, so a delta never lands on the wrong base.
 3. **Snapshot.** In the same locked step as the upload, the run gets a
-   fresh work dir that is a hard-link copy of the seed.
+   fresh work dir that is a copy of the seed (reflinked where the
+   filesystem supports it), so nothing the job writes reaches the seed
+   or another run.
    Concurrent runs from the same or other worktrees never
    see each other's files, and a later sync never changes a running
    snapshot.
