@@ -2,7 +2,7 @@
 id = "01M41G4AMWANFMSM4N616W3VKV"
 title = "M10: separate caches for forks sharing a root commit; document same-user execution"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
