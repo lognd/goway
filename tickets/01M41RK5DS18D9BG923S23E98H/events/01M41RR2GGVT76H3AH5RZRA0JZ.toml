@@ -1,0 +1,29 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T20:54:31Z"
+digest = "fe2e53e637a6c458c60b719df087c2335da6eebce3d8c841b6114ecf85c5bf74"
+exit_code = 0
+inline = '''
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.98s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d0719437-3319-4c40-819c-f5ff0095bab9 with nextest profile: default
+    Starting 4 tests across 1 binary (26 binaries skipped)
+        PASS [   0.011s] goway-setup::stage the_elevated_side_refuses_an_image_that_differs_from_the_locked_digest
+        PASS [   0.011s] goway-setup::stage a_missing_source_fails_and_leaves_no_directory
+        PASS [   0.011s] goway-setup::stage each_staging_gets_its_own_owner_only_directory
+        PASS [   0.014s] goway-setup::stage staging_copies_the_exe_hashes_it_and_cleans_up_on_drop
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.015s] 4 tests run: 4 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(stage)'"
+size = 1048
+status = "measured"
+tests = ["the_elevated_side_refuses_an_image_that_differs_from_the_locked_digest", "a_missing_source_fails_and_leaves_no_directory", "each_staging_gets_its_own_owner_only_directory", "staging_copies_the_exe_hashes_it_and_cleans_up_on_drop"]
+at = "2026-10-03T20:54:31Z"
+actor = "lognd"
+rev = 1
