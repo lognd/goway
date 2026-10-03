@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T17:38:47Z"
+digest = "2f979c83c51bd95863b0651d7ecda9bcd9da64fbec98a742ce36b3d3d9c46fff"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 4ddcca0d-3155-4b18-8c0d-b72349778f07 with nextest profile: default
+    Starting 2 tests across 20 binaries (173 tests skipped)
+        PASS [   0.010s] goway shard::tests::nextest_gets_its_own_partition_flag
+        PASS [   0.630s] goway::run_local shards_run_on_n_hosts_and_any_failure_fails_the_run
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.633s] 2 tests run: 2 passed, 173 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(shards_run_on_n_hosts_and_any_failure_fails_the_run) | test(nextest_gets_its_own_partition_flag)'"
+size = 645
+status = "measured"
+tests = ["shard::tests::nextest_gets_its_own_partition_flag", "shards_run_on_n_hosts_and_any_failure_fails_the_run"]
+at = "2026-10-03T17:38:47Z"
+actor = "lognd"
+rev = 1
