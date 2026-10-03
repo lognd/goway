@@ -171,6 +171,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         "synced {} files ({} sent, {} bytes, {} deleted)",
         synced.files, synced.sent, synced.bytes, synced.deleted
     ));
+    report_withheld(renderer, &synced);
     send_env(env, &config, &found, &run_id, &env_bytes)?;
 
     let cmd = run_invocation(
@@ -252,9 +253,34 @@ pub(crate) fn sync_snapshot(
         &transport,
         &config.defaults.remote_root,
         repo,
-        config.defaults.send_env_files,
+        &sync::Secrets::from_config(&config.defaults),
         Some(&snapshot),
     )
+}
+
+/// Tell the user which files stayed on this machine and why.
+pub(crate) fn report_withheld(renderer: Renderer, synced: &sync::Stats) {
+    let list = |paths: &[String]| {
+        let mut shown: Vec<&str> = paths.iter().take(5).map(String::as_str).collect();
+        if paths.len() > 5 {
+            shown.push("...");
+        }
+        shown.join(", ")
+    };
+    if !synced.kept_local.is_empty() {
+        renderer.note(format_args!(
+            "kept {} secret-looking file(s) on this machine: {} (allow with secret_allow in the config)",
+            synced.kept_local.len(),
+            list(&synced.kept_local)
+        ));
+    }
+    if !synced.behind_links.is_empty() {
+        renderer.warn(format_args!(
+            "did not send {} file(s) under symlinked directories: {}",
+            synced.behind_links.len(),
+            list(&synced.behind_links)
+        ));
+    }
 }
 
 /// Write a `--report` file as pretty JSON.

@@ -58,14 +58,121 @@ pub struct RemoteEntry {
     pub kind: Kind,
 }
 
-/// Whether `path` is an env file goway never sends by default.
-pub fn is_env_file(path: &str) -> bool {
-    let base = path.rsplit('/').next().unwrap_or(path);
-    base == ".env" || base.starts_with(".env.")
+/// Which secret-looking files may be sent: by default none.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Secrets {
+    /// Send every secret-looking file (`send_secret_files = true`).
+    pub send_all: bool,
+    /// Paths or `*` patterns that may be sent anyway (`secret_allow`).
+    pub allow: Vec<String>,
 }
 
-/// The work tree's file set, sorted by path.
-pub fn file_set(root: &Path, send_env_files: bool) -> Result<Vec<LocalFile>> {
+impl Secrets {
+    /// The policy from the config.
+    pub fn from_config(d: &crate::config::Defaults) -> Self {
+        Self {
+            send_all: d.send_secret_files,
+            allow: d.secret_allow.clone(),
+        }
+    }
+
+    /// Whether `path` stays on this machine.
+    pub fn keeps_local(&self, path: &str) -> bool {
+        !self.send_all && is_secret_file(path) && !self.allow.iter().any(|p| glob_match(p, path))
+    }
+}
+
+/// Directories whose contents are credentials wherever they appear.
+const SECRET_DIRS: &[&str] = &[".ssh", ".aws", ".gnupg", ".azure", ".docker", ".kube"];
+/// File names that hold credentials.
+const SECRET_NAMES: &[&str] = &[
+    ".env",
+    ".envrc",
+    ".npmrc",
+    ".pypirc",
+    ".netrc",
+    "_netrc",
+    ".git-credentials",
+    ".pgpass",
+    "credentials",
+    "credentials.json",
+    "secrets.json",
+    ".htpasswd",
+];
+/// Extensions of key and certificate stores.
+const SECRET_EXTENSIONS: &[&str] = &[".pem", ".key", ".p12", ".pfx", ".jks", ".keystore", ".ppk"];
+
+/// Whether `path` looks like a secret goway does not send by default
+/// (case-insensitive): env files, credential files, private keys and
+/// key stores, and anything under `.ssh`, `.aws` or similar.
+pub fn is_secret_file(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    let mut parts: Vec<&str> = lower.split('/').collect();
+    let base = parts.pop().unwrap_or_default();
+    parts.iter().any(|d| SECRET_DIRS.contains(d))
+        || SECRET_NAMES.contains(&base)
+        || base.starts_with(".env.")
+        || (base.starts_with("id_")
+            && !Path::new(base)
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("pub")))
+        || SECRET_EXTENSIONS.iter().any(|e| base.ends_with(e))
+}
+
+/// Match `path` against `pattern`, where `*` stands for any characters.
+pub fn glob_match(pattern: &str, path: &str) -> bool {
+    let mut parts = pattern.split('*');
+    let first = parts.next().unwrap_or_default();
+    let Some(mut rest) = path.strip_prefix(first) else {
+        return false;
+    };
+    let pieces: Vec<&str> = parts.collect();
+    for (i, piece) in pieces.iter().enumerate() {
+        if i + 1 == pieces.len() {
+            return rest.ends_with(piece);
+        }
+        match rest.find(piece) {
+            Some(at) => rest = &rest[at + piece.len()..],
+            None => return false,
+        }
+    }
+    rest.is_empty()
+}
+
+/// The work tree's file set, and what was deliberately left out.
+#[derive(Debug, Clone, Default)]
+pub struct FileSet {
+    /// Files to sync, sorted by path.
+    pub files: Vec<LocalFile>,
+    /// Secret-looking files kept on this machine.
+    pub kept_local: Vec<String>,
+    /// Files under a symlinked directory, never read.
+    pub behind_links: Vec<String>,
+}
+
+/// Whether a parent directory of `path` (relative to `root`) is a symlink;
+/// such files are never read (they may point outside the work tree).
+fn under_symlink(root: &Path, path: &str, checked: &mut BTreeMap<String, bool>) -> bool {
+    let mut dir = String::new();
+    let components: Vec<&str> = path.split('/').collect();
+    for part in &components[..components.len().saturating_sub(1)] {
+        if !dir.is_empty() {
+            dir.push('/');
+        }
+        dir.push_str(part);
+        let linked = *checked.entry(dir.clone()).or_insert_with(|| {
+            std::fs::symlink_metadata(root.join(&dir)).is_ok_and(|m| m.file_type().is_symlink())
+        });
+        if linked {
+            return true;
+        }
+    }
+    false
+}
+
+/// The work tree's file set: what git shows, minus deleted files, secrets
+/// (per `secrets`) and anything under a symlinked directory.
+pub fn file_set(root: &Path, secrets: &Secrets) -> Result<FileSet> {
     let out = std::process::Command::new("git")
         .arg("-C")
         .arg(root)
@@ -81,16 +188,21 @@ pub fn file_set(root: &Path, send_env_files: bool) -> Result<Vec<LocalFile>> {
     }
     let modes = index_exec_bits(root)?;
     let mut seen = BTreeSet::new();
-    let mut files = Vec::new();
-    let mut skipped_env = 0usize;
+    let mut set = FileSet::default();
+    let mut checked = BTreeMap::new();
     for raw in out.stdout.split(|b| *b == 0).filter(|p| !p.is_empty()) {
         let path = String::from_utf8_lossy(raw).into_owned();
         if !seen.insert(path.clone()) {
             continue;
         }
-        if !send_env_files && is_env_file(&path) {
-            skipped_env += 1;
-            tracing::debug!(path, "env file not sent");
+        if secrets.keeps_local(&path) {
+            tracing::debug!(path, "secret-looking file kept local");
+            set.kept_local.push(path);
+            continue;
+        }
+        if under_symlink(root, &path, &mut checked) {
+            tracing::warn!(path, "file under a symlinked directory not sent");
+            set.behind_links.push(path);
             continue;
         }
         let full = root.join(&path);
@@ -122,18 +234,21 @@ pub fn file_set(root: &Path, send_env_files: bool) -> Result<Vec<LocalFile>> {
         } else {
             0
         };
-        files.push(LocalFile {
+        set.files.push(LocalFile {
             path,
             size,
             mtime,
             kind,
         });
     }
-    if skipped_env > 0 {
-        tracing::info!(skipped_env, "env files kept local");
+    if !set.kept_local.is_empty() {
+        tracing::info!(
+            kept = set.kept_local.len(),
+            "secret-looking files kept local"
+        );
     }
-    files.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(files)
+    set.files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(set)
 }
 
 /// Exec bits from the git index (used where the OS has none, i.e. Windows).
@@ -333,7 +448,7 @@ pub struct Label<'a> {
 }
 
 /// Counts of one sync, for the user and the logs.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Stats {
     /// Files in the local set.
     pub files: usize,
@@ -343,6 +458,10 @@ pub struct Stats {
     pub bytes: u64,
     /// Remote files deleted.
     pub deleted: usize,
+    /// Secret-looking files kept on this machine (not sent).
+    pub kept_local: Vec<String>,
+    /// Files under a symlinked directory (not sent).
+    pub behind_links: Vec<String>,
 }
 
 /// Runs remote script invocations; ssh in production, a local shell in tests.
@@ -529,12 +648,12 @@ pub fn sync(
     transport: &dyn Transport,
     remote_root: &str,
     repo: &Repo,
-    send_env_files: bool,
+    secrets: &Secrets,
     snapshot: Option<&Snapshot>,
 ) -> Result<Stats> {
     let mut attempt = 1;
     loop {
-        match sync_once(transport, remote_root, repo, send_env_files, snapshot) {
+        match sync_once(transport, remote_root, repo, secrets, snapshot) {
             Err(Error::Ssh { message, .. })
                 if message.contains("seed changed") && attempt < SYNC_ATTEMPTS =>
             {
@@ -550,11 +669,12 @@ fn sync_once(
     transport: &dyn Transport,
     remote_root: &str,
     repo: &Repo,
-    send_env_files: bool,
+    secrets: &Secrets,
     snapshot: Option<&Snapshot>,
 ) -> Result<Stats> {
     let started = std::time::Instant::now();
-    let local = file_set(&repo.root, send_env_files)?;
+    let set = file_set(&repo.root, secrets)?;
+    let local = set.files;
     let seed = repo.seed_key();
     let manifest = transport.output(&remote::invocation("manifest", &[remote_root, &seed]))?;
     let generation = manifest_generation(&manifest);
@@ -589,6 +709,8 @@ fn sync_once(
         sent: to_send.len(),
         bytes: to_send.iter().map(|f| f.size).sum(),
         deleted: plan.delete.len(),
+        kept_local: set.kept_local,
+        behind_links: set.behind_links,
     };
     tracing::info!(?stats, remote_files = remote_entries.len(), "sync plan");
     // Deletions are bound to this attempt: a list stored by an attempt
@@ -687,8 +809,9 @@ mod tests {
         #[cfg(unix)]
         std::os::unix::fs::symlink("tracked.rs", root.join("link.rs")).unwrap();
 
-        let paths: Vec<String> = file_set(root, false)
+        let paths: Vec<String> = file_set(root, &Secrets::default())
             .unwrap()
+            .files
             .into_iter()
             .map(|f| f.path)
             .collect();
@@ -699,21 +822,92 @@ mod tests {
         want.sort_unstable();
         assert_eq!(paths, want);
 
-        let with_env: Vec<String> = file_set(root, true)
-            .unwrap()
-            .into_iter()
-            .map(|f| f.path)
-            .collect();
+        let with_env: Vec<String> = file_set(
+            root,
+            &Secrets {
+                send_all: true,
+                allow: Vec::new(),
+            },
+        )
+        .unwrap()
+        .files
+        .into_iter()
+        .map(|f| f.path)
+        .collect();
         assert!(with_env.contains(&"sub/.env".to_owned()));
         assert!(with_env.contains(&".env.local".to_owned()));
     }
 
     #[test]
-    fn env_file_detection() {
-        assert!(is_env_file(".env"));
-        assert!(is_env_file("a/b/.env.production"));
-        assert!(!is_env_file("src/env.rs"));
-        assert!(!is_env_file(".envrc"));
+    fn secret_files_are_recognized_case_insensitively() {
+        for secret in [
+            ".env",
+            ".ENV",
+            "a/b/.env.production",
+            ".envrc",
+            ".npmrc",
+            ".netrc",
+            ".git-credentials",
+            "id_rsa",
+            "keys/id_ed25519",
+            "server.PEM",
+            "tls/key.key",
+            "cert.p12",
+            ".aws/credentials",
+            "home/.ssh/config",
+            "credentials.json",
+        ] {
+            assert!(is_secret_file(secret), "{secret}");
+        }
+        for plain in [
+            "src/env.rs",
+            "id_rsa.pub",
+            "README.md",
+            "keyboard.rs",
+            "environment.txt",
+        ] {
+            assert!(!is_secret_file(plain), "{plain}");
+        }
+        let allow = Secrets {
+            send_all: false,
+            allow: vec!["tests/fixtures/*.pem".to_owned()],
+        };
+        assert!(!allow.keeps_local("tests/fixtures/server.pem"));
+        assert!(allow.keeps_local("server.pem"));
+        assert!(glob_match("*.pem", "a/b.pem") && !glob_match("*.pem", "a.pem.bak"));
+    }
+
+    // frob:tests crates/goway/src/sync.rs::file_set
+    #[cfg(unix)]
+    #[test]
+    fn secrets_and_files_under_symlinked_dirs_stay_local() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("proj");
+        let outside = dir.path().join("outside");
+        std::fs::create_dir_all(root.join("real")).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        init(&root);
+        std::fs::write(outside.join("b"), "outside secret").unwrap();
+        std::fs::write(root.join("real/b"), "inside").unwrap();
+        for f in [".ENV", ".envrc", ".npmrc", "id_rsa", "main.rs"] {
+            std::fs::write(root.join(f), "x").unwrap();
+        }
+        git(&root, &["add", "-f", "."]).unwrap();
+        git(&root, &["commit", "-qm", "init"]).unwrap();
+        // Replace the tracked directory with a symlink pointing outside.
+        std::fs::remove_dir_all(root.join("real")).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("real")).unwrap();
+        let set = file_set(&root, &Secrets::default()).unwrap();
+        let names: Vec<&str> = set.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(names, ["main.rs", "real"]);
+        assert!(
+            matches!(set.files[1].kind, Kind::Symlink { .. }),
+            "the link itself goes as a link; nothing behind it is read"
+        );
+        assert_eq!(set.behind_links, ["real/b"]);
+        let mut kept = set.kept_local.clone();
+        kept.sort();
+        assert_eq!(kept, [".ENV", ".envrc", ".npmrc", "id_rsa"]);
     }
 
     fn file(path: &str, size: u64, mtime: u64) -> LocalFile {
@@ -881,14 +1075,28 @@ mod tests {
             .join(repo.seed_key())
             .join("tree");
 
-        let first = sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
+        let first = sync(
+            &LocalTransport,
+            &remote_root,
+            &repo,
+            &Secrets::default(),
+            None,
+        )
+        .unwrap();
         assert_eq!((first.files, first.sent, first.deleted), (4, 4, 0));
         let mut local = tree(&root);
         local.remove(".env");
         local.retain(|k, _| !k.starts_with(".git/") && k != ".git");
         assert_eq!(tree(&seed_tree), local, "content and mtimes match");
 
-        let again = sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
+        let again = sync(
+            &LocalTransport,
+            &remote_root,
+            &repo,
+            &Secrets::default(),
+            None,
+        )
+        .unwrap();
         assert_eq!(
             (again.sent, again.deleted),
             (0, 0),
@@ -906,7 +1114,14 @@ mod tests {
         assert!(ok.success());
         std::fs::write(root.join("src/lib.rs"), "v2 longer").unwrap();
         std::fs::remove_dir_all(root.join("src/deep")).unwrap();
-        let third = sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
+        let third = sync(
+            &LocalTransport,
+            &remote_root,
+            &repo,
+            &Secrets::default(),
+            None,
+        )
+        .unwrap();
         assert_eq!((third.sent, third.deleted), (1, 1));
         assert_eq!(
             std::fs::read_to_string(seed_tree.join("src/lib.rs")).unwrap(),
@@ -954,9 +1169,9 @@ mod tests {
             settings: &settings,
         };
         let root = ".cache/goway-test";
-        let first = sync(&transport, root, &repo, false, None).unwrap();
+        let first = sync(&transport, root, &repo, &Secrets::default(), None).unwrap();
         assert_eq!(first.sent, 1);
-        let again = sync(&transport, root, &repo, false, None).unwrap();
+        let again = sync(&transport, root, &repo, &Secrets::default(), None).unwrap();
         assert_eq!(again.sent, 0);
         transport
             .output(&format!("rm -rf {root}/seed/{}", repo.id))
@@ -983,7 +1198,7 @@ mod tests {
             &LocalTransport,
             &remote_root,
             &Repo::discover(&main).unwrap(),
-            false,
+            &Secrets::default(),
             None,
         )
         .unwrap();
@@ -996,7 +1211,14 @@ mod tests {
         std::fs::write(wt.join("f3.rs"), "fn changed() {}\n").unwrap();
         std::fs::write(wt.join("new.rs"), "fn new() {}\n").unwrap();
         let repo = Repo::discover(&wt).unwrap();
-        let second = sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
+        let second = sync(
+            &LocalTransport,
+            &remote_root,
+            &repo,
+            &Secrets::default(),
+            None,
+        )
+        .unwrap();
         assert_eq!(
             (second.sent, second.deleted),
             (2, 0),
@@ -1037,16 +1259,29 @@ mod tests {
         let repo = Repo::discover(&root).unwrap();
         let remote_root = dir.path().join("remote").to_string_lossy().into_owned();
         assert_eq!(
-            sync(&LocalTransport, &remote_root, &repo, false, None)
-                .unwrap()
-                .sent,
+            sync(
+                &LocalTransport,
+                &remote_root,
+                &repo,
+                &Secrets::default(),
+                None
+            )
+            .unwrap()
+            .sent,
             1500
         );
         for i in 0..1500 {
             std::fs::remove_file(root.join(format!("{long}{i:05}.txt"))).unwrap();
         }
         // 1500 * 110 bytes = 165 KB of paths: more than MAX_ARG_STRLEN (128 KiB).
-        let gone = sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
+        let gone = sync(
+            &LocalTransport,
+            &remote_root,
+            &repo,
+            &Secrets::default(),
+            None,
+        )
+        .unwrap();
         assert_eq!(gone.deleted, 1500);
         let tree = dir
             .path()
@@ -1095,9 +1330,15 @@ mod tests {
         let repo = Repo::discover(&root).unwrap();
         let remote_root = dir.path().join("remote").to_string_lossy().into_owned();
         assert_eq!(
-            sync(&LocalTransport, &remote_root, &repo, false, None)
-                .unwrap()
-                .sent,
+            sync(
+                &LocalTransport,
+                &remote_root,
+                &repo,
+                &Secrets::default(),
+                None
+            )
+            .unwrap()
+            .sent,
             5
         );
         std::fs::write(root.join("f0"), "changed").unwrap();
@@ -1106,7 +1347,7 @@ mod tests {
             seed: seed.clone(),
             raced: std::cell::Cell::new(false),
         };
-        let stats = sync(&racing, &remote_root, &repo, false, None).unwrap();
+        let stats = sync(&racing, &remote_root, &repo, &Secrets::default(), None).unwrap();
         assert_eq!(
             stats.sent, 5,
             "the retry sends everything, not just the delta"
@@ -1166,7 +1407,14 @@ mod tests {
         std::fs::write(root.join("b"), "b").unwrap();
         let repo = Repo::discover(&root).unwrap();
         let remote_root = dir.path().join("remote").to_string_lossy().into_owned();
-        sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
+        sync(
+            &LocalTransport,
+            &remote_root,
+            &repo,
+            &Secrets::default(),
+            None,
+        )
+        .unwrap();
 
         // b deleted locally; the sync stores the deletion, then the upload drops.
         let saved = std::fs::read(root.join("b")).unwrap();
@@ -1178,7 +1426,7 @@ mod tests {
         let flaky = DropFirstUpload {
             dropped: std::cell::Cell::new(false),
         };
-        assert!(sync(&flaky, &remote_root, &repo, false, None).is_err());
+        assert!(sync(&flaky, &remote_root, &repo, &Secrets::default(), None).is_err());
 
         // b restored exactly; the next sync has nothing to send.
         std::fs::write(root.join("b"), saved).unwrap();
@@ -1188,7 +1436,14 @@ mod tests {
             .unwrap()
             .set_modified(mtime)
             .unwrap();
-        sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
+        sync(
+            &LocalTransport,
+            &remote_root,
+            &repo,
+            &Secrets::default(),
+            None,
+        )
+        .unwrap();
         let tree = dir
             .path()
             .join("remote/seed")

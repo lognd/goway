@@ -17,7 +17,8 @@ What happens:
    `max_load` (load per core) are skipped.
 2. **Sync.** The file set is exactly what git shows:
    `git ls-files -co --exclude-standard`, minus files deleted from the
-   work tree, minus `.env`/`.env.*`. It goes to a per-worktree seed on
+   work tree, minus secret-looking files (see below) and anything inside
+   a symlinked directory. It goes to a per-worktree seed on
    the host. Only files whose size, exec bit or link target changed are
    sent (as a tar stream), plus files whose mtime changed and whose
    content (sha256) differs. Files gone locally are deleted. mtimes are
@@ -158,8 +159,20 @@ is undone by `goway ssh setup HOST --undo`; see docs/ssh-setup.md.
 
 ## What is sent to the remote
 
-- The git-visible work tree (see Sync above), without `.git` and
-  without `.env` files.
+- The git-visible work tree (see Sync above), without `.git`.
+- Secret-looking files stay on your machine unless you allow them. The
+  match ignores case and covers:
+  - env files (`.env`, `.env.*`, `.envrc`)
+  - credential files (`.npmrc`, `.netrc`, `.pypirc`, `.git-credentials`,
+    `credentials*`)
+  - private keys (`id_*` except `.pub`)
+  - key and certificate stores (`*.pem`, `*.key`, `*.p12`, `*.pfx`,
+    `*.jks`)
+  - anything under `.ssh`, `.aws`, `.gnupg`, `.docker` or `.kube`
+
+  `goway run` lists the files it kept back. To send some anyway, add
+  them to `secret_allow` in the config. Files inside a directory that is
+  a symlink are never read.
 - The command line, and any `--env` values. The values travel over the
   encrypted ssh connection's input into a file only you can read, which
   is deleted when the job starts. They never appear in the host's process

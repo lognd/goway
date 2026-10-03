@@ -60,8 +60,13 @@ pub struct Defaults {
     pub kept_ttl: Duration,
     /// Most cargo target directories per repository on one host.
     pub target_slots: u32,
-    /// Send `.env` files to the remote (off: they are never sent).
-    pub send_env_files: bool,
+    /// Send secret-looking files (env files, credentials, private keys)
+    /// to the remote; off: they are never sent.
+    #[serde(alias = "send_env_files")]
+    pub send_secret_files: bool,
+    /// Secret-looking files that may be sent anyway (paths or `*`
+    /// patterns, such as `tests/fixtures/*.pem`).
+    pub secret_allow: Vec<String>,
     /// The ssh port tried when a host does not set one.
     pub port: u16,
     /// Priority of remote jobs unless a host overrides it.
@@ -81,7 +86,8 @@ impl Default for Defaults {
             orphan_ttl: Duration::from_secs(DAY),
             kept_ttl: Duration::from_secs(3 * DAY),
             target_slots: 4,
-            send_env_files: false,
+            send_secret_files: false,
+            secret_allow: Vec::new(),
             port: 2222,
             priority: Priority::Low,
             max_load: None,
