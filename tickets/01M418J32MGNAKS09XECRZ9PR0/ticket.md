@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:11:38Z"
-scope = ["crates/goway/**", "docs/**"]
+updated = "2026-10-03T16:56:45Z"
+scope = ["crates/goway/**"]
 
 [[acceptance]]
 text = "Given a host without cargo-nextest, when goway doctor runs, then it reports the missing tool with the exact fix command"
