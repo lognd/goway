@@ -8,10 +8,10 @@ points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:01:09Z"
-updated = "2026-10-03T21:01:14Z"
+updated = "2026-10-03T21:01:27Z"
 scope = ["frob.toml"]
 
 [[acceptance]]
 text = "Given frob.toml, when four tickets are in progress, then frob allows it, and the comment says builds go to the helpers through goway run"
-bound = false
+bound = true
 +++
