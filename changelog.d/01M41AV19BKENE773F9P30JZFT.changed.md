@@ -1,0 +1,1 @@
+docs/positioning.md states goway's niche (whole commands from a dirty work tree onto personal, DHCP-addressed machines with zero remote footprint) and the rules by which it coexists with sccache-dist, Bazel, Docker, CI runners and other build systems.
