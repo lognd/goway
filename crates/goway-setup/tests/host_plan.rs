@@ -736,3 +736,14 @@ fn allow_from_refuses_wide_and_any_like_ranges_unless_allow_wide_and_never_any()
     settings.allow_from = vec!["0.0.0.0/1".into()];
     assert!(settings.validate(Path::new("s.json")).is_err());
 }
+
+// frob:tests crates/goway-setup/src/host.rs::validate_distro
+#[test]
+fn a_distro_name_may_not_look_like_a_wsl_option() {
+    for bad in ["-d", "--shutdown", "-", "-x"] {
+        assert!(host::validate_distro(bad).is_err(), "{bad}");
+    }
+    for ok in ["Ubuntu", "Ubuntu-22.04", "a-b", "x_y.z"] {
+        assert!(host::validate_distro(ok).is_ok(), "{ok}");
+    }
+}

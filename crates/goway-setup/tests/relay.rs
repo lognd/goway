@@ -247,8 +247,23 @@ fn the_refresh_script_validates_the_address_and_builds_the_exact_netsh_command()
     let validate = script.find("-match $quad").expect("validates the address");
     let set = script.find("portproxy set").unwrap();
     assert!(validate < set);
-    assert!(script.contains("no IPv4 address from the distro"));
+    // Private ranges only, inside the adapter's subnet, never the adapter's own address.
+    assert!(script.contains("$private = '^(10\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|192\\.168\\.)'"));
+    assert!(script.contains("vEthernet (WSL*"));
+    let subnet = script.find("-band $mask").expect("checks the subnet");
+    assert!(subnet < set && script.contains("$token -ne $gateway"));
+    assert!(script.contains("no address inside the WSL adapter subnet from the distro"));
     // System tools by absolute path, never a search path; no dynamic evaluation.
+    assert!(script.contains("$system = [Environment]::SystemDirectory"));
+    assert!(
+        !script.contains("SystemRoot") && !script.contains("$env:Path"),
+        "no user-overridable environment variable picks the tools"
+    );
+    assert!(script.contains("$env:PSModulePath = Join-Path $system"));
+    assert!(
+        !script.contains("Get-NetIPAddress"),
+        "no module autoload in an elevated task"
+    );
     assert!(script.contains("Join-Path $system 'netsh.exe'"));
     assert!(script.contains("Join-Path $system 'wsl.exe'"));
     assert!(!script.to_ascii_lowercase().contains("invoke-expression"));
@@ -652,6 +667,7 @@ fn the_portproxy_resource_runs_netsh_with_the_distros_current_address() {
     let fake = Fake {
         script: vec![
             ("hostname -I", 0, "172.20.9.9 \n"),
+            ("powershell.exe", 0, "172.20.0.1/20\n"),
             ("show v4tov4", 0, table),
             ("netsh.exe", 0, ""),
         ],
@@ -757,5 +773,226 @@ fn the_relay_task_runs_the_script_as_the_user_with_highest_privileges_and_stores
         boot.contains("-LogonType S4U")
             && boot.contains("-AtStartup")
             && boot.contains("-RunLevel Highest")
+    );
+}
+
+// frob:tests crates/goway-setup/src/relay.rs::choose_wsl_ip
+// frob:tests crates/goway-setup/src/relay.rs::parse_adapter_addrs
+// frob:tests crates/goway-setup/src/relay.rs::in_adapter_subnet
+#[test]
+fn the_connect_address_must_be_private_inside_the_wsl_adapter_subnet_and_not_the_gateway() {
+    use goway_setup::relay::{choose_wsl_ip, in_adapter_subnet, parse_adapter_addrs};
+    let adapters =
+        parse_adapter_addrs("172.20.0.1/20\nnot an address\n10.0.0.1/0\n10.0.0.1/33\n  \n");
+    assert_eq!(
+        adapters.len(),
+        1,
+        "only well-formed address/prefix lines count"
+    );
+    let pick = |text: &str| choose_wsl_ip(text, &adapters).map(|a| a.to_string());
+    assert_eq!(pick("172.20.1.5\n").as_deref(), Some("172.20.1.5"));
+    assert_eq!(
+        pick("8.8.8.8 172.20.15.254").as_deref(),
+        Some("172.20.15.254")
+    );
+    for steered in [
+        "8.8.8.8",     // public
+        "192.168.1.1", // private, but not the adapter's subnet (a LAN router)
+        "172.21.0.5",  // private, next /20 over
+        "172.20.0.1",  // the adapter's own address
+        "127.0.0.1",
+        "169.254.1.1",
+        "10.0.0.5",
+        "0.0.0.0",
+        "100.64.0.9",  // CGNAT is not RFC 1918
+        "172.20.16.1", // one past the /20
+        "fe80::1",
+        "172.20.1.5;calc",
+    ] {
+        assert_eq!(pick(steered), None, "{steered}");
+    }
+    assert_eq!(
+        choose_wsl_ip("172.20.1.5", &[]),
+        None,
+        "no adapter, no relay"
+    );
+    let a = adapters[0];
+    assert!(in_adapter_subnet("172.20.0.0".parse().unwrap(), a));
+    assert!(in_adapter_subnet("172.20.15.255".parse().unwrap(), a));
+    assert!(!in_adapter_subnet("172.20.16.0".parse().unwrap(), a));
+}
+
+// frob:tests crates/goway-setup/src/hostsys.rs::wsl_ip
+#[test]
+fn a_distro_that_prints_an_address_the_adapter_cannot_reach_gets_no_relay() {
+    let json = serde_json::to_string(&spec("0.0.0.0", 2299)).unwrap();
+    for (adapter, distro) in [
+        ("172.20.0.1/20\n", "8.8.8.8\n"),
+        ("172.20.0.1/20\n", "192.168.1.1\n"),
+        ("172.20.0.1/20\n", "172.20.0.1\n"),
+        ("", "172.20.1.5\n"),
+    ] {
+        let fake = Fake {
+            script: vec![("hostname -I", 0, distro), ("powershell.exe", 0, adapter)],
+            log: std::cell::RefCell::default(),
+        };
+        let mut s = HostSystem::with_runner("Ubuntu", &fake);
+        assert!(
+            s.resource_create(ResourceKind::PortProxy, "0.0.0.0:2299", &json)
+                .is_err(),
+            "{distro:?} with adapter {adapter:?}"
+        );
+        assert!(
+            fake.log
+                .borrow()
+                .iter()
+                .all(|i| !i.program.ends_with("netsh.exe"))
+        );
+    }
+}
+
+// frob:tests crates/goway-setup/src/relay.rs::is_goway_relay
+// frob:tests crates/goway-setup/src/hostsys.rs::resource_exists
+#[test]
+fn only_a_rule_shaped_like_the_relay_is_reported_and_removed_as_goways() {
+    let table = |connect: &str, port: u16| {
+        format!(
+            "Listen on ipv4:             Connect to ipv4:\n\nAddress         Port        Address         Port\n--------------- ----------  --------------- ----------\n0.0.0.0         2299        {connect}      {port}\n"
+        )
+    };
+    let rule = |connect: &str, port: u16| PortProxyRule {
+        listen_address: "0.0.0.0".parse().unwrap(),
+        listen_port: 2299,
+        connect_address: connect.parse().unwrap(),
+        connect_port: port,
+    };
+    assert!(relay::is_goway_relay(&rule("172.20.1.5", 2299), 2299));
+    assert!(
+        !relay::is_goway_relay(&rule("172.20.1.5", 22), 2299),
+        "other port"
+    );
+    assert!(
+        !relay::is_goway_relay(&rule("8.8.8.8", 2299), 2299),
+        "public target"
+    );
+    for (connect, port) in [("8.8.8.8", 2299), ("172.20.1.5", 22)] {
+        let t: &'static str = Box::leak(table(connect, port).into_boxed_str());
+        let fake = Fake {
+            script: vec![("show v4tov4", 0, t), ("netsh.exe", 0, "")],
+            log: std::cell::RefCell::default(),
+        };
+        let mut s = HostSystem::with_runner("Ubuntu", &fake);
+        assert!(
+            !s.resource_exists(ResourceKind::PortProxy, "0.0.0.0:2299")
+                .unwrap()
+        );
+        assert!(
+            s.resource_delete(ResourceKind::PortProxy, "0.0.0.0:2299")
+                .is_err()
+        );
+        assert!(
+            fake.log
+                .borrow()
+                .iter()
+                .all(|i| !i.args.contains(&"delete".to_owned())),
+            "someone else's rule is never deleted"
+        );
+    }
+}
+
+// frob:tests crates/goway-setup/src/relay.rs::check_script_path
+// frob:tests crates/goway-setup/src/hostsys.rs::resource_create
+#[test]
+fn the_relay_task_only_runs_the_refresh_script_by_absolute_path() {
+    assert!(relay::check_script_path("/ProgramData/goway/p/relay-refresh.ps1").is_ok());
+    for bad in [
+        "relay-refresh.ps1",
+        "goway/p/relay-refresh.ps1",
+        "/ProgramData/goway/p/evil.ps1",
+        "/ProgramData/goway/p/relay-refresh.ps1\" -Command calc \"",
+        "/ProgramData/%TEMP%/relay-refresh.ps1",
+        "/x/$y/relay-refresh.ps1",
+    ] {
+        assert!(relay::check_script_path(bad).is_err(), "{bad}");
+    }
+    let mut s = spec_task("relay-refresh.ps1");
+    let fake = Fake {
+        script: vec![("powershell.exe", 0, "")],
+        log: std::cell::RefCell::default(),
+    };
+    let mut sys = HostSystem::with_runner("Ubuntu", &fake);
+    assert!(
+        sys.resource_create(
+            ResourceKind::ScheduledTask,
+            "t",
+            &serde_json::to_string(&s).unwrap()
+        )
+        .is_err()
+    );
+    assert!(fake.log.borrow().is_empty(), "nothing is registered");
+    s.script = host::relay_script_path(&layout()).display().to_string();
+    sys.resource_create(
+        ResourceKind::ScheduledTask,
+        "t",
+        &serde_json::to_string(&s).unwrap(),
+    )
+    .unwrap();
+}
+
+fn spec_task(script: &str) -> RelayTaskSpec {
+    RelayTaskSpec {
+        distro: "Ubuntu".into(),
+        keepalive: Keepalive::Logon,
+        script: script.into(),
+        interval_minutes: relay::REFRESH_MINUTES,
+        description: "d".into(),
+    }
+}
+
+// frob:tests crates/goway-setup/src/host.rs::host_plan
+#[test]
+fn the_firewall_rule_exists_before_the_relay_listens_and_the_script_lives_in_the_admin_dir() {
+    let l = layout();
+    let plan = host_plan(
+        &l,
+        &params(PORT, Keepalive::Logon, NetworkMode::Nat),
+        &HostFacts::assumed(),
+    );
+    let index = |want: &dyn Fn(&Change) -> bool| plan.iter().position(want).unwrap();
+    let firewall = index(&|c| {
+        matches!(
+            c,
+            Change::EnsureResource {
+                kind: ResourceKind::FirewallRule,
+                ..
+            }
+        )
+    });
+    let proxy = index(&|c| {
+        matches!(
+            c,
+            Change::EnsureResource {
+                kind: ResourceKind::PortProxy,
+                ..
+            }
+        )
+    });
+    assert!(
+        firewall < proxy,
+        "no window where the relay listens unscoped"
+    );
+    let script = plan
+        .iter()
+        .find_map(|c| match c {
+            Change::WriteFile { path, .. } if path.ends_with(relay::SCRIPT_NAME) => {
+                Some(path.clone())
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        script.parent().unwrap(),
+        l.admin_dir,
+        "only administrators can edit the script"
     );
 }

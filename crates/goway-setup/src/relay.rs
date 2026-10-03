@@ -56,6 +56,22 @@ pub struct RelayTaskSpec {
     pub description: String,
 }
 
+/// Refuse a refresh-script path a task must not run: it has to be absolute and name
+/// [`SCRIPT_NAME`] (the only file goway puts in the administrator-only directory for this), with
+/// nothing that could end the quoted `-File` argument.
+pub fn check_script_path(script: &str) -> Result<(), String> {
+    let path = std::path::Path::new(script);
+    let named = path.file_name().is_some_and(|n| n == SCRIPT_NAME);
+    let plain = !script.contains(['"', '\'', '\n', '\r', '%', '`', '$']);
+    if path.is_absolute() && named && plain {
+        Ok(())
+    } else {
+        Err(format!(
+            "refusing to register a task for {script:?}: not an absolute path to {SCRIPT_NAME}"
+        ))
+    }
+}
+
 /// The resource name of the relay for `port` (`0.0.0.0:2222`).
 pub fn relay_name(port: u16) -> String {
     format!("{LISTEN_ADDRESS}:{port}")
@@ -67,15 +83,82 @@ pub fn parse_relay_name(name: &str) -> Option<(Ipv4Addr, u16)> {
     Some((addr.parse().ok()?, port.parse().ok()?))
 }
 
-/// The first usable IPv4 address in `hostname -I` output, or `None`.
+/// The PowerShell lines that print `<address>/<prefix length>` for every IPv4 address of the WSL
+/// virtual adapter (`vEthernet (WSL)`, or `vEthernet (WSL (Hyper-V firewall))` on newer builds).
 ///
-/// Only a dotted quad passes (no IPv6, no stray words, no leading zeros), and the unspecified,
-/// loopback and link-local ranges are refused, so nothing but a real address ever reaches netsh.
-pub fn parse_wsl_ip(text: &str) -> Option<Ipv4Addr> {
+/// Plain .NET, no module: an elevated task must not autoload modules a user-level `PSModulePath`
+/// could redirect.
+pub const ADAPTER_QUERY: &str = "foreach ($nic in [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()) {\n\
+\x20   if ($nic.Name -like 'vEthernet (WSL*') {\n\
+\x20       foreach ($ua in $nic.GetIPProperties().UnicastAddresses) {\n\
+\x20           if ($ua.Address.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork) { '{0}/{1}' -f $ua.Address, $ua.PrefixLength }\n\
+\x20       }\n\
+\x20   }\n\
+}\n";
+
+/// One IPv4 address of the WSL virtual adapter: the Windows side of the NAT subnet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AdapterAddr {
+    /// The adapter's own address (the NAT gateway the distro sees).
+    pub ip: Ipv4Addr,
+    /// Prefix length of its subnet.
+    pub prefix: u8,
+}
+
+/// The `<address>/<prefix>` lines [`ADAPTER_QUERY`] prints (anything else is skipped).
+pub fn parse_adapter_addrs(text: &str) -> Vec<AdapterAddr> {
+    text.lines()
+        .filter_map(|line| {
+            let (ip, prefix) = line.trim().split_once('/')?;
+            let prefix: u8 = prefix.parse().ok().filter(|p| (1..=32).contains(p))?;
+            Some(AdapterAddr {
+                ip: ip.parse().ok()?,
+                prefix,
+            })
+        })
+        .collect()
+}
+
+/// Whether `ip` lies in the subnet of `adapter`.
+pub fn in_adapter_subnet(ip: Ipv4Addr, adapter: AdapterAddr) -> bool {
+    let mask = u32::MAX
+        .checked_shl(u32::from(32 - adapter.prefix))
+        .unwrap_or(0);
+    u32::from(ip) & mask == u32::from(adapter.ip) & mask
+}
+
+/// The addresses in `hostname -I` output the relay could ever forward to: dotted quads only
+/// (no IPv6, no stray words, no leading zeros) in the private RFC 1918 ranges. WSL's NAT
+/// subnet always is; this keeps a public, loopback, link-local or unspecified address a
+/// distro prints from ever reaching netsh.
+fn private_candidates(text: &str) -> impl Iterator<Item = Ipv4Addr> + '_ {
     text.split_whitespace()
         .filter(|t| t.chars().all(|c| c.is_ascii_digit() || c == '.'))
         .filter_map(|t| t.parse::<Ipv4Addr>().ok())
-        .find(|ip| !ip.is_unspecified() && !ip.is_loopback() && !ip.is_link_local())
+        .filter(Ipv4Addr::is_private)
+}
+
+/// The first usable private IPv4 address in `hostname -I` output, or `None`.
+pub fn parse_wsl_ip(text: &str) -> Option<Ipv4Addr> {
+    private_candidates(text).next()
+}
+
+/// The address the relay may forward to: the first private address in `hostname -I` output that
+/// lies in the subnet of the WSL virtual adapter and is not the adapter's own address. A
+/// distro (anyone with root in it) cannot steer the relay to a machine the adapter cannot
+/// reach, to a public address or to the Windows host itself.
+pub fn choose_wsl_ip(text: &str, adapters: &[AdapterAddr]) -> Option<Ipv4Addr> {
+    private_candidates(text).find(|ip| {
+        adapters
+            .iter()
+            .any(|a| in_adapter_subnet(*ip, *a) && *ip != a.ip)
+    })
+}
+
+/// Whether a portproxy rule is plausibly the relay goway made for `port`: it forwards to the
+/// same port on a private address. Uninstall and status treat anything else as someone else's.
+pub fn is_goway_relay(rule: &PortProxyRule, port: u16) -> bool {
+    rule.listen_port == port && rule.connect_port == port && rule.connect_address.is_private()
 }
 
 /// The rules in `netsh interface portproxy show v4tov4` output (header lines are skipped).
@@ -131,6 +214,10 @@ pub fn netsh_delete_args(listen: &str, port: u16) -> Vec<String> {
 
 /// The refresh script: read the distro's IPv4, validate it, and re-point the relay only when it
 /// changed. Distro and port are literals (both validated before they get here).
+///
+/// The task runs it elevated, in the user's environment, so it asks Windows (not `%SystemRoot%`,
+/// which a user-level variable can override) for the system directory and takes the address
+/// only if it is private and inside the WSL adapter's subnet (see [`choose_wsl_ip`]).
 pub fn refresh_script(profile: &str, distro: &str, port: u16) -> String {
     let set = netsh_args("set", LISTEN_ADDRESS, port, "$ip").join(" ");
     format!(
@@ -139,16 +226,33 @@ pub fn refresh_script(profile: &str, distro: &str, port: u16) -> String {
          $ErrorActionPreference = 'Stop'\n\
          $distro = '{distro}'\n\
          $port = {port}\n\
-         $system = Join-Path $env:SystemRoot 'System32'\n\
+         $system = [Environment]::SystemDirectory\n\
+         $env:PSModulePath = Join-Path $system 'WindowsPowerShell\\v1.0\\Modules'\n\
          $wsl = Join-Path $system 'wsl.exe'\n\
          $netsh = Join-Path $system 'netsh.exe'\n\
          $octet = '(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])'\n\
          $quad = '^' + $octet + '(\\.' + $octet + '){{3}}\\z'\n\
+         $private = '^(10\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|192\\.168\\.)'\n\
+         function ConvertTo-Number([string]$text) {{\n\
+         \x20   $n = [long]0\n\
+         \x20   foreach ($byte in ([System.Net.IPAddress]::Parse($text)).GetAddressBytes()) {{ $n = ($n -shl 8) -bor $byte }}\n\
+         \x20   return $n\n\
+         }}\n\
+         $adapters = @(\n\
+         {ADAPTER_QUERY}\
+         )\n\
          $ip = $null\n\
          foreach ($token in ((& $wsl -d $distro --exec hostname -I | Out-String) -split '\\s+')) {{\n\
-         \x20   if ($token -match $quad -and $token -notmatch '^(0|127|169\\.254)\\.') {{ $ip = $token; break }}\n\
+         \x20   if ($token -match $quad -and $token -match $private) {{\n\
+         \x20       foreach ($entry in $adapters) {{\n\
+         \x20           $gateway, $length = $entry -split '/'\n\
+         \x20           $mask = ([long]4294967295 -shl (32 - [int]$length)) -band 4294967295\n\
+         \x20           if ($token -ne $gateway -and ((ConvertTo-Number $token) -band $mask) -eq ((ConvertTo-Number $gateway) -band $mask)) {{ $ip = $token; break }}\n\
+         \x20       }}\n\
+         \x20   }}\n\
+         \x20   if ($ip) {{ break }}\n\
          }}\n\
-         if (-not $ip) {{ [Console]::Error.WriteLine('goway relay: no IPv4 address from the distro'); exit 1 }}\n\
+         if (-not $ip) {{ [Console]::Error.WriteLine('goway relay: no address inside the WSL adapter subnet from the distro'); exit 1 }}\n\
          $current = $null\n\
          foreach ($line in (& $netsh interface portproxy show v4tov4)) {{\n\
          \x20   $cols = ($line.Trim() -split '\\s+')\n\
@@ -156,6 +260,6 @@ pub fn refresh_script(profile: &str, distro: &str, port: u16) -> String {
          }}\n\
          if ($current -eq $ip) {{ exit 0 }}\n\
          & $netsh {set}\n\
-         if ($LASTEXITCODE -ne 0) {{ exit $LASTEXITCODE }}\n"
+         if ($LASTEXITCODE -ne 0) {{ exit $LASTEXITCODE }}\n",
     )
 }

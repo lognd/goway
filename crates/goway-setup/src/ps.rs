@@ -163,13 +163,20 @@ pub fn task_exists(name: &str) -> String {
     ))
 }
 
-/// The conhost command line that runs `sleep infinity` in the distro with no window.
-pub fn keepalive_arguments(distro: &str) -> String {
-    format!("--headless wsl.exe -d {distro} --exec /bin/sh -c \"exec sleep infinity\"")
+/// Script printing `<address>/<prefix>` for each IPv4 address of the WSL virtual adapter.
+pub fn wsl_adapter_addresses() -> String {
+    strict(crate::relay::ADAPTER_QUERY)
 }
 
-/// Script registering the keepalive task for the invoking user.
-pub fn task_create(name: &str, spec: &TaskSpec) -> String {
+/// The conhost command line that runs `sleep infinity` in the distro with no window, through
+/// the absolute `wsl.exe` (a task must never look a program up through a search path).
+pub fn keepalive_arguments(distro: &str, wsl_exe: &str) -> String {
+    format!("--headless \"{wsl_exe}\" -d {distro} --exec /bin/sh -c \"exec sleep infinity\"")
+}
+
+/// Script registering the keepalive task for the invoking user; `conhost_exe` and `wsl_exe` are
+/// absolute System32 paths.
+pub fn task_create(name: &str, spec: &TaskSpec, conhost_exe: &str, wsl_exe: &str) -> String {
     let (trigger, logon) = match spec.keepalive {
         Keepalive::Logon => (
             "New-ScheduledTaskTrigger -AtLogOn -User $user",
@@ -179,12 +186,13 @@ pub fn task_create(name: &str, spec: &TaskSpec) -> String {
     };
     strict(&format!(
         "$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name\n\
-         $action = New-ScheduledTaskAction -Execute 'conhost.exe' -Argument {args}\n\
+         $action = New-ScheduledTaskAction -Execute {conhost} -Argument {args}\n\
          $trigger = {trigger}\n\
          $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType {logon} -RunLevel Limited\n\
          $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew\n\
          Register-ScheduledTask -TaskName {name} -Description {desc} -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null",
-        args = quote(&keepalive_arguments(&spec.distro)),
+        conhost = quote(conhost_exe),
+        args = quote(&keepalive_arguments(&spec.distro, wsl_exe)),
         name = quote(name),
         desc = quote(&spec.description),
     ))

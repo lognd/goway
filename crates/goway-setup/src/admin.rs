@@ -139,8 +139,48 @@ pub fn verify(dir: &Path) -> Result<(), SetupError> {
 }
 
 /// Create `dir` with the protected ACL when absent (only an elevated process can), then verify it.
-#[cfg(windows)]
+///
+/// A directory somebody else pre-created (a standard user can create folders in `ProgramData`)
+/// would make every install fail forever. An empty one is removed and re-created properly,
+/// since nothing in it can matter; one with contents is refused with the exact way out.
 pub fn ensure(dir: &Path) -> Result<(), SetupError> {
+    match ensure_once(dir) {
+        Err(SetupError::UntrustedState { reason, .. }) if is_empty_real_dir(dir) => {
+            tracing::warn!(dir = %dir.display(), %reason, "replacing an empty, untrusted state directory");
+            std::fs::remove_dir(dir).map_err(|e| SetupError::io(dir, e))?;
+            ensure_once(dir)
+        }
+        Err(SetupError::UntrustedState { path, reason }) => Err(SetupError::UntrustedState {
+            path,
+            reason: format!(
+                "{reason}. It was probably created by another user. As an administrator, look inside it and, if nothing there is yours, delete it (in an elevated prompt: rd /s /q \"{}\"), then run goway-setup again",
+                dir.display()
+            ),
+        }),
+        other => other,
+    }
+}
+
+/// Whether `dir` is a real (not linked) empty directory.
+fn is_empty_real_dir(dir: &Path) -> bool {
+    std::fs::symlink_metadata(dir)
+        .is_ok_and(|m| m.is_dir() && !m.file_type().is_symlink() && !is_reparse(&m))
+        && std::fs::read_dir(dir).is_ok_and(|mut entries| entries.next().is_none())
+}
+
+#[cfg(windows)]
+fn is_reparse(meta: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt as _;
+    meta.file_attributes() & 0x400 != 0
+}
+
+#[cfg(not(windows))]
+fn is_reparse(_meta: &std::fs::Metadata) -> bool {
+    false
+}
+
+#[cfg(windows)]
+fn ensure_once(dir: &Path) -> Result<(), SetupError> {
     match crate::sysapi::create_dir_with_sddl(dir, ADMIN_DIR_SDDL) {
         Ok(()) => {
             tracing::info!(dir = %dir.display(), "created administrator-only state directory");
@@ -155,7 +195,7 @@ pub fn ensure(dir: &Path) -> Result<(), SetupError> {
 
 /// Create `dir` readable and writable by its owner only when absent, then verify it (unix stand-in).
 #[cfg(not(windows))]
-pub fn ensure(dir: &Path) -> Result<(), SetupError> {
+fn ensure_once(dir: &Path) -> Result<(), SetupError> {
     use std::os::unix::fs::DirBuilderExt as _;
     if let Some(parent) = dir.parent() {
         std::fs::create_dir_all(parent).map_err(|e| SetupError::io(parent, e))?;

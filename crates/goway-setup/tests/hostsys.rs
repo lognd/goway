@@ -191,14 +191,18 @@ fn scripts_name_the_right_cmdlets_and_quote_their_values() {
         keepalive,
         description: "k".into(),
     };
-    let logon = ps::task_create("T", &spec(Keepalive::Logon));
+    let (conhost, wsl) = (
+        r"C:\Windows\System32\conhost.exe",
+        r"C:\Windows\System32\wsl.exe",
+    );
+    let logon = ps::task_create("T", &spec(Keepalive::Logon), conhost, wsl);
     assert!(logon.contains("-AtLogOn -User $user"));
     assert!(logon.contains("-LogonType Interactive -RunLevel Limited"));
-    assert!(
-        logon.contains("--headless wsl.exe -d Ubuntu --exec /bin/sh -c \"exec sleep infinity\"")
-    );
+    assert!(logon.contains(
+        "-Execute 'C:\\Windows\\System32\\conhost.exe' -Argument '--headless \"C:\\Windows\\System32\\wsl.exe\" -d Ubuntu --exec /bin/sh -c \"exec sleep infinity\"'"
+    ));
     assert!(logon.contains("-MultipleInstances IgnoreNew"));
-    let boot = ps::task_create("T", &spec(Keepalive::Boot));
+    let boot = ps::task_create("T", &spec(Keepalive::Boot), conhost, wsl);
     assert!(boot.contains("-AtStartup") && boot.contains("-LogonType S4U"));
     assert!(
         ps::task_exists("T")
@@ -207,8 +211,8 @@ fn scripts_name_the_right_cmdlets_and_quote_their_values() {
     assert!(ps::task_delete("T").contains("Unregister-ScheduledTask"));
     assert!(ps::task_start("T").contains("| Start-ScheduledTask"));
     assert_eq!(
-        ps::keepalive_arguments("U"),
-        "--headless wsl.exe -d U --exec /bin/sh -c \"exec sleep infinity\""
+        ps::keepalive_arguments("U", wsl),
+        "--headless \"C:\\Windows\\System32\\wsl.exe\" -d U --exec /bin/sh -c \"exec sleep infinity\""
     );
 }
 

@@ -354,10 +354,23 @@ fn a_loosened_or_linked_state_directory_is_refused_off_windows_too() {
         admin::verify(&dir),
         Err(SetupError::UntrustedState { .. })
     ));
+    std::fs::write(dir.join("planted"), "x").unwrap();
+    let err = admin::ensure(&dir).unwrap_err();
     assert!(
-        admin::ensure(&dir).is_err(),
-        "an existing loose dir is not adopted"
+        err.to_string().contains("probably created by another user")
+            && err.to_string().contains("rd /s /q"),
+        "a loose dir with contents is not adopted and the way out is explained: {err}"
     );
+    assert!(dir.join("planted").exists(), "nothing of theirs is deleted");
+    std::fs::remove_file(dir.join("planted")).unwrap();
+    // An empty pre-created directory is replaced by a proper one instead of blocking installs.
+    admin::ensure(&dir).unwrap();
+    admin::verify(&dir).unwrap();
+    assert_eq!(
+        std::fs::metadata(&dir).unwrap().permissions().mode() & 0o022,
+        0
+    );
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o777)).unwrap();
     let link = tmp.path().join("link");
     std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
     std::os::unix::fs::symlink(&dir, &link).unwrap();

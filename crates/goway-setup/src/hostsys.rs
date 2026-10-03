@@ -21,7 +21,7 @@ use goway_journal::{LocalSystem, RegValue, ResourceKind, SysResult, System, Syst
 use crate::helper::{HOST_KEY_FILE, WslProbe, parse_fingerprint};
 use crate::host::{FirewallSpec, HostFacts, HyperVSpec, TaskSpec};
 use crate::ps;
-use crate::relay::{self, PortProxyRule, PortProxySpec, RelayTaskSpec};
+use crate::relay::{self, AdapterAddr, PortProxyRule, PortProxySpec, RelayTaskSpec};
 use crate::sysapi::{Tool, tool_path};
 
 /// One external command to run.
@@ -188,6 +188,19 @@ fn cmd_error(what: &str, out: &Output) -> SystemError {
         what: what.to_owned(),
         detail: format!("exit {:?}: {}", out.code, out.error_text()),
     }
+}
+
+/// The path of a system tool for a scheduled task, which must be absolute: a bare name would be
+/// searched for through directories an ordinary user can write. Off Windows the bare names the
+/// tests see are accepted.
+fn absolute_tool(tool: Tool) -> SysResult<String> {
+    let path = tool_path(tool);
+    if cfg!(windows) && !Path::new(&path).is_absolute() {
+        return Err(SystemError::InvalidState(format!(
+            "could not locate {tool:?} by absolute path (got {path:?}); refusing to register a task that searches for it"
+        )));
+    }
+    Ok(path)
 }
 
 /// A local file error, with the refusal to follow a link kept distinguishable.
@@ -416,12 +429,29 @@ impl<R: Runner> HostSystem<R> {
         Ok(relay::parse_portproxy_table(&out.text()))
     }
 
-    /// The distro's current IPv4 address (the first one `hostname -I` prints).
+    /// The IPv4 addresses (with prefix lengths) of the WSL virtual adapter on this machine.
+    pub fn wsl_adapter_addresses(&self) -> SysResult<Vec<AdapterAddr>> {
+        let out = self.powershell(
+            "query the WSL network adapter",
+            &ps::wsl_adapter_addresses(),
+        )?;
+        Ok(relay::parse_adapter_addrs(&out.text()))
+    }
+
+    /// The distro's current IPv4 address: the first one `hostname -I` prints that is private,
+    /// inside the WSL adapter's subnet and not the adapter's own (see [`relay::choose_wsl_ip`]).
     pub fn wsl_ip(&self) -> SysResult<std::net::Ipv4Addr> {
+        let adapters = self.wsl_adapter_addresses()?;
+        if adapters.is_empty() {
+            return Err(SystemError::InvalidState(
+                "the WSL virtual network adapter (vEthernet (WSL)) has no IPv4 address; start the distro once and retry".to_owned(),
+            ));
+        }
         let out = self.wsl(&["hostname", "-I"])?;
-        relay::parse_wsl_ip(&out.text()).ok_or_else(|| {
+        relay::choose_wsl_ip(&out.text(), &adapters).ok_or_else(|| {
+            tracing::error!(output = %out.text(), ?adapters, "no hostname -I address is inside the WSL adapter subnet");
             SystemError::InvalidState(format!(
-                "no usable IPv4 address in the distro's `hostname -I` output {:?}",
+                "no address in the distro's `hostname -I` output {:?} is a private address inside the WSL adapter's subnet {adapters:?}",
                 out.text()
             ))
         })
@@ -814,10 +844,12 @@ impl<R: Runner> System for HostSystem<R> {
             }
             ResourceKind::PortProxy => {
                 let (addr, port) = Self::relay_name(name)?;
+                // Only a rule shaped like the relay goway makes counts: one someone re-pointed
+                // elsewhere since the install is theirs, not ours to report or delete.
                 Ok(self
                     .portproxy_rules()?
                     .iter()
-                    .any(|r| r.listen_address == addr && r.listen_port == port))
+                    .any(|r| r.listen_address == addr && relay::is_goway_relay(r, port)))
             }
             ResourceKind::WslPackage => Ok(self.dpkg_state(name)? == DpkgState::Installed),
             ResourceKind::WslUnit => {
@@ -851,17 +883,23 @@ impl<R: Runner> System for HostSystem<R> {
             ResourceKind::ScheduledTask => {
                 // The relay refresh task's spec carries a script path; the keepalive's does not.
                 if let Ok(s) = serde_json::from_str::<RelayTaskSpec>(spec) {
+                    relay::check_script_path(&s.script).map_err(SystemError::InvalidState)?;
                     let script = ps::relay_task_create(
                         name,
                         &s,
-                        &tool_path(Tool::Conhost),
-                        &tool_path(Tool::PowerShell),
+                        &absolute_tool(Tool::Conhost)?,
+                        &absolute_tool(Tool::PowerShell)?,
                     );
                     return self.powershell("register relay task", &script).map(drop);
                 }
                 let s: TaskSpec = Self::spec(kind, name, spec)?;
-                self.powershell("register scheduled task", &ps::task_create(name, &s))
-                    .map(drop)
+                let conhost = absolute_tool(Tool::Conhost)?;
+                let wsl = absolute_tool(Tool::Wsl)?;
+                self.powershell(
+                    "register scheduled task",
+                    &ps::task_create(name, &s, &conhost, &wsl),
+                )
+                .map(drop)
             }
             ResourceKind::PortProxy => {
                 let s: PortProxySpec = Self::spec(kind, name, spec)?;
@@ -919,6 +957,24 @@ impl<R: Runner> System for HostSystem<R> {
                 .map(drop),
             ResourceKind::PortProxy => {
                 let (addr, port) = Self::relay_name(name)?;
+                let rules = self.portproxy_rules()?;
+                match rules
+                    .iter()
+                    .find(|r| r.listen_address == addr && r.listen_port == port)
+                {
+                    None => return Ok(()),
+                    Some(rule) if !relay::is_goway_relay(rule, port) => {
+                        tracing::warn!(
+                            ?rule,
+                            "the rule on the relay's address is not goway's; leaving it"
+                        );
+                        return Err(SystemError::InvalidState(format!(
+                            "the portproxy rule {name} forwards to {}:{}, which is not the relay goway made; leaving it alone",
+                            rule.connect_address, rule.connect_port
+                        )));
+                    }
+                    Some(_) => {}
+                }
                 self.netsh(
                     "remove portproxy relay",
                     relay::netsh_delete_args(&addr.to_string(), port),

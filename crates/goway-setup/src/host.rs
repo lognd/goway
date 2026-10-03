@@ -389,8 +389,12 @@ pub struct TaskSpec {
 }
 
 /// Accept only distro names that are safe inside a task command line and a PowerShell literal.
+///
+/// A leading `-` is refused too: the name follows `wsl.exe -d`, and `-d --shutdown` style names
+/// would be read as options.
 pub fn validate_distro(distro: &str) -> Result<(), crate::error::SetupError> {
     let ok = !distro.is_empty()
+        && !distro.starts_with('-')
         && distro
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'));
