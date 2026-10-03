@@ -5,7 +5,20 @@ is pushed:
 
     git tag -a v0.1.0 -m "goway 0.1.0" && git push origin v0.1.0
 
-It publishes:
+## Dry run
+
+Running the `release` workflow by hand (Actions, release, Run workflow,
+or `gh workflow run release.yml`) is a dry run. It builds every binary,
+installer, wheel and the sdist, writes `SHA256SUMS` and `install.sh`,
+and uploads all of them as workflow artifacts (`release-assets` holds the
+GitHub release files, `pypi-*` the wheels and sdist). The three
+publishing jobs (`publish`, `crates-io`, `pypi`) each carry
+`if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'`,
+so they run only for a pushed `v*` tag and never from a dry run; a test
+(`publishing.rs`) fails if one loses that guard. All actions in the
+workflows run on Node 24.
+
+A tag push publishes:
 
 | File | For |
 |---|---|

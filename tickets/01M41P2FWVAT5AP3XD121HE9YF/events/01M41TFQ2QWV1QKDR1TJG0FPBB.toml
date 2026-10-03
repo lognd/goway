@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T21:24:54Z"
+digest = "7309144e43282ebb07984c1e0bfca2b1f5627673c1b7a76b28fde59c7d5793c4"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 36749106-d985-4db7-9944-574d0af0a988 with nextest profile: default
+    Starting 2 tests across 29 binaries (342 tests skipped)
+        PASS [   0.007s] goway runners::tests::a_command_that_already_shards_is_refused
+        PASS [   0.025s] goway::shard_runners a_command_that_already_shards_is_refused_before_any_host_is_used
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.027s] 2 tests run: 2 passed, 342 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_command_that_already_shards"
+size = 669
+status = "measured"
+tests = ["runners::tests::a_command_that_already_shards_is_refused", "a_command_that_already_shards_is_refused_before_any_host_is_used"]
+at = "2026-10-03T21:24:54Z"
+actor = "lognd"
+rev = 1

@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T21:24:56Z"
+digest = "4b0cd797ccbe054aa785f174fd88c3a016ac3973eedd576c606834b04de1fd19"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 7c3860c7-3a7a-480b-8ee0-dc8ca0b087a6 with nextest profile: default
+    Starting 1 test across 29 binaries (343 tests skipped)
+        PASS [   0.010s] goway runners::tests::maven_and_gradle_classes_are_split_exactly_once
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.012s] 1 test run: 1 passed, 343 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "maven_and_gradle_classes"
+size = 563
+status = "measured"
+tests = ["runners::tests::maven_and_gradle_classes_are_split_exactly_once"]
+at = "2026-10-03T21:24:56Z"
+actor = "lognd"
+rev = 1

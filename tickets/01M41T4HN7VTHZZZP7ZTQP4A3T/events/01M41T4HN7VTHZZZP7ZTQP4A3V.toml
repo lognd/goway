@@ -1,0 +1,12 @@
+kind = "create"
+title = "doctor on Windows hosts: MSVC Build Tools, rustup msvc toolchain and nextest, installed with winget and recorded"
+type = "story"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
+scope = ["crates/goway/src/doctor.rs", "crates/goway/src/remote.ps1", "crates/goway/tests/**", "docs/usage.md"]
+acceptance = ["Given a Windows host without the C++ Build Tools, rustup, the msvc target or cargo-nextest, when goway doctor --fix runs, then it installs them (winget for Build Tools with the VC workload, rustup-init with a pinned hash, nextest with a pinned hash) after confirmation, records each for goway uninstall, and explains what needs administrator rights"]
+at = "2026-10-03T21:18:48Z"
+actor = "lognd"
+rev = 1

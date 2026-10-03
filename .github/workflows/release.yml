@@ -4,10 +4,16 @@
 # attestations, then publishes them as a GitHub release, and then to
 # crates.io and PyPI (maturin wheels and an sdist; macOS wheels are left out
 # until goway is supported there).
+#
+# A workflow_dispatch run is a dry run: it builds everything and uploads the
+# files as workflow artifacts, and the three publishing jobs (publish,
+# crates-io, pypi) are skipped. They run only on a v* tag push.
 name: release
 on:
   push:
     tags: ["v*"]
+  # Dry run: builds and uploads every artifact, publishes nothing.
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -21,12 +27,12 @@ jobs:
             target: aarch64-unknown-linux-musl
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: rustup target add ${{ matrix.target }}
       - run: cargo build --release --locked -p goway --target ${{ matrix.target }}
       - run: tar -czf goway-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release goway
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: goway-${{ matrix.target }}
           path: goway-${{ matrix.target }}.tar.gz
@@ -42,7 +48,7 @@ jobs:
             asset: goway-setup-arm64.exe
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: rustup target add ${{ matrix.target }}
       - run: cargo build --release --locked -p goway --target ${{ matrix.target }}
       - name: Build the installer with goway.exe embedded
@@ -51,7 +57,7 @@ jobs:
           GOWAY_PAYLOAD="$PWD/target/${{ matrix.target }}/release/goway.exe" \
             cargo build --release --locked -p goway-setup --target ${{ matrix.target }}
           cp target/${{ matrix.target }}/release/goway-setup.exe ${{ matrix.asset }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}
@@ -80,39 +86,35 @@ jobs:
             manylinux: "off"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: PyO3/maturin-action@v1
         with:
           command: build
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux }}
           args: --release --locked --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pypi-wheel-${{ matrix.target }}
           path: dist
   sdist:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: PyO3/maturin-action@v1
         with:
           command: sdist
           args: --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pypi-sdist
           path: dist
-  publish:
+  checksums:
     needs: [linux, windows]
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           # Only the GitHub release assets; the PyPI artifacts are pypi-*.
@@ -122,19 +124,38 @@ jobs:
         run: |
           cp scripts/install.sh dist/install.sh
           cd dist && sha256sum goway-*.tar.gz goway-setup*.exe install.sh > SHA256SUMS
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-assets
+          path: dist
+  publish:
+    needs: [checksums]
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-assets
+          path: dist
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: "dist/*"
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: gh release create "${GITHUB_REF_NAME}" dist/* --title "goway ${GITHUB_REF_NAME}" --generate-notes
   crates-io:
     needs: [publish]
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
     runs-on: ubuntu-24.04
     environment: crates-io
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - name: Publish goway-journal, then goway (goway-setup is publish = false)
@@ -143,12 +164,13 @@ jobs:
         run: cargo publish --workspace --exclude goway-setup --locked
   pypi:
     needs: [publish, wheels, sdist]
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
     runs-on: ubuntu-24.04
     environment: pypi
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           pattern: pypi-*

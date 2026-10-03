@@ -106,3 +106,50 @@ fn ci_builds_a_wheel_and_runs_goway_version_from_a_venv() {
     assert!(ci.contains("PyO3/maturin-action"));
     assert!(ci.contains("goway --version"));
 }
+
+/// The text of one top-level job of the release workflow, up to the next job.
+fn release_job(name: &str) -> String {
+    let release = read(".github/workflows/release.yml");
+    let jobs = release.split("\njobs:\n").nth(1).expect("jobs section");
+    let header = format!("  {name}:");
+    let mut out = Vec::new();
+    let mut inside = false;
+    for line in jobs.lines() {
+        let is_header = line.starts_with("  ") && !line.starts_with("   ") && line.ends_with(':');
+        if is_header {
+            inside = line == header;
+        }
+        if inside {
+            out.push(line);
+        }
+    }
+    assert!(!out.is_empty(), "job {name} not found");
+    out.join("\n")
+}
+
+#[test]
+fn every_publishing_job_runs_only_on_a_version_tag_push() {
+    let guard = "if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'";
+    for job in ["publish", "crates-io", "pypi"] {
+        assert!(
+            release_job(job).contains(guard),
+            "{job} lacks the tag guard"
+        );
+    }
+}
+
+#[test]
+fn only_the_publishing_jobs_publish_and_a_dry_run_is_possible() {
+    let release = read(".github/workflows/release.yml");
+    assert!(release.contains("workflow_dispatch:"));
+    for job in ["linux", "windows", "wheels", "sdist", "checksums"] {
+        let text = release_job(job);
+        for needle in [
+            "gh release create",
+            "cargo publish",
+            "gh-action-pypi-publish",
+        ] {
+            assert!(!text.contains(needle), "{job} must not publish");
+        }
+    }
+}
