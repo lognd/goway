@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T19:25:14Z"
+digest = "192936f958fa12d5be5b1b8c4083da19e7ee104c24aa9a29a3d103e450f1544e"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 5d193222-2f9c-40c1-8858-98780e5f7a80 with nextest profile: default
+    Starting 2 tests across 23 binaries (243 tests skipped)
+        PASS [   2.162s] goway::install_scripts a_checksum_mismatch_installs_nothing
+        PASS [   2.884s] goway::install_scripts piped_install_downloads_verifies_and_installs
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   2.885s] 2 tests run: 2 passed, 243 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(piped_install_downloads_verifies_and_installs) | test(a_checksum_mismatch_installs_nothing)'"
+size = 649
+status = "measured"
+tests = ["a_checksum_mismatch_installs_nothing", "piped_install_downloads_verifies_and_installs"]
+at = "2026-10-03T19:25:14Z"
+actor = "lognd"
+rev = 1
