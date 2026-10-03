@@ -8,12 +8,12 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:53:52Z"
+updated = "2026-10-03T16:56:12Z"
 scope = ["crates/goway/**"]
 
 [[acceptance]]
 text = "Given entries past their TTL with free locks, when gc runs, then they are removed and locked or fresh entries are kept"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway gc --repo R --older-than D --dry-run, when it runs, then it lists exactly the matching entries and removes nothing"
