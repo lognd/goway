@@ -43,11 +43,24 @@ fn strict(body: &str) -> String {
     format!("$ErrorActionPreference = 'Stop'\n$ProgressPreference = 'SilentlyContinue'\n{body}\n")
 }
 
+/// A lookup of exactly the object called `name`, never a wildcard match.
+///
+/// `Get-NetFirewallRule -DisplayName`, `Get-ScheduledTask -TaskName` and friends treat `*` and
+/// `?` as wildcards, so a name of `*` would select (and a following `Remove-` delete) every
+/// rule or task. The name is escaped for the cmdlet and the result is filtered again on exact,
+/// case-sensitive equality of `property`.
+fn exact_lookup(cmdlet: &str, parameter: &str, property: &str, name: &str) -> String {
+    format!(
+        "{cmdlet} {parameter} ([WildcardPattern]::Escape({q})) -ErrorAction SilentlyContinue | Where-Object {{ $_.{property} -ceq {q} }}",
+        q = quote(name)
+    )
+}
+
 /// Script printing `1` when a Defender Firewall rule with this display name exists, else `0`.
 pub fn firewall_exists(name: &str) -> String {
     strict(&format!(
-        "if (Get-NetFirewallRule -DisplayName {} -ErrorAction SilentlyContinue) {{ '1' }} else {{ '0' }}",
-        quote(name)
+        "if ({}) {{ '1' }} else {{ '0' }}",
+        exact_lookup("Get-NetFirewallRule", "-DisplayName", "DisplayName", name)
     ))
 }
 
@@ -64,16 +77,16 @@ pub fn firewall_create(name: &str, spec: &FirewallSpec) -> String {
 /// Script removing the rule(s) with this display name; absent is success.
 pub fn firewall_delete(name: &str) -> String {
     strict(&format!(
-        "Get-NetFirewallRule -DisplayName {} -ErrorAction SilentlyContinue | Remove-NetFirewallRule",
-        quote(name)
+        "{} | Remove-NetFirewallRule",
+        exact_lookup("Get-NetFirewallRule", "-DisplayName", "DisplayName", name)
     ))
 }
 
 /// Script printing `1` when a Hyper-V firewall rule with this name exists, else `0`.
 pub fn hyperv_exists(name: &str) -> String {
     strict(&format!(
-        "if (Get-NetFirewallHyperVRule -Name {} -ErrorAction SilentlyContinue) {{ '1' }} else {{ '0' }}",
-        quote(name)
+        "if ({}) {{ '1' }} else {{ '0' }}",
+        exact_lookup("Get-NetFirewallHyperVRule", "-Name", "Name", name)
     ))
 }
 
@@ -90,8 +103,8 @@ pub fn hyperv_create(name: &str, spec: &HyperVSpec) -> String {
 /// Script removing the Hyper-V firewall rule; absent is success.
 pub fn hyperv_delete(name: &str) -> String {
     strict(&format!(
-        "Get-NetFirewallHyperVRule -Name {} -ErrorAction SilentlyContinue | Remove-NetFirewallHyperVRule",
-        quote(name)
+        "{} | Remove-NetFirewallHyperVRule",
+        exact_lookup("Get-NetFirewallHyperVRule", "-Name", "Name", name)
     ))
 }
 
@@ -104,8 +117,8 @@ pub fn hyperv_available() -> String {
 /// Script printing `1` when a scheduled task with this name exists (any folder), else `0`.
 pub fn task_exists(name: &str) -> String {
     strict(&format!(
-        "if (Get-ScheduledTask -TaskName {} -ErrorAction SilentlyContinue) {{ '1' }} else {{ '0' }}",
-        quote(name)
+        "if ({}) {{ '1' }} else {{ '0' }}",
+        exact_lookup("Get-ScheduledTask", "-TaskName", "TaskName", name)
     ))
 }
 
@@ -139,13 +152,16 @@ pub fn task_create(name: &str, spec: &TaskSpec) -> String {
 /// Script stopping (when running) and unregistering a task; absent is success.
 pub fn task_delete(name: &str) -> String {
     strict(&format!(
-        "$t = Get-ScheduledTask -TaskName {n} -ErrorAction SilentlyContinue\n\
+        "$t = {lookup}\n\
          if ($t) {{ Stop-ScheduledTask -InputObject $t -ErrorAction SilentlyContinue; Unregister-ScheduledTask -InputObject $t -Confirm:$false }}",
-        n = quote(name)
+        lookup = exact_lookup("Get-ScheduledTask", "-TaskName", "TaskName", name)
     ))
 }
 
 /// Script starting a registered task now.
 pub fn task_start(name: &str) -> String {
-    strict(&format!("Start-ScheduledTask -TaskName {}", quote(name)))
+    strict(&format!(
+        "{} | Start-ScheduledTask",
+        exact_lookup("Get-ScheduledTask", "-TaskName", "TaskName", name)
+    ))
 }

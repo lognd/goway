@@ -36,6 +36,26 @@ pub fn broadcast_environment_change() {
     }
 }
 
+/// Limit DLL loading to the system directory for the rest of the process's life.
+///
+/// Without it a DLL planted beside the exe (a user-writable directory for the installed copy)
+/// can be loaded into an elevated process. Best effort; failure is logged.
+#[cfg(windows)]
+#[allow(unsafe_code)] // one FFI call with a constant flag; see SAFETY
+pub fn restrict_dll_search() {
+    use windows_sys::Win32::System::LibraryLoader::{
+        LOAD_LIBRARY_SEARCH_SYSTEM32, SetDefaultDllDirectories,
+    };
+    // SAFETY: the flag is a documented constant and the call takes no pointers.
+    if unsafe { SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32) } == 0 {
+        tracing::warn!(error = %std::io::Error::last_os_error(), "could not restrict the DLL search path");
+    }
+}
+
+/// Limit DLL loading to the system directory (no-op off Windows).
+#[cfg(not(windows))]
+pub fn restrict_dll_search() {}
+
 /// Tell running programs the user environment changed (no-op off Windows).
 #[cfg(not(windows))]
 pub fn broadcast_environment_change() {
@@ -81,7 +101,7 @@ pub fn schedule_self_delete(exe: &Path, dir: &Path) {
         dir.display(),
         dir.display()
     );
-    let mut command = Command::new("cmd");
+    let mut command = Command::new(crate::sysapi::tool_path(crate::sysapi::Tool::Cmd));
     command
         .raw_arg(script)
         .stdin(Stdio::null())
@@ -101,4 +121,42 @@ pub fn schedule_self_delete(exe: &Path, dir: &Path) {
 #[cfg(not(windows))]
 pub fn schedule_self_delete(exe: &Path, _dir: &Path) {
     tracing::debug!(exe = %exe.display(), "no self-delete off Windows");
+}
+
+/// Remove `dir` and its contents, then `root` if empty, once this process has exited.
+///
+/// Used for the administrator-only state directory when it still holds this process's own exe
+/// or log. Spawns a hidden `cmd` (absolute path) that waits about five seconds, which also
+/// leaves the caller time to read the elevated run's log; it inherits this process's token.
+#[cfg(windows)]
+pub fn schedule_dir_removal(dir: &Path, root: &Path) {
+    use std::os::windows::process::CommandExt;
+    use std::process::{Command, Stdio};
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+    let script = format!(
+        "/C ping -n 6 127.0.0.1 >nul & rmdir /s /q \"{}\" & rmdir \"{}\"",
+        dir.display(),
+        root.display()
+    );
+    let mut command = Command::new(crate::sysapi::tool_path(crate::sysapi::Tool::Cmd));
+    command
+        .raw_arg(script)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let spawned = command
+        .creation_flags(CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB)
+        .spawn()
+        .or_else(|_| command.creation_flags(CREATE_NO_WINDOW).spawn());
+    match spawned {
+        Ok(_) => tracing::info!(dir = %dir.display(), "scheduled removal of the state directory"),
+        Err(e) => tracing::warn!(dir = %dir.display(), error = %e, "could not schedule removal"),
+    }
+}
+
+/// Remove the state directory after exit (no-op off Windows).
+#[cfg(not(windows))]
+pub fn schedule_dir_removal(dir: &Path, _root: &Path) {
+    tracing::debug!(dir = %dir.display(), "no scheduled removal off Windows");
 }

@@ -21,7 +21,7 @@ struct Fixture {
 /// A real temp directory for the journal and virtual (model) paths for everything else.
 fn fixture() -> Fixture {
     let tmp = tempfile::tempdir().unwrap();
-    let mut layout = Layout::new(Path::new("/Local"), "p").unwrap();
+    let mut layout = Layout::new(Path::new("/Local"), Path::new("/ProgramData"), "p").unwrap();
     layout.state_dir = tmp.path().join("state");
     layout.journal_path = layout.state_dir.join("install-journal.json");
     let src = Sources {

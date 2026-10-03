@@ -7,6 +7,7 @@ use goway_setup::cli::{Cli, run};
 use goway_setup::render::Renderer;
 
 fn main() -> ExitCode {
+    goway_setup::windows::restrict_dll_search();
     let cli = Cli::parse();
     goway_setup::init_tracing(cli.verbose);
     let renderer = Renderer::new(cli.color);
