@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:14:38Z"
-scope = ["crates/goway/**", "docs/**", "Cargo.lock"]
+updated = "2026-10-03T16:15:27Z"
+scope = ["crates/goway/**", "Cargo.lock", "docs/config.md", "docs/hosts.md"]
 
 [[acceptance]]
 text = "Given a config.toml with hosts, when goway loads it, then hosts, defaults and durations parse and unknown keys are rejected"
