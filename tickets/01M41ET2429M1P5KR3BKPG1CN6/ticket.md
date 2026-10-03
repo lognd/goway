@@ -8,8 +8,8 @@ points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:00:51Z"
-updated = "2026-10-03T18:00:52Z"
-scope = ["crates/goway/tests/**", "crates/goway/src/resolve.rs"]
+updated = "2026-10-03T18:02:54Z"
+scope = ["crates/goway/tests/**", "crates/goway/src/resolve.rs", "frob.toml"]
 
 [[acceptance]]
 text = "Given goway run --host H -- cargo nextest run --workspace on each pool host, when it finishes, then every test passes"
