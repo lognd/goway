@@ -1,0 +1,7 @@
+kind = "transition"
+from = "in-progress"
+to = "todo"
+reason = "blocked by ~PFDSEFK (baked work-dir paths); its fixes stay on branch ticket/KPG1CN6"
+at = "2026-10-03T18:05:12Z"
+actor = "lognd"
+rev = 1

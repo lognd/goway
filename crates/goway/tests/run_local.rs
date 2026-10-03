@@ -489,3 +489,32 @@ fn shards_run_on_n_hosts_and_any_failure_fails_the_run() {
     assert_eq!(too_many.status.code(), Some(125));
     assert!(String::from_utf8_lossy(&too_many.stderr).contains("3 shards need 3 usable hosts"));
 }
+
+#[test]
+fn paths_baked_by_a_build_stay_valid_for_later_runs_in_the_slot() {
+    let w = world();
+    // The "build" bakes its source path into the target dir, as cargo does
+    // with CARGO_MANIFEST_DIR; a later run reusing the slot without
+    // rebuilding must find the current tree at that path.
+    let script = "mkdir -p \"$CARGO_TARGET_DIR\"; \
+        if [ -f \"$CARGO_TARGET_DIR/baked\" ]; then cat \"$(cat \"$CARGO_TARGET_DIR/baked\")/hello.txt\"; \
+        else pwd > \"$CARGO_TARGET_DIR/baked\"; echo built; fi";
+    let first = w.run(&["run", "--", "sh", "-c", script]);
+    assert_eq!(String::from_utf8_lossy(&first.stdout), "built\n");
+    std::fs::write(w.repo.join("hello.txt"), "changed\n").unwrap();
+    let second = w.run(&["run", "--", "sh", "-c", script]);
+    assert_eq!(
+        String::from_utf8_lossy(&second.stdout),
+        "changed\n",
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    assert!(w.work_dirs().is_empty(), "work dirs still removed");
+    let kept = w.run(&["run", "--keep", "--", "true"]);
+    assert!(kept.status.success());
+    let dir = w.remote.join("work").join(&w.work_dirs()[0]);
+    assert!(
+        dir.join("tree/hello.txt").is_file(),
+        "--keep keeps the tree in the work dir"
+    );
+}

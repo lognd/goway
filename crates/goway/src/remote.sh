@@ -151,7 +151,7 @@ watchdog() {
 # run CMD in its own process group with stdio passed through, clean up,
 # and exit with CMD's status (128+N when killed by signal N).
 run() {
-  local root work cache slot="" k rc=0 wd
+  local root work cache slot="" k rc=0 wd rundir
   root=$(root_dir "$1"); work="$root/work/$2"; cache="$root/cache/$3"
   local root_arg=$1 run_id=$2 repo_id=$3 keep=$4 slots=$5 cache_meta=$6 envb=$7
   local ttls=$8 priority=$9 nicer=()
@@ -159,6 +159,7 @@ run() {
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
+  rundir="$work/tree"
 
   mkdir -p "$cache"
   exec 9>"$work/lock"
@@ -187,6 +188,13 @@ run() {
       flock 7
     fi
     export CARGO_TARGET_DIR="$cache/target-$slot"
+    # Builds bake absolute source paths into binaries (CARGO_MANIFEST_DIR,
+    # file!()), and cargo reuses them when only the workspace moved. So a
+    # slot's binaries always run against a tree at the same path: the
+    # snapshot moves to tree-<slot> (a rename) for the length of the run.
+    rundir="$cache/tree-$slot"
+    rm -rf "$rundir"
+    mv "$work/tree" "$rundir"
   fi
   if [ -z "${RUSTC_WRAPPER+set}" ] && command -v sccache >/dev/null 2>&1; then
     export RUSTC_WRAPPER=sccache
@@ -203,7 +211,7 @@ run() {
   # it (a handler, not an ignore, so the job keeps default dispositions)
   # long enough for the watchdog to stop the job and for cleanup to run.
   trap 'hangup=1' HUP PIPE
-  cd "$work/tree"
+  cd "$rundir"
   : >"$work/pid"
   # The watchdog must not inherit the lock fds, or a lingering `sleep`
   # would keep this run's slot and work dir locked after it ends.
@@ -219,6 +227,9 @@ run() {
   setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "${nicer[@]}" "$@" || rc=$?
   kill "$wd" 2>/dev/null || true
   cd "$root"
+  if [ "$rundir" != "$work/tree" ]; then
+    if [ "$keep" = 1 ]; then mv "$rundir" "$work/tree"; else rm -rf "$rundir"; fi
+  fi
   if [ "$keep" != 1 ]; then rm -rf "$work"; fi
   # Cheap automatic gc of expired entries, detached so it never delays
   # the exit (and never holds the ssh session open).

@@ -62,7 +62,9 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
    1. Remote layout under `~/.cache/goway/`:
       `work/<run-id>/{tree,meta.json,lock}`,
       `seed/<repo-id>/<worktree-id>/{tree,meta.json,lock}`,
-      `cache/<repo-id>/{target-<k>,sccache,meta.json}`.
+      `cache/<repo-id>/{target-<k>,tree-<k>,sccache,meta.json}`.
+      A run holding target slot k runs in `tree-<k>`: binaries reused
+      from that slot bake that path, so it must hold the current tree.
    2. Every directory has `meta.json` (kind, repo, worktree, client,
       created, last_used) and is held by `flock` while in use; a free lock
       means nobody uses it.
