@@ -78,6 +78,9 @@ pub struct Defaults {
     /// turns the penalty off). A 16-core host with 3 GiB runs out of memory
     /// on big builds, so by default it loses to a roomier one.
     pub mem_per_core: f64,
+    /// GPU runs that may share each GPU at once (a run that needs a GPU
+    /// holds one GPU slot; 1 gives every GPU run its own GPU).
+    pub gpu_jobs: u32,
     /// Extra paths that stay in a build slot's tree between runs, on top of
     /// the detected dependency and build directories (a name matches at
     /// any depth; a path with `/` is relative to the tree root).
@@ -102,6 +105,7 @@ impl Default for Defaults {
             priority: Priority::Low,
             max_load: None,
             mem_per_core: crate::pool::DEFAULT_MEM_PER_CORE,
+            gpu_jobs: 1,
             keep: Vec::new(),
             keep_ignored: true,
         }
@@ -140,6 +144,10 @@ pub struct HostConfig {
     /// and `goway.toml` rules can ask for.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub labels: Vec<String>,
+    /// GPU runs that may share each GPU of this host at once (default:
+    /// `defaults.gpu_jobs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gpu_jobs: Option<u32>,
 }
 
 impl HostConfig {
@@ -258,8 +266,20 @@ impl Config {
                 });
             }
         }
+        if !(1..=64).contains(&self.defaults.gpu_jobs) {
+            return Err(Error::Config {
+                path: origin.to_owned(),
+                message: format!("gpu_jobs {} must be 1-64", self.defaults.gpu_jobs),
+            });
+        }
         let mut seen = std::collections::BTreeSet::new();
         for host in &self.hosts {
+            if host.gpu_jobs.is_some_and(|n| !(1..=64).contains(&n)) {
+                return Err(Error::Config {
+                    path: origin.to_owned(),
+                    message: format!("gpu_jobs of host `{}` must be 1-64", host.name),
+                });
+            }
             if !valid_name(&host.name) {
                 return Err(Error::Config {
                     path: origin.to_owned(),
@@ -318,6 +338,11 @@ impl Config {
     /// The effective load ceiling of `host`.
     pub fn max_load_of(&self, host: &HostConfig) -> Option<f64> {
         host.max_load.or(self.defaults.max_load)
+    }
+
+    /// The effective number of GPU runs per GPU on `host`.
+    pub fn gpu_jobs_of(&self, host: &HostConfig) -> u32 {
+        host.gpu_jobs.unwrap_or(self.defaults.gpu_jobs)
     }
 
     /// The effective port of `host`.
@@ -598,6 +623,7 @@ user = "user"
             max_load: None,
             identity: None,
             labels: Vec::new(),
+            gpu_jobs: None,
         };
         add_host(&path, &host).unwrap();
         assert!(add_host(&path, &host).is_err());
@@ -631,6 +657,7 @@ user = "user"
             max_load: None,
             identity: None,
             labels: Vec::new(),
+            gpu_jobs: None,
         };
         add_host(&path, &host).unwrap();
         let text = std::fs::read_to_string(&path).unwrap();
@@ -676,6 +703,7 @@ user = "user"
             max_load: None,
             identity: None,
             labels: Vec::new(),
+            gpu_jobs: None,
         };
         add_host(&path, &host).unwrap();
         assert_eq!(Config::load(&path).unwrap().hosts, vec![host]);

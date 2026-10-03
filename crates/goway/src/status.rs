@@ -152,6 +152,7 @@ mod tests {
             max_load: None,
             identity: None,
             labels: Vec::new(),
+            gpu_jobs: None,
         };
         let found = Found {
             target: Target {

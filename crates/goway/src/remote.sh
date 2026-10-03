@@ -29,7 +29,7 @@ mark_root() {
   for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
     [ -e "$e" ] || [ -L "$e" ] || continue
     case "${e##*/}" in
-      work | seed | cache | .goway-root) ;;
+      work | seed | cache | gpu | .goway-root) ;;
       *) die "$1 exists, is not empty and is not goway state; pick a dedicated remote_root" ;;
     esac
   done
@@ -303,6 +303,78 @@ envfile() {
   chmod 600 "$work/env"
 }
 
+# ---- GPU slots (goway run --needs gpu...) -----------------------------
+#
+# A run that needs a GPU holds a flock on one GPU "slot" while it runs, so
+# concurrent GPU runs get different GPUs instead of sharing one by accident.
+# Each GPU has PER slot files (gpu_jobs, default 1): $root/gpu/<vendor>-<index>.<n>.lock.
+# The lock is on fd 5 of the run's shell: it is released when that shell ends,
+# however it ends (exit, kill, ssh drop), and background helpers close fd 5.
+
+# gpu_list: "vendor index" lines for the GPUs the driver tools list.
+gpu_list() {
+  local i card _rest
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    while read -r i; do
+      case "$i" in '' | *[!0-9]*) ;; *) printf 'nvidia %s\n' "$i" ;; esac
+    done < <(bounded nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null || true)
+  fi
+  if command -v rocm-smi >/dev/null 2>&1; then
+    while IFS=, read -r card _rest; do
+      case "$card" in card[0-9]*) printf 'amd %s\n' "${card#card}" ;; esac
+    done < <(bounded rocm-smi --showproductname --csv 2>/dev/null || true)
+  fi
+}
+
+# gpu_acquire ROOT PER: take one free GPU slot (waiting, with a note, while
+# all are busy), then export CUDA_VISIBLE_DEVICES / ROCR_VISIBLE_DEVICES for
+# it unless the user already set them. Holds the lock on fd 5.
+gpu_acquire() {
+  local dir="$1/gpu" per=$2 gpus=() line n k vendor idx f noted=0
+  while read -r line; do [ -n "$line" ] && gpus+=("$line"); done < <(gpu_list)
+  n=${#gpus[@]}
+  if [ "$n" -eq 0 ]; then
+    printf 'goway: warning: this run needs a GPU but no GPU tool lists one here; running without a GPU slot\n' >&2
+    return 0
+  fi
+  mkdir -p "$dir"
+  while :; do
+    # Spread first: slot 0 of every GPU, then slot 1 of every GPU, ...
+    for ((k = 0; k < per; k++)); do
+      for line in "${gpus[@]}"; do
+        vendor=${line% *}; idx=${line#* }
+        f="$dir/$vendor-$idx.$k.lock"
+        exec 5>"$f"
+        if flock -n 5; then
+          gpu_export "$vendor" "$idx" "$n"
+          printf 'goway: using GPU %s (%s), slot %s\n' "$idx" "$vendor" "$k" >&2
+          return 0
+        fi
+        exec 5>&-
+      done
+    done
+    if [ "$noted" = 0 ]; then
+      printf 'goway: all %s GPU(s) are busy (up to %s run(s) each); waiting for one\n' "$n" "$per" >&2
+      noted=1
+    fi
+    sleep 1
+  done
+}
+
+# gpu_export VENDOR INDEX COUNT: name the GPU for the framework environment
+# variables that are not already set (a variable the user set stays theirs).
+# With only one vendor on the host, both variables name it.
+gpu_export() {
+  local vendors
+  vendors=$(gpu_list | cut -d' ' -f1 | sort -u | wc -l)
+  if { [ "$1" = nvidia ] || [ "$vendors" -le 1 ]; } && [ -z "${CUDA_VISIBLE_DEVICES+x}" ]; then
+    export CUDA_VISIBLE_DEVICES=$2
+  fi
+  if { [ "$1" = amd ] || [ "$vendors" -le 1 ]; } && [ -z "${ROCR_VISIBLE_DEVICES+x}" ]; then
+    export ROCR_VISIBLE_DEVICES=$2
+  fi
+}
+
 # ---- shard framework detection (goway run --shard) -------------------
 #
 # Before a shard's command runs, the program it names may turn out to be a
@@ -395,7 +467,7 @@ catch2_attempt() {
   rm -f "$errfile" "$fifo"
   mkfifo "$fifo"
   # Not the run's lock fds (7, 9): a lingering tee must never hold a slot.
-  (trap '' XFSZ; ulimit -f 128; exec tee "$errfile" <"$fifo" >&2) 7>&- 9>&- &
+  (trap '' XFSZ; ulimit -f 128; exec tee "$errfile" <"$fifo" >&2) 5>&- 7>&- 9>&- &
   tpid=$!
   launch_job "$@" "${extra[@]}" 2>"$fifo" || rc=$?
   wait "$tpid" || true
@@ -490,15 +562,17 @@ run() {
   shift 10
   # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
   # framework detection of the command's program (see shard_run).
-  local detect=""
+  local detect="" gpu_per=""
   while [ $# -gt 0 ] && [ "$1" != "--" ]; do
     case "$1" in
       shard-detect:[0-9]*:[0-9]*:[A-Za-z0-9]*) detect=${1#shard-detect:} ;;
+      gpu-slots:[0-9]*) gpu_per=${1#gpu-slots:} ;;
       *) die "run: unknown option $1" ;;
     esac
     shift
   done
   case "$detect" in *[!A-Za-z0-9:]*) die "run: bad shard-detect" ;; esac
+  case "$gpu_per" in *[!0-9]*) die "run: bad gpu-slots" ;; esac
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
@@ -519,6 +593,11 @@ run() {
     while IFS= read -r -d '' kv; do export "$kv"; done <"$work/env"
     rm -f "$work/env"
   fi
+
+  # A GPU run holds one GPU slot until this shell ends (fd 5). It waits for
+  # the GPU before taking a build slot, so a queue for GPUs never pins the
+  # build slots that CPU-only runs need.
+  if [ -n "$gpu_per" ] && [ "$gpu_per" -ge 1 ]; then gpu_acquire "$root" "$gpu_per"; fi
 
   # A slot is a persistent build tree (tree-k) plus its cargo target dir
   # (target-k), held by target-k.lock. Prefer the slot this worktree used
@@ -585,7 +664,7 @@ run() {
   : >"$work/pid"
   # The watchdog must not inherit the lock fds, or a lingering `sleep`
   # would keep this run's slot and work dir locked after it ends.
-  watchdog "$PPID" "$work/pid" </dev/null >/dev/null 2>&1 7>&- 9>&- &
+  watchdog "$PPID" "$work/pid" </dev/null >/dev/null 2>&1 5>&- 7>&- 9>&- &
   wd=$!
   # Foreground (not `&`): background jobs of a non-interactive shell start
   # with SIGINT and SIGQUIT ignored, and the command must not inherit that.
@@ -610,7 +689,7 @@ run() {
   if [ -n "$ttls" ]; then
     IFS=: read -r t_cache t_orphan t_kept <<<"$ttls"
     (trap '' HUP; gc "$root_arg" "$(date +%s)" "$t_cache" "$t_orphan" "$t_kept" apply "" "") \
-      </dev/null >/dev/null 2>&1 7>&- 9>&- &
+      </dev/null >/dev/null 2>&1 5>&- 7>&- 9>&- &
   fi
   exit "$rc"
 }
@@ -839,7 +918,7 @@ purge() {
     SCCACHE_SERVER_UDS="$s" sccache --stop-server >/dev/null 2>&1 || true
   done
   # Only goway's own entries: a root that also holds foreign files keeps them.
-  rm -rf "$root/work" "$root/seed" "$root/cache"
+  rm -rf "$root/work" "$root/seed" "$root/cache" "$root/gpu"
   rm -f "$root/.goway-root"
   rmdir "$root" 2>/dev/null || true
   printf 'removed\n'

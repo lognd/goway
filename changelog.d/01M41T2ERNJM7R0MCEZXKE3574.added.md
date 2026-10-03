@@ -1,0 +1,1 @@
+A run that needs a GPU now holds one GPU slot on the host (gpu_jobs runs per GPU), with CUDA_VISIBLE_DEVICES and ROCR_VISIBLE_DEVICES naming that GPU, so concurrent GPU runs no longer share one by accident.

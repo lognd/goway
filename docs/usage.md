@@ -268,6 +268,31 @@ infers a rule from a project's dependencies.
 `label=NAME` matches the `labels = [...]` of a `[[host]]` in your own config
 (see [config.md](config.md)); only hosts with the label qualify.
 
+#### GPU slots
+
+A run whose `--needs` (or `goway.toml` rule) asks for a GPU (`gpu`, `gpu=cuda`,
+`gpu=rocm`, `gpu-mem>=`, `cuda>=`) holds a lock on one GPU of the host while it
+runs, so concurrent GPU runs get different GPUs instead of fighting over one:
+
+- the host lists its GPUs live (`nvidia-smi`, `rocm-smi`); the run takes the
+  first free slot, spreading over the GPUs before sharing any, and says
+  `using GPU 1 (nvidia), slot 0`;
+- `CUDA_VISIBLE_DEVICES` and `ROCR_VISIBLE_DEVICES` name that GPU for the
+  command (on a host with one GPU vendor both are set; with two, each only for
+  its own vendor). A variable you set with `--env` or on the host stays yours;
+  the run still takes a slot, so it is counted against the GPU's capacity;
+- when every GPU is busy the run prints `all 2 GPU(s) are busy; waiting for
+  one` and waits, **before** it takes a build slot, so a queue for GPUs does
+  not pin the build slots CPU-only runs need;
+- `gpu_jobs = N` (in `[defaults]` or a `[[host]]`; default 1) lets up to N GPU
+  runs share each GPU;
+- the lock is a `flock` held by the run's shell, so it is released however the
+  run ends (exit, signal, a dropped connection). A host with no GPU tool gets a
+  warning and the run proceeds without a slot.
+
+Runs that do not ask for a GPU never take a slot. GPU locks live under the
+remote root's `gpu/` directory, which `goway uninstall` removes.
+
 ### Exit codes
 
 | Code | Meaning |

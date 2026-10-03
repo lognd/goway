@@ -493,6 +493,13 @@ impl Selection {
         self.needs.is_empty() && self.prefers.is_empty()
     }
 
+    /// Whether the run needs a GPU (so it holds a GPU slot while it runs).
+    pub fn needs_gpu(&self) -> bool {
+        self.needs
+            .iter()
+            .any(|t| matches!(t, Term::Gpu(_) | Term::GpuMem(_) | Term::Cuda(_)))
+    }
+
     /// Whether the hosts must be probed for free disk.
     pub fn wants_disk(&self) -> bool {
         self.needs.iter().chain(&self.prefers).any(Term::needs_disk)
@@ -551,6 +558,7 @@ mod tests {
             max_load: None,
             identity: None,
             labels: labels.iter().map(|s| (*s).to_owned()).collect(),
+            gpu_jobs: None,
         }
     }
 

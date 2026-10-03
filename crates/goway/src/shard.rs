@@ -227,11 +227,10 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                     let command = plan.command.clone();
                     run::send_env(env, config, found, &run_id, &run::encode_env(&pairs)?)?;
                     let nonce = detect::nonce();
-                    let extra: Vec<String> = if plan.detect {
-                        vec![detect::request_word(index, count, &nonce)]
-                    } else {
-                        Vec::new()
-                    };
+                    let mut extra = run::gpu_words(selection, config, host);
+                    if plan.detect {
+                        extra.push(detect::request_word(index, count, &nonce));
+                    }
                     let cmd = run::run_invocation_with(
                         config,
                         config.priority_of(host).as_str(),

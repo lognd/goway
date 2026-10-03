@@ -42,6 +42,7 @@ keep_ignored = true            # also keep every path the tree's .gitignore rule
 port = 2222                    # ssh port when a host does not set one (WSL sshd)
 priority = "low"               # "low": jobs run under nice 10 with idle-class I/O; "normal"
 # max_load = 0.8               # skip hosts whose 1-minute load per core is above this
+# gpu_jobs = 1                 # GPU runs that may share each GPU (override per host)
 # mem_per_core = 0.5           # GiB of free RAM per core below which a host scores worse (0 = off)
 
 [[host]]
@@ -52,6 +53,7 @@ name = "my-helper"             # the helper's computer name; also tried as my-he
 # max_jobs = 2                 # skip this host while it runs this many goway jobs
 # priority = "normal"          # override defaults.priority for this host
 # max_load = 0.5               # override defaults.max_load for this host
+# gpu_jobs = 2                 # override defaults.gpu_jobs for this host
 # labels = ["gpu-box"]         # names `--needs label=gpu-box` can ask for
 # identity = "/home/me/.config/goway/id_ed25519"   # private key to offer (see below)
 ```

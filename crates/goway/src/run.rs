@@ -14,9 +14,9 @@ use base64::Engine as _;
 use serde::Serialize;
 
 use crate::cli::RunArgs;
-use crate::config::Config;
+use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
-use crate::needs::{self, Matched};
+use crate::needs::{self, Matched, Selection};
 use crate::paths::Paths;
 use crate::pool;
 use crate::project::{self, Applied};
@@ -191,12 +191,13 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     report_withheld(renderer, &synced);
     send_env(env, &config, &found, &run_id, &env_bytes)?;
 
-    let cmd = run_invocation(
+    let cmd = run_invocation_with(
         &config,
         config.priority_of(&host).as_str(),
         &repo,
         &run_id,
         args.keep,
+        &gpu_words(&selection, &config, &host),
         &args.command,
     );
 
@@ -326,20 +327,19 @@ pub(crate) fn label_b64(repo: &Repo, kind: &str) -> String {
     base64::engine::general_purpose::STANDARD.encode(serde_json::to_vec(&label).unwrap_or_default())
 }
 
-/// The remote `run` invocation for this run (its work dir already exists).
-pub(crate) fn run_invocation(
-    config: &Config,
-    priority: &str,
-    repo: &Repo,
-    run_id: &str,
-    keep: bool,
-    command: &[String],
-) -> String {
-    run_invocation_with(config, priority, repo, run_id, keep, &[], command)
+/// The `run` option words that make a run hold a GPU slot on `host`: only
+/// when the run needs a GPU, with the host's `gpu_jobs` runs per GPU.
+pub(crate) fn gpu_words(selection: &Selection, config: &Config, host: &HostConfig) -> Vec<String> {
+    if selection.needs_gpu() {
+        vec![format!("gpu-slots:{}", config.gpu_jobs_of(host))]
+    } else {
+        Vec::new()
+    }
 }
 
-/// [`run_invocation`] with extra option words for the remote `run` verb
-/// (such as the shard detection request), placed before the command.
+/// The remote `run` invocation for this run (its work dir already exists),
+/// with extra option words for the remote `run` verb (the shard detection
+/// request, the GPU slot) placed before the command.
 pub(crate) fn run_invocation_with(
     config: &Config,
     priority: &str,
