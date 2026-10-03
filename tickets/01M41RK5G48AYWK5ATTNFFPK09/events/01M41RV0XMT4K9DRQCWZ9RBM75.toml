@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:56:08Z"
+digest = "5f47f05e701012e3b47a66f5e6b1c23b7e44d9fb4c82f62125294877462bf667"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 5522955c-06a0-42e8-90d9-4e55fbb83b74 with nextest profile: default
+    Starting 2 tests across 1 binary (13 tests and 26 binaries skipped)
+        PASS [   0.008s] goway-setup::host_plan allow_from_refuses_wide_and_any_like_ranges_unless_allow_wide_and_never_any
+        PASS [   0.009s] goway-setup::host_plan allow_from_accepts_addresses_and_cidrs_and_refuses_everything_else
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.010s] 2 tests run: 2 passed, 13 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(host_plan) & (test(allow_from))'"
+size = 720
+status = "measured"
+tests = ["allow_from_refuses_wide_and_any_like_ranges_unless_allow_wide_and_never_any", "allow_from_accepts_addresses_and_cidrs_and_refuses_everything_else"]
+at = "2026-10-03T20:56:08Z"
+actor = "lognd"
+rev = 1
