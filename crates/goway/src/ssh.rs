@@ -49,12 +49,27 @@ impl Settings {
     /// Settings from goway's paths; multiplexing only on Unix clients
     /// (Windows OpenSSH has no `ControlMaster`).
     pub fn from_paths(paths: &Paths) -> Self {
+        let control_dir = cfg!(unix)
+            .then(|| paths.control_dir())
+            .filter(|d| {
+                let fits = control_path_fits(d);
+                if !fits {
+                    tracing::info!(dir = %d.display(), "control socket path too long; ssh multiplexing off");
+                }
+                fits
+            });
         Self {
             known_hosts: paths.known_hosts(),
-            control_dir: cfg!(unix).then(|| paths.control_dir()),
+            control_dir,
             connect_timeout_secs: 5,
         }
     }
+}
+
+/// Unix socket paths are limited to 108 bytes; `%C` expands to 40 hex
+/// characters and ssh appends a temporary suffix while binding.
+pub fn control_path_fits(dir: &std::path::Path) -> bool {
+    dir.as_os_str().len() + 1 + 40 + 20 < 108
 }
 
 /// Quote an ssh option value; ssh splits option values on whitespace.
@@ -236,6 +251,7 @@ mod tests {
         let paths = Paths {
             config_dir: PathBuf::from("/c"),
             state_dir: PathBuf::from("/s"),
+            runtime_dir: None,
         };
         let s = Settings::from_paths(&paths);
         assert_eq!(s.known_hosts, PathBuf::from("/c/known_hosts"));
@@ -246,6 +262,21 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(all.last().map(String::as_str), Some("uname -m"));
         assert!(all.contains(&"UserKnownHostsFile=/c/known_hosts".to_owned()));
+    }
+
+    #[test]
+    fn long_control_dirs_disable_multiplexing() {
+        assert!(control_path_fits(std::path::Path::new(
+            "/run/user/1000/goway"
+        )));
+        let long = PathBuf::from(format!("/tmp/{}", "x".repeat(60)));
+        assert!(!control_path_fits(&long));
+        let paths = Paths {
+            config_dir: PathBuf::from("/c"),
+            state_dir: long,
+            runtime_dir: None,
+        };
+        assert_eq!(Settings::from_paths(&paths).control_dir, None);
     }
 
     #[test]
