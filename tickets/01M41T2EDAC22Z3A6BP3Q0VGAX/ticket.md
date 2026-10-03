@@ -2,13 +2,13 @@
 id = "01M41T2EDAC22Z3A6BP3Q0VGAX"
 title = "Host facts: discover GPUs, RAM, CPU features, KVM, Docker and disk on every host; show them in status"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:17:40Z"
-updated = "2026-10-03T21:17:40Z"
+updated = "2026-10-03T21:32:35Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/pool.rs", "crates/goway/src/facts.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs", "crates/goway/src/state.rs", "crates/goway/tests/**", "docs/usage.md"]
 
 [[acceptance]]
