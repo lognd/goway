@@ -11,6 +11,10 @@ created = "2026-10-03T22:31:26Z"
 updated = "2026-10-03T22:31:26Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/drift.rs", "crates/goway/src/facts.rs", "crates/goway/src/run.rs", "crates/goway/src/render.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/usage.md"]
 
+[[links]]
+kind = "blocked-by"
+target = "01M41P2G171VZJW77Z1XP4RZVS"
+
 [[acceptance]]
 text = "Given a project and several hosts, when goway doctor runs, then it prints one table (also in --plain) with a row per required tool and a column per host plus the laptop, showing versions; a missing tool or one below the project minimum is an error with the exact fix; hosts that disagree (different major version, or different minor where the tool is a compiler or a pinned [toolchain] entry) are marked drift"
 bound = false
