@@ -2,7 +2,8 @@
 id = "01M41T2EMRZFGJGYGC82SH8Y2M"
 title = "goway.toml project rules and host labels"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
