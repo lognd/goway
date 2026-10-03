@@ -2,7 +2,8 @@
 id = "01M41R6XC8FGG8NC36TYZ9GC8F"
 title = "Output integrity: one write per line under one lock shared by stdout, stderr and goway's own messages; bounded, batched line reads"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
