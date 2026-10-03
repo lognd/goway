@@ -15,6 +15,7 @@ pub mod run;
 pub mod ssh;
 pub mod sshenv;
 pub mod state;
+pub mod status;
 pub mod sync;
 
 use std::process::ExitCode;
@@ -74,7 +75,15 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
             };
             run::run(&env, renderer, args)
         }
-        Command::Status => Err(Error::NotImplemented("status")),
+        Command::Status => {
+            let settings = ssh::Settings::from_paths(&paths);
+            status::status(
+                &paths,
+                renderer,
+                &resolve::SystemLookup,
+                &resolve::SshProber { settings },
+            )
+        }
         Command::Gc(_) => Err(Error::NotImplemented("gc")),
         Command::Doctor(_) => Err(Error::NotImplemented("doctor")),
         Command::Host(HostCommand::List) => host_list(&paths, renderer),

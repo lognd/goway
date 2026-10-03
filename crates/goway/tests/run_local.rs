@@ -203,3 +203,41 @@ fn signals_map_to_128_plus_n() {
     let out = w.run(&["run", "--", "sh", "-c", "kill -TERM $$"]);
     assert_eq!(out.status.code(), Some(143));
 }
+
+// frob:tests crates/goway/src/status.rs::status
+// frob:tests crates/goway/src/status.rs::rows
+#[test]
+fn status_shows_load_jobs_and_disk_and_marks_unreachable() {
+    let w = world();
+    // A second host that never answers: the fake ssh fails for its address.
+    let mut config = std::fs::read_to_string(w.config.join("config.toml")).unwrap();
+    config.push_str("\n[[host]]\nname = \"gone\"\naddress = \"10.255.255.1\"\nmax_jobs = 1\n");
+    std::fs::write(w.config.join("config.toml"), config).unwrap();
+    std::fs::write(
+        w.bin.join("ssh"),
+        FAKE_SSH.replace("exec sh -c", "[ \"$addr\" = 10.255.255.1 ] && { echo 'ssh: connect to host 10.255.255.1 port 2222: Connection timed out' >&2; exit 255; }\nexec sh -c")
+            .replace("--) shift; shift; break ;;", "--) shift; addr=$1; shift; break ;;"),
+    )
+    .unwrap();
+    assert!(
+        w.run(&["run", "--host", "local", "--", "true"])
+            .status
+            .success()
+    );
+    let out = w.run(&["status"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let table = String::from_utf8_lossy(&out.stdout);
+    let lines: Vec<&str> = table.lines().collect();
+    assert!(lines[0].starts_with("host"), "{table}");
+    let local = lines.iter().find(|l| l.starts_with("local")).unwrap();
+    assert!(local.contains("127.0.0.1 (cached)"), "{local}");
+    assert!(local.contains(std::env::consts::ARCH), "{local}");
+    assert!(local.contains('B'), "disk shown: {local}");
+    let gone = lines.iter().find(|l| l.starts_with("gone")).unwrap();
+    assert!(gone.contains("unreachable"), "{gone}");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("gone: cannot reach host"));
+}
