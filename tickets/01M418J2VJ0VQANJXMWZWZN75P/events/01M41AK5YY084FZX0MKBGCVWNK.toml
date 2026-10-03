@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T16:47:11Z"
+digest = "2ea7385e06b685baa7a82752425fa4ff9c0df6f699757b0390bf6e6a432aa25b"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 5d22240f-fb2a-417e-968f-935707308af0 with nextest profile: default
+    Starting 2 tests across 9 binaries (84 tests skipped)
+        PASS [   0.128s] goway::run_local signals_map_to_128_plus_n
+        PASS [   0.218s] goway::run_local exit_code_passes_through_and_work_dir_is_removed
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.219s] 2 tests run: 2 passed, 84 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(exit_code_passes_through_and_work_dir_is_removed) | test(signals_map_to_128_plus_n)'"
+size = 626
+status = "measured"
+tests = ["signals_map_to_128_plus_n", "exit_code_passes_through_and_work_dir_is_removed"]
+at = "2026-10-03T16:47:11Z"
+actor = "lognd"
+rev = 1
