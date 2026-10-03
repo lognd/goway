@@ -1,0 +1,149 @@
+# goway design
+
+"go away": run a command on another machine, natively, from the current git
+work tree. This document is the problem tree; each leaf names the module or
+ticket that owns it. Read docs/prior-art.md for why this is a new tool.
+
+## 1. Facts measured on the target machines (2026-10-03)
+
+- Hosts are Windows laptops with WSL2 (Ubuntu, x86_64, systemd on). sshd in
+  WSL listens on 2222; the Windows OpenSSH server on 22 lands in cmd.exe.
+- WSL uses `networkingMode = mirrored`, so the Windows Wi-Fi address reaches
+  the WSL sshd. A scheduled task keeps the distro alive; a Windows firewall
+  rule and the Hyper-V firewall allow inbound 2222.
+- Addresses are DHCP leases in a /13 (192.0.2.0/13). They change, and the
+  subnet is far too large to scan.
+- `<COMPUTERNAME>.local` resolves over mDNS from Windows. A WSL client in NAT
+  mode cannot resolve `.local` itself, but can ask Windows through interop
+  (`powershell.exe Resolve-DnsName`, about 4 s, so results are cached).
+  LLMNR also answers with unrelated adapters (VirtualBox 192.168.56.1), so a
+  name lookup alone is not an identity.
+- Non-interactive ssh does not read ~/.cargo/env; cargo is only on PATH in a
+  login shell.
+- Cargo stays Fresh when a workspace is copied to a new directory with mtimes
+  kept and the same CARGO_TARGET_DIR (tested with path and registry deps).
+  This makes per-run work directories plus a shared per-repo target cheap.
+
+## 2. Problem tree
+
+1. Identity and reachability (`hosts`, `resolve`)
+   1. A host is a name plus a pinned SSH host key, never an IP. ssh always
+      runs with `HostKeyAlias=goway-<name>`, `StrictHostKeyChecking=yes`
+      and goway's own known_hosts file, so a wrong address is rejected by
+      ssh itself.
+   2. Address resolution chain, first that answers wins: cached last good
+      address, configured `address` (name or IP), system resolver for the
+      name, `<name>.local` via the system resolver, `<name>.local` via
+      Windows interop when running under WSL.
+   3. `goway host add NAME` discovers port (2222 then 22, requires `uname`
+      = Linux), user, and pins the key on first contact (trust on first
+      use, fingerprint shown).
+   4. SSH auto-detection reads `ssh -G` (effective config, no secrets) and
+      warns about weak or odd settings: password auth allowed, no agent
+      keys and no identity file, identity file with loose permissions
+      (stat only, never read), the Windows sshd on 22 instead of WSL.
+2. Transport (`ssh`)
+   1. Spawn the system `ssh` binary (agent, config, and Windows OpenSSH all
+      work). ControlMaster multiplexing on Unix clients only.
+   2. A single embedded remote script (`remote.sh`) implements every remote
+      verb (probe, receive, run, gc, status, doctor); it is sent inline
+      with each call so the remote needs no install beyond bash, coreutils,
+      tar, findutils and flock.
+3. Sync (`sync`)
+   1. File set: `git ls-files -co --exclude-standard -z`, minus deleted
+      files, minus `.env` and `.env.*` (unless configured), never `.git`.
+   2. Remote seed mirror per (repo, worktree); the remote reports its
+      manifest (path, size, mtime); goway sends a tar of changed files and
+      a list of deletions. No rsync, so Windows clients work.
+   3. The run's work directory is a hard-link copy of the seed (`cp -al`),
+      created under the seed lock. Seed updates replace files by rename,
+      so a running job keeps its snapshot.
+4. Run (`run`)
+   1. Remote layout under `~/.cache/goway/`:
+      `work/<run-id>/{tree,meta.json,lock}`,
+      `seed/<repo-id>/<worktree-id>/{tree,meta.json,lock}`,
+      `cache/<repo-id>/{target-<k>,sccache,meta.json}`.
+   2. Every directory has `meta.json` (kind, repo, worktree, client,
+      created, last_used) and is held by `flock` while in use; a free lock
+      means nobody uses it.
+   3. Cargo: `CARGO_TARGET_DIR` is the first free target slot of the repo
+      (new slot when all are busy, up to `target_slots`); sccache is used
+      when installed, with a per-repo `SCCACHE_DIR`.
+   4. stdout and stderr stream through untouched; goway's own lines go to
+      stderr. Exit code is the command's; 128+N on signal N; 125 when goway
+      itself fails (the docker convention).
+   5. Ctrl-C: goway sends a remote kill to the job's process group, and a
+      watchdog in the remote script kills the group if the ssh session dies.
+   6. Provenance for frob: a header line on stderr naming host, arch and
+      address, and `--report FILE` writes the same as JSON.
+5. Pool (`pool`)
+   1. Probe all hosts in parallel (one ssh each): nproc, loadavg, arch, goway
+      jobs running, disk used.
+   2. Score = (load1 + goway jobs) / cores, skipping unreachable hosts and
+      hosts at `max_jobs`; `--host` pins.
+6. Cleanup (`gc`)
+   1. Work directories are removed when the run ends unless `--keep`.
+   2. Expiry: caches and seeds 7 days idle, orphaned work dirs (lock free,
+      no `--keep`) 1 day, kept work dirs 3 days. Configurable.
+   3. Every run triggers a cheap gc of expired entries on the host it used.
+   4. `goway gc [--older-than D] [--repo R] [--host H] [--all] [--dry-run]`.
+7. Status and doctor (`status`, `doctor`)
+   1. `goway status`: hosts, address, load, cores, running jobs, disk used.
+   2. `goway doctor [HOST] [--fix]`: ssh reachability and auth, remote
+      tools (rustup, cargo, cargo-nextest, sccache, tar, flock), disk. Fix
+      commands run as the ordinary user; anything that needs root is
+      printed with the reason and the user is asked to run it with sudo.
+8. Output (`render`)
+   1. One module owns all printing; clippy denies print macros elsewhere;
+      colors honour `NO_COLOR` and `--color`. Diagnostics via tracing,
+      `-v` raises the level.
+9. Installation (`goway-setup`)
+   1. Linux: `scripts/install.sh` and `scripts/uninstall.sh` (user-local).
+   2. Windows: `goway-setup.exe`, components `client` (goway.exe, user
+      PATH, Add/Remove Programs entry) and `host` (firewall rule, Hyper-V
+      firewall, keepalive task, .wslconfig mirrored, WSL sshd on 2222).
+   3. Every change is a journal entry recording the prior state; the
+      uninstaller replays the journal backwards. Proven by a property test
+      over a model system (uninstall after install restores the state) and
+      by a snapshot test on the real Windows hosts in an isolated profile.
+
+10. Guided SSH setup (`goway ssh setup HOST`, journaled like 9.3)
+   1. Client key: reuse an existing agent or identity key, or create a
+      dedicated `~/.ssh/goway_ed25519` with `ssh-keygen` (never reads
+      private keys; only checks presence and permissions).
+   2. Authorize it on the host: append the public key to the WSL user's
+      `~/.ssh/authorized_keys` with a `goway:<journal-id>` comment, fix
+      modes (700 dir, 600 file); on a Windows sshd target, the
+      `administrators_authorized_keys` path and its `icacls` ACL
+      (Administrators and SYSTEM only) as Microsoft documents. Uses
+      `ssh-copy-id` semantics; Windows has no ssh-copy-id, so goway does it.
+   3. Client side on Windows: `icacls` on `%USERPROFILE%\.ssh` and the key
+      so OpenSSH accepts them; start the `ssh-agent` service on startup.
+   4. Host activation on startup is the `host` component of 9.2 (sshd
+      enabled under systemd, keepalive task).
+   5. Every step records its prior state; `goway ssh setup --undo HOST`
+      removes exactly the lines and settings it added.
+
+## 3. Configuration
+
+`~/.config/goway/config.toml` (Windows: `%APPDATA%\goway\config.toml`):
+
+```toml
+[defaults]
+remote_root = "~/.cache/goway"
+cache_ttl = "7d"
+orphan_ttl = "1d"
+kept_ttl = "3d"
+target_slots = 4
+send_env_files = false
+
+[[host]]
+name = "helios"          # identity; ssh HostKeyAlias goway-helios
+address = "Helios"       # optional; name or IP; resolved each time
+port = 2222
+user = "user"
+max_jobs = 2
+```
+
+State (cached addresses) lives in `~/.local/state/goway/` and goway's
+known_hosts in `~/.config/goway/known_hosts`.
