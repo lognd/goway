@@ -2,13 +2,13 @@
 id = "01M41J9ES9F9KQKHS5Q6E94E0H"
 title = "goway uninstall: remove everything goway added, here and on every helper"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:01:41Z"
-updated = "2026-10-03T19:09:07Z"
+updated = "2026-10-03T19:09:08Z"
 labels = ["newcomer"]
 scope = ["crates/goway/**", "docs/usage.md", "docs/install-linux.md", "scripts/uninstall.sh"]
 
