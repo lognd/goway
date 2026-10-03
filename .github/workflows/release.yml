@@ -1,9 +1,10 @@
 # Builds the release on a version tag (vX.Y.Z): static Linux binaries for
-# x86_64 and aarch64, goway-setup.exe for x64 and ARM64 Windows (each with
+# x86_64 and aarch64, macOS binaries for Apple Silicon and Intel, goway-setup.exe for x64 and ARM64 Windows (each with
 # goway.exe embedded), SHA256SUMS, install.sh, and build provenance
 # attestations, then publishes them as a GitHub release, and then to
-# crates.io and PyPI (maturin wheels and an sdist; macOS wheels are left out
-# until goway is supported there).
+# crates.io and PyPI (maturin wheels for Linux, macOS and Windows, and an
+# sdist). The macOS binaries are goway only (the client); the macOS helper
+# side is not supported.
 #
 # A workflow_dispatch run is a dry run: it builds everything and uploads the
 # files as workflow artifacts, and the three publishing jobs (publish,
@@ -12,6 +13,8 @@ name: release
 on:
   push:
     tags: ["v*"]
+    # TEMPORARY (remove before landing): dry run from CI test branches.
+    branches: ["ci/**"]
   # Dry run: builds and uploads every artifact, publishes nothing.
   workflow_dispatch:
 permissions:
@@ -29,6 +32,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo build --release --locked -p goway --target ${{ matrix.target }}
+      - run: tar -czf goway-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release goway
+      - uses: actions/upload-artifact@v7
+        with:
+          name: goway-${{ matrix.target }}
+          path: goway-${{ matrix.target }}.tar.gz
+  macos:
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
       - run: rustup target add ${{ matrix.target }}
       - run: cargo build --release --locked -p goway --target ${{ matrix.target }}
       - run: tar -czf goway-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release goway
@@ -84,6 +105,12 @@ jobs:
           - os: windows-2025
             target: x86_64-pc-windows-msvc
             manylinux: "off"
+          - os: macos-14
+            target: aarch64-apple-darwin
+            manylinux: "off"
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            manylinux: "off"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -110,7 +137,7 @@ jobs:
           name: pypi-sdist
           path: dist
   checksums:
-    needs: [linux, windows]
+    needs: [linux, macos, windows]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

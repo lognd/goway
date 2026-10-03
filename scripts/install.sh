@@ -11,6 +11,9 @@
 # https, or file:// for tests). The whole script is one function called on
 # the last line, so a download cut off half way runs nothing at all.
 #
+# Works on Linux, WSL and macOS (Apple Silicon and Intel). It sticks to what
+# macOS ships: bash 3.2, BSD userland, shasum instead of sha256sum.
+#
 # Puts goway in ~/.local/bin (GOWAY_PREFIX overrides ~/.local) and, only if
 # that directory is not on PATH yet, appends one marked line to ~/.profile
 # (the directory goes after the existing PATH, so it cannot shadow system
@@ -27,15 +30,29 @@ dl=""
 src=""
 trap '[ -z "$dl" ] || rm -rf -- "$dl"' EXIT
 
+# Print the SHA-256 of FILE: sha256sum where there is one (Linux), else
+# shasum -a 256 (macOS ships only that).
+sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d' ' -f1
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | cut -d' ' -f1
+  else
+    die "need sha256sum or shasum to verify the download"
+  fi
+}
+
 # Download the release binary for this machine into $dl and verify its
 # checksum; sets src.
 download() {
   local base target tmp=$dl expected actual curl_opts
   base=${GOWAY_RELEASE_URL:-https://github.com/lognd/goway/releases/latest/download}
-  case "$(uname -m)" in
-    x86_64 | amd64) target=x86_64-unknown-linux-musl ;;
-    aarch64 | arm64) target=aarch64-unknown-linux-musl ;;
-    *) die "no prebuilt goway for $(uname -m); build it from source: https://github.com/lognd/goway" ;;
+  case "$(uname -s)-$(uname -m)" in
+    Linux-x86_64 | Linux-amd64) target=x86_64-unknown-linux-musl ;;
+    Linux-aarch64 | Linux-arm64) target=aarch64-unknown-linux-musl ;;
+    Darwin-arm64 | Darwin-aarch64) target=aarch64-apple-darwin ;;
+    Darwin-x86_64) target=x86_64-apple-darwin ;;
+    *) die "no prebuilt goway for $(uname -s) $(uname -m); build it from source: https://github.com/lognd/goway" ;;
   esac
   case "$base" in
     https://* | file://*) ;;
@@ -48,7 +65,7 @@ download() {
   curl -fsSL ${curl_opts[@]+"${curl_opts[@]}"} "$base/SHA256SUMS" -o "$tmp/SHA256SUMS" || die "download failed: $base/SHA256SUMS"
   expected=$(awk -v f="goway-$target.tar.gz" '$2 == f || $2 == "*" f { print $1 }' "$tmp/SHA256SUMS")
   [ -n "$expected" ] || die "the release lists no checksum for goway-$target.tar.gz; not installing"
-  actual=$(sha256sum "$tmp/goway.tar.gz" | cut -d' ' -f1)
+  actual=$(sha256 "$tmp/goway.tar.gz")
   [ "$actual" = "$expected" ] || die "checksum mismatch for goway-$target.tar.gz; not installing"
   tar -xzf "$tmp/goway.tar.gz" -C "$tmp" goway || die "the download does not contain goway"
   say "checksum verified"
@@ -58,8 +75,8 @@ download() {
 # Create DIR and missing parents; print the ones created, outermost first.
 make_dirs() {
   local d=$1 missing=()
-  while [ ! -d "$d" ]; do missing=("$d" "${missing[@]}"); d=$(dirname "$d"); done
-  for d in "${missing[@]}"; do mkdir "$d"; printf '%s\n' "$d"; done
+  while [ ! -d "$d" ]; do missing=("$d" ${missing[@]+"${missing[@]}"}); d=$(dirname "$d"); done
+  for d in ${missing[@]+"${missing[@]}"}; do mkdir "$d"; printf '%s\n' "$d"; done
 }
 
 main() {
@@ -82,7 +99,8 @@ main() {
   if [ -e "$journal" ]; then
     if [ ! -e "$bin/goway" ] && ! grep -q '^line ' "$journal"; then
       say "clearing the journal of an incomplete earlier install"
-      mapfile -t stale <"$journal"
+      stale=()
+      while IFS= read -r l || [ -n "$l" ]; do stale+=("$l"); done <"$journal"
       rm -f "$journal"
       for ((i = ${#stale[@]} - 1; i >= 0; i--)); do
         case "${stale[$i]}" in "dir "*) rmdir "${stale[$i]#dir }" 2>/dev/null || true ;; esac
@@ -123,7 +141,7 @@ main() {
     fi
   else
     install -m 755 "$src" "$bin/goway"
-    record "file $bin/goway $(sha256sum "$bin/goway" | cut -d' ' -f1)"
+    record "file $bin/goway $(sha256 "$bin/goway")"
     say "installed $bin/goway"
   fi
 

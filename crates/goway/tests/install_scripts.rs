@@ -1,6 +1,6 @@
 //! scripts/install.sh then scripts/uninstall.sh must leave `$HOME` exactly
 //! as it was: same files, same contents, same modes.
-#![cfg(target_os = "linux")]
+#![cfg(unix)]
 
 use std::collections::BTreeMap;
 use std::os::unix::fs::PermissionsExt as _;
@@ -170,12 +170,42 @@ fn goway_uninstall_reverts_the_install_journal_exactly() {
     assert_eq!(snapshot(home.path()), before, "home restored exactly");
 }
 
+/// The release target install.sh picks on the machine running the tests.
+fn host_target() -> &'static str {
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("macos", "aarch64") => "aarch64-apple-darwin",
+        ("macos", _) => "x86_64-apple-darwin",
+        (_, "aarch64") => "aarch64-unknown-linux-musl",
+        _ => "x86_64-unknown-linux-musl",
+    }
+}
+
+/// SHA-256 of a file by whichever of sha256sum and shasum the machine has.
+fn sha256_of(file: &Path) -> String {
+    let out = Command::new("sha256sum")
+        .arg(file)
+        .output()
+        .or_else(|_| {
+            Command::new("shasum")
+                .args(["-a", "256"])
+                .arg(file)
+                .output()
+        })
+        .unwrap();
+    String::from_utf8_lossy(&out.stdout)
+        .split(' ')
+        .next()
+        .unwrap()
+        .to_owned()
+}
+
 /// A fake release directory with the current goway binary, like CI makes.
 fn fake_release(dir: &Path, tamper: bool) -> String {
-    let target = match std::env::consts::ARCH {
-        "aarch64" => "aarch64-unknown-linux-musl",
-        _ => "x86_64-unknown-linux-musl",
-    };
+    fake_release_for(dir, tamper, host_target())
+}
+
+/// A fake release directory whose archive is named for `target`.
+fn fake_release_for(dir: &Path, tamper: bool, target: &str) -> String {
     let stage = dir.join("stage");
     std::fs::create_dir_all(&stage).unwrap();
     std::fs::copy(env!("CARGO_BIN_EXE_goway"), stage.join("goway")).unwrap();
@@ -189,15 +219,7 @@ fn fake_release(dir: &Path, tamper: bool) -> String {
         .status()
         .unwrap();
     assert!(ok.success());
-    let sum = Command::new("sha256sum")
-        .arg(dir.join(&tarball))
-        .output()
-        .unwrap();
-    let mut hex = String::from_utf8_lossy(&sum.stdout)
-        .split(' ')
-        .next()
-        .unwrap()
-        .to_owned();
+    let mut hex = sha256_of(&dir.join(&tarball));
     if tamper {
         hex = "0".repeat(64);
     }
@@ -207,12 +229,17 @@ fn fake_release(dir: &Path, tamper: bool) -> String {
 
 /// Run install.sh the way `curl ... | bash` does: from stdin, not a checkout.
 fn install_piped(home: &Path, release: &str) -> std::process::Output {
+    install_piped_with_path(home, release, SYS_PATH)
+}
+
+/// Like `install_piped`, with an explicit PATH (to stub uname or hide tools).
+fn install_piped_with_path(home: &Path, release: &str, path: &str) -> std::process::Output {
     let script = std::fs::read(script("install.sh")).unwrap();
-    let mut child = Command::new("bash")
+    let mut child = Command::new(find_tool("bash"))
         .arg("-s")
         .env_clear()
         .env("HOME", home)
-        .env("PATH", SYS_PATH)
+        .env("PATH", path)
         .env("GOWAY_RELEASE_URL", release)
         .current_dir(home)
         .stdin(std::process::Stdio::piped())
@@ -312,4 +339,79 @@ fn a_journal_left_by_an_aborted_install_is_cleared() {
     run("install.sh", home.path(), SYS_PATH);
     assert!(home.path().join(".local/bin/goway").exists());
     run("uninstall.sh", home.path(), SYS_PATH);
+}
+
+/// Write an executable shell stub `name` into `dir`.
+fn stub(dir: &Path, name: &str, body: &str) {
+    let file = dir.join(name);
+    std::fs::write(&file, format!("#!/bin/sh\n{body}\n")).unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+/// Absolute path of `tool` on the current PATH.
+fn find_tool(tool: &str) -> PathBuf {
+    std::env::split_paths(&std::env::var_os("PATH").unwrap())
+        .map(|d| d.join(tool))
+        .find(|p| p.is_file())
+        .unwrap_or_else(|| panic!("{tool} not on PATH"))
+}
+
+// frob:tests scripts/install.sh
+#[test]
+fn macos_machines_get_the_apple_darwin_archive_for_their_cpu() {
+    for (arch, target) in [
+        ("arm64", "aarch64-apple-darwin"),
+        ("x86_64", "x86_64-apple-darwin"),
+    ] {
+        let home = tempfile::tempdir().unwrap();
+        let release = tempfile::tempdir().unwrap();
+        let bin = tempfile::tempdir().unwrap();
+        stub(
+            bin.path(),
+            "uname",
+            &format!("case \"$1\" in -s) echo Darwin ;; -m) echo {arch} ;; esac"),
+        );
+        let url = fake_release_for(release.path(), false, target);
+        let path = format!("{}:{SYS_PATH}", bin.path().display());
+        let out = install_piped_with_path(home.path(), &url, &path);
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{arch}: {err}");
+        assert!(
+            err.contains(&format!("downloading goway for {target}")),
+            "{err}"
+        );
+        assert!(err.contains("checksum verified"), "{err}");
+        assert!(home.path().join(".local/bin/goway").exists());
+    }
+}
+
+// frob:tests scripts/install.sh
+#[test]
+fn shasum_verifies_the_download_when_sha256sum_is_missing() {
+    let home = tempfile::tempdir().unwrap();
+    let release = tempfile::tempdir().unwrap();
+    let url = fake_release(release.path(), false);
+    // A PATH holding only symlinks to what install.sh needs, plus a shasum
+    // that is the machine's sha256 tool: no sha256sum is visible.
+    let bin = tempfile::tempdir().unwrap();
+    for tool in [
+        "awk", "cat", "cmp", "curl", "cut", "dd", "dirname", "grep", "install", "mkdir", "mktemp",
+        "od", "rm", "rmdir", "tail", "tar", "tr", "uname", "wc", "gzip",
+    ] {
+        std::os::unix::fs::symlink(find_tool(tool), bin.path().join(tool)).unwrap();
+    }
+    if std::env::consts::OS == "macos" {
+        std::os::unix::fs::symlink("/usr/bin/shasum", bin.path().join("shasum")).unwrap();
+    } else {
+        let real = find_tool("sha256sum").display().to_string();
+        stub(
+            bin.path(),
+            "shasum",
+            &format!("[ \"$1\" = -a ] && shift 2\nexec {real} \"$@\""),
+        );
+    }
+    let out = install_piped_with_path(home.path(), &url, &bin.path().display().to_string());
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{err}");
+    assert!(err.contains("checksum verified"), "{err}");
 }

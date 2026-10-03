@@ -1,5 +1,6 @@
 # Checks every push and pull request: format, lints, the whole test suite on
-# Linux, that the Windows crates build and pass their tests on Windows, that
+# Linux, that goway builds and its client tests and install scripts pass on
+# macOS, that the Windows crates build and pass their tests on Windows, that
 # packaging for crates.io works, and that the PyPI wheel builds and runs.
 name: ci
 on:
@@ -44,3 +45,14 @@ jobs:
         run: rustup show active-toolchain || rustup toolchain install
       - run: cargo clippy -p goway -p goway-setup -p goway-journal --all-targets --locked -- -D warnings
       - run: cargo test -p goway-setup -p goway-journal --locked --no-fail-fast
+  macos:
+    # The client and the install scripts on macOS (bash 3.2, BSD userland).
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - run: cargo nextest run -p goway --lib --test install_scripts --locked
