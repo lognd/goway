@@ -2,7 +2,8 @@
 id = "01M41MX7VKXP4S8HASWV529TMA"
 title = "Helpers on Windows 10 / WSL NAT mode: journaled portproxy relay kept current by the keepalive task"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
