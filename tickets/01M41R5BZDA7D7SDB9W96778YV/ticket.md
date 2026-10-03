@@ -21,7 +21,7 @@ bound = true
 
 [[acceptance]]
 text = "Given the key line written to authorized_keys, When it is planned, Then it carries no-agent-forwarding, no-port-forwarding and no-X11-forwarding and is still recognised as present"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway already has its own key, When ssh setup chooses a key, Then it uses it and records it as the identity"
