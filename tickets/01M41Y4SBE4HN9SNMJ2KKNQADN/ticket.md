@@ -8,7 +8,7 @@ points = 2
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T22:28:51Z"
-updated = "2026-10-03T23:27:39Z"
+updated = "2026-10-03T23:27:47Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/**", ".github/workflows/ci.yml", "docs/usage.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given CI on Linux, when it runs, then a job builds real GoogleTest v1.15.2 and Catch2 v3.7.1 test binaries through CMake FetchContent, strips them, and runs goway's detection and sharding against them, so fixtures can never drift from the real frameworks again"
-bound = false
+bound = true
 +++
