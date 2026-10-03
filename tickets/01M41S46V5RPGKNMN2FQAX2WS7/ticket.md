@@ -2,7 +2,8 @@
 id = "01M41S46V5RPGKNMN2FQAX2WS7"
 title = "Raise the in-progress cap to 4: agents build and test on the helpers through goway"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
