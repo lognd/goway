@@ -4,7 +4,7 @@ start = "2026-10-05"
 end = "2026-10-06"
 goal = "goway runs commands natively on Windows: frob-v2's Windows tests and clippy pass through goway --host win"
 state = "planned"
-tickets = ["01M41Q6CX4RRFZT58EE995C0C6", "01M41Q6D3QBJ6N93Q2HPG3XK9R"]
+tickets = ["01M41P2FZ22KC8PJVR9RY6QS01", "01M41Q6CX4RRFZT58EE995C0C6", "01M41Q6D3QBJ6N93Q2HPG3XK9R"]
 created = "2026-10-03T20:27:36Z"
-updated = "2026-10-03T20:34:45Z"
+updated = "2026-10-03T20:34:48Z"
 +++
