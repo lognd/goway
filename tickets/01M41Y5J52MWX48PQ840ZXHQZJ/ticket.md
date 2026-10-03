@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T22:29:16Z"
-updated = "2026-10-03T22:29:16Z"
-scope = ["crates/goway/src/remote.sh", "crates/goway/src/gc.rs", "crates/goway/src/config.rs", "crates/goway/src/status.rs", "crates/goway/src/run.rs", "crates/goway/tests/**", "docs/config.md", "docs/usage.md"]
+updated = "2026-10-03T23:42:27Z"
+scope = ["crates/goway/src/remote.sh", "crates/goway/src/gc.rs", "crates/goway/src/config.rs", "crates/goway/src/status.rs", "crates/goway/src/run.rs", "docs/config.md", "docs/usage.md", "crates/goway/tests/disk_budget.rs"]
 
 [[acceptance]]
 text = "Given max_disk (default the smaller of 20% of the helper's disk and 50 GiB) and min_free (default 10 GiB), when a run or auto-gc finds goway's root over budget or the disk below min_free, then it evicts unlocked entries least recently used first (slot trees with their target and build dirs, seeds of idle worktrees, per-repository caches) until within budget, never touching an entry in use, and says what it freed"
