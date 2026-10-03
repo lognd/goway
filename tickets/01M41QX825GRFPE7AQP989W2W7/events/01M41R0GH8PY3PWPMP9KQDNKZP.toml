@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:41:39Z"
+digest = "f7d28ffd62f9ae151daf07655e6beb4b8f2be6a6739b7b525010b65fe7028eb0"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c628caa5-e01e-40d6-8470-e86061e386ce with nextest profile: default
+    Starting 1 test across 26 binaries (288 tests skipped)
+        PASS [   0.016s] goway doctor::tests::sshd_reload_falls_back_to_the_sshd_unit_and_never_aborts
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.018s] 1 test run: 1 passed, 288 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(sshd_reload_falls_back_to_the_sshd_unit_and_never_aborts)'"
+size = 571
+status = "measured"
+tests = ["doctor::tests::sshd_reload_falls_back_to_the_sshd_unit_and_never_aborts"]
+at = "2026-10-03T20:41:39Z"
+actor = "lognd"
+rev = 1

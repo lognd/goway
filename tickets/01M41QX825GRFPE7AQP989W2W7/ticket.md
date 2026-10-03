@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given the sshd password fix, When it runs on a host whose unit is sshd, Then sshd -t runs first and reload falls back to sshd without aborting later fixes"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway add --lsudo, When sudo is spawned, Then it is /usr/bin/sudo or another root-owned system path, never a PATH lookup"
