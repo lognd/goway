@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [6]
+captured_at = "2026-10-03T21:47:46Z"
+digest = "b451afc741ce5ac9df4322946d825d3c01c4d6f6698720423818a4dbe5560da8"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2302681e-6887-4f1d-abeb-43151b388e3d with nextest profile: default
+    Starting 1 test across 31 binaries (371 tests skipped)
+        PASS [   0.861s] goway::shard_detect a_catch2_binary_that_rejects_only_the_shard_flags_is_rerun_once_and_passes
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.862s] 1 test run: 1 passed, 371 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_catch2_binary_that_rejects_only_the_shard_flags"
+size = 588
+status = "measured"
+tests = ["a_catch2_binary_that_rejects_only_the_shard_flags_is_rerun_once_and_passes"]
+at = "2026-10-03T21:47:46Z"
+actor = "lognd"
+rev = 1
