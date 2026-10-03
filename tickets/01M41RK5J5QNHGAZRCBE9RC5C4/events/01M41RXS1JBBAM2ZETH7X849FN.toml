@@ -1,0 +1,30 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T20:57:38Z"
+digest = "a16b2fe7f98e4ef62c5134fecbfa4842701efe5b11eb66e9f98b6602ac27327e"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.88s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 6286342a-95db-41a1-afb6-bb212209ed48 with nextest profile: default
+    Starting 1 test across 1 binary (18 tests and 26 binaries skipped)
+        PASS [   0.018s] goway-setup::hostsys the_elevated_side_never_writes_or_reads_through_a_link
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.019s] 1 test run: 1 passed, 18 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(hostsys) & (test(never_writes_or_reads_through_a_link) | test(symlink_is_refused))'"
+size = 973
+status = "measured"
+tests = ["the_elevated_side_never_writes_or_reads_through_a_link"]
+at = "2026-10-03T20:57:38Z"
+actor = "lognd"
+rev = 1

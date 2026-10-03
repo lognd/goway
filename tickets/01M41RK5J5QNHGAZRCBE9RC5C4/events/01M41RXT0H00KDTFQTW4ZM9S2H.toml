@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:57:39Z"
+digest = "70e19b5dd72e0c6dfb671a9b26a83161a89512c8543e4114db7af8ce60a948a4"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8238e8ff-01af-41da-bcf1-c5f738d88967 with nextest profile: default
+    Starting 1 test across 1 binary (13 tests and 26 binaries skipped)
+        PASS [   0.230s] goway-setup::elevated a_planted_prior_is_refused_before_anything_is_reverted
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.231s] 1 test run: 1 passed, 13 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(elevated) & test(a_planted_prior)'"
+size = 581
+status = "measured"
+tests = ["a_planted_prior_is_refused_before_anything_is_reverted"]
+at = "2026-10-03T20:57:39Z"
+actor = "lognd"
+rev = 1
