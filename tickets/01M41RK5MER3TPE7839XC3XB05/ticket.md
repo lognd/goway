@@ -2,7 +2,8 @@
 id = "01M41RK5MER3TPE7839XC3XB05"
 title = "Windows installer hygiene and NAT relay hardening: key ACL by SID, local config dir, absolute task paths, private subnet-bound relay target (audit L15 and relay review)"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
