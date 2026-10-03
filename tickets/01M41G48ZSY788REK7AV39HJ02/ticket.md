@@ -10,7 +10,7 @@ reporter = "lognd"
 created = "2026-10-03T18:23:54Z"
 updated = "2026-10-03T18:33:59Z"
 labels = ["security"]
-scope = ["crates/goway/**", "docs/usage.md"]
+scope = ["crates/goway/**", "docs/usage.md", "docs/design.md"]
 
 [[acceptance]]
 text = "Given a job that appends to a tracked file in place, when it runs, then the seed, sibling seeds and other runs keep their content"
