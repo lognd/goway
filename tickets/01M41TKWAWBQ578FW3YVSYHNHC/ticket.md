@@ -2,13 +2,13 @@
 id = "01M41TKWAWBQ578FW3YVSYHNHC"
 title = "Detect GoogleTest and Catch2 test binaries by their embedded flag strings on the helper, so --shard needs no GOWAY_RUNNER"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T21:27:11Z"
-updated = "2026-10-03T21:32:48Z"
+updated = "2026-10-03T21:38:08Z"
 scope = ["crates/goway/src/runners.rs", "crates/goway/src/shard.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/usage.md"]
 
 [[acceptance]]
