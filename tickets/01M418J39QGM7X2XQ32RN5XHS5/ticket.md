@@ -8,8 +8,8 @@ points = 8
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:48:17Z"
-scope = ["crates/goway-setup/**", "docs/install-windows.md", "scripts/windows/**", "crates/goway-journal/**"]
+updated = "2026-10-03T17:18:27Z"
+scope = ["crates/goway-setup/**", "docs/install-windows.md", "scripts/windows/**", "crates/goway-journal/**", "frob.toml"]
 
 [[acceptance]]
 text = "Given a Windows host, when goway-setup install --host then uninstall run in a test profile, then firewall rules, scheduled tasks, .wslconfig and WSL sshd config equal the snapshot from before"
