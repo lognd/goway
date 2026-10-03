@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:51:51Z"
-updated = "2026-10-03T20:59:37Z"
+updated = "2026-10-03T20:59:38Z"
 scope = ["crates/goway-setup/**", "crates/goway-journal/**", "docs/**", "scripts/windows/**", "crates/goway/**"]
 
 [[acceptance]]
@@ -25,5 +25,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a pre-created empty state directory or a leading-dash distro name, when the host install runs, then the directory is replaced and the name refused"
-bound = false
+bound = true
 +++
