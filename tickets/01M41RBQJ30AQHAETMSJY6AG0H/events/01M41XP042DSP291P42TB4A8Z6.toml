@@ -1,0 +1,6 @@
+kind = "comment"
+subtype = "note"
+body = "Lane D: slot_trees gc_removes_an_idle_slot_tree_with_its_cache fails intermittently on main and helpers with 'cannot statx .../cache/...: No such file' (possible gc vs slot race, not only timing). gpu_jobs_lets_several_runs_share_each_gpu depends on 800 ms offsets and failed once under load. The first static-facts probe on a WSL laptop takes about 5 s (powershell.exe), slowing tests with fresh state."
+at = "2026-10-03T22:20:46Z"
+actor = "lognd"
+rev = 1
