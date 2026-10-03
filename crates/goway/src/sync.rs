@@ -191,7 +191,12 @@ pub fn file_set(root: &Path, secrets: &Secrets) -> Result<FileSet> {
     let mut set = FileSet::default();
     let mut checked = BTreeMap::new();
     for raw in out.stdout.split(|b| *b == 0).filter(|p| !p.is_empty()) {
-        let path = String::from_utf8_lossy(raw).into_owned();
+        let Ok(path) = String::from_utf8(raw.to_vec()) else {
+            return Err(Error::Usage(format!(
+                "`{}` has a file name that is not valid UTF-8; goway cannot copy it faithfully (rename it or add it to .gitignore)",
+                String::from_utf8_lossy(raw)
+            )));
+        };
         if !seen.insert(path.clone()) {
             continue;
         }
@@ -836,6 +841,18 @@ mod tests {
         .collect();
         assert!(with_env.contains(&"sub/.env".to_owned()));
         assert!(with_env.contains(&".env.local".to_owned()));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_non_utf8_file_name_fails_loudly() {
+        use std::os::unix::ffi::OsStrExt as _;
+        let dir = tempfile::tempdir().unwrap();
+        init(dir.path());
+        let name = std::ffi::OsStr::from_bytes(b"bad\xff.rs");
+        std::fs::write(dir.path().join(name), "x").unwrap();
+        let e = file_set(dir.path(), &Secrets::default()).unwrap_err();
+        assert!(e.to_string().contains("not valid UTF-8"), "{e}");
     }
 
     #[test]

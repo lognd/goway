@@ -369,13 +369,35 @@ pub fn remove_host(path: &Path, name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Write via a temp file and rename so readers never see half a file.
+/// Write via a fresh temp file and rename, so readers never see half a
+/// file; flushed to disk before the rename. A new file is owner-only
+/// (0600) on Unix; an existing file keeps its mode.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    use std::io::Write as _;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| Error::io("create", dir, e))?;
     }
-    let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
-    std::fs::write(&tmp, bytes).map_err(|e| Error::io("write", &tmp, e))?;
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.subsec_nanos());
+    let tmp = path.with_extension(format!("tmp.{}.{nanos}", std::process::id()));
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    // An existing file keeps its mode (edits and undo leave it as it was).
+    let existing = std::fs::metadata(path).ok().map(|m| m.permissions());
+    let written = options.open(&tmp).and_then(|mut f| {
+        f.write_all(bytes)?;
+        if let Some(perms) = existing {
+            f.set_permissions(perms)?;
+        }
+        f.sync_all()
+    });
+    if let Err(e) = written {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(Error::io("write", &tmp, e));
+    }
     std::fs::rename(&tmp, path).map_err(|e| Error::io("rename", path, e))
 }
 
@@ -508,6 +530,30 @@ user = "user"
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.starts_with("# my pool\n"), "{text}");
         assert!(text.contains("[[host]]\nname = \"q\""), "{text}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn writes_are_private_and_leave_no_temp_files() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("known_hosts");
+        write_atomic(&path, b"one").unwrap();
+        write_atomic(&path, b"two").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "two");
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+        let shared = dir.path().join("config.toml");
+        std::fs::write(&shared, "a").unwrap();
+        std::fs::set_permissions(&shared, std::fs::Permissions::from_mode(0o644)).unwrap();
+        write_atomic(&shared, b"b").unwrap();
+        assert_eq!(
+            std::fs::metadata(&shared).unwrap().permissions().mode() & 0o777,
+            0o644
+        );
     }
 
     #[test]

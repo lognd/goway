@@ -117,6 +117,11 @@ pub fn args(target: &Target, settings: &Settings, policy: KeyPolicy) -> Vec<OsSt
         opts.push("ControlMaster=auto".to_owned());
         opts.push(format!("ControlPath={}", option_value(&dir.join("%C"))));
         opts.push("ControlPersist=60s".to_owned());
+    } else {
+        // Off means off: never reuse a connection from the user's config
+        // (a key-only check must not ride a password-authenticated master).
+        opts.push("ControlMaster=no".to_owned());
+        opts.push("ControlPath=none".to_owned());
     }
     let mut out: Vec<OsString> = Vec::new();
     for o in opts {
@@ -142,10 +147,15 @@ pub fn args(target: &Target, settings: &Settings, policy: KeyPolicy) -> Vec<OsSt
 
 /// An ssh command running `remote` (a shell command line) on `target`.
 pub fn command(target: &Target, settings: &Settings, policy: KeyPolicy, remote: &str) -> Command {
-    if let Some(dir) = &settings.control_dir
-        && let Err(e) = std::fs::create_dir_all(dir)
-    {
-        tracing::warn!(dir = %dir.display(), error = %e, "cannot create ssh control dir");
+    if let Some(dir) = &settings.control_dir {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            tracing::warn!(dir = %dir.display(), error = %e, "cannot create ssh control dir");
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
+        }
     }
     if let Some(dir) = settings.known_hosts.parent()
         && let Err(e) = std::fs::create_dir_all(dir)
@@ -398,6 +408,27 @@ mod tests {
         );
         let cleared = cmd.get_envs().count() >= names.len();
         assert!(cleared);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn control_dir_is_private_and_off_means_no_reuse() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = tempfile::tempdir().unwrap();
+        let control = dir.path().join("ssh");
+        let mut s = settings();
+        s.control_dir = Some(control.clone());
+        let _ = command(&target(), &s, KeyPolicy::Strict, "true");
+        assert_eq!(
+            std::fs::metadata(&control).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        s.control_dir = None;
+        let a = strings(&args(&target(), &s, KeyPolicy::Strict));
+        assert!(
+            a.contains(&"ControlPath=none".to_owned())
+                && a.contains(&"ControlMaster=no".to_owned())
+        );
     }
 
     #[test]

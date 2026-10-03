@@ -199,6 +199,10 @@ pub struct SshSetupArgs {
     /// For a new host: the remote user.
     #[arg(long, conflicts_with = "undo")]
     pub user: Option<String>,
+    /// The public key to authorize (a `.pub` file); default: the ssh
+    /// agent's first key, else your default identity, else a new goway key.
+    #[arg(long, value_name = "FILE.pub", conflicts_with = "undo")]
+    pub key: Option<std::path::PathBuf>,
     /// For a new host: the host key fingerprint to trust (`SHA256:...`);
     /// without it goway asks you to confirm the key before any password.
     #[arg(long, value_name = "SHA256:...", conflicts_with = "undo")]

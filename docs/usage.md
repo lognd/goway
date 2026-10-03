@@ -143,9 +143,10 @@ Checks:
 
 Each problem comes with the exact command that fixes it. `--fix` runs
 the user-level fixes as your ordinary user:
-- rustup
-- the prebuilt nextest
-- the prebuilt sccache release
+- rustup, from its official installer
+- cargo-nextest, a pinned release verified by sha256 before it is
+  unpacked
+- sccache, a pinned release verified the same way
 
 Fixes that need root (system packages, sshd config) are never run
 silently. goway lists each one with the reason and asks you to rerun

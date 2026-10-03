@@ -18,7 +18,8 @@ chmods, and it can be undone.
    happens **before any password is asked for**, so an impostor
    answering for the name never sees your password. If key login
    already works, setup says so and only pins the confirmed key.
-2. **Pick a public key**, without ever reading private keys:
+2. **Pick a public key**, without ever reading private keys
+   (`--key FILE.pub` chooses one; only `.pub` files are accepted):
    - the ssh agent's first key (`ssh-add -L`), else
    - the first default identity (from `ssh -G`) that has a `.pub`
      next to it, else

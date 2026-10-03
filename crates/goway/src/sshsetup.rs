@@ -107,6 +107,30 @@ pub fn existing_public_key(address: &str, port: u16) -> Option<String> {
     })
 }
 
+/// Read the public key the user chose with `--key`. Only `.pub` files are
+/// read, so a private key is never opened by mistake.
+fn read_public_key(host: &str, path: &Path) -> Result<String> {
+    if path.extension().is_none_or(|e| e != "pub") {
+        return Err(setup_err(
+            host,
+            format!(
+                "--key must name a public key file ending in .pub, not {}",
+                path.display()
+            ),
+        ));
+    }
+    let text = std::fs::read_to_string(path).map_err(|e| Error::io("read", path, e))?;
+    let line = text.lines().next().unwrap_or_default().trim().to_owned();
+    if line.starts_with("ssh-") || line.starts_with("ecdsa-") || line.starts_with("sk-") {
+        Ok(line)
+    } else {
+        Err(setup_err(
+            host,
+            format!("{} is not an ssh public key", path.display()),
+        ))
+    }
+}
+
 /// The `icacls` arguments that leave only `user` on a private key.
 pub fn icacls_args(path: &Path, user: &str) -> Vec<String> {
     vec![
@@ -263,37 +287,40 @@ pub fn setup(
 
     // 1. The key.
     let mut local = Journal::generate();
-    let (public_key, identity) =
-        if let Some(key) = existing_public_key(&target.address, target.port) {
-            renderer.note(format_args!("using your existing key {}", key_blob(&key)));
-            (key, None)
-        } else {
-            let private = paths.config_dir.join("id_ed25519");
-            let comment = format!("goway@{}", crate::repo::client_name());
-            let plan = [
-                Change::EnsureDir {
-                    path: paths.config_dir.clone(),
-                },
-                Change::EnsureResource {
-                    kind: ResourceKind::SshKeyPair,
-                    name: private.to_string_lossy().into_owned(),
-                    spec: comment,
-                },
-            ];
-            local = goway_journal::apply(&plan, &mut LocalSystem).map_err(|e| sys_err(name, e))?;
-            restrict_key_acl(&private, renderer);
-            renderer.note(format_args!(
-                "created goway's own key {}",
-                private.display()
-            ));
-            let mut public = private.as_os_str().to_owned();
-            public.push(".pub");
-            let key = std::fs::read_to_string(PathBuf::from(public))
-                .map_err(|e| Error::io("read", &private, e))?
-                .trim()
-                .to_owned();
-            (key, Some(private.to_string_lossy().into_owned()))
-        };
+    let chosen = match &args.key {
+        Some(path) => Some(read_public_key(name, path)?),
+        None => existing_public_key(&target.address, target.port),
+    };
+    let (public_key, identity) = if let Some(key) = chosen {
+        renderer.note(format_args!("using your existing key {}", key_blob(&key)));
+        (key, None)
+    } else {
+        let private = paths.config_dir.join("id_ed25519");
+        let comment = format!("goway@{}", crate::repo::client_name());
+        let plan = [
+            Change::EnsureDir {
+                path: paths.config_dir.clone(),
+            },
+            Change::EnsureResource {
+                kind: ResourceKind::SshKeyPair,
+                name: private.to_string_lossy().into_owned(),
+                spec: comment,
+            },
+        ];
+        local = goway_journal::apply(&plan, &mut LocalSystem).map_err(|e| sys_err(name, e))?;
+        restrict_key_acl(&private, renderer);
+        renderer.note(format_args!(
+            "created goway's own key {}",
+            private.display()
+        ));
+        let mut public = private.as_os_str().to_owned();
+        public.push(".pub");
+        let key = std::fs::read_to_string(PathBuf::from(public))
+            .map_err(|e| Error::io("read", &private, e))?
+            .trim()
+            .to_owned();
+        (key, Some(private.to_string_lossy().into_owned()))
+    };
 
     // 2. One password login: check the machine, then authorize the key.
     renderer.note(format_args!(
@@ -355,8 +382,13 @@ pub fn setup(
         identity: identity.as_ref().map(PathBuf::from),
         ..target.clone()
     };
+    // A fresh connection: the password login's multiplexed master must not
+    // make the key-only check pass.
     let verified = SshProber {
-        settings: settings.clone(),
+        settings: ssh::Settings {
+            control_dir: None,
+            ..settings.clone()
+        },
     }
     .probe(&check_target, KeyPolicy::Strict, "true")
     .is_ok();
@@ -482,6 +514,24 @@ mod tests {
                 "user:F"
             ]
         );
+    }
+
+    #[test]
+    fn only_pub_files_are_read_as_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let private = dir.path().join("id_ed25519");
+        std::fs::write(&private, "PRIVATE MATERIAL").unwrap();
+        let e = read_public_key("h", &private).unwrap_err();
+        assert!(e.to_string().contains(".pub"), "{e}");
+        let public = dir.path().join("id_ed25519.pub");
+        std::fs::write(&public, "ssh-ed25519 AAAA me@x\n").unwrap();
+        assert_eq!(
+            read_public_key("h", &public).unwrap(),
+            "ssh-ed25519 AAAA me@x"
+        );
+        let junk = dir.path().join("junk.pub");
+        std::fs::write(&junk, "hello").unwrap();
+        assert!(read_public_key("h", &junk).is_err());
     }
 
     #[test]
