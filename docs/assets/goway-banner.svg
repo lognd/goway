@@ -30,21 +30,21 @@
   </defs>
 
   <rect width="1200" height="320" fill="url(#bg)"/>
-  <circle cx="150" cy="160" r="150" fill="url(#glowGo)"/>
+  <circle cx="140" cy="160" r="150" fill="url(#glowGo)"/>
   <circle cx="420" cy="160" r="170" fill="url(#glowDone)"/>
 
   <!-- main laptop -->
-  <g transform="translate(70,112)">
-    <rect x="0" y="0" width="140" height="88" rx="10" fill="url(#mainFill)"/>
-    <rect x="10" y="10" width="120" height="68" rx="5" fill="#0d1117"/>
-    <text x="70" y="40" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="15" fill="#79c0ff">$ goway run</text>
-    <text x="70" y="59" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="15" fill="#c9d1d9">-- cargo test</text>
-    <path d="M-12 96 H152 L140 108 H0 Z" fill="#1f6feb"/>
+  <g transform="translate(60,112)">
+    <rect x="0" y="0" width="160" height="88" rx="10" fill="url(#mainFill)"/>
+    <rect x="10" y="10" width="140" height="68" rx="5" fill="#0d1117"/>
+    <text x="21" y="40" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="13" fill="#79c0ff">$ goway run \</text>
+    <text x="21" y="59" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace" font-size="13" fill="#79c0ff">  -- cargo test</text>
+    <path d="M-12 96 H172 L160 108 H0 Z" fill="#1f6feb"/>
   </g>
 
   <!-- arrows -->
-  <path d="M232 140 C 280 110, 300 92, 336 86" stroke="#8b949e" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
-  <path d="M232 180 C 280 210, 300 228, 336 234" stroke="#8b949e" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M232 148 C 296 148, 272 79, 336 79" stroke="#8b949e" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M232 164 C 296 164, 272 225, 336 225" stroke="#8b949e" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
 
   <!-- helper laptops -->
   <g transform="translate(350,44)">

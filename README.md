@@ -35,6 +35,12 @@ All of them must be on the same network.
 | **Linux** (Ubuntu, Debian, Fedora, Arch, ...) | yes: one command ([Linux and WSL](#main-laptop-linux-or-wsl)) | yes: a few manual steps ([Linux](#helper-linux)) |
 | **macOS** | experimental: build from source ([macOS](#main-laptop-macos-experimental)) | no: goway's helper side needs Linux tools macOS lacks |
 
+**Downloads:** every version's ready-made files (`goway-setup.exe`,
+the Linux programs, `install.sh` and the checksums) are on the
+[Releases page](https://github.com/lognd/goway/releases). The newest
+one is always at
+[releases/latest](https://github.com/lognd/goway/releases/latest).
+
 On your main laptop, one command installs goway:
 
 ```bash
@@ -43,7 +49,7 @@ curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | 
 ```
 
 ```powershell
-# Windows without WSL (download goway-setup.exe from the latest release first)
+# Windows without WSL (download goway-setup.exe from the Releases page first)
 .\goway-setup.exe install
 ```
 
