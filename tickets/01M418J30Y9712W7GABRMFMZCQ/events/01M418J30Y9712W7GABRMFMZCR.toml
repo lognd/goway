@@ -1,0 +1,12 @@
+kind = "create"
+title = "goway status: hosts, load, jobs and disk"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 2
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/**", "docs/**"]
+acceptance = ["Given configured hosts, when goway status runs, then each host shows address, cores, load, running jobs and disk used, unreachable ones marked"]
+at = "2026-10-03T16:11:38Z"
+actor = "lognd"
+rev = 1
