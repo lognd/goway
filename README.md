@@ -24,7 +24,9 @@ and coreutils. goway installs nothing on it and runs no daemon.
 
 ## Install
 
-- Linux / WSL: `cargo install --locked --path crates/goway`
+- Linux / WSL: `scripts/install.sh` (per user, into `~/.local/bin`;
+  `scripts/uninstall.sh` reverses exactly what it changed; see
+  docs/install-linux.md)
 - Windows: `goway-setup.exe install` (per user; `uninstall` reverses
   every change; see docs/install-windows.md). Build it with
   `scripts/windows/build.sh`.
@@ -34,7 +36,8 @@ and coreutils. goway installs nothing on it and runs no daemon.
 - docs/usage.md: run, status, gc and doctor; exit codes; what is sent
 - docs/hosts.md: host identity, address resolution, `host add`
 - docs/config.md: config file, paths, environment variables
-- docs/install-windows.md: the Windows installer and uninstaller
+- docs/install-linux.md, docs/install-windows.md: installers and
+  uninstallers
 - docs/positioning.md: goway's niche and how it coexists with other
   build systems
 - docs/design.md: the problem tree; docs/prior-art.md: what exists
