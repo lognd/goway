@@ -41,6 +41,8 @@ pub struct Cli {
 pub enum Command {
     /// Add a helper laptop: key login, pinned identity, toolchain, all in one.
     Add(AddArgs),
+    /// Remove everything goway added, on every helper and on this laptop.
+    Uninstall(UninstallArgs),
     /// Sync the work tree and run a command on a pool host.
     Run(RunArgs),
     /// Show hosts, load, running jobs and disk used by goway.
@@ -65,6 +67,7 @@ impl Command {
     pub fn verb(&self) -> &'static str {
         match self {
             Self::Add(_) => "add",
+            Self::Uninstall(_) => "uninstall",
             Self::Run(_) => "run",
             Self::Status => "status",
             Self::Gc(_) => "gc",
@@ -140,8 +143,27 @@ pub struct DoctorArgs {
     pub yes: bool,
 }
 
+/// Arguments of `goway uninstall`.
+#[derive(Debug, Args)]
+#[allow(clippy::struct_excessive_bools)] // independent command-line switches
+pub struct UninstallArgs {
+    /// Remove it everywhere without asking (otherwise: list, then ask).
+    #[arg(long)]
+    pub everywhere: bool,
+    /// Answer yes to the questions.
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+    /// Only list what would be removed.
+    #[arg(long)]
+    pub dry_run: bool,
+    /// Also undo goway's administrator changes on helpers (one sudo session each).
+    #[arg(long)]
+    pub rsudo: bool,
+}
+
 /// Arguments of `goway add`.
 #[derive(Debug, Args)]
+#[allow(clippy::struct_excessive_bools)] // independent command-line switches
 pub struct AddArgs {
     /// The helper's name (its Windows device name works, e.g. Helios).
     #[arg(value_parser = host_name)]

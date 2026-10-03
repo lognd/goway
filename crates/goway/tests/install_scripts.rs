@@ -145,3 +145,27 @@ fn a_prefix_that_could_run_code_is_refused() {
     assert!(!home.path().join(".profile").exists());
     assert!(!home.path().join("pwned").exists());
 }
+
+// frob:tests crates/goway/src/uninstall.rs::revert_install_journal
+#[test]
+fn goway_uninstall_reverts_the_install_journal_exactly() {
+    let home = tempfile::tempdir().unwrap();
+    let profile = home.path().join(".profile");
+    std::fs::write(&profile, "export EDITOR=vi").unwrap();
+    let before = snapshot(home.path());
+    run("install.sh", home.path(), SYS_PATH);
+    let installed = home.path().join(".local/bin/goway");
+    let out = Command::new(&installed)
+        .args(["--color", "never", "uninstall", "--everywhere"])
+        .env_clear()
+        .env("HOME", home.path())
+        .env("PATH", SYS_PATH)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(snapshot(home.path()), before, "home restored exactly");
+}

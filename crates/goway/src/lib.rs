@@ -23,6 +23,7 @@ pub mod sshsetup;
 pub mod state;
 pub mod status;
 pub mod sync;
+pub mod uninstall;
 
 use std::process::ExitCode;
 
@@ -71,6 +72,19 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
         Command::Add(args) => {
             let settings = ssh::Settings::from_paths(&paths);
             add::add(
+                &paths,
+                renderer,
+                args,
+                &resolve::SystemLookup,
+                &resolve::SshProber {
+                    settings: settings.clone(),
+                },
+                &settings,
+            )
+        }
+        Command::Uninstall(args) => {
+            let settings = ssh::Settings::from_paths(&paths);
+            uninstall::uninstall(
                 &paths,
                 renderer,
                 args,

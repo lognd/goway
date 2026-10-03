@@ -146,6 +146,33 @@ touched. gc removes only entries goway labelled itself, and only under a
 root that carries goway's `.goway-root` marker. Anything else you put
 there is left alone and reported as `unlabelled`.
 
+## Uninstall
+
+```
+goway uninstall                 # lists what it would remove everywhere, then asks
+goway uninstall --everywhere    # does it without asking
+goway uninstall --dry-run       # only lists
+```
+
+On every helper this removes:
+- goway's state directory (refused while a run is in progress)
+- the tools goway installed there (cargo-nextest, sccache, and rustup if
+  goway installed it)
+- goway's key line in `~/.ssh/authorized_keys`, with the previous modes
+  restored
+
+Administrator-level changes (the "no password login" setting) are
+undone with `--rsudo`, after one question. System packages goway
+installed, such as the C compiler, stay, because other software may
+use them; goway lists them with their removal command. If a helper is
+off, nothing on this laptop is removed, so you can run it again later.
+
+On this laptop it then removes goway's config, keys and state, and
+finally the goway program and its PATH line, using the install record.
+On Windows, remove the program in Settings > Apps. On each helper
+laptop, its own uninstall entry in Settings > Apps removes the helper
+setup.
+
 ## Doctor
 
 ```

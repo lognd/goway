@@ -417,9 +417,9 @@ pub fn apply_fixes(
 }
 
 /// Real fix runner: ssh to the found host, `sudo` with a tty when needed.
-struct SshFixRunner<'a> {
-    found: &'a Found,
-    settings: &'a ssh::Settings,
+pub(crate) struct SshFixRunner<'a> {
+    pub(crate) found: &'a Found,
+    pub(crate) settings: &'a ssh::Settings,
 }
 
 impl FixRunner for SshFixRunner<'_> {
@@ -494,8 +494,74 @@ fn report(
 }
 
 /// Tell the user what `--fix` did and which root fixes still need sudo.
+/// Something `doctor --fix` installed on a host, and how to take it back.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Installed {
+    /// The check it fixed (`cargo`, `cargo-nextest`, ...).
+    pub check: String,
+    /// The command that removes it again, if goway removes it.
+    pub undo: Option<String>,
+    /// Whether the undo needs root.
+    pub root: bool,
+}
+
+/// How to take back the fix of `check`; `None` for system packages, which
+/// other software may have come to rely on (they are listed instead).
+pub fn undo_of(check: &str) -> Option<(String, bool)> {
+    match check {
+        "cargo" => Some((format!("{CARGO_BIN}/rustup self uninstall -y"), false)),
+        "cargo-nextest" => Some((format!("rm -f {CARGO_BIN}/cargo-nextest"), false)),
+        "sccache" => Some((format!("rm -f {CARGO_BIN}/sccache"), false)),
+        "sshd password login" => Some((
+            "rm -f /etc/ssh/sshd_config.d/10-goway-keys-only.conf && systemctl reload ssh"
+                .to_owned(),
+            true,
+        )),
+        _ => None,
+    }
+}
+
+/// Where the record of what goway installed on `host` lives.
+pub fn installed_path(paths: &Paths, host: &str) -> std::path::PathBuf {
+    paths
+        .config_dir
+        .join(format!("installed-{}.json", host.to_ascii_lowercase()))
+}
+
+/// Load the record of what goway installed on `host` (empty if none).
+pub fn load_installed(paths: &Paths, host: &str) -> Vec<Installed> {
+    std::fs::read_to_string(installed_path(paths, host))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+/// Add the checks whose fixes just ran to the host's record.
+fn record_installed(paths: &Paths, host: &str, checks: &[Check], done: &[String]) -> Result<()> {
+    let mut items = load_installed(paths, host);
+    let before = items.len();
+    for c in checks {
+        let ran = c.fix.as_ref().is_some_and(|f| done.contains(&f.command));
+        if ran && !items.iter().any(|i| i.check == c.name) {
+            let (undo, root) = undo_of(&c.name).map_or((None, false), |(u, r)| (Some(u), r));
+            items.push(Installed {
+                check: c.name.clone(),
+                undo,
+                root,
+            });
+        }
+    }
+    if items.len() == before {
+        return Ok(());
+    }
+    let text = serde_json::to_string_pretty(&items).map_err(|e| Error::Usage(e.to_string()))?;
+    crate::config::write_atomic(&installed_path(paths, host), text.as_bytes())?;
+    tracing::info!(host, items = items.len(), "recorded what doctor installed");
+    Ok(())
+}
+
 /// List the root fixes with their reasons and ask once (or accept with --yes).
-fn confirm_root(renderer: Renderer, host: &str, fixes: &[Fix], yes: bool) -> bool {
+pub(crate) fn confirm_root(renderer: Renderer, host: &str, fixes: &[Fix], yes: bool) -> bool {
     renderer.headline(format_args!(
         "{} change(s) on {host} need administrator rights:",
         fixes.len()
@@ -610,6 +676,12 @@ pub fn doctor(
             let confirm = |fixes: &[Fix]| confirm_root(renderer, &host.name, fixes, args.yes);
             let applied = apply_fixes(&checks, args.rsudo, &confirm, &runner);
             show_applied(renderer, host, &applied);
+            if let Err(e) = record_installed(paths, &host.name, &checks, &applied.done) {
+                renderer.warn(format_args!(
+                    "cannot record what was installed on {}: {e}",
+                    host.name
+                ));
+            }
             if !applied.done.is_empty() || !applied.failed.is_empty() {
                 // Re-check after fixing.
                 let mut local = state.clone();

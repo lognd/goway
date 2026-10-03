@@ -292,3 +292,71 @@ fn add_registers_a_new_helper_in_one_command_and_is_idempotent() {
         "the config is not touched again"
     );
 }
+
+// frob:tests crates/goway/src/uninstall.rs::uninstall
+#[test]
+fn uninstall_everywhere_removes_goway_from_helper_and_laptop() {
+    let s = setup_world();
+    // A pool with no hosts yet, as a newcomer starts.
+    let remote = s.w.remote.display().to_string();
+    std::fs::write(
+        s.w.config.join("config.toml"),
+        format!("[defaults]\nremote_root = \"{remote}\"\n"),
+    )
+    .unwrap();
+    let home_before = snapshot(&s.home);
+    let fp = fake_fingerprint();
+    let added = s.run(&[
+        "add",
+        "newbox",
+        "--address",
+        "127.0.0.1",
+        "--fingerprint",
+        &fp,
+    ]);
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+    assert!(
+        s.run(&["run", "--host", "newbox", "--", "true"])
+            .status
+            .success()
+    );
+    assert!(s.w.remote.join(".goway-root").exists());
+
+    // Without --everywhere and without a terminal: list, remove nothing.
+    let asked = s.run(&["uninstall"]);
+    let listing = String::from_utf8_lossy(&asked.stdout).into_owned();
+    assert!(
+        listing.contains("on newbox:") && listing.contains("on this laptop:"),
+        "{listing}"
+    );
+    assert!(String::from_utf8_lossy(&asked.stderr).contains("nothing was removed"));
+    assert!(s.w.remote.exists());
+
+    let out = s.run(&["uninstall", "--everywhere"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!s.w.remote.exists(), "goway's remote state is gone");
+    // The fake helper shares this laptop's PATH, so the doctor's version
+    // probe runs the local rustup with an empty home and it creates
+    // ~/.rustup; a real helper has its own toolchain. Not goway's change.
+    let mut home_after = snapshot(&s.home);
+    home_after.retain(|k, _| !k.starts_with(".rustup"));
+    assert_eq!(home_after, home_before, "the helper's ~/.ssh is as before");
+    let left: Vec<String> = std::fs::read_dir(&s.w.config)
+        .map(|d| {
+            d.map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(
+        left.is_empty(),
+        "goway files left in its config dir: {left:?}"
+    );
+}

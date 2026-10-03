@@ -440,7 +440,7 @@ fn local_marker() -> String {
 
 /// Revert a recorded setup: host side first (while the key still works),
 /// then goway's key, then the config entries.
-fn undo(paths: &Paths, renderer: Renderer, name: &str) -> Result<u8> {
+pub(crate) fn undo(paths: &Paths, renderer: Renderer, name: &str) -> Result<u8> {
     let record_file = record_path(paths, name);
     let text = std::fs::read_to_string(&record_file).map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {

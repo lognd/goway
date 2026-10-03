@@ -2,6 +2,7 @@
 
     scripts/install.sh      # builds with cargo (release) and installs
     scripts/uninstall.sh    # removes exactly what install added
+    goway uninstall         # removes goway everywhere: helpers, config, then the program
 
 Install puts the binary at `~/.local/bin/goway` (`GOWAY_PREFIX`
 overrides `~/.local`). If that directory is not on `PATH` yet, it
