@@ -1,0 +1,81 @@
+[check]
+# Lowest severity that makes `frob check` exit 1; `none` never fails.
+fail_on = "error"
+# Which Unresolved findings fail the gate: `required`, `never` or `all`.
+fail_on_unresolved = "required"
+# Ref the diff of a `--ticket` run (SCOPE001, TICK002) is taken against.
+base = "main"
+# Wall-clock bound in seconds of one sibling `check --json` run (sibling-contract.md section 7).
+sibling_timeout_secs = 120
+# When true an unusable configured sibling is a required Unresolved (`SIB001`).
+require_siblings = true
+
+[compute]
+# How an unannotated public signature is treated (`warn-unresolved` or `required`).
+public_signatures = "warn-unresolved"
+# How an undeclared effect is treated.
+effects = "warn-unresolved"
+# How a dynamic call is treated.
+dynamic_calls = "warn-unresolved"
+# The macro and template expansion step budget.
+expansion_steps = 1000
+# How an unnormalizable construct is treated.
+normalization = "warn-unresolved"
+# How a notebook with an undeclared cell order is treated.
+notebook_order = "warn-unresolved"
+
+[directives]
+# Comment namespaces the scanner reads; comments in any other are ignored.
+namespaces = ["frob", "grimble", "crunk"]
+
+[evidence]
+# Identities (git `user.email`) that may attest a criterion; `frob init` and `config sync` write the repository owner's email, and an empty list means nobody may.
+attesters = ["181419926+lognd@users.noreply.github.com"]
+
+[git]
+# Compare-and-swap retries when moving a ledger ref.
+cas_retries = 5
+
+[pm]
+# Pull policy; `rank` takes the highest-ranked doable ticket, the only policy so far and the scrumban default.
+pull = "rank"
+# Replenishment order point: PM033 advises planning when ready tickets fall below this (default twice the repository WIP limit, so the queue never starves a full WIP).
+ready_min = 4
+# Definition of ready: predicates a ticket must satisfy to enter `ready`; the default is the full list of pm-enforcement.md section 3 so no ill-formed goal is pulled.
+ready_requires = ["story_or_objective_qualified", "criteria", "points", "scope", "parent"]
+# Definition of done: predicates checked on close and land; the default lists the three evaluable ones (`criteria_evidenced`, `no_open_children`, `changelog_fragment`); `docs_touched_or_excepted` and `objective_target_met` exist but refuse as Unresolved until they can be evaluated, so listing them is an explicit choice.
+done_requires = ["criteria_evidenced", "no_open_children", "changelog_fragment"]
+# Days per cycle when a cycle is created without an explicit end; one week is the usual scrumban review cadence.
+cycle_days = 2
+# Completed cycles needed before capacity and forecasts are enforced; below it they report Unresolved, so a fresh repository never needs an over-commit.
+min_history = 3
+# Safety factor k in `capacity = rolling_mean - k * stddev` for cycle commitment; 0.5 trades a little throughput for commitments that are usually met.
+capacity_k = 0.5
+
+[pm.classes]
+# Expedite tickets that may exceed the repository WIP limit at once; 1 lets one critical fix through without opening the floodgates.
+expedite_max = 1
+# Largest share (0.0 to 1.0) of a cycle's points that intangible work (chores, debt) may take, checked by PM035; 0.2 keeps upkeep from crowding out features.
+intangible_share = 0.2
+
+[pm.wip]
+# Most tickets one holder (actor plus worktree path) may have in progress; 1 makes an agent finish before starting another, 0 is off.
+in_progress_per_identity = 1
+# Most tickets in progress in the repository at once, sized to what the machine can build; the default 2 matches the two-builder rule, and 0 is off.
+in_progress = 2
+
+[release]
+# When true, a CI result that cannot be read (no checks, `gh` missing or unauthenticated, no network, non-GitHub remote) blocks the release like a red one; false reports it as Unresolved only. Unknown is never treated as green.
+require_ci = true
+# Tag name pattern of a release: `{version}` is required, `{product}` is replaced by each product name (one tag per product).
+tag = "v{version}"
+# Products a release ships, one tag each; empty means one product named after the repository.
+products = []
+# Products that ship as a preview: their tag message and changelog heading carry " (preview)".
+preview = []
+
+[tickets]
+# Ref holding the ledger; the ledger merge driver and `doctor` resolve it.
+ref = "refs/heads/main"
+# `trunk` commits to `ref`; `branch` commits to the checked-out branch.
+ref_mode = "trunk"
