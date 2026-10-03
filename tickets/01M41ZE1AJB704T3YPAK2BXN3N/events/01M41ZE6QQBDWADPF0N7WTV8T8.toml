@@ -1,0 +1,7 @@
+kind = "field"
+field = "title"
+old = "CI: copy_integrity tests are Unix-only; the shares note lists hosts in a random order"
+new = "Shares note lists hosts in a random order, so the weighted sharding test is flaky"
+at = "2026-10-03T22:51:28Z"
+actor = "lognd"
+rev = 1
