@@ -2,7 +2,7 @@
 id = "01M421JZEKNNR41FFNAXQ6C1D9"
 title = "Release on goway-v* tags (protected environments), check the tag matches the Cargo version, publish to both crates.io and PyPI"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
