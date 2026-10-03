@@ -2,7 +2,8 @@
 id = "01M41AV1FXKNJQD47M4YCXEWYB"
 title = "Coexistence contract: never override other build systems' settings"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
