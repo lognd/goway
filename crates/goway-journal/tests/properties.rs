@@ -2,8 +2,11 @@
 
 use std::path::PathBuf;
 
-use goway_journal::{Change, ListPosition, ModelSystem, RegValue, ResourceKind, apply, revert};
+use goway_journal::{
+    Change, Journal, ListPosition, ModelSystem, RegValue, ResourceKind, apply, revert,
+};
 use proptest::prelude::*;
+use proptest::test_runner::{Config, TestRunner};
 
 const FILES: [&str; 4] = ["/t/f0", "/t/f1", "/t/d0/f0", "/t/d0/e0/f0"];
 const DIRS: [&str; 4] = ["/t/d0", "/t/d0/e0", "/t/d1", "/t/d1/e1"];
@@ -165,62 +168,81 @@ fn system() -> impl Strategy<Value = ModelSystem> {
     )
 }
 
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(2000))]
+/// Run `body` over arbitrary (initial system, plan) pairs.
+fn check(body: impl Fn(ModelSystem, Vec<Change>) -> Result<(), TestCaseError>) {
+    let mut runner = TestRunner::new(Config::with_cases(2000));
+    runner
+        .run(&(system(), plan()), |(initial, plan)| body(initial, plan))
+        .unwrap();
+}
 
-    // frob:tests crates/goway-journal/src/apply.rs::apply
-    // frob:tests crates/goway-journal/src/apply.rs::revert
-    // frob:tests crates/goway-journal/src/model.rs::ModelSystem
-    /// Install then uninstall restores the initial system, also when apply fails part-way.
-    #[test]
-    fn revert_after_apply_restores_initial_state(initial in system(), plan in plan()) {
+/// Apply, keeping the journal even when apply fails part-way.
+fn apply_any(sys: &mut ModelSystem, plan: &[Change]) -> Journal {
+    match apply(plan, sys) {
+        Ok(j) => j,
+        Err(e) => *e.journal,
+    }
+}
+
+// frob:tests crates/goway-journal/src/apply.rs::apply
+// frob:tests crates/goway-journal/src/apply.rs::revert
+// frob:tests crates/goway-journal/src/model.rs::ModelSystem
+/// Install then uninstall restores the initial system, also when apply fails part-way.
+#[test]
+fn revert_after_apply_restores_initial_state() {
+    check(|initial, plan| {
         let mut sys = initial.clone();
-        let mut journal = match apply(&plan, &mut sys) {
-            Ok(j) => j,
-            Err(e) => *e.journal,
-        };
+        let mut journal = apply_any(&mut sys, &plan);
         revert(&mut journal, &mut sys).unwrap();
         prop_assert_eq!(sys, initial);
-    }
+        Ok(())
+    });
+}
 
-    /// A second install over the first, then reverting only the second, leaves the first intact.
-    #[test]
-    fn second_apply_revert_keeps_first_install(initial in system(), plan in plan()) {
+/// A second install over the first, then reverting only the second, leaves the first intact.
+#[test]
+fn second_apply_revert_keeps_first_install() {
+    check(|initial, plan| {
         let mut sys = initial;
-        let Ok(_first) = apply(&plan, &mut sys) else { return Ok(()); };
+        if apply(&plan, &mut sys).is_err() {
+            return Ok(());
+        }
         let after_first = sys.clone();
-        let Ok(mut second) = apply(&plan, &mut sys) else { return Ok(()); };
+        let Ok(mut second) = apply(&plan, &mut sys) else {
+            return Ok(());
+        };
         revert(&mut second, &mut sys).unwrap();
         prop_assert_eq!(sys, after_first);
-    }
+        Ok(())
+    });
+}
 
-    /// Reverting a journal twice is harmless.
-    #[test]
-    fn revert_is_idempotent(initial in system(), plan in plan()) {
+/// Reverting a journal twice is harmless.
+#[test]
+fn revert_is_idempotent() {
+    check(|initial, plan| {
         let mut sys = initial.clone();
-        let mut journal = match apply(&plan, &mut sys) {
-            Ok(j) => j,
-            Err(e) => *e.journal,
-        };
+        let mut journal = apply_any(&mut sys, &plan);
         revert(&mut journal, &mut sys).unwrap();
         let once = sys.clone();
         revert(&mut journal, &mut sys).unwrap();
         prop_assert_eq!(&sys, &once);
         prop_assert_eq!(sys, initial);
-    }
+        Ok(())
+    });
+}
 
-    /// A journal survives a JSON round trip unchanged and still reverts.
-    #[test]
-    fn journal_json_round_trips(initial in system(), plan in plan()) {
+/// A journal survives a JSON round trip unchanged and still reverts.
+#[test]
+fn journal_json_round_trips() {
+    check(|initial, plan| {
         let mut sys = initial.clone();
-        let journal = match apply(&plan, &mut sys) {
-            Ok(j) => j,
-            Err(e) => *e.journal,
-        };
+        let journal = apply_any(&mut sys, &plan);
         let json = serde_json::to_string(&journal).unwrap();
-        let mut back: goway_journal::Journal = serde_json::from_str(&json).unwrap();
+        let mut back: Journal = serde_json::from_str(&json).unwrap();
         prop_assert_eq!(&back, &journal);
         revert(&mut back, &mut sys).unwrap();
         prop_assert_eq!(sys, initial);
-    }
+        Ok(())
+    });
 }
