@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T16:30:49Z"
+digest = "7204e1b5c2983a3de524947f06c8c35e07c6a1c9c1aba73c9441cba115212443"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 77da15ee-64c6-4700-b2db-226948c838b8 with nextest profile: default
+    Starting 2 tests across 8 binaries (75 tests skipped)
+        PASS [   0.007s] goway sync::tests::env_file_detection
+        PASS [   0.041s] goway sync::tests::file_set_is_the_user_visible_tree
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.042s] 2 tests run: 2 passed, 75 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(file_set_is_the_user_visible_tree) | test(env_file_detection)'"
+size = 608
+status = "measured"
+tests = ["sync::tests::env_file_detection", "sync::tests::file_set_is_the_user_visible_tree"]
+at = "2026-10-03T16:30:49Z"
+actor = "lognd"
+rev = 1

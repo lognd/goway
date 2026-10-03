@@ -6,11 +6,14 @@ pub mod config;
 pub mod error;
 pub mod hosts;
 pub mod paths;
+pub mod remote;
 pub mod render;
+pub mod repo;
 pub mod resolve;
 pub mod ssh;
 pub mod sshenv;
 pub mod state;
+pub mod sync;
 
 use std::process::ExitCode;
 

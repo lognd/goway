@@ -1,0 +1,1 @@
+goway syncs exactly the work tree git shows (tracked, modified and untracked-but-not-ignored files, never .env files) to a per-worktree seed on the remote, sending only changed files as a tar stream with mtimes preserved so remote cargo builds stay warm; no rsync needed on either side.

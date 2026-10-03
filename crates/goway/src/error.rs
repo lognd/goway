@@ -57,6 +57,20 @@ pub enum Error {
         /// Why, with the next step.
         reason: String,
     },
+    /// git failed or the directory is not a work tree.
+    #[error("{message}")]
+    Git {
+        /// git's complaint or why git could not run.
+        message: String,
+    },
+    /// An ssh call to a resolved host failed.
+    #[error("ssh to `{host}` failed: {message}")]
+    Ssh {
+        /// The host name.
+        host: String,
+        /// stderr of ssh or the remote script.
+        message: String,
+    },
     /// A command line feature that is planned but not built yet.
     #[error("`{0}` is not implemented yet")]
     NotImplemented(&'static str),
