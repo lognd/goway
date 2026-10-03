@@ -2,7 +2,8 @@
 id = "01M41J9EX971GXX8QJZ0T4AJ4Y"
 title = "Newcomer guide: README quick start per machine, collapsed explanations, glossary, troubleshooting, uninstall"
 type = "docs"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
