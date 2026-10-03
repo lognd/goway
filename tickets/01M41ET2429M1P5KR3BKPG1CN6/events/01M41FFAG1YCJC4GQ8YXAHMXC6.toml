@@ -1,0 +1,14 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:12:27Z"
+digest = "a7633c0d353fd86fd792e7738717e80323e2af08fcf5b2e5378fb53cd8ce6c5b"
+exit_code = 0
+passed = true
+provider = "command"
+ref = "goway run --host orion-notebook -- cargo nextest run --workspace"
+size = 18720
+status = "measured"
+uri = "dir:.git/frob/artifacts/a7633c0d353fd86fd792e7738717e80323e2af08fcf5b2e5378fb53cd8ce6c5b"
+at = "2026-10-03T18:12:27Z"
+actor = "lognd"
+rev = 1
