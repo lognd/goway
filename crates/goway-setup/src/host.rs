@@ -924,6 +924,68 @@ fn normalize_version(change: &Change, layout: &Layout) -> Change {
     change.clone()
 }
 
+/// Most bytes of file text a journal prior may hold (a `.wslconfig` or a drop-in is tiny).
+const MAX_PRIOR_BYTES: usize = 1 << 20;
+
+/// Whether the prior state recorded for `change` is of the kind that change produces, and sane.
+///
+/// The elevated revert writes priors back with an administrator token, so a prior planted in the
+/// journal must not smuggle in anything the change could not have captured: a different kind
+/// of state, an oversized file, an "original line" that is several lines or not the changed
+/// key, or a mode beyond the permission bits.
+fn prior_fits(change: &Change, prior: &Prior) -> Result<(), String> {
+    if *prior == Prior::Noop {
+        return Ok(());
+    }
+    let kind_ok = matches!(
+        (change, prior),
+        (Change::WriteFile { .. }, Prior::File { .. })
+            | (Change::EnsureLine { .. }, Prior::Line { .. })
+            | (Change::EnsureDir { .. }, Prior::DirsCreated { .. })
+            | (Change::InstallFile { .. }, Prior::FileInstalled)
+            | (Change::EnsureRegKey { .. }, Prior::KeyCreated)
+            | (Change::EnsureListEntry { .. }, Prior::ListEntry { .. })
+            | (Change::SetRegistryValue { .. }, Prior::Registry { .. })
+            | (
+                Change::SetIniKey { .. },
+                Prior::IniReplaced { .. } | Prior::IniInserted { .. }
+            )
+            | (Change::SetUnixMode { .. }, Prior::Mode { .. })
+            | (Change::SetAcl { .. }, Prior::Acl { .. })
+            | (Change::EnsureResource { .. }, Prior::ResourceCreated)
+    );
+    if !kind_ok {
+        return Err(format!("prior {prior:?} is not what {change:?} records"));
+    }
+    match (change, prior) {
+        (
+            _,
+            Prior::File {
+                contents: Some(text),
+            },
+        ) if text.len() > MAX_PRIOR_BYTES => {
+            Err("a recorded prior file is implausibly large".to_owned())
+        }
+        (Change::SetIniKey { key, .. }, Prior::IniReplaced { original_line }) => {
+            let one_line = !original_line.contains(['\n', '\r', '\0']);
+            let same_key = original_line
+                .split_once('=')
+                .is_some_and(|(k, _)| k.trim().eq_ignore_ascii_case(key));
+            if one_line && same_key && original_line.len() <= 4096 {
+                Ok(())
+            } else {
+                Err(format!(
+                    "the recorded original line {original_line:?} is not one line setting {key}"
+                ))
+            }
+        }
+        (_, Prior::Mode { mode }) if *mode > 0o7777 => Err(format!(
+            "the recorded mode {mode:o} is not a permission mode"
+        )),
+        _ => Ok(()),
+    }
+}
+
 /// Refuse a host journal holding anything the host plan for `settings` could not have produced.
 ///
 /// Run by the elevated uninstall before it reverts a single entry (see
@@ -958,6 +1020,9 @@ pub fn validate_journal(
                 index,
                 format!("{:?} is not a change the host install makes", entry.change),
             );
+        }
+        if let Err(reason) = prior_fits(&entry.change, &entry.prior) {
+            return refuse(index, reason);
         }
         if let Prior::DirsCreated { created } = &entry.prior {
             let target = match &entry.change {

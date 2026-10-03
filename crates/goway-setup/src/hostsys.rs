@@ -190,6 +190,17 @@ fn cmd_error(what: &str, out: &Output) -> SystemError {
     }
 }
 
+/// A local file error, with the refusal to follow a link kept distinguishable.
+fn local_io(path: &Path, e: std::io::Error) -> SystemError {
+    if crate::safefile::is_link_refusal(&e) {
+        return SystemError::InvalidState(e.to_string());
+    }
+    SystemError::Io {
+        path: path.to_path_buf(),
+        source: e,
+    }
+}
+
 fn spawn_error(what: &str, e: &std::io::Error) -> SystemError {
     SystemError::Command {
         what: what.to_owned(),
@@ -606,7 +617,7 @@ pub fn parse_listening_ports(text: &str) -> BTreeSet<u16> {
 impl<R: Runner> System for HostSystem<R> {
     fn read_file(&self, path: &Path) -> SysResult<Option<String>> {
         if !is_wsl_path(path) {
-            return self.local.read_file(path);
+            return crate::safefile::read_to_string(path).map_err(|e| local_io(path, e));
         }
         let p = Self::wsl_str(path)?;
         if !self.wsl_test("-e", p)? {
@@ -620,7 +631,8 @@ impl<R: Runner> System for HostSystem<R> {
 
     fn write_file(&mut self, path: &Path, contents: &str) -> SysResult<()> {
         if !is_wsl_path(path) {
-            return self.local.write_file(path, contents);
+            tracing::debug!(path = %path.display(), "local: write file without following links");
+            return crate::safefile::write(path, contents).map_err(|e| local_io(path, e));
         }
         let p = Self::wsl_str(path)?;
         tracing::debug!(path = p, bytes = contents.len(), "wsl: write file");

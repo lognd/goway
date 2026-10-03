@@ -17,6 +17,7 @@ pub mod plan;
 pub mod ps;
 pub mod relay;
 pub mod render;
+pub mod safefile;
 pub mod stage;
 pub mod sysapi;
 pub mod windows;

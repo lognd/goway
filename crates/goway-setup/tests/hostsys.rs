@@ -777,3 +777,51 @@ fn the_fingerprint_comes_from_the_ed25519_key_as_root_and_the_user_from_the_defa
     let missing = Fake::new(vec![("ssh-keygen", 1, "")]);
     assert_eq!(sys(&missing).host_key_fingerprint().unwrap(), None);
 }
+
+// frob:tests crates/goway-setup/src/safefile.rs::write
+// frob:tests crates/goway-setup/src/safefile.rs::read_to_string
+#[test]
+#[cfg(unix)]
+fn the_elevated_side_never_writes_or_reads_through_a_link() {
+    use goway_setup::safefile::{is_link_refusal, read_to_string, write};
+    let tmp = tempfile::tempdir().unwrap();
+    let secret = tmp.path().join("admin-only.txt");
+    std::fs::write(&secret, "secret\n").unwrap();
+    let link = tmp.path().join(".wslconfig");
+    std::os::unix::fs::symlink(&secret, &link).unwrap();
+    let err = write(&link, "[wsl2]\nnetworkingMode=mirrored\n").unwrap_err();
+    assert!(is_link_refusal(&err), "{err}");
+    assert!(err.to_string().contains("refusing to follow"), "{err}");
+    assert_eq!(std::fs::read_to_string(&secret).unwrap(), "secret\n");
+    assert!(is_link_refusal(&read_to_string(&link).unwrap_err()));
+    // A dangling link is refused as well, not created through.
+    let dangling = tmp.path().join("dangling");
+    std::os::unix::fs::symlink(tmp.path().join("new-target"), &dangling).unwrap();
+    assert!(write(&dangling, "x").is_err());
+    assert!(!tmp.path().join("new-target").exists());
+    // Ordinary files still work, and an absent one reads as None.
+    let plain = tmp.path().join("plain");
+    assert_eq!(read_to_string(&plain).unwrap(), None);
+    write(&plain, "a long first version\n").unwrap();
+    write(&plain, "b\n").unwrap();
+    assert_eq!(read_to_string(&plain).unwrap().as_deref(), Some("b\n"));
+}
+
+// frob:tests crates/goway-setup/src/hostsys.rs::write_file
+#[test]
+#[cfg(windows)]
+fn a_windows_path_that_is_a_symlink_is_refused_by_the_host_system() {
+    let tmp = tempfile::tempdir().unwrap();
+    let secret = tmp.path().join("admin-only.txt");
+    std::fs::write(&secret, "secret\n").unwrap();
+    let link = tmp.path().join(".wslconfig");
+    if std::os::windows::fs::symlink_file(&secret, &link).is_err() {
+        return; // no symlink privilege here
+    }
+    let fake = Fake::new(vec![]);
+    let mut sys = HostSystem::with_runner("Ubuntu", &fake);
+    let err = sys.write_file(&link, "x").unwrap_err();
+    assert!(err.to_string().contains("refusing to follow"), "{err}");
+    assert_eq!(std::fs::read_to_string(&secret).unwrap(), "secret\n");
+    assert!(sys.read_file(&link).is_err());
+}

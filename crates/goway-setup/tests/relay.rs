@@ -355,7 +355,7 @@ fn with_entry(change: Change) -> Journal {
     let mut j = Journal::new("t");
     j.entries.push(goway_journal::Entry {
         change,
-        prior: Prior::ResourceCreated,
+        prior: Prior::Noop,
         reverted: false,
     });
     j

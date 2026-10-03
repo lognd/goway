@@ -523,3 +523,83 @@ fn the_elevated_validator_accepts_exactly_the_host_arp_entry() {
         key: r"HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\other-host".into()
     }));
 }
+
+// frob:tests crates/goway-setup/src/host.rs::validate_journal
+#[test]
+fn a_planted_prior_is_refused_before_anything_is_reverted() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (layout, _sys, journal) = installed(tmp.path());
+    let ini = journal
+        .entries
+        .iter()
+        .position(|e| matches!(&e.change, Change::SetIniKey { key, .. } if key == "networkingMode"))
+        .expect("the mirrored plan sets networkingMode");
+    let write = journal
+        .entries
+        .iter()
+        .position(|e| matches!(e.change, Change::WriteFile { .. }))
+        .unwrap();
+    let with = |index: usize, prior: Prior| {
+        let mut j = journal.clone();
+        j.entries[index].prior = prior;
+        host::validate_journal(&j, &layout, &settings(), Path::new(HOME))
+    };
+    // Honest priors pass, whatever their kind.
+    assert!(
+        with(
+            ini,
+            Prior::IniReplaced {
+                original_line: "networkingMode=nat".into()
+            }
+        )
+        .is_ok()
+    );
+    assert!(with(ini, Prior::Noop).is_ok());
+    // A different key, several lines, or the wrong kind of prior is refused.
+    for bad in [
+        "processors=99",
+        "networkingMode=nat\n[boot]\ncommand=calc",
+        "networkingMode=nat\r",
+        "no equals sign",
+    ] {
+        let err = with(
+            ini,
+            Prior::IniReplaced {
+                original_line: bad.into(),
+            },
+        );
+        assert!(
+            matches!(err, Err(SetupError::UntrustedState { .. })),
+            "{bad:?}"
+        );
+    }
+    assert!(with(ini, Prior::Mode { mode: 0o777 }).is_err());
+    assert!(with(write, Prior::Mode { mode: 0o777 }).is_err());
+    assert!(
+        with(
+            write,
+            Prior::Acl {
+                sddl: "D:(A;;GA;;;WD)".into()
+            }
+        )
+        .is_err()
+    );
+    assert!(
+        with(
+            write,
+            Prior::File {
+                contents: Some("x".repeat(2 << 20))
+            }
+        )
+        .is_err()
+    );
+    assert!(
+        with(
+            write,
+            Prior::File {
+                contents: Some("old".into())
+            }
+        )
+        .is_ok()
+    );
+}
