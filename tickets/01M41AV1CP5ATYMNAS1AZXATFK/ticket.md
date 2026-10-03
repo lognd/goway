@@ -2,7 +2,8 @@
 id = "01M41AV1CP5ATYMNAS1AZXATFK"
 title = "Good-neighbor execution: low priority, load ceiling and owner-activity awareness on shared hosts"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
