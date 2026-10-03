@@ -32,6 +32,10 @@ pub enum Prior {
         /// Created directories, outermost first.
         created: Vec<PathBuf>,
     },
+    /// The destination file did not exist and was copied into place.
+    FileInstalled,
+    /// The registry key did not exist and was created.
+    KeyCreated,
     /// An entry was added to a list variable.
     ListEntry {
         /// The variable was unset.

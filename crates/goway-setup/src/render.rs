@@ -1,0 +1,197 @@
+//! The one module that prints; everything goway-setup itself says goes through [`Renderer`].
+#![allow(clippy::print_stdout, clippy::print_stderr, clippy::disallowed_macros)]
+
+use std::io::Write as _;
+
+use anstream::{AutoStream, ColorChoice};
+use anstyle::{AnsiColor, Style};
+use goway_journal::{Change, Outcome, RegValue};
+
+use crate::app::{StatusRow, UninstallReport};
+use crate::error::SetupError;
+use crate::layout::Layout;
+
+const ERROR: Style = AnsiColor::Red.on_default().bold();
+const WARN: Style = AnsiColor::Yellow.on_default().bold();
+const GOOD: Style = AnsiColor::Green.on_default().bold();
+const DIM: Style = Style::new().dimmed();
+
+/// When to color output, as chosen with `--color`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub enum ColorWhen {
+    /// Color when the stream is a terminal and `NO_COLOR` is unset.
+    #[default]
+    Auto,
+    /// Always color.
+    Always,
+    /// Never color.
+    Never,
+}
+
+/// One-line, human description of a change (pure; used by the plan, status and tests).
+pub fn describe(change: &Change) -> String {
+    match change {
+        Change::WriteFile { path, .. } => format!("write file {}", path.display()),
+        Change::EnsureLine { path, line, .. } => {
+            format!("ensure line {line:?} in {}", path.display())
+        }
+        Change::EnsureDir { path } => format!("ensure directory {}", path.display()),
+        Change::EnsureListEntry { var, entry, .. } => format!("add {entry} to user {var}"),
+        Change::InstallFile { path, digest, .. } => {
+            format!(
+                "install file {} (sha256 {})",
+                path.display(),
+                &digest[..digest.len().min(12)]
+            )
+        }
+        Change::EnsureRegKey { key } => format!("ensure registry key {key}"),
+        Change::SetRegistryValue { key, name, value } => {
+            format!("set registry value {key}\\{name} = {}", show_value(value))
+        }
+        Change::SetIniKey {
+            path,
+            section,
+            key,
+            value,
+        } => {
+            format!("set [{section}] {key}={value} in {}", path.display())
+        }
+        Change::SetUnixMode { path, mode } => format!("chmod {mode:o} {}", path.display()),
+        Change::SetAcl { path, .. } => format!("set ACL of {}", path.display()),
+        Change::EnsureResource { kind, name, .. } => format!("ensure {kind:?} {name}"),
+    }
+}
+
+fn show_value(value: &RegValue) -> String {
+    match value {
+        RegValue::String(s) => format!("{s:?}"),
+        RegValue::ExpandString(s) => format!("{s:?} (expandable)"),
+        RegValue::Dword(d) => d.to_string(),
+    }
+}
+
+/// Prints goway-setup's own messages with consistent styling.
+#[derive(Debug, Clone, Copy)]
+pub struct Renderer {
+    choice: ColorChoice,
+}
+
+impl Renderer {
+    /// Build a renderer honouring `--color` (and `NO_COLOR` under `auto`).
+    pub fn new(when: ColorWhen) -> Self {
+        let choice = match when {
+            ColorWhen::Auto => ColorChoice::Auto,
+            ColorWhen::Always => ColorChoice::Always,
+            ColorWhen::Never => ColorChoice::Never,
+        };
+        Self { choice }
+    }
+
+    fn out(self) -> AutoStream<std::io::Stdout> {
+        AutoStream::new(std::io::stdout(), self.choice)
+    }
+
+    fn err(self) -> AutoStream<std::io::Stderr> {
+        AutoStream::new(std::io::stderr(), self.choice)
+    }
+
+    fn line(self, style: Style, tag: &str, text: &str) {
+        let _ = writeln!(self.out(), "{style}{tag:>10}{style:#} {text}");
+    }
+
+    /// Report a failure on stderr.
+    pub fn error(self, error: &SetupError) {
+        let _ = writeln!(self.err(), "{ERROR}error{ERROR:#}: {error}");
+    }
+
+    /// Print the plan of a dry run.
+    pub fn plan(self, layout: &Layout, plan: &[Change]) {
+        self.line(
+            WARN,
+            "dry run",
+            &format!(
+                "profile {} would apply {} changes:",
+                layout.profile,
+                plan.len()
+            ),
+        );
+        for (i, c) in plan.iter().enumerate() {
+            let _ = writeln!(self.out(), "  {DIM}{i:>2}{DIM:#} {}", describe(c));
+        }
+    }
+
+    /// Announce a finished install.
+    pub fn installed(self, layout: &Layout, applied: usize) {
+        self.line(
+            GOOD,
+            "installed",
+            &format!("profile {} ({applied} changes)", layout.profile),
+        );
+        self.line(DIM, "location", &layout.install_root.display().to_string());
+        self.line(DIM, "journal", &layout.journal_path.display().to_string());
+        self.line(
+            DIM,
+            "note",
+            "open a new terminal to pick up the Path change",
+        );
+    }
+
+    /// Announce that the uninstaller handed over to a temporary copy.
+    pub fn relaunching(self, copy: &std::path::Path, log: &std::path::Path) {
+        self.line(
+            WARN,
+            "handover",
+            &format!(
+                "continuing in the background from {} so this file can be deleted",
+                copy.display()
+            ),
+        );
+        self.line(DIM, "log", &log.display().to_string());
+    }
+
+    /// Announce that there was nothing to uninstall.
+    pub fn nothing_installed(self, layout: &Layout) {
+        self.line(
+            WARN,
+            "skipped",
+            &format!("profile {} has no install journal", layout.profile),
+        );
+    }
+
+    /// Print the outcome of an uninstall.
+    pub fn uninstalled(self, layout: &Layout, report: &UninstallReport) {
+        for (index, outcome) in &report.outcomes {
+            let change = &report.journal.entries[*index].change;
+            let (style, tag, extra) = match outcome {
+                Outcome::Restored => (GOOD, "restored", String::new()),
+                Outcome::Noop => (DIM, "unchanged", " (was already in place)".to_owned()),
+                Outcome::AlreadyReverted => (DIM, "done", String::new()),
+                Outcome::LeftAlone(why) => (WARN, "kept", format!(" ({why})")),
+            };
+            self.line(style, tag, &format!("{}{extra}", describe(change)));
+        }
+        self.line(GOOD, "removed", &format!("profile {}", layout.profile));
+    }
+
+    /// Print `status` rows.
+    pub fn status(self, layout: &Layout, rows: &[StatusRow]) {
+        self.line(DIM, "profile", &layout.profile);
+        for r in rows {
+            let (style, tag) = match (r.reverted, r.holds) {
+                (true, _) => (DIM, "reverted"),
+                (false, true) => (GOOD, "ok"),
+                (false, false) => (WARN, "changed"),
+            };
+            self.line(style, tag, &describe(&r.change));
+        }
+    }
+
+    /// Print that the profile is not installed.
+    pub fn not_installed(self, layout: &Layout) {
+        self.line(
+            WARN,
+            "absent",
+            &format!("profile {} is not installed", layout.profile),
+        );
+    }
+}

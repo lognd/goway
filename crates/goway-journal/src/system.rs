@@ -32,6 +32,18 @@ pub trait System {
     fn set_var(&mut self, name: &str, value: &str) -> SysResult<()>;
     /// Unset a list variable; absent is success.
     fn remove_var(&mut self, name: &str) -> SysResult<()>;
+    /// Lowercase hex SHA-256 of a file's bytes; `None` when it does not exist.
+    fn file_digest(&self, path: &Path) -> SysResult<Option<String>>;
+    /// Copy the bytes of `src` to `dest` (the parent of `dest` must exist).
+    fn copy_file(&mut self, src: &Path, dest: &Path) -> SysResult<()>;
+    /// Whether a registry-like key exists.
+    fn reg_key_exists(&self, key: &str) -> SysResult<bool>;
+    /// Create a registry-like key and its missing ancestors.
+    fn reg_key_create(&mut self, key: &str) -> SysResult<()>;
+    /// Whether an existing key holds no values and no subkeys.
+    fn reg_key_is_empty(&self, key: &str) -> SysResult<bool>;
+    /// Remove a key that holds no values and no subkeys; absent is success, non-empty is an error.
+    fn reg_key_remove(&mut self, key: &str) -> SysResult<()>;
     /// Read a registry-like value.
     fn reg_get(&self, key: &str, name: &str) -> SysResult<Option<RegValue>>;
     /// Write a registry-like value.

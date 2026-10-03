@@ -23,6 +23,8 @@ pub struct ModelSystem {
     pub dirs: BTreeSet<PathBuf>,
     /// List variables by name.
     pub vars: BTreeMap<String, String>,
+    /// Registry keys created explicitly (a key holding values also exists implicitly).
+    pub reg_keys: BTreeSet<String>,
     /// Registry values by (key, name).
     pub registry: BTreeMap<(String, String), RegValue>,
     /// Non-default unix modes.
@@ -124,6 +126,43 @@ impl System for ModelSystem {
 
     fn remove_var(&mut self, name: &str) -> SysResult<()> {
         self.vars.remove(name);
+        Ok(())
+    }
+
+    fn file_digest(&self, path: &Path) -> SysResult<Option<String>> {
+        Ok(self
+            .files
+            .get(path)
+            .map(|c| crate::digest::sha256_hex(c.as_bytes())))
+    }
+
+    fn copy_file(&mut self, src: &Path, dest: &Path) -> SysResult<()> {
+        let contents = self
+            .files
+            .get(src)
+            .cloned()
+            .ok_or_else(|| SystemError::NotFound(src.display().to_string()))?;
+        self.write_file(dest, &contents)
+    }
+
+    fn reg_key_exists(&self, key: &str) -> SysResult<bool> {
+        Ok(self.reg_keys.contains(key) || self.registry.keys().any(|(k, _)| k == key))
+    }
+
+    fn reg_key_create(&mut self, key: &str) -> SysResult<()> {
+        self.reg_keys.insert(key.to_owned());
+        Ok(())
+    }
+
+    fn reg_key_is_empty(&self, key: &str) -> SysResult<bool> {
+        Ok(!self.registry.keys().any(|(k, _)| k == key))
+    }
+
+    fn reg_key_remove(&mut self, key: &str) -> SysResult<()> {
+        if !self.reg_key_is_empty(key)? {
+            return Err(SystemError::InvalidState(format!("{key} is not empty")));
+        }
+        self.reg_keys.remove(key);
         Ok(())
     }
 

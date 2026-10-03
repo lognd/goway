@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::change::{Change, ListPosition, RegValue, ResourceKind};
-use crate::error::JournalError;
+use crate::error::{JournalError, SystemError};
 use crate::journal::{Entry, Prior};
 use crate::linefile::{LineFile, find_key, find_section, header_name, parse_kv};
 use crate::system::System;
@@ -13,6 +13,9 @@ use crate::system::System;
 pub(crate) enum Op {
     WriteFile(PathBuf, String),
     RemoveFile(PathBuf),
+    CopyFile(PathBuf, PathBuf),
+    CreateKey(String),
+    RemoveKey(String),
     CreateDir(PathBuf),
     /// Remove directories innermost first, stopping at the first that is missing-not-empty.
     RemoveEmptyDirs(Vec<PathBuf>),
@@ -46,6 +49,9 @@ pub(crate) fn run(sys: &mut (impl System + ?Sized), ops: &[Op]) -> Result<(), Jo
         match op {
             Op::WriteFile(p, c) => sys.write_file(p, c)?,
             Op::RemoveFile(p) => sys.remove_file(p)?,
+            Op::CopyFile(src, dest) => sys.copy_file(src, dest)?,
+            Op::CreateKey(k) => sys.reg_key_create(k)?,
+            Op::RemoveKey(k) => sys.reg_key_remove(k)?,
             Op::CreateDir(p) => sys.create_dir(p)?,
             Op::RemoveEmptyDirs(dirs) => {
                 for p in dirs {
@@ -186,6 +192,27 @@ pub(crate) fn plan_apply(
                 },
                 ops,
             ))
+        }
+        Change::InstallFile {
+            path,
+            source,
+            digest,
+        } => match sys.file_digest(path)? {
+            Some(have) if have == *digest => Ok(noop()),
+            Some(_) => Err(JournalError::System(SystemError::InvalidState(format!(
+                "{} exists with different content; refusing to overwrite it",
+                path.display()
+            )))),
+            None => Ok((
+                Prior::FileInstalled,
+                vec![Op::CopyFile(source.clone(), path.clone())],
+            )),
+        },
+        Change::EnsureRegKey { key } => {
+            if sys.reg_key_exists(key)? {
+                return Ok(noop());
+            }
+            Ok((Prior::KeyCreated, vec![Op::CreateKey(key.clone())]))
         }
         Change::SetRegistryValue { key, name, value } => {
             let prior = sys.reg_get(key, name)?;
@@ -368,6 +395,21 @@ pub(crate) fn plan_revert(
                 restore(vec![Op::SetVar(var.clone(), join_list(&parts, *separator))])
             }
         }
+        (Change::InstallFile { path, digest, .. }, Prior::FileInstalled) => {
+            if sys.file_digest(path)?.as_deref() != Some(digest) {
+                return left("file no longer holds the installed content");
+            }
+            restore(vec![Op::RemoveFile(path.clone())])
+        }
+        (Change::EnsureRegKey { key }, Prior::KeyCreated) => {
+            if !sys.reg_key_exists(key)? {
+                return left("key is gone");
+            }
+            if !sys.reg_key_is_empty(key)? {
+                return left("key now holds values or subkeys");
+            }
+            restore(vec![Op::RemoveKey(key.clone())])
+        }
         (Change::SetRegistryValue { key, name, value }, Prior::Registry { value: before }) => {
             if sys.reg_get(key, name)?.as_ref() != Some(value) {
                 return left("registry value changed since install");
@@ -466,4 +508,48 @@ fn plan_ini_revert(
         _ => unreachable!("plan_ini_revert is only called for ini priors"),
     };
     Ok((Outcome::Restored, vec![store(path, &lf, created_file)]))
+}
+
+/// Whether the target of `change` currently holds what the change would write.
+///
+/// Read-only; used to report install status without consulting the journal prior.
+pub fn still_applied(change: &Change, sys: &(impl System + ?Sized)) -> Result<bool, JournalError> {
+    Ok(match change {
+        Change::WriteFile { path, contents } => sys.read_file(path)?.as_deref() == Some(contents),
+        Change::EnsureLine { path, line, marker } => sys.read_file(path)?.is_some_and(|t| {
+            let want = tagged(line, marker);
+            LineFile::parse(&t).lines.contains(&want)
+        }),
+        Change::EnsureDir { path } => sys.dir_exists(path)?,
+        Change::EnsureListEntry {
+            var,
+            entry,
+            separator,
+            ..
+        } => sys
+            .get_var(var)?
+            .is_some_and(|raw| split_list(&raw, *separator).contains(entry)),
+        Change::InstallFile { path, digest, .. } => {
+            sys.file_digest(path)?.as_deref() == Some(digest)
+        }
+        Change::EnsureRegKey { key } => sys.reg_key_exists(key)?,
+        Change::SetRegistryValue { key, name, value } => {
+            sys.reg_get(key, name)?.as_ref() == Some(value)
+        }
+        Change::SetIniKey {
+            path,
+            section,
+            key,
+            value,
+        } => sys.read_file(path)?.is_some_and(|t| {
+            let lf = LineFile::parse(&t);
+            find_section(&lf.lines, section).is_some_and(|(h, e)| {
+                find_key(&lf.lines, h + 1..e, key)
+                    .is_some_and(|i| parse_kv(&lf.lines[i]).is_some_and(|(_, v)| v == *value))
+            })
+        }),
+        Change::SetUnixMode { path, mode } => sys.get_mode(path).ok() == Some(*mode),
+        Change::SetAcl { path, sddl } => sys.get_acl(path).ok().as_deref() == Some(sddl.as_str()),
+        Change::EnsureResource { kind, name, .. } => sys.resource_exists(*kind, name)?,
+    })
 }
