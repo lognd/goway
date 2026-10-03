@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T22:12:29Z"
+digest = "17ee7bafabc25e329570ce144a0a1b86e2aa7eb5f4e90818b9e0b66315f03853"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID eacd6db1-66b6-48a2-a5b7-993f6dd7969d with nextest profile: default
+    Starting 1 test across 35 binaries (411 tests skipped)
+        PASS [   1.141s] goway::local_host a_pooled_local_machine_can_take_a_shard
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.142s] 1 test run: 1 passed, 411 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_pooled_local_machine_can_take_a_shard"
+size = 551
+status = "measured"
+tests = ["a_pooled_local_machine_can_take_a_shard"]
+at = "2026-10-03T22:12:29Z"
+actor = "lognd"
+rev = 1

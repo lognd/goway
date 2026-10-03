@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T22:12:31Z"
+digest = "fa0338904dfc1a24aead14a6902409498dec5e7a1ec478b1d9936e52041a5ce1"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID f3fd3247-8e92-429a-b4d6-b25a8730e0de with nextest profile: default
+    Starting 1 test across 35 binaries (411 tests skipped)
+        PASS [   1.248s] goway::local_host offline_means_failure_that_offers_local_unless_fallback_is_set
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.249s] 1 test run: 1 passed, 411 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "offline_means_failure_that_offers_local"
+size = 574
+status = "measured"
+tests = ["offline_means_failure_that_offers_local_unless_fallback_is_set"]
+at = "2026-10-03T22:12:31Z"
+actor = "lognd"
+rev = 1

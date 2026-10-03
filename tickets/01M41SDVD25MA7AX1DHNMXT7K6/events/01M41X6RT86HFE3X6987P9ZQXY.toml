@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T22:12:27Z"
+digest = "ed51b06bd5d5ffd054323389d37ebf960d8ed9748b124e9050e11ad82b7f18ec"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 4ce98898-446d-4347-9895-74823e21df18 with nextest profile: default
+    Starting 1 test across 35 binaries (411 tests skipped)
+        PASS [   1.442s] goway::local_host local_is_never_chosen_without_the_opt_in
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.443s] 1 test run: 1 passed, 411 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "local_is_never_chosen_without"
+size = 552
+status = "measured"
+tests = ["local_is_never_chosen_without_the_opt_in"]
+at = "2026-10-03T22:12:27Z"
+actor = "lognd"
+rev = 1
