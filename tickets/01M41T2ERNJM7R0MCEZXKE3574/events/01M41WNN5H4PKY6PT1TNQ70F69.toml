@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T22:03:06Z"
+digest = "fcadf481e81ea2c48162caaafcf14ba388ea40f1e5e67648e608b63a88cf4702"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 899e2749-0c83-4929-b595-829d196965ef with nextest profile: default
+    Starting 1 test across 34 binaries (399 tests skipped)
+        PASS [  12.749s] goway::gpu_slots the_lock_is_released_however_the_run_ends
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  12.755s] 1 test run: 1 passed, 399 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "the_lock_is_released_however"
+size = 552
+status = "measured"
+tests = ["the_lock_is_released_however_the_run_ends"]
+at = "2026-10-03T22:03:06Z"
+actor = "lognd"
+rev = 1
