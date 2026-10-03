@@ -28,12 +28,28 @@ goway runs on two kinds of computer: your **main laptop**, the one you
 type on, and one or more **helper laptops**, the ones that do the work.
 All of them must be on the same network.
 
+Support at a glance. "Tested by the maintainer" means the maintainer
+ran it on a real machine; "untested by the maintainer (no such machine)"
+means it is built, or expected to work, but has not been run on real
+hardware.
+
+### Operating systems
+
 | Operating system | As your main laptop | As a helper laptop |
 |---|---|---|
-| Windows 10 (21H2 or newer) and 11 **with WSL** | yes: install inside WSL ([Linux and WSL](#main-laptop-linux-or-wsl)) | Windows 10 (21H2 or newer) and Windows 11, with WSL: one installer ([Windows with WSL](#helper-windows-with-wsl)). Windows 11 22H2 or newer uses mirrored networking; Windows 10, and Windows 11 in WSL's default NAT mode, use a port relay that goway sets up and keeps current (Windows 10 and NAT mode: untested by the maintainer on real hardware; the relay was verified on Windows 11 by simulation) |
-| Windows 10/11 **without WSL** | yes: `goway-setup.exe install` ([Windows](#main-laptop-windows-without-wsl)) | no: a helper needs Linux; install WSL first |
-| **Linux** (Ubuntu, Debian, Fedora, Arch, ...) | yes: one command ([Linux and WSL](#main-laptop-linux-or-wsl)) | yes: a few manual steps ([Linux](#helper-linux)) |
-| **macOS** (Apple Silicon and Intel) | yes: release binaries and one command ([macOS](#main-laptop-macos)); untested by the maintainer, CI-built and CI-tested only | no: goway's helper side needs Linux tools macOS lacks |
+| Windows 11 + WSL (Ubuntu) | Works: install inside WSL ([Linux and WSL](#main-laptop-linux-or-wsl)). Tested by the maintainer | Works: one installer ([Windows with WSL](#helper-windows-with-wsl)); Windows 11 22H2 or newer uses mirrored networking, NAT mode uses a port relay goway keeps current. Tested by the maintainer |
+| Windows 10 (21H2 or newer) + WSL | Works: install inside WSL. Untested by the maintainer (no such machine) | Works through the port relay goway sets up. Untested by the maintainer on real hardware (the relay was verified on Windows 11 by simulation) |
+| Windows without WSL | Works: `goway-setup.exe install` ([Windows](#main-laptop-windows-without-wsl)). Tested by the maintainer through CI only | Not yet: a helper needs Linux, so install WSL first; native support is in progress (~SFJ1T6J). Untested by the maintainer |
+| Ubuntu, Debian | Works: one command ([Linux and WSL](#main-laptop-linux-or-wsl)). Ubuntu: tested by the maintainer; Debian: untested by the maintainer (no such machine) | Works: a few manual steps ([Linux](#helper-linux)). Ubuntu: tested by the maintainer; Debian: untested by the maintainer (no such machine) |
+| Fedora, RHEL | Works: the Linux install script. Untested by the maintainer (no such machine) | Works: the Linux steps. Untested by the maintainer (no such machine) |
+| Arch | Works: the Linux install script. Untested by the maintainer (no such machine) | Works: the Linux steps. Untested by the maintainer (no such machine) |
+| Alpine | Works: the Linux program is a static musl build. Untested by the maintainer (no such machine) | Not verified: the helper side expects the usual GNU userland. Untested by the maintainer (no such machine) |
+| openSUSE | Works: the Linux install script. Untested by the maintainer (no such machine) | Works: the Linux steps. Untested by the maintainer (no such machine) |
+| Raspberry Pi OS | Works: the ARM Linux program. Untested by the maintainer (no such machine) | Works: the Linux steps. Untested by the maintainer (no such machine) |
+| ChromeOS Linux (Crostini) | Works: the Linux install script inside the Linux container. Untested by the maintainer (no such machine) | Untested by the maintainer (no such machine): the container's network is not directly reachable from the LAN |
+| macOS Apple Silicon | Works: release binaries and one command ([macOS](#main-laptop-macos)). CI-built and CI-tested only; untested by the maintainer (no such machine) | Not yet: in progress (~FKHDK2A). Untested by the maintainer (no such machine) |
+| macOS Intel | Works: release binaries and one command. CI-built only; untested by the maintainer (no such machine) | Not yet: in progress (~FKHDK2A). Untested by the maintainer (no such machine) |
+| FreeBSD | Not supported: no release binary. Untested by the maintainer (no such machine) | Not supported. Untested by the maintainer (no such machine) |
 
 **Downloads:** every version's ready-made files (`goway-setup.exe`,
 the Linux programs, `install.sh` and the checksums) are on the
@@ -72,6 +88,26 @@ project, such as Rust. `goway add` installs it for you. The main laptop
 needs only goway, git and ssh.
 Words you have not seen before are explained in
 [docs/glossary.md](docs/glossary.md).
+
+### Languages and test tools
+
+Every row below except .NET has a sharding adapter (`goway run --shard N`, see
+[docs/usage.md](docs/usage.md)). The columns say what has been checked.
+
+| Language / tool | Runs | Sharding | Warm dependencies | Doctor checks | Tested where |
+|---|---|---|---|---|---|
+| Rust / cargo nextest | yes | `--partition count:i/N` | yes: persistent per-repository target dirs and slot trees | toolchain checks in progress (~XP4RZVS) | the maintainer's helpers and CI |
+| vitest | yes | `--shard=i/N` | yes: `node_modules` kept in the slot tree | in progress (~XP4RZVS) | argument rewriting unit-tested; real tool untested by the maintainer |
+| jest | yes | `--shard=i/N` | yes: `node_modules` kept | in progress (~XP4RZVS) | argument rewriting unit-tested; real tool untested by the maintainer |
+| Playwright | yes | `--shard=i/N` | yes: `node_modules` kept | in progress (~XP4RZVS) | argument rewriting unit-tested; real tool untested by the maintainer |
+| pytest (+ xdist) | yes | goway's own file split, composes with xdist | yes: `.venv` kept | in progress (~XP4RZVS) | real pytest tested locally; xdist not run |
+| Java: Maven, Gradle | yes | goway's own class split | yes: `target`, `.gradle` and `build` kept | in progress (~XP4RZVS) | class split unit-tested; Maven and Gradle not run |
+| C/C++ GoogleTest | yes | `GTEST_TOTAL_SHARDS` and `GTEST_SHARD_INDEX` | yes: `build/` kept | in progress (~XP4RZVS) | real FetchContent build sharded across two real helpers |
+| C/C++ Catch2 | yes | `--shard-count`, `--shard-index` | yes: `build/` kept | in progress (~XP4RZVS) | fixture binaries only; detection has a known bug being fixed (~KKNQADN) |
+| C/C++ CTest | yes | `-I i,,N` | yes: `build/` kept | in progress (~XP4RZVS) | real ctest tested locally |
+| Go | yes | package split | yes: gitignored paths kept in the slot tree | in progress (~XP4RZVS) | real `go test` tested locally |
+| Ruby / RSpec | yes | goway's own spec-file split | yes: gitignored paths kept in the slot tree | in progress (~XP4RZVS) | file split unit-tested; RSpec not run |
+| .NET | yes (any command runs) | runs unchanged on every host with `GOWAY_SHARD` and `GOWAY_SHARD_COUNT`; no .NET adapter | yes: gitignored paths (`bin`, `obj`) kept in the slot tree | in progress (~XP4RZVS) | untested by the maintainer |
 
 ## Sixty-second tour
 

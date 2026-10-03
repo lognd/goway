@@ -67,3 +67,11 @@ Plain explanations of the words goway's documentation uses.
 | `--` | In `goway run -- COMMAND`, separates goway's options from the command the helper runs. |
 | PATH | The list of folders where the terminal looks for programs. |
 | `~` | Your home folder on Linux. |
+
+## Support tables
+
+| Word | What it means |
+|---|---|
+| tested by the maintainer | The maintainer ran it on a real machine. The README's support tables say "untested by the maintainer (no such machine)" for everything else. |
+| sharding | Splitting one test run into parts that run on several helpers at once (`goway run --shard N`). |
+| warm dependencies | Downloaded packages and build output that stay on the helper between runs, so the next run does not fetch or build them again. |

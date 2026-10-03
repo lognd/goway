@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T23:04:39Z"
+digest = "ab332dbb034d0f5d43a3df99b0932dba452e3dd3129a40e588f69e93ab32cf42"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1d07e03a-2360-4ed0-9ca0-2183ae2e1bff with nextest profile: default
+    Starting 3 tests across 39 binaries (448 tests skipped)
+        PASS [   0.017s] goway run::tests::nesting_counts_up_and_refuses_at_the_limit
+        PASS [   4.410s] goway::nesting the_job_sees_depth_one_and_the_chain
+        PASS [   7.227s] goway::nesting recursive_goway_stops_at_the_depth_limit
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   7.230s] 3 tests run: 3 passed, 448 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(recursive_goway_stops_at_the_depth_limit) | test(nesting_counts_up_and_refuses_at_the_limit) | test(the_job_sees_depth_one_and_the_chain)'"
+size = 714
+status = "measured"
+tests = ["run::tests::nesting_counts_up_and_refuses_at_the_limit", "the_job_sees_depth_one_and_the_chain", "recursive_goway_stops_at_the_depth_limit"]
+at = "2026-10-03T23:04:39Z"
+actor = "lognd"
+rev = 1

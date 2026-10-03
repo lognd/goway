@@ -1,0 +1,44 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T23:04:47Z"
+digest = "b1234aa4ae64bd6a8e128e024ea15bf48d920fc0b11bf8f25fad9175a8495359"
+exit_code = 100
+failed_tests = ["only_one_automatic_gc_runs_per_root"]
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 19c42c0f-7972-4a54-bd21-d309a7fe269d with nextest profile: default
+    Starting 1 test across 39 binaries (450 tests skipped)
+ FAIL + LEAK [   6.158s] goway::nesting only_one_automatic_gc_runs_per_root
+  output \u{2500}\u{2500}\u{2500}
+
+    running 1 test
+
+    thread 'only_one_automatic_gc_runs_per_root' (2598128) panicked at crates/goway/tests/nesting.rs:98:5:
+    gc ran while the lock was held
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+    test only_one_automatic_gc_runs_per_root ... FAILED
+
+    failures:
+
+    failures:
+        only_one_automatic_gc_runs_per_root
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 5.94s
+
+
+  Cancelling due to test failure: 
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   6.176s] 1 test run: 0 passed, 1 failed, 450 skipped
+ FAIL + LEAK [   6.158s] goway::nesting only_one_automatic_gc_runs_per_root
+error: test run failed
+'''
+passed = false
+provider = "nextest"
+ref = "-E 'test(only_one_automatic_gc_runs_per_root)'"
+size = 1202
+status = "measured"
+tests = ["only_one_automatic_gc_runs_per_root"]
+at = "2026-10-03T23:04:47Z"
+actor = "lognd"
+rev = 1
