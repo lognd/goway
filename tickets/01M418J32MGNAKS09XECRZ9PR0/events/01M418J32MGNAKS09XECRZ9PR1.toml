@@ -1,0 +1,12 @@
+kind = "create"
+title = "goway doctor with --fix: toolchain and ssh checks, sudo steps explained"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/**", "docs/**"]
+acceptance = ["Given a host without cargo-nextest, when goway doctor runs, then it reports the missing tool with the exact fix command", "Given a fix that needs root, when goway doctor --fix runs, then it does not run it and tells the user to run it with sudo and why"]
+at = "2026-10-03T16:11:38Z"
+actor = "lognd"
+rev = 1
