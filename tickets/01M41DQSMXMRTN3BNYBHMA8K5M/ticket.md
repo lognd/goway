@@ -2,7 +2,8 @@
 id = "01M41DQSMXMRTN3BNYBHMA8K5M"
 title = "Native aarch64 Windows build of goway.exe and goway-setup.exe"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
