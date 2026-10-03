@@ -2,13 +2,13 @@
 id = "01M41TNZH9N2J377DRPQNTX8FZ"
 title = "Slot trees can keep stale content: a same-size edit within the same second as the last sync is not copied"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:28:20Z"
-updated = "2026-10-03T21:28:20Z"
+updated = "2026-10-03T22:25:39Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/sync.rs", "crates/goway/tests/**", "docs/design.md"]
 
 [[acceptance]]

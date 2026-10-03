@@ -1,0 +1,11 @@
+kind = "create"
+title = "weighted_shards::a_bigger_host_runs_proportionally_more_partitions fails on helpers (also on clean main)"
+type = "bug"
+category = "todo"
+priority = "medium"
+scope = ["crates/goway/tests/weighted_shards.rs"]
+acceptance = ["Given a helper run of the suite, when it runs, then weighted_shards passes"]
+body = "found while working ~QNTX8FZ: fails at weighted_shards.rs:94 on quasar and xanders-laptop on unmodified main"
+at = "2026-10-03T22:24:40Z"
+actor = "lognd"
+rev = 1
