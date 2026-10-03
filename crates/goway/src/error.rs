@@ -41,9 +41,43 @@ pub enum Error {
     /// No configured host has this name.
     #[error("no host named `{0}` in the config; add it with `goway host add {0}`")]
     UnknownHost(String),
+    /// No candidate address answered with the host's pinned key.
+    #[error("cannot reach host `{name}`{}", render_misses(misses))]
+    HostNotFound {
+        /// The host name.
+        name: String,
+        /// Every candidate tried and why it failed.
+        misses: Vec<crate::resolve::Miss>,
+    },
+    /// `goway host add` found no usable Linux sshd for the host.
+    #[error("cannot add host `{name}`: {reason}")]
+    HostAdd {
+        /// The host name.
+        name: String,
+        /// Why, with the next step.
+        reason: String,
+    },
     /// A command line feature that is planned but not built yet.
     #[error("`{0}` is not implemented yet")]
     NotImplemented(&'static str),
+}
+
+fn render_misses(misses: &[crate::resolve::Miss]) -> String {
+    if misses.is_empty() {
+        return ": no candidate address (no cache, no `address`, the name and NAME.local did not resolve)".to_owned();
+    }
+    let mut out = String::from("; tried:");
+    for m in misses {
+        out.push_str("\n  ");
+        out.push_str(&m.to_string());
+    }
+    if misses
+        .iter()
+        .any(|m| m.failure == crate::ssh::Failure::HostKeyUnknown)
+    {
+        out.push_str("\n  hint: pin the key first with `goway host add NAME`");
+    }
+    out
 }
 
 impl Error {
