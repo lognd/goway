@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:23:42Z"
+updated = "2026-10-03T16:24:39Z"
 scope = ["crates/goway-setup/**", "docs/**", "crates/goway-journal/**", "Cargo.lock"]
 
 [[acceptance]]
