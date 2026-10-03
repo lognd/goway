@@ -2,13 +2,13 @@
 id = "01M41Y5J52MWX48PQ840ZXHQZJ"
 title = "Disk budget per helper: cap goway's total disk use and evict least-recently-used caches, slots and dependency dirs"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T22:29:16Z"
-updated = "2026-10-03T23:42:27Z"
+updated = "2026-10-03T23:42:29Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/gc.rs", "crates/goway/src/config.rs", "crates/goway/src/status.rs", "crates/goway/src/run.rs", "docs/config.md", "docs/usage.md", "crates/goway/tests/disk_budget.rs"]
 
 [[acceptance]]
