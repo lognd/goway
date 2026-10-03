@@ -29,5 +29,5 @@ bound = true
 
 [[acceptance]]
 text = "Given rustup existed before doctor --fix, When uninstall runs, Then rustup self uninstall is not run"
-bound = false
+bound = true
 +++
