@@ -1,0 +1,44 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T22:03:15Z"
+digest = "3f013346e4f9d714a7350192d8f82a3129f2148df9c6dc6dd46350bd067a86ff"
+exit_code = 100
+failed_tests = ["gpu_jobs_lets_several_runs_share_each_gpu"]
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 77f4c4bb-7f0d-4374-a0d2-8085c9fe8e02 with nextest profile: default
+    Starting 1 test across 34 binaries (399 tests skipped)
+        FAIL [   8.180s] goway::gpu_slots gpu_jobs_lets_several_runs_share_each_gpu
+  output \u{2500}\u{2500}\u{2500}
+
+    running 1 test
+
+    thread 'gpu_jobs_lets_several_runs_share_each_gpu' (2116184) panicked at crates/goway/tests/gpu_slots.rs:135:5:
+    assertion failed: !err(&outs[0]).contains("busy") && !err(&outs[1]).contains("busy")
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+    test gpu_jobs_lets_several_runs_share_each_gpu ... FAILED
+
+    failures:
+
+    failures:
+        gpu_jobs_lets_several_runs_share_each_gpu
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 8.15s
+
+
+  Cancelling due to test failure: 
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   8.187s] 1 test run: 0 passed, 1 failed, 399 skipped
+        FAIL [   8.180s] goway::gpu_slots gpu_jobs_lets_several_runs_share_each_gpu
+error: test run failed
+'''
+passed = false
+provider = "nextest"
+ref = "gpu_jobs_lets_several_runs"
+size = 1293
+status = "measured"
+tests = ["gpu_jobs_lets_several_runs_share_each_gpu"]
+at = "2026-10-03T22:03:15Z"
+actor = "lognd"
+rev = 1
