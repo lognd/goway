@@ -1,0 +1,137 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:03:21Z"
+digest = "914f034aec36989f08749c114b77fa8c87c8dca9f59a2e66a88c2bc408eb48bd"
+exit_code = 100
+inline = '''
+goway: synced 354 files (0 sent, 0 bytes, 0 deleted)
+goway: running on helios (x86_64, Helios) at 192.0.2.10: cargo nextest run --workspace
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID bdc7d969-ae63-4176-b5b3-574fb49cac39 with nextest profile: default
+    Starting 178 tests across 21 binaries
+        PASS [   0.005s] (  1/178) goway config::tests::unknown_host_is_typed
+        PASS [   0.005s] (  2/178) goway doctor::tests::missing_nextest_names_the_exact_fix
+        PASS [   0.005s] (  3/178) goway doctor::tests::missing_linker_and_password_login_need_root
+        PASS [   0.005s] (  4/178) goway config::tests::rejects_bad_and_duplicate_names
+        PASS [   0.006s] (  5/178) goway config::tests::rejects_unknown_keys
+        PASS [   0.006s] (  6/178) goway doctor::tests::healthy_host_is_all_ok
+        PASS [   0.006s] (  7/178) goway config::tests::add_host_creates_missing_file
+        PASS [   0.006s] (  8/178) goway cli::tests::run_takes_command_after_double_dash
+        PASS [   0.006s] (  9/178) goway config::tests::add_host_keeps_a_leading_comment_on_top
+        PASS [   0.006s] ( 10/178) goway cli::tests::cli_is_well_formed
+        PASS [   0.006s] ( 11/178) goway config::tests::add_and_remove_host_keep_comments
+        PASS [   0.007s] ( 12/178) goway config::tests::parses_hosts_defaults_and_durations
+        PASS [   0.005s] ( 13/178) goway doctor::tests::other_package_managers_and_arm
+        PASS [   0.005s] ( 14/178) goway doctor::tests::root_fixes_never_run_without_sudo
+        PASS [   0.005s] ( 15/178) goway hosts::tests::parses_identity
+        PASS [   0.006s] ( 16/178) goway error::tests::every_goway_error_exits_125
+        PASS [   0.006s] ( 17/178) goway gc::tests::parses_gc_lines
+        PASS [   0.006s] ( 18/178) goway gc::tests::ttl_overrides
+        PASS [   0.005s] ( 19/178) goway hosts::tests::hostname_must_match_name_or_address
+        PASS [   0.005s] ( 20/178) goway pool::tests::hosts_above_max_load_are_skipped_unless_pinned
+        PASS [   0.006s] ( 21/178) goway pool::tests::parses_probe_output
+        PASS [   0.007s] ( 22/178) goway pool::tests::choose_probes_in_parallel_and_caches_addresses
+        PASS [   0.007s] ( 23/178) goway paths::tests::files_live_under_their_dirs
+        PASS [   0.005s] ( 24/178) goway pool::tests::picks_lowest_relative_load_among_usable_hosts
+        PASS [   0.005s] ( 25/178) goway resolve::tests::configured_then_dns_then_mdns_order_and_dedup
+        PASS [   0.005s] ( 26/178) goway render::tests::table_columns_align
+        PASS [   0.006s] ( 27/178) goway render::tests::every_style_renders_without_color
+        PASS [   0.005s] ( 28/178) goway resolve::tests::parses_windows_output_with_crlf
+        PASS [   0.005s] ( 29/178) goway resolve::tests::nothing_found_lists_every_miss
+        PASS [   0.005s] ( 30/178) goway resolve::tests::system_lookup_resolves_localhost
+        PASS [   0.005s] ( 31/178) goway resolve::tests::stale_cache_falls_through_to_windows_mdns_and_is_recached
+        PASS [   0.007s] ( 32/178) goway pool::tests::pinned_host_ignores_max_load
+        PASS [   0.015s] ( 33/178) goway hosts::tests::adopt_key_replaces_only_the_alias
+        PASS [   0.005s] ( 34/178) goway resolve::tests::windows_interop_answers_under_wsl
+        PASS [   0.005s] ( 35/178) goway run::tests::env_pairs_are_validated_and_encoded
+        PASS [   0.005s] ( 36/178) goway run::tests::run_ids_are_unique
+        PASS [   0.005s] ( 37/178) goway shard::tests::nextest_gets_its_own_partition_flag
+        PASS [   0.007s] ( 38/178) goway resolve::tests::working_cache_never_touches_slow_lookups
+        PASS [   0.005s] ( 39/178) goway ssh::tests::force_tty_prepends_t
+        PASS [   0.007s] ( 40/178) goway resolve::tests::windows_lookup_rejects_unsafe_names_and_is_empty_off_wsl
+        PASS [   0.006s] ( 41/178) goway run::tests::exit_codes_map_signals_to_128_plus_n
+        PASS [   0.005s] ( 42/178) goway ssh::tests::long_control_dirs_disable_multiplexing
+        PASS [   0.008s] ( 43/178) goway ssh::tests::classifies_ssh_failures
+        PASS [   0.015s] ( 44/178) goway remote::tests::invocation_runs_locally_through_a_shell
+        PASS [   0.006s] ( 45/178) goway ssh::tests::ssh_pins_identity_by_alias_with_strict_checking
+        PASS [   0.006s] ( 46/178) goway ssh::tests::shell_quoting_round_trips_through_sh
+        PASS [   0.005s] ( 47/178) goway sshenv::tests::assesses_missing_keys_and_permissions
+        PASS [   0.005s] ( 48/178) goway sshsetup::tests::key_blob_ignores_comments
+        PASS [   0.005s] ( 49/178) goway sshenv::tests::parses_ssh_g
+        PASS [   0.005s] ( 50/178) goway sshsetup::tests::windows_key_acl_keeps_only_the_user
+        PASS [   0.006s] ( 51/178) goway sshsetup::tests::plan_tags_the_line_and_fixes_modes
+        PASS [   0.005s] ( 52/178) goway state::tests::corrupt_state_is_a_typed_error
+        PASS [   0.005s] ( 53/178) goway status::tests::bytes_are_human
+        PASS [   0.007s] ( 54/178) goway state::tests::remember_save_load_forget
+        PASS [   0.005s] ( 55/178) goway sync::tests::env_file_detection
+        PASS [   0.005s] ( 56/178) goway sync::tests::diff_sends_changed_and_deletes_gone
+        PASS [   0.005s] ( 57/178) goway sync::tests::live_sync_against_a_real_host
+        PASS [   0.006s] ( 58/178) goway sync::tests::tar_round_trips_mtime_and_exec_bit
+        PASS [   0.015s] ( 59/178) goway sshenv::tests::check_runs_against_the_real_client
+        FAIL [   0.004s] ( 60/178) goway::contract print_macros_are_denied_outside_render
+  stdout \u{2500}\u{2500}\u{2500}
+
+    running 1 test
+    test print_macros_are_denied_outside_render ... FAILED
+
+    failures:
+
+    failures:
+        print_macros_are_denied_outside_render
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+  stderr \u{2500}\u{2500}\u{2500}
+
+    thread 'print_macros_are_denied_outside_render' (22632) panicked at crates/goway/tests/contract.rs:26:14:
+    called `Result::unwrap()` on an `Err` value: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 11 tests still running
+        PASS [   0.009s] ( 61/178) goway::contract goway_failure_exits_125_with_rendered_error
+        FAIL [   0.006s] ( 62/178) goway::install_scripts a_changed_binary_is_kept_and_a_second_install_is_refused
+  stdout \u{2500}\u{2500}\u{2500}
+
+    running 1 test
+    test a_changed_binary_is_kept_and_a_second_install_is_refused ... FAILED
+
+    failures:
+
+    failures:
+        a_changed_binary_is_kept_and_a_second_install_is_refused
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+  stderr \u{2500}\u{2500}\u{2500}
+
+    thread 'a_changed_binary_is_kept_and_a_second_install_is_refused' (22658) panicked at crates/goway/tests/install_scripts.rs:46:5:
+    install.sh: bash: /home/user/.cache/goway/work/1791050540-26a35881-3618419/tree/crates/goway/../../scripts/install.sh: No such file or directory
+
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+        PASS [   0.021s] ( 63/178) goway sync::tests::file_set_is_the_user_visible_tree
+        PASS [   0.044s] ( 64/178) goway repo::tests::ids_are_stable_across_worktrees_and_distinct_per_tree
+        PASS [   0.024s] ( 65/178) goway::contract host_list_and_remove_through_the_cli
+        PASS [   0.109s] ( 66/178) goway sync::tests::a_seed_replaced_mid_sync_is_detected_and_resynced_fully
+        PASS [   0.111s] ( 67/178) goway sync::tests::protocol_converges_and_keeps_snapshots_isolated
+        PASS [   0.172s] ( 68/178) goway sync::tests::deleting_more_paths_than_one_argument_holds_works
+        PASS [   1.222s] ( 69/178) goway sync::tests::a_second_worktree_only_sends_what_differs
+        PASS [   5.190s] ( 70/178) goway::host_add host_add_refuses_a_machine_with_another_hostname
+        PASS [   5.240s] ( 71/178) goway::host_add host_add_skips_windows_sshd_and_pins_the_linux_machine
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   5.279s] 71/178 tests run: 69 passed, 2 failed, 0 skipped
+        FAIL [   0.004s] ( 60/178) goway::contract print_macros_are_denied_outside_render
+        FAIL [   0.006s] ( 62/178) goway::install_scripts a_changed_binary_is_kept_and_a_second_install_is_refused
+warning: 107/178 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+goway: exit 100 on helios in 5.7s
+'''
+passed = false
+provider = "command"
+ref = "goway run --host helios -- cargo nextest run --workspace"
+size = 8779
+status = "measured"
+at = "2026-10-03T18:03:21Z"
+actor = "lognd"
+rev = 1
