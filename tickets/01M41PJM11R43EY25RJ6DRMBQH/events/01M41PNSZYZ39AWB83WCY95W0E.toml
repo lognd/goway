@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T20:18:20Z"
+digest = "15bf921c16bfdfc7406c4300bee1c5c60234077d0ce70f2a37064b0927a8fcdf"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID be291cd9-0675-407f-ab31-37134e1f80e0 with nextest profile: default
+    Starting 1 test across 24 binaries (247 tests skipped)
+        PASS [   0.010s] goway config::tests::remote_root_must_be_a_dedicated_directory
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.011s] 1 test run: 1 passed, 247 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(remote_root_must_be_a_dedicated_directory)'"
+size = 556
+status = "measured"
+tests = ["config::tests::remote_root_must_be_a_dedicated_directory"]
+at = "2026-10-03T20:18:20Z"
+actor = "lognd"
+rev = 1

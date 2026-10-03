@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:16:35Z"
-updated = "2026-10-03T20:18:19Z"
+updated = "2026-10-03T20:18:20Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/config.rs", "crates/goway/tests/remote_root.rs", "docs/config.md"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = 'Given remote_root = ".ssh", When the config is validated, Then it is rejected; the default .cache/goway still passes'
-bound = false
+bound = true
 +++
