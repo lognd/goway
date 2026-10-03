@@ -2,13 +2,13 @@
 id = "01M41RK5J5QNHGAZRCBE9RC5C4"
 title = "Windows installer: the elevated child never follows links in user files and validates journal priors (audit L9)"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:51:50Z"
-updated = "2026-10-03T20:51:50Z"
+updated = "2026-10-03T20:56:50Z"
 scope = ["crates/goway-setup/**", "crates/goway-journal/**", "docs/**", "scripts/windows/**", "changelog.d/**"]
 
 [[acceptance]]
