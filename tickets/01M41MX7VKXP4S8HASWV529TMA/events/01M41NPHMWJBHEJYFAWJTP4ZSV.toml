@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway-setup/**", "docs/install-windows.md"]
+new = ["crates/goway-setup/**", "docs/install-windows.md", "crates/goway-journal/**", "scripts/windows/**"]
+at = "2026-10-03T20:01:15Z"
+actor = "lognd"
+rev = 1
