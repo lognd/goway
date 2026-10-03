@@ -1,0 +1,12 @@
+kind = "create"
+title = "Publish goway and goway-journal to crates.io from the release workflow"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 2
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["Cargo.toml", "crates/*/Cargo.toml", ".github/workflows/release.yml", ".github/workflows/ci.yml", "docs/release.md", "README.md", "pyproject.toml"]
+acceptance = ["Given a version tag, when the release workflow runs, then goway-journal and goway are published to crates.io after the GitHub release succeeds, and cargo publish --dry-run runs in CI on every push", "Given goway-setup, when packaging, then it is never published (publish = false)"]
+at = "2026-10-03T20:15:51Z"
+actor = "lognd"
+rev = 1
