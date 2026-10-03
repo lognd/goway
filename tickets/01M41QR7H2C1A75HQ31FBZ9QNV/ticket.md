@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:37:08Z"
-updated = "2026-10-03T20:39:02Z"
+updated = "2026-10-03T20:39:15Z"
 scope = ["scripts/install.sh", "crates/goway/tests/install_scripts.rs", "docs/install-linux.md"]
 
 [[acceptance]]
