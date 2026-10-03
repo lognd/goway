@@ -106,6 +106,17 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       uninstaller replays the journal backwards. Proven by a property test
       over a model system (uninstall after install restores the state) and
       by a snapshot test on the real Windows hosts in an isolated profile.
+      Implemented by the `goway-journal` crate: a serde `Change` vocabulary
+      (whole files, tagged lines, directories, PATH-like list entries,
+      registry values, ini keys, unix modes, SDDL ACLs, named resources),
+      a `System` trait with a `LocalSystem` (files, dirs, lines, ini, unix
+      modes) and an in-memory `ModelSystem`, `apply` (write-ahead: capture
+      prior, record, then mutate; already-satisfied changes record a no-op)
+      and `revert` (reverse replay, per-entry `reverted` flag so it is
+      idempotent and resumable). Guarantee, property-tested:
+      `revert(apply(plan)) == initial`, a second apply reverted leaves the
+      first install intact, and targets edited since install are left
+      alone and reported rather than clobbered.
 
 10. Guided SSH setup (`goway ssh setup HOST`, journaled like 9.3)
    1. Client key: reuse an existing agent or identity key, or create a
