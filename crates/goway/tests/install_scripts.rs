@@ -169,3 +169,87 @@ fn goway_uninstall_reverts_the_install_journal_exactly() {
     );
     assert_eq!(snapshot(home.path()), before, "home restored exactly");
 }
+
+/// A fake release directory with the current goway binary, like CI makes.
+fn fake_release(dir: &Path, tamper: bool) -> String {
+    let target = match std::env::consts::ARCH {
+        "aarch64" => "aarch64-unknown-linux-musl",
+        _ => "x86_64-unknown-linux-musl",
+    };
+    let stage = dir.join("stage");
+    std::fs::create_dir_all(&stage).unwrap();
+    std::fs::copy(env!("CARGO_BIN_EXE_goway"), stage.join("goway")).unwrap();
+    let tarball = format!("goway-{target}.tar.gz");
+    let ok = Command::new("tar")
+        .arg("-czf")
+        .arg(dir.join(&tarball))
+        .arg("-C")
+        .arg(&stage)
+        .arg("goway")
+        .status()
+        .unwrap();
+    assert!(ok.success());
+    let sum = Command::new("sha256sum")
+        .arg(dir.join(&tarball))
+        .output()
+        .unwrap();
+    let mut hex = String::from_utf8_lossy(&sum.stdout)
+        .split(' ')
+        .next()
+        .unwrap()
+        .to_owned();
+    if tamper {
+        hex = "0".repeat(64);
+    }
+    std::fs::write(dir.join("SHA256SUMS"), format!("{hex}  {tarball}\n")).unwrap();
+    format!("file://{}", dir.display())
+}
+
+/// Run install.sh the way `curl ... | bash` does: from stdin, not a checkout.
+fn install_piped(home: &Path, release: &str) -> std::process::Output {
+    let script = std::fs::read(script("install.sh")).unwrap();
+    let mut child = Command::new("bash")
+        .arg("-s")
+        .env_clear()
+        .env("HOME", home)
+        .env("PATH", SYS_PATH)
+        .env("GOWAY_RELEASE_URL", release)
+        .current_dir(home)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    std::io::Write::write_all(&mut child.stdin.take().unwrap(), &script).unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn piped_install_downloads_verifies_and_installs() {
+    let home = tempfile::tempdir().unwrap();
+    let release = tempfile::tempdir().unwrap();
+    let url = fake_release(release.path(), false);
+    let out = install_piped(home.path(), &url);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(String::from_utf8_lossy(&out.stderr).contains("checksum verified"));
+    let version = Command::new(home.path().join(".local/bin/goway"))
+        .arg("--version")
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&version.stdout).starts_with("goway "));
+}
+
+#[test]
+fn a_checksum_mismatch_installs_nothing() {
+    let home = tempfile::tempdir().unwrap();
+    let release = tempfile::tempdir().unwrap();
+    let url = fake_release(release.path(), true);
+    let out = install_piped(home.path(), &url);
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("checksum mismatch"));
+    assert!(!home.path().join(".local/bin/goway").exists());
+}

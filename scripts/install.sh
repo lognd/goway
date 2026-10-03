@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # Install goway for the current user, reversibly.
 #
-#   scripts/install.sh            build (cargo, release) and install
+#   curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | bash
+#                                 download the release binary, verify, install
+#   scripts/install.sh            from a source checkout: build (cargo) and install
 #   GOWAY_INSTALL_BINARY=path scripts/install.sh   install a prebuilt binary
+#
+# A download is checked against the release's SHA256SUMS before anything is
+# installed (GOWAY_RELEASE_URL overrides the release location).
 #
 # Puts goway in ~/.local/bin (GOWAY_PREFIX overrides ~/.local) and, only if
 # that directory is not on PATH yet, appends one marked line to ~/.profile.
@@ -14,7 +19,13 @@ set -euo pipefail
 say() { printf 'goway-install: %s\n' "$*" >&2; }
 die() { say "$*"; exit 1; }
 
-repo=$(cd "$(dirname "$0")/.." && pwd)
+# Run from a source checkout (scripts/install.sh) or piped from curl.
+here=${BASH_SOURCE[0]:-}
+repo=""
+if [ -n "$here" ] && [ -f "$here" ]; then
+  candidate=$(cd "$(dirname "$here")/.." && pwd)
+  if [ -f "$candidate/crates/goway/Cargo.toml" ]; then repo=$candidate; fi
+fi
 prefix=${GOWAY_PREFIX:-$HOME/.local}
 bin="$prefix/bin"
 state="${XDG_STATE_HOME:-$HOME/.local/state}/goway"
@@ -22,19 +33,45 @@ journal="$state/install-journal"
 profile="$HOME/.profile"
 marker="# added by goway install"
 
-[ -e "$journal" ] && die "already installed (journal $journal); run scripts/uninstall.sh first"
+[ -e "$journal" ] && die "already installed (journal $journal); run 'goway uninstall' first"
 # The bin path is written into ~/.profile; refuse anything a shell could
 # read as code (quotes, $, backticks, newlines, ...).
 case "$bin" in
   *[!A-Za-z0-9/._+@-]*) die "install prefix '$prefix' has characters goway will not write into ~/.profile; set GOWAY_PREFIX to a plain path" ;;
 esac
 
+# Download the release binary for this machine into $dl and verify its
+# checksum; sets src.
+download() {
+  local base target tmp=$dl expected actual
+  base=${GOWAY_RELEASE_URL:-https://github.com/lognd/goway/releases/latest/download}
+  case "$(uname -m)" in
+    x86_64 | amd64) target=x86_64-unknown-linux-musl ;;
+    aarch64 | arm64) target=aarch64-unknown-linux-musl ;;
+    *) die "no prebuilt goway for $(uname -m); build it from source: https://github.com/lognd/goway" ;;
+  esac
+  command -v curl >/dev/null 2>&1 || die "curl is needed to download goway (Ubuntu: sudo apt-get install curl)"
+  say "downloading goway for $target"
+  curl -fsSL "$base/goway-$target.tar.gz" -o "$tmp/goway.tar.gz" || die "download failed: $base/goway-$target.tar.gz"
+  curl -fsSL "$base/SHA256SUMS" -o "$tmp/SHA256SUMS" || die "download failed: $base/SHA256SUMS"
+  expected=$(awk -v f="goway-$target.tar.gz" '$2 == f || $2 == "*" f { print $1 }' "$tmp/SHA256SUMS")
+  [ -n "$expected" ] || die "the release lists no checksum for goway-$target.tar.gz; not installing"
+  actual=$(sha256sum "$tmp/goway.tar.gz" | cut -d' ' -f1)
+  [ "$actual" = "$expected" ] || die "checksum mismatch for goway-$target.tar.gz; not installing"
+  tar -xzf "$tmp/goway.tar.gz" -C "$tmp" goway || die "the download does not contain goway"
+  say "checksum verified"
+  src="$tmp/goway"
+}
+
 src=${GOWAY_INSTALL_BINARY:-}
-if [ -z "$src" ]; then
-  command -v cargo >/dev/null 2>&1 || die "cargo not found; install Rust (https://rustup.rs) or set GOWAY_INSTALL_BINARY"
-  say "building goway (release)"
+if [ -z "$src" ] && [ -n "$repo" ] && command -v cargo >/dev/null 2>&1; then
+  say "building goway (release) from $repo"
   cargo build --locked --release -p goway --manifest-path "$repo/Cargo.toml" >&2
   src="$repo/target/release/goway"
+elif [ -z "$src" ]; then
+  dl=$(mktemp -d)
+  trap 'rm -rf -- "$dl"' EXIT
+  download
 fi
 [ -x "$src" ] || die "no goway binary at $src"
 
@@ -83,4 +120,4 @@ case ":$PATH:" in
     fi
     ;;
 esac
-say "done; undo with scripts/uninstall.sh"
+say "done; undo with: goway uninstall"

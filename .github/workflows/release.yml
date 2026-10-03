@@ -1,0 +1,79 @@
+# Builds the release on a version tag (vX.Y.Z): static Linux binaries for
+# x86_64 and aarch64, goway-setup.exe for x64 and ARM64 Windows (each with
+# goway.exe embedded), SHA256SUMS, install.sh, and build provenance
+# attestations, then publishes them as a GitHub release.
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+jobs:
+  linux:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo build --release --locked -p goway --target ${{ matrix.target }}
+      - run: tar -czf goway-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release goway
+      - uses: actions/upload-artifact@v4
+        with:
+          name: goway-${{ matrix.target }}
+          path: goway-${{ matrix.target }}.tar.gz
+  windows:
+    strategy:
+      matrix:
+        include:
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+            asset: goway-setup.exe
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            asset: goway-setup-arm64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo build --release --locked -p goway --target ${{ matrix.target }}
+      - name: Build the installer with goway.exe embedded
+        shell: bash
+        run: |
+          GOWAY_PAYLOAD="$PWD/target/${{ matrix.target }}/release/goway.exe" \
+            cargo build --release --locked -p goway-setup --target ${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/goway-setup.exe ${{ matrix.asset }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+  publish:
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums and installer script
+        run: |
+          cp scripts/install.sh dist/install.sh
+          cd dist && sha256sum goway-*.tar.gz goway-setup*.exe install.sh > SHA256SUMS
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --title "goway ${GITHUB_REF_NAME}" --generate-notes

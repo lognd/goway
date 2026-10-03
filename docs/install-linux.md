@@ -1,6 +1,9 @@
 # Installing goway on Linux (and WSL)
 
-    scripts/install.sh      # builds with cargo (release) and installs
+    curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | bash
+                            # downloads the release binary, checks it against
+                            # SHA256SUMS, installs (docs/release.md)
+    scripts/install.sh      # from a source checkout: builds with cargo and installs
     scripts/uninstall.sh    # removes exactly what install added
     goway uninstall         # removes goway everywhere: helpers, config, then the program
 
