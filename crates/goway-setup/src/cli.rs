@@ -19,6 +19,7 @@ use crate::hostsys::{HostSystem, Invocation, ProcessRunner, Runner, probe_wsl, w
 use crate::layout::{DEFAULT_PROFILE, Layout};
 use crate::plan::{Component, Sources, build};
 use crate::render::{ColorWhen, Renderer};
+use crate::stage;
 use crate::sysapi::{Tool, tool_path};
 use crate::windows::{
     broadcast_environment_change, schedule_dir_removal, schedule_self_delete, spawn_detached,
@@ -62,6 +63,10 @@ pub struct ChildArgs {
     /// Internal: SID of the user who started the install; the elevated run must be that user.
     #[arg(long, hide = true, value_name = "SID")]
     pub invoker_sid: Option<String>,
+    /// Internal: SHA-256 of the exe the parent staged and locked; the elevated run hashes its own
+    /// image and refuses to continue when it differs.
+    #[arg(long, hide = true, value_name = "HEX")]
+    pub exe_sha256: Option<String>,
     /// Internal: name of the log file (in the administrator-only directory) for the output.
     #[arg(long, hide = true, value_name = "NAME")]
     pub elevated_log: Option<String>,
@@ -186,6 +191,7 @@ struct Elevate {
     allowed: bool,
     is_child: bool,
     invoker_sid: Option<String>,
+    exe_sha256: Option<String>,
     log: Option<String>,
 }
 
@@ -195,6 +201,7 @@ impl Elevate {
             allowed: !no_elevate,
             is_child: child.elevated_child,
             invoker_sid: child.invoker_sid.clone(),
+            exe_sha256: child.exe_sha256.clone(),
             log: child.elevated_log.clone(),
         }
     }
@@ -293,6 +300,7 @@ fn current_exe() -> Result<PathBuf, SetupError> {
 fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), SetupError> {
     let layout = Layout::from_environment(profile)?;
     let wants_host = req.components.contains(&Component::Host);
+    let mut staged: Option<stage::StagedExe> = None;
     if req.elevate.is_child && req.components.contains(&Component::Client) {
         return Err(SetupError::ClientNeverElevated);
     }
@@ -304,7 +312,17 @@ fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), Setup
         if !req.dry_run && !cfg!(windows) {
             return Err(SetupError::HostNeedsWindows);
         }
+        if req.elevate.is_child && !req.dry_run {
+            let want = req.elevate.exe_sha256.as_deref().ok_or_else(|| {
+                SetupError::NeedsAdmin(
+                    "the elevated re-run was not given the digest of the exe its parent locked"
+                        .to_owned(),
+                )
+            })?;
+            stage::verify_image(&current_exe()?, want)?;
+        }
         if !req.dry_run {
+            staged = stage_if_elevating(req)?;
             precheck_wsl(&req.distro)?;
         }
         if req.elevate.is_child {
@@ -318,8 +336,14 @@ fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), Setup
                 dry_run_host(r, &layout, req)?;
             }
             Component::Host => {
-                let exe = current_exe()?;
-                let args = install_child_args(profile, req);
+                let exe = match &staged {
+                    Some(copy) => copy.path.clone(),
+                    None => current_exe()?,
+                };
+                let mut args = install_child_args(profile, req);
+                if let Some(copy) = &staged {
+                    args.extend(["--exe-sha256".to_owned(), copy.sha256.clone()]);
+                }
                 if let Some(code) = relaunch_host_elevated(
                     r,
                     "the host install",
@@ -339,6 +363,19 @@ fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), Setup
         }
     }
     Ok(())
+}
+
+/// Stage a locked private copy of this exe when the install is going to ask UAC to relaunch it
+/// (see [`stage`]); `None` when it already runs elevated or cannot elevate.
+fn stage_if_elevating(req: &InstallRequest) -> Result<Option<stage::StagedExe>, SetupError> {
+    if req.elevate.is_child
+        || !req.elevate.allowed
+        || elevate::is_elevated()
+        || !elevate::can_prompt()
+    {
+        return Ok(None);
+    }
+    stage::stage(&current_exe()?).map(Some)
 }
 
 /// Stop before anything changes (and before any administrator prompt) when WSL or the distro is
