@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:11:38Z"
-scope = ["crates/goway/**", "docs/**"]
+updated = "2026-10-03T16:48:25Z"
+scope = ["crates/goway/**"]
 
 [[acceptance]]
 text = "Given probes of several hosts, when goway picks one, then it chooses the lowest (load1 + goway jobs) / cores among reachable hosts under max_jobs"
