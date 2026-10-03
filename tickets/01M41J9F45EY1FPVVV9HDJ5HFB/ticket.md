@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:01:41Z"
-updated = "2026-10-03T19:19:04Z"
+updated = "2026-10-03T19:19:05Z"
 labels = ["newcomer"]
 scope = ["crates/goway-setup/**", "docs/install-windows.md", "scripts/windows/**", "crates/goway-journal/**"]
 
@@ -18,7 +18,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a host-only install, when it finishes, then Add/Remove Programs lists it and uninstall works without the downloaded file"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a Windows laptop without WSL, when install --host runs, then it stops before changing anything and prints the exact steps to install WSL"
