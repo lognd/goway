@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:16:35Z"
-updated = "2026-10-03T20:18:18Z"
+updated = "2026-10-03T20:18:19Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/config.rs", "crates/goway/tests/remote_root.rs", "docs/config.md"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a marked root that also holds a foreign file, When purge runs, Then only work, seed, cache and the marker are removed and the foreign file stays"
-bound = false
+bound = true
 
 [[acceptance]]
 text = 'Given remote_root = ".ssh", When the config is validated, Then it is rejected; the default .cache/goway still passes'

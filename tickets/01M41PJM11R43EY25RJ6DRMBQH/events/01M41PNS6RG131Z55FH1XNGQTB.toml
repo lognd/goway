@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:18:19Z"
+digest = "2fafc2c7bfeb1473970a31fd555c673278322c3e09b144e004bdd9fcb2c721f3"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID dea9b278-db3e-4446-a9c8-3f0b5d0b4269 with nextest profile: default
+    Starting 1 test across 24 binaries (247 tests skipped)
+        PASS [   0.085s] goway::remote_root purge_keeps_foreign_files_in_a_marked_root
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.087s] 1 test run: 1 passed, 247 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(purge_keeps_foreign_files_in_a_marked_root)'"
+size = 555
+status = "measured"
+tests = ["purge_keeps_foreign_files_in_a_marked_root"]
+at = "2026-10-03T20:18:19Z"
+actor = "lognd"
+rev = 1
