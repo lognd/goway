@@ -241,3 +241,106 @@ fn status_shows_load_jobs_and_disk_and_marks_unreachable() {
     assert!(gone.contains("unreachable"), "{gone}");
     assert!(String::from_utf8_lossy(&out.stderr).contains("gone: cannot reach host"));
 }
+
+/// Set the mtime of `path` to `days` days ago.
+fn backdate(path: &Path, days: u32) {
+    let ok = Command::new("touch")
+        .arg("-d")
+        .arg(format!("{days} days ago"))
+        .arg(path)
+        .status()
+        .unwrap();
+    assert!(ok.success());
+}
+
+fn only_dir(dir: &Path) -> PathBuf {
+    let mut dirs: Vec<PathBuf> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.is_dir())
+        .collect();
+    assert_eq!(dirs.len(), 1, "{dirs:?}");
+    dirs.pop().unwrap()
+}
+
+// frob:tests crates/goway/src/gc.rs::gc
+// frob:tests crates/goway/src/gc.rs::command
+#[test]
+fn gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones() {
+    let w = world();
+    assert!(w.run(&["run", "--keep", "--", "true"]).status.success());
+    let kept = w.remote.join("work").join(&w.work_dirs()[0]);
+    backdate(&kept.join("meta.json"), 4); // past kept_ttl (3d)
+    let seed = only_dir(&only_dir(&w.remote.join("seed")));
+    backdate(&seed.join("meta.json"), 8); // past cache_ttl (7d)
+    let cache = only_dir(&w.remote.join("cache")); // fresh: kept
+
+    // A running job: its work dir is old but locked.
+    let mut busy = w
+        .goway(&["run", "--", "sh", "-c", "sleep 4"])
+        .spawn()
+        .unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+    let running = w
+        .work_dirs()
+        .into_iter()
+        .map(|d| w.remote.join("work").join(d))
+        .find(|d| *d != kept)
+        .unwrap();
+    backdate(&running.join("meta.json"), 9);
+    // The busy run re-touched the seed; age it again.
+    backdate(&seed.join("meta.json"), 8);
+
+    let out = w.run(&["gc"]);
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!kept.exists(), "expired kept dir removed\n{stdout}");
+    assert!(running.exists(), "locked dir untouched\n{stdout}");
+    assert!(stdout.contains("busy"), "{stdout}");
+    assert!(cache.exists(), "fresh cache kept");
+    assert!(busy.wait().unwrap().success());
+    // The seed was locked shared only during the snapshot; it is expired now.
+    let again = w.run(&["gc"]);
+    assert!(again.status.success());
+    assert!(!seed.exists(), "{}", String::from_utf8_lossy(&again.stdout));
+}
+
+#[test]
+fn gc_dry_run_filters_by_repo_and_age_and_removes_nothing() {
+    let w = world();
+    assert!(w.run(&["run", "--keep", "--", "true"]).status.success());
+    let before = w.work_dirs();
+    let other = w.run(&["gc", "--dry-run", "--all", "--repo", "other"]);
+    assert!(!String::from_utf8_lossy(&other.stdout).contains("would remove"));
+    let young = w.run(&["gc", "--dry-run", "--older-than", "1h", "--repo", "proj"]);
+    assert!(!String::from_utf8_lossy(&young.stdout).contains("would remove"));
+    let all = w.run(&["gc", "--dry-run", "--all", "--repo", "proj"]);
+    let listed = String::from_utf8_lossy(&all.stdout).into_owned();
+    assert_eq!(
+        listed.matches("would remove").count(),
+        3,
+        "work, seed, cache\n{listed}"
+    );
+    assert_eq!(w.work_dirs(), before, "dry run removes nothing");
+    assert!(w.remote.join("cache").read_dir().unwrap().next().is_some());
+}
+
+#[test]
+fn every_run_triggers_automatic_gc_of_expired_entries() {
+    let w = world();
+    assert!(w.run(&["run", "--keep", "--", "true"]).status.success());
+    let kept = w.remote.join("work").join(&w.work_dirs()[0]);
+    backdate(&kept.join("meta.json"), 4);
+    assert!(w.run(&["run", "--", "true"]).status.success());
+    for _ in 0..50 {
+        if !kept.exists() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    panic!("automatic gc did not remove the expired kept dir");
+}

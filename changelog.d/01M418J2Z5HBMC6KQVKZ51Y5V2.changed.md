@@ -1,0 +1,1 @@
+goway gc removes stale remote state on every host (orphaned work dirs after 1 day, --keep dirs after 3 days, seeds and caches after 7 idle days, never anything locked by a run), with --host, --repo, --older-than, --all and --dry-run; every goway run also collects expired entries on its host automatically.

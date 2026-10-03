@@ -121,11 +121,53 @@ pub fn probe_one(
     Ok((found, probe))
 }
 
-/// Probe every host in parallel; working addresses are merged into `state`.
+/// Run `f` for each of `hosts` in parallel, each with its own copy of
+/// `state`; working addresses found on the way are merged back.
 ///
 /// # Panics
 ///
-/// Only if a probe thread panics, which is a bug.
+/// Only if `f` panics, which is a bug.
+pub fn on_hosts<'a, T, F>(
+    hosts: &[&'a HostConfig],
+    state: &mut State,
+    f: F,
+) -> Vec<(&'a HostConfig, Result<T>)>
+where
+    T: Send,
+    F: Fn(&HostConfig, &mut State) -> Result<T> + Sync,
+{
+    let snapshot = state.clone();
+    let f = &f;
+    let results: Vec<(&'a HostConfig, Result<T>, State)> = std::thread::scope(|scope| {
+        let handles: Vec<_> = hosts
+            .iter()
+            .map(|&host| {
+                let mut local = snapshot.clone();
+                scope.spawn(move || {
+                    let result = f(host, &mut local);
+                    (host, result, local)
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().expect("host thread panicked"))
+            .collect()
+    });
+    results
+        .into_iter()
+        .map(|(host, result, local)| {
+            if let Some(s) = local.get(&host.name) {
+                state
+                    .hosts
+                    .insert(host.name.to_ascii_lowercase(), s.clone());
+            }
+            (host, result)
+        })
+        .collect()
+}
+
+/// Probe every host in parallel; working addresses are merged into `state`.
 pub fn probe_all<'a>(
     config: &'a Config,
     state: &mut State,
@@ -133,34 +175,13 @@ pub fn probe_all<'a>(
     prober: &(dyn Prober + Sync),
     disk: bool,
 ) -> Vec<Probed<'a>> {
-    let snapshot = state.clone();
-    let results: Vec<(Probed<'a>, State)> = std::thread::scope(|scope| {
-        let handles: Vec<_> = config
-            .hosts
-            .iter()
-            .map(|host| {
-                let mut local = snapshot.clone();
-                scope.spawn(move || {
-                    let result = probe_one(config, host, &mut local, lookup, prober, disk);
-                    (Probed { host, result }, local)
-                })
-            })
-            .collect();
-        handles
-            .into_iter()
-            .map(|h| h.join().expect("probe thread panicked"))
-            .collect()
-    });
-    let mut out = Vec::with_capacity(results.len());
-    for (probed, local) in results {
-        if let Some(s) = local.get(&probed.host.name) {
-            state
-                .hosts
-                .insert(probed.host.name.to_ascii_lowercase(), s.clone());
-        }
-        out.push(probed);
-    }
-    out
+    let hosts: Vec<&HostConfig> = config.hosts.iter().collect();
+    on_hosts(&hosts, state, |host, local| {
+        probe_one(config, host, local, lookup, prober, disk)
+    })
+    .into_iter()
+    .map(|(host, result)| Probed { host, result })
+    .collect()
 }
 
 /// Choose where to run: `wanted` if given, else the least-loaded host.

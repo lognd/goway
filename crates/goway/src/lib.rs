@@ -4,6 +4,7 @@
 pub mod cli;
 pub mod config;
 pub mod error;
+pub mod gc;
 pub mod hosts;
 pub mod paths;
 pub mod pool;
@@ -84,7 +85,16 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
                 &resolve::SshProber { settings },
             )
         }
-        Command::Gc(_) => Err(Error::NotImplemented("gc")),
+        Command::Gc(args) => {
+            let settings = ssh::Settings::from_paths(&paths);
+            gc::gc(
+                &paths,
+                renderer,
+                args,
+                &resolve::SystemLookup,
+                &resolve::SshProber { settings },
+            )
+        }
         Command::Doctor(_) => Err(Error::NotImplemented("doctor")),
         Command::Host(HostCommand::List) => host_list(&paths, renderer),
         Command::Host(HostCommand::Remove { name }) => host_remove(&paths, renderer, name),

@@ -68,7 +68,8 @@ watchdog() {
   fi
 }
 
-# run ROOT SEED RUN_ID REPO_ID KEEP SLOTS META_B64 CACHE_META_B64 ENV_B64 -- CMD...
+# run ROOT SEED RUN_ID REPO_ID KEEP SLOTS META_B64 CACHE_META_B64 ENV_B64 TTLS -- CMD...
+# TTLS is "cache:orphan:kept" in seconds, for the automatic gc afterwards.
 # Snapshot the seed into a fresh work dir, pick a free cargo target slot,
 # run CMD in its own process group with stdio passed through, clean up,
 # and exit with CMD's status (128+N when killed by signal N).
@@ -76,8 +77,9 @@ run() {
   local root seed work cache slot="" k rc=0 wd
   root=$(root_dir "$1"); seed="$root/seed/$2"; work="$root/work/$3"
   cache="$root/cache/$4"
-  local run_id=$3 repo_id=$4 keep=$5 slots=$6 meta=$7 cache_meta=$8 envb=$9
-  shift 9
+  local root_arg=$1 run_id=$3 repo_id=$4 keep=$5 slots=$6 meta=$7 cache_meta=$8 envb=$9
+  local ttls=${10}
+  shift 10
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$seed/tree" ] || die "run: no synced tree at $seed"
@@ -136,6 +138,13 @@ run() {
   kill "$wd" 2>/dev/null || true
   cd "$root"
   if [ "$keep" != 1 ]; then rm -rf "$work"; fi
+  # Cheap automatic gc of expired entries, detached so it never delays
+  # the exit (and never holds the ssh session open).
+  if [ -n "$ttls" ]; then
+    IFS=: read -r t_cache t_orphan t_kept <<<"$ttls"
+    (trap '' HUP; gc "$root_arg" "$(date +%s)" "$t_cache" "$t_orphan" "$t_kept" apply "" "") \
+      </dev/null >/dev/null 2>&1 7>&- 9>&- &
+  fi
   exit "$rc"
 }
 
@@ -159,6 +168,80 @@ probe() {
   fi
 }
 
+# Seconds since the last use of DIR (its meta.json mtime).
+age_of() {
+  local m
+  m=$(stat -c %Y "$1/meta.json" 2>/dev/null || stat -c %Y "$1")
+  printf '%s' $(($2 - m))
+}
+
+# The repo name and id recorded in DIR/meta.json, tab separated.
+repo_of() {
+  local meta name id
+  meta=$(cat "$1/meta.json" 2>/dev/null || true)
+  name=$(printf '%s' "$meta" | sed -n 's/.*"repo":"\([^"]*\)".*/\1/p')
+  id=$(printf '%s' "$meta" | sed -n 's/.*"repo_id":"\([^"]*\)".*/\1/p')
+  printf '%s\t%s' "${name:--}" "${id:--}"
+}
+
+# Decide one entry: print "action TAB kind TAB age TAB bytes TAB repo TAB id TAB path"
+# and remove it when the action is "remove" and MODE is apply. The entry's
+# locks are taken exclusively (non-blocking) while it is removed.
+gc_entry() {
+  local kind=$1 dir=$2 ttl=$3 now=$4 mode=$5 repo_filter=$6 action age bytes repo locks=() l fd
+  repo=$(repo_of "$dir")
+  if [ -n "$repo_filter" ] && [ "${repo%%$'\t'*}" != "$repo_filter" ] && [ "${repo##*$'\t'}" != "$repo_filter" ]; then
+    return 0
+  fi
+  age=$(age_of "$dir" "$now")
+  case "$kind" in
+    cache) for l in "$dir"/target-*.lock; do [ -e "$l" ] && locks+=("$l"); done ;;
+    *) locks=("$dir/lock") ;;
+  esac
+  action=keep
+  if [ "$age" -ge "$ttl" ]; then action=remove; fi
+  # Hold every lock of the entry while deciding and removing.
+  fd=20
+  for l in "${locks[@]}"; do
+    [ -e "$l" ] || continue
+    eval "exec $fd>\"\$l\""
+    if ! flock -n "$fd"; then action=busy; fi
+    fd=$((fd + 1))
+  done
+  bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$action" "$kind" "$age" "${bytes:-0}" "$repo" "$dir"
+  if [ "$action" = remove ] && [ "$mode" = apply ]; then
+    rm -rf "$dir"
+  fi
+  while [ "$fd" -gt 20 ]; do fd=$((fd - 1)); eval "exec $fd>&-"; done
+}
+
+# gc ROOT NOW CACHE_TTL ORPHAN_TTL KEPT_TTL MODE REPO OLDER_THAN
+# TTLs in seconds; OLDER_THAN (seconds, or empty) replaces every TTL.
+gc() {
+  local root now cache_ttl orphan_ttl kept_ttl mode repo older d ttl
+  root=$(root_dir "$1"); now=$2; cache_ttl=$3; orphan_ttl=$4; kept_ttl=$5
+  mode=$6; repo=$7; older=$8
+  [ -d "$root" ] || return 0
+  for d in "$root"/work/*/; do
+    [ -d "$d" ] || continue
+    d=${d%/}
+    if [ -e "$d/keep" ]; then ttl=$kept_ttl; else ttl=$orphan_ttl; fi
+    gc_entry work "$d" "${older:-$ttl}" "$now" "$mode" "$repo"
+  done
+  for d in "$root"/seed/*/*/; do
+    [ -d "$d" ] || continue
+    gc_entry seed "${d%/}" "${older:-$cache_ttl}" "$now" "$mode" "$repo"
+  done
+  for d in "$root"/cache/*/; do
+    [ -d "$d" ] || continue
+    gc_entry cache "${d%/}" "${older:-$cache_ttl}" "$now" "$mode" "$repo"
+  done
+  if [ "$mode" = apply ]; then
+    find "$root/seed" -mindepth 1 -maxdepth 1 -type d -empty -delete 2>/dev/null || true
+  fi
+}
+
 verb=${1:-}
 [ -n "$verb" ] || die "no verb"
 shift
@@ -167,6 +250,7 @@ case "$verb" in
   receive) receive "$@" ;;
   run) run "$@" ;;
   probe) probe "$@" ;;
+  gc) gc "$@" ;;
   ping) printf 'goway-remote ok\n' ;;
   *) die "unknown verb: $verb" ;;
 esac

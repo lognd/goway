@@ -226,6 +226,13 @@ fn run_invocation(
     let slots = config.defaults.target_slots.max(1).to_string();
     let seed = repo.seed_key();
     let keep = if args.keep { "1" } else { "0" };
+    let d = &config.defaults;
+    let ttls = format!(
+        "{}:{}:{}",
+        d.cache_ttl.as_secs(),
+        d.orphan_ttl.as_secs(),
+        d.kept_ttl.as_secs()
+    );
     let mut words: Vec<&str> = vec![
         &config.defaults.remote_root,
         &seed,
@@ -236,6 +243,7 @@ fn run_invocation(
         &meta,
         &cache_meta,
         env_b64,
+        &ttls,
         "--",
     ];
     words.extend(args.command.iter().map(String::as_str));
