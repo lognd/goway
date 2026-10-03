@@ -76,6 +76,20 @@ pub enum Change {
         /// Where to insert when the entry is absent.
         position: ListPosition,
     },
+    /// Make a file a byte-exact copy of `source`, which must hold the content with `digest`.
+    InstallFile {
+        /// Destination path (its parent must exist; an existing different file is refused).
+        path: PathBuf,
+        /// Path of the file to copy from, for example a staged payload.
+        source: PathBuf,
+        /// Lowercase hex SHA-256 of the content; revert removes the file only while it still matches.
+        digest: String,
+    },
+    /// Ensure a registry-like key exists (values are separate changes).
+    EnsureRegKey {
+        /// Key path.
+        key: String,
+    },
     /// Set a registry-like value.
     SetRegistryValue {
         /// Key path.

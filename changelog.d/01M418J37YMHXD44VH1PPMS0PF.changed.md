@@ -1,0 +1,1 @@
+goway-setup.exe installs the goway client for the current user (copies goway.exe, adds it to the user Path, registers an Add/Remove Programs entry) and uninstalls it by replaying a journal, restoring the machine exactly.

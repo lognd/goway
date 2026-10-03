@@ -3,12 +3,14 @@
 use std::path::PathBuf;
 
 use goway_journal::{
-    Change, Journal, ListPosition, ModelSystem, RegValue, ResourceKind, apply, revert,
+    Change, Journal, ListPosition, ModelSystem, RegValue, ResourceKind, apply, revert, sha256_hex,
 };
 use proptest::prelude::*;
 use proptest::test_runner::{Config, TestRunner};
 
 const FILES: [&str; 4] = ["/t/f0", "/t/f1", "/t/d0/f0", "/t/d0/e0/f0"];
+/// A read-only source file present in every generated system.
+const BLOB: &str = "/src/blob";
 const DIRS: [&str; 4] = ["/t/d0", "/t/d0/e0", "/t/d1", "/t/d1/e1"];
 
 fn pick(items: &'static [&'static str]) -> impl Strategy<Value = String> {
@@ -93,6 +95,12 @@ fn change() -> impl Strategy<Value = Change> {
             }),
         (pick(&["K1", "K2"]), pick(&["n1", "n2"]), reg_value())
             .prop_map(|(key, name, value)| Change::SetRegistryValue { key, name, value }),
+        pick(&["K1", "K2"]).prop_map(|key| Change::EnsureRegKey { key }),
+        path_of(&FILES).prop_map(|path| Change::InstallFile {
+            path,
+            source: PathBuf::from(BLOB),
+            digest: sha256_hex(b"blob"),
+        }),
         (
             path_of(&FILES),
             pick(&["wsl2", "other"]),
@@ -133,6 +141,8 @@ fn system() -> impl Strategy<Value = ModelSystem> {
         |(dirs, files, path_var, regs, attrs, resources)| {
             let mut m = ModelSystem::new();
             m.dirs.insert("/t".into());
+            m.dirs.insert("/src".into());
+            m.files.insert(BLOB.into(), "blob".into());
             for (d, on) in DIRS.iter().zip(dirs) {
                 let parent = PathBuf::from(d).parent().unwrap().to_path_buf();
                 if on && m.dirs.contains(&parent) {

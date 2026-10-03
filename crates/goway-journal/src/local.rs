@@ -7,7 +7,8 @@ use crate::change::{RegValue, ResourceKind};
 use crate::error::SystemError;
 use crate::system::{SysResult, System};
 
-/// The host machine. Variables, registry, ACLs and resources are not yet supported.
+/// The host machine. Files, directories, unix modes and (on Windows) the registry and user
+/// environment variables work; ACLs and resources are not yet supported.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LocalSystem;
 
@@ -74,26 +75,117 @@ impl System for LocalSystem {
         }
     }
 
+    fn file_digest(&self, path: &Path) -> SysResult<Option<String>> {
+        match std::fs::read(path) {
+            Ok(b) => Ok(Some(crate::digest::sha256_hex(&b))),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(io(path, e)),
+        }
+    }
+
+    fn copy_file(&mut self, src: &Path, dest: &Path) -> SysResult<()> {
+        tracing::debug!(src = %src.display(), dest = %dest.display(), "local: copy file");
+        std::fs::copy(src, dest)
+            .map(drop)
+            .map_err(|e| io_or_missing(dest, e))
+    }
+
+    #[cfg(windows)]
+    fn get_var(&self, name: &str) -> SysResult<Option<String>> {
+        crate::local_windows::get_var(name)
+    }
+
+    #[cfg(not(windows))]
     fn get_var(&self, _name: &str) -> SysResult<Option<String>> {
         Err(SystemError::Unsupported("list variables"))
     }
 
+    #[cfg(windows)]
+    fn set_var(&mut self, name: &str, value: &str) -> SysResult<()> {
+        crate::local_windows::set_var(name, value)
+    }
+
+    #[cfg(not(windows))]
     fn set_var(&mut self, _name: &str, _value: &str) -> SysResult<()> {
         Err(SystemError::Unsupported("list variables"))
     }
 
+    #[cfg(windows)]
+    fn remove_var(&mut self, name: &str) -> SysResult<()> {
+        crate::local_windows::remove_var(name)
+    }
+
+    #[cfg(not(windows))]
     fn remove_var(&mut self, _name: &str) -> SysResult<()> {
         Err(SystemError::Unsupported("list variables"))
     }
 
+    #[cfg(windows)]
+    fn reg_key_exists(&self, key: &str) -> SysResult<bool> {
+        crate::local_windows::reg_key_exists(key)
+    }
+
+    #[cfg(not(windows))]
+    fn reg_key_exists(&self, _key: &str) -> SysResult<bool> {
+        Err(SystemError::Unsupported("registry"))
+    }
+
+    #[cfg(windows)]
+    fn reg_key_create(&mut self, key: &str) -> SysResult<()> {
+        crate::local_windows::reg_key_create(key)
+    }
+
+    #[cfg(not(windows))]
+    fn reg_key_create(&mut self, _key: &str) -> SysResult<()> {
+        Err(SystemError::Unsupported("registry"))
+    }
+
+    #[cfg(windows)]
+    fn reg_key_is_empty(&self, key: &str) -> SysResult<bool> {
+        crate::local_windows::reg_key_is_empty(key)
+    }
+
+    #[cfg(not(windows))]
+    fn reg_key_is_empty(&self, _key: &str) -> SysResult<bool> {
+        Err(SystemError::Unsupported("registry"))
+    }
+
+    #[cfg(windows)]
+    fn reg_key_remove(&mut self, key: &str) -> SysResult<()> {
+        crate::local_windows::reg_key_remove(key)
+    }
+
+    #[cfg(not(windows))]
+    fn reg_key_remove(&mut self, _key: &str) -> SysResult<()> {
+        Err(SystemError::Unsupported("registry"))
+    }
+
+    #[cfg(windows)]
+    fn reg_get(&self, key: &str, name: &str) -> SysResult<Option<RegValue>> {
+        crate::local_windows::reg_get(key, name)
+    }
+
+    #[cfg(not(windows))]
     fn reg_get(&self, _key: &str, _name: &str) -> SysResult<Option<RegValue>> {
         Err(SystemError::Unsupported("registry"))
     }
 
+    #[cfg(windows)]
+    fn reg_set(&mut self, key: &str, name: &str, value: &RegValue) -> SysResult<()> {
+        crate::local_windows::reg_set(key, name, value)
+    }
+
+    #[cfg(not(windows))]
     fn reg_set(&mut self, _key: &str, _name: &str, _value: &RegValue) -> SysResult<()> {
         Err(SystemError::Unsupported("registry"))
     }
 
+    #[cfg(windows)]
+    fn reg_delete(&mut self, key: &str, name: &str) -> SysResult<()> {
+        crate::local_windows::reg_delete(key, name)
+    }
+
+    #[cfg(not(windows))]
     fn reg_delete(&mut self, _key: &str, _name: &str) -> SysResult<()> {
         Err(SystemError::Unsupported("registry"))
     }

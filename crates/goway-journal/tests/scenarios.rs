@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use goway_journal::{
     Change, Journal, ListPosition, ModelSystem, Outcome, Prior, RegValue, ResourceKind, System,
-    apply, apply_with, revert,
+    apply, apply_with, revert, sha256_hex, still_applied,
 };
 
 fn p(s: &str) -> PathBuf {
@@ -377,4 +377,77 @@ fn journal_saves_and_loads_through_a_file() {
     j.save(&path).unwrap();
     assert_eq!(Journal::load(&path).unwrap(), j);
     assert!(Journal::load(&dir.path().join("missing.json")).is_err());
+}
+
+fn install_file(dest: &str) -> Change {
+    Change::InstallFile {
+        path: p(dest),
+        source: p("/t/src"),
+        digest: sha256_hex(b"payload"),
+    }
+}
+
+fn with_source() -> ModelSystem {
+    let mut m = base();
+    m.files.insert(p("/t/src"), "payload".into());
+    m
+}
+
+#[test]
+fn install_file_copies_then_removes_only_while_unchanged() {
+    let mut m = with_source();
+    let mut j = apply(&[install_file("/t/dest")], &mut m).unwrap();
+    assert_eq!(m.files[&p("/t/dest")], "payload");
+    assert!(still_applied(&j.entries[0].change, &m).unwrap());
+    revert(&mut j, &mut m).unwrap();
+    assert!(!m.files.contains_key(&p("/t/dest")));
+
+    let mut j = apply(&[install_file("/t/dest")], &mut m).unwrap();
+    m.files.insert(p("/t/dest"), "edited".into());
+    assert!(!still_applied(&j.entries[0].change, &m).unwrap());
+    let report = revert(&mut j, &mut m).unwrap();
+    assert!(matches!(report.outcomes[0].1, Outcome::LeftAlone(_)));
+    assert_eq!(m.files[&p("/t/dest")], "edited");
+}
+
+#[test]
+fn install_file_refuses_a_different_existing_file_and_keeps_an_identical_one() {
+    let mut m = with_source();
+    m.files.insert(p("/t/dest"), "foreign".into());
+    assert!(apply(&[install_file("/t/dest")], &mut m).is_err());
+    assert_eq!(m.files[&p("/t/dest")], "foreign");
+
+    m.files.insert(p("/t/dest"), "payload".into());
+    let mut j = apply(&[install_file("/t/dest")], &mut m).unwrap();
+    assert_eq!(j.entries[0].prior, Prior::Noop);
+    revert(&mut j, &mut m).unwrap();
+    assert_eq!(m.files[&p("/t/dest")], "payload");
+}
+
+#[test]
+fn registry_key_is_removed_only_when_goway_created_it_and_it_is_empty() {
+    let key = || Change::EnsureRegKey { key: "K".into() };
+    let value = Change::SetRegistryValue {
+        key: "K".into(),
+        name: "n".into(),
+        value: RegValue::Dword(1),
+    };
+    let mut m = base();
+    let mut j = apply(&[key(), value.clone()], &mut m).unwrap();
+    assert!(still_applied(&value, &m).unwrap());
+    revert(&mut j, &mut m).unwrap();
+    assert_eq!(m, base());
+
+    let mut j = apply(&[key()], &mut m).unwrap();
+    m.registry
+        .insert(("K".into(), "other".into()), RegValue::Dword(2));
+    let report = revert(&mut j, &mut m).unwrap();
+    assert!(matches!(report.outcomes[0].1, Outcome::LeftAlone(_)));
+    assert!(m.reg_key_exists("K").unwrap());
+
+    let mut m = base();
+    m.reg_keys.insert("K".into());
+    let mut j = apply(&[key()], &mut m).unwrap();
+    revert(&mut j, &mut m).unwrap();
+    assert!(m.reg_keys.contains("K"), "a pre-existing key survives");
 }
