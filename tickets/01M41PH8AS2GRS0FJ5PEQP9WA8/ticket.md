@@ -2,7 +2,8 @@
 id = "01M41PH8AS2GRS0FJ5PEQP9WA8"
 title = "Publish goway wheels to PyPI (maturin bin bindings) with trusted publishing"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
