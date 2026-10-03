@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T16:24:10Z"
+digest = "9a91c34a3bfd1f8d3a24dab5c0b753d9d9147f8a760cefa91f2f24a21eb31b6c"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e79928aa-f7b2-4f30-9851-c22bf7d6584b with nextest profile: default
+    Starting 3 tests across 3 binaries (31 tests skipped)
+        PASS [   0.012s] goway resolve::tests::configured_then_dns_then_mdns_order_and_dedup
+        PASS [   0.026s] goway resolve::tests::working_cache_never_touches_slow_lookups
+        PASS [   0.041s] goway resolve::tests::stale_cache_falls_through_to_windows_mdns_and_is_recached
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.046s] 3 tests run: 3 passed, 31 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(stale_cache_falls_through_to_windows_mdns_and_is_recached) | test(configured_then_dns_then_mdns_order_and_dedup) | test(working_cache_never_touches_slow_lookups)'"
+size = 753
+status = "measured"
+tests = ["resolve::tests::configured_then_dns_then_mdns_order_and_dedup", "resolve::tests::working_cache_never_touches_slow_lookups", "resolve::tests::stale_cache_falls_through_to_windows_mdns_and_is_recached"]
+at = "2026-10-03T16:24:10Z"
+actor = "lognd"
+rev = 1

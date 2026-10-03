@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T16:24:12Z"
+digest = "4b68bc254c132f00f850044b050da64be7a4739a6e7d5239007b45a5eee03028"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 243312c8-3019-4494-ad6e-d4ac8552bd68 with nextest profile: default
+    Starting 3 tests across 3 binaries (31 tests skipped)
+        PASS [   0.031s] goway resolve::tests::stale_cache_falls_through_to_windows_mdns_and_is_recached
+        PASS [   0.031s] goway resolve::tests::parses_windows_output_with_crlf
+        PASS [   0.807s] goway resolve::tests::windows_interop_answers_under_wsl
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.808s] 3 tests run: 3 passed, 31 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(windows_interop_answers_under_wsl) | test(parses_windows_output_with_crlf) | test(stale_cache_falls_through_to_windows_mdns_and_is_recached)'"
+size = 732
+status = "measured"
+tests = ["resolve::tests::stale_cache_falls_through_to_windows_mdns_and_is_recached", "resolve::tests::parses_windows_output_with_crlf", "resolve::tests::windows_interop_answers_under_wsl"]
+at = "2026-10-03T16:24:13Z"
+actor = "lognd"
+rev = 1
