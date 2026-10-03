@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:35:42Z"
+digest = "3e44d870a1fb749a8f98ed566b69303fda30b3cdbbab805c1b3bd0f971515079"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8ff18a6e-057b-4cf4-aa78-9229a5975982 with nextest profile: default
+    Starting 2 tests across 21 binaries (183 tests skipped)
+        PASS [   0.009s] goway config::tests::remote_root_must_be_a_dedicated_directory
+        PASS [   0.363s] goway::run_local gc_never_removes_unlabelled_entries_or_anything_under_an_unmarked_root
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.365s] 2 tests run: 2 passed, 183 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(gc_never_removes_unlabelled_entries_or_anything_under_an_unmarked_root) | test(remote_root_must_be_a_dedicated_directory)'"
+size = 671
+status = "measured"
+tests = ["config::tests::remote_root_must_be_a_dedicated_directory", "gc_never_removes_unlabelled_entries_or_anything_under_an_unmarked_root"]
+at = "2026-10-03T18:35:42Z"
+actor = "lognd"
+rev = 1
