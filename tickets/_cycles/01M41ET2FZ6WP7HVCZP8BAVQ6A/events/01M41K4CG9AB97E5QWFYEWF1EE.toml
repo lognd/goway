@@ -1,0 +1,9 @@
+kind = "cycle"
+op = "over-commit"
+ticket = "01M41J9F9X5EXN9SS579WA8S1D"
+committed = 24
+text = "release is required before the owner's fresh-install test"
+capacity = 19
+at = "2026-10-03T19:16:23Z"
+actor = "lognd"
+rev = 1
