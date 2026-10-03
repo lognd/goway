@@ -2,7 +2,8 @@
 id = "01M418J39QGM7X2XQ32RN5XHS5"
 title = "Windows installer: host component (firewall, Hyper-V firewall, keepalive, wslconfig, WSL sshd)"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 8
 parent = "01M418GXXC6312Z4N151DYH3Y4"
