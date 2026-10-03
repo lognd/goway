@@ -2,7 +2,8 @@
 id = "01M41T2ERNJM7R0MCEZXKE3574"
 title = "GPU slots: one GPU job per GPU by default, with CUDA_VISIBLE_DEVICES set"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
