@@ -2,7 +2,8 @@
 id = "01M41N12A8CCPCQZMZFKYWG47Q"
 title = "README: how install and uninstall work, and why they are reversible (the journal)"
 type = "docs"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
