@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-03T21:18:00Z"
+digest = "70fe033c4b107f78d8a474eeb8bb7bb6378ff92f237e94149c972dcf92381cf6"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID a07462bd-096a-4a39-9084-263488927afc with nextest profile: default
+    Starting 1 test across 28 binaries (328 tests skipped)
+        PASS [   0.008s] goway shard::tests::complete_buffered_lines_go_out_in_one_batch
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.010s] 1 test run: 1 passed, 328 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "complete_buffered_lines_go_out"
+size = 661
+status = "measured"
+tests = ["shard::tests::complete_buffered_lines_go_out_in_one_batch"]
+at = "2026-10-03T21:18:00Z"
+actor = "lognd"
+rev = 1

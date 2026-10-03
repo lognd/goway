@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T21:17:59Z"
+digest = "9e727bf1a541ab88acf63cbf45e139e2e40e48e745d95ebe0b2abe9ed7da5b8b"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 6131a9da-761e-4075-b5fc-18bb336d214b with nextest profile: default
+    Starting 1 test across 28 binaries (328 tests skipped)
+        PASS [   0.010s] goway render::tests::framer_never_splits_a_multibyte_character
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.012s] 1 test run: 1 passed, 328 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "framer_never_splits"
+size = 556
+status = "measured"
+tests = ["render::tests::framer_never_splits_a_multibyte_character"]
+at = "2026-10-03T21:17:59Z"
+actor = "lognd"
+rev = 1

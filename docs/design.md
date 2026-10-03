@@ -8,8 +8,10 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
 
 - Hosts are Windows laptops with WSL2 (Ubuntu, x86_64, systemd on). sshd in
   WSL listens on 2222; the Windows OpenSSH server on 22 lands in cmd.exe.
-- WSL uses `networkingMode = mirrored`, so the Windows Wi-Fi address reaches
-  the WSL sshd. A scheduled task keeps the distro alive; a Windows firewall
+- WSL uses `networkingMode = mirrored` (Windows 11 22H2+), so the Windows
+  Wi-Fi address reaches the WSL sshd. On Windows 10, or WSL in NAT mode, a
+  Windows port relay (`netsh interface portproxy`) forwards the port to WSL
+  and a scheduled task re-points it when WSL's address changes. A scheduled task keeps the distro alive; a Windows firewall
   rule and the Hyper-V firewall allow inbound 2222.
 - Addresses are DHCP leases in a /13 (192.0.2.0/13). They change, and the
   subnet is far too large to scan.
@@ -140,7 +142,7 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
    1. Linux: `scripts/install.sh` and `scripts/uninstall.sh` (user-local).
    2. Windows: `goway-setup.exe`, components `client` (goway.exe, user
       PATH, Add/Remove Programs entry) and `host` (firewall rule, Hyper-V
-      firewall, keepalive task, .wslconfig mirrored, WSL sshd on 2222).
+      firewall, keepalive task, .wslconfig mirrored or, in NAT mode, the port relay and its refresh task, WSL sshd on 2222).
    3. Every change is a journal entry recording the prior state; the
       uninstaller replays the journal backwards. Proven by a property test
       over a model system (uninstall after install restores the state) and
