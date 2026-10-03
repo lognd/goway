@@ -8,7 +8,7 @@ points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T21:27:11Z"
-updated = "2026-10-03T21:47:35Z"
+updated = "2026-10-03T21:47:38Z"
 scope = ["crates/goway/src/runners.rs", "crates/goway/src/shard.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/usage.md", "crates/goway/src/detect.rs", "crates/goway/src/run.rs", "crates/goway/src/gc.rs", "crates/goway/src/state.rs", "crates/goway/src/lib.rs"]
 
 [[acceptance]]
@@ -21,7 +21,7 @@ bound = true
 
 [[acceptance]]
 text = "Given GOWAY_RUNNER=catch2 or gtest, when set, then it overrides detection"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a candidate program, when goway inspects it, then it is only treated as GoogleTest or Catch2 if it is an ELF or PE executable (magic bytes, never scripts) containing every required marker (GoogleTest: GTEST_SHARD_INDEX, GTEST_TOTAL_SHARDS, --gtest_list_tests, --gtest_filter; Catch2 v3: --shard-count, --shard-index, --list-tests and a Catch2-specific string), read with a size cap and fixed-string search, resolved exactly as the shell will resolve it, and never executed to find out; goway's own binary and fixtures that contain only some markers are not detected"
