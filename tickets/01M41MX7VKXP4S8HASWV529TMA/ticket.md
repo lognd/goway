@@ -2,13 +2,13 @@
 id = "01M41MX7VKXP4S8HASWV529TMA"
 title = "Helpers on Windows 10 / WSL NAT mode: journaled portproxy relay kept current by the keepalive task"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:47:26Z"
-updated = "2026-10-03T20:01:15Z"
+updated = "2026-10-03T20:01:16Z"
 scope = ["crates/goway-setup/**", "docs/install-windows.md", "crates/goway-journal/**", "scripts/windows/**"]
 
 [[acceptance]]
