@@ -8,9 +8,9 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:01:41Z"
-updated = "2026-10-03T19:01:41Z"
+updated = "2026-10-03T19:05:26Z"
 labels = ["newcomer"]
-scope = ["crates/goway/**"]
+scope = ["crates/goway/**", "docs/usage.md", "docs/ssh-setup.md"]
 
 [[acceptance]]
 text = "Given a helper that answers on ssh, when goway add HELPER --fingerprint SHA256:x runs, then key login works, the host is pinned and in the pool, and its user-level toolchain is installed, with one password prompt"
