@@ -139,6 +139,26 @@ run() {
   exit "$rc"
 }
 
+# probe ROOT [disk]: key=value facts for scheduling and status.
+probe() {
+  local root jobs=0 l
+  root=$(root_dir "$1")
+  printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(uname -m)" "$(uname -n)" "$(nproc)"
+  read -r l1 l5 l15 _ </proc/loadavg
+  printf 'load1=%s\nload5=%s\nload15=%s\n' "$l1" "$l5" "$l15"
+  if [ -d "$root/work" ]; then
+    for l in "$root"/work/*/lock; do
+      [ -e "$l" ] || continue
+      flock -n "$l" true || jobs=$((jobs + 1))
+    done
+  fi
+  printf 'jobs=%s\n' "$jobs"
+  if [ "${2:-}" = disk ]; then
+    printf 'disk_used=%s\n' "$(du -sb "$root" 2>/dev/null | cut -f1 || true)"
+    printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
+  fi
+}
+
 verb=${1:-}
 [ -n "$verb" ] || die "no verb"
 shift
@@ -146,6 +166,7 @@ case "$verb" in
   manifest) manifest "$@" ;;
   receive) receive "$@" ;;
   run) run "$@" ;;
+  probe) probe "$@" ;;
   ping) printf 'goway-remote ok\n' ;;
   *) die "unknown verb: $verb" ;;
 esac

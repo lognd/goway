@@ -6,6 +6,7 @@ pub mod config;
 pub mod error;
 pub mod hosts;
 pub mod paths;
+pub mod pool;
 pub mod remote;
 pub mod render;
 pub mod repo;

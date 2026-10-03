@@ -14,19 +14,17 @@ use base64::Engine as _;
 use serde::Serialize;
 
 use crate::cli::RunArgs;
-use crate::config::{Config, HostConfig};
+use crate::config::Config;
 use crate::error::{Error, Result};
 use crate::paths::Paths;
+use crate::pool;
 use crate::remote;
 use crate::render::Renderer;
 use crate::repo::Repo;
-use crate::resolve::{self, Found, Lookup, Prober};
+use crate::resolve::{Found, Lookup, Prober};
 use crate::ssh::{self, KeyPolicy};
 use crate::state::State;
 use crate::sync::{self, Label, SshTransport};
-
-/// The probe run while resolving: arch and hostname.
-pub const IDENTIFY: &str = "uname -m; uname -n";
 
 /// Provenance of one run, written by `--report`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -99,29 +97,14 @@ pub fn exit_code_of(status: std::process::ExitStatus) -> u8 {
     crate::error::EXIT_GOWAY_FAILURE
 }
 
-/// Choose the host: `--host`, else the only configured one. (Least-loaded
-/// selection over the pool lives in `pool`.)
-fn choose<'a>(config: &'a Config, wanted: Option<&str>) -> Result<&'a HostConfig> {
-    match wanted {
-        Some(name) => config.host(name),
-        None => match config.hosts.as_slice() {
-            [] => Err(Error::Usage(
-                "no hosts configured; add one with `goway host add NAME`".to_owned(),
-            )),
-            [only] => Ok(only),
-            [first, ..] => Ok(first),
-        },
-    }
-}
-
 /// Everything `run` needs from the environment, injectable for tests.
 pub struct Env<'a> {
     /// Local paths.
     pub paths: &'a Paths,
     /// Name lookups.
-    pub lookup: &'a dyn Lookup,
+    pub lookup: &'a (dyn Lookup + Sync),
     /// Host probing.
-    pub prober: &'a dyn Prober,
+    pub prober: &'a (dyn Prober + Sync),
     /// ssh settings.
     pub settings: &'a ssh::Settings,
     /// Directory the run starts from.
@@ -133,24 +116,26 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     let started = Instant::now();
     let env_b64 = encode_env(&args.env)?;
     let config = Config::load(&env.paths.config_file())?;
-    let host = choose(&config, args.host.as_deref())?;
     let repo = Repo::discover(env.cwd)?;
     let mut state = State::load(&env.paths.state_file())?;
-    let found: Found = resolve::resolve(
+    let (host, found, probe) = pool::choose(
         &config,
-        host,
         &mut state,
         env.lookup,
         env.prober,
-        KeyPolicy::Strict,
-        IDENTIFY,
+        args.host.as_deref(),
     )?;
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host address");
     }
-    let mut ident = found.output.lines().map(str::trim);
-    let arch = ident.next().unwrap_or("unknown").to_owned();
-    let hostname = ident.next().unwrap_or("unknown").to_owned();
+    let arch = probe.arch.clone();
+    let hostname = probe.hostname.clone();
+    if args.host.is_none() && config.hosts.len() > 1 {
+        renderer.note(format_args!(
+            "picked {} (load {:.2} on {} cores, {} goway jobs)",
+            host.name, probe.load[0], probe.cores, probe.jobs
+        ));
+    }
 
     let transport = SshTransport {
         target: &found.target,
@@ -326,20 +311,5 @@ mod tests {
         };
         assert_eq!(exit_code_of(status("exit 7")), 7);
         assert_eq!(exit_code_of(status("kill -INT $$")), 130);
-    }
-
-    #[test]
-    fn choose_prefers_named_then_only_host() {
-        let mut config = Config::default();
-        assert!(choose(&config, None).is_err());
-        config.hosts.push(HostConfig {
-            name: "a".to_owned(),
-            address: None,
-            port: None,
-            user: None,
-            max_jobs: None,
-        });
-        assert_eq!(choose(&config, None).unwrap().name, "a");
-        assert!(choose(&config, Some("b")).is_err());
     }
 }
