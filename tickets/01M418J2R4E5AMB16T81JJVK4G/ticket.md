@@ -8,8 +8,8 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T16:11:38Z"
-updated = "2026-10-03T16:19:52Z"
-scope = ["crates/goway/**", "docs/hosts.md", "docs/config.md"]
+updated = "2026-10-03T16:19:57Z"
+scope = ["crates/goway/**"]
 
 [[acceptance]]
 text = "Given a host whose cached address fails, when goway resolves it, then it tries the next candidates in order and caches the first that passes the host key check"
