@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:59:37Z"
+digest = "5a8c7ffe115c9fd47f18699d5c931b7adb50a577308bd66753296a0f3b20882c"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d847c9b0-6443-468d-920c-50d67fe417ac with nextest profile: default
+    Starting 5 tests across 1 binary (12 tests and 26 binaries skipped)
+        PASS [   0.015s] goway-setup::relay the_firewall_rule_exists_before_the_relay_listens_and_the_script_lives_in_the_admin_dir
+        PASS [   0.014s] goway-setup::relay only_a_rule_shaped_like_the_relay_is_reported_and_removed_as_goways
+        PASS [   0.014s] goway-setup::relay a_distro_that_prints_an_address_the_adapter_cannot_reach_gets_no_relay
+        PASS [   0.013s] goway-setup::relay the_refresh_script_validates_the_address_and_builds_the_exact_netsh_command
+        PASS [   0.014s] goway-setup::relay the_connect_address_must_be_private_inside_the_wsl_adapter_subnet_and_not_the_gateway
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.016s] 5 tests run: 5 passed, 12 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(relay) & (test(the_connect_address_must) | test(a_distro_that_prints) | test(the_refresh_script_validates) | test(only_a_rule_shaped) | test(the_firewall_rule_exists_before))'"
+size = 1090
+status = "measured"
+tests = ["the_firewall_rule_exists_before_the_relay_listens_and_the_script_lives_in_the_admin_dir", "only_a_rule_shaped_like_the_relay_is_reported_and_removed_as_goways", "a_distro_that_prints_an_address_the_adapter_cannot_reach_gets_no_relay", "the_refresh_script_validates_the_address_and_builds_the_exact_netsh_command", "the_connect_address_must_be_private_inside_the_wsl_adapter_subnet_and_not_the_gateway"]
+at = "2026-10-03T20:59:37Z"
+actor = "lognd"
+rev = 1

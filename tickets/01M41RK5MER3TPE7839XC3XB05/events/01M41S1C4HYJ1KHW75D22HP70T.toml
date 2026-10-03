@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T20:59:36Z"
+digest = "eb29dad3d90f51decd38d385a2ad81ccffbe6a11b4487e93ac4820f4e641f8dd"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 37bf7a45-b29d-446b-a340-f91f33261fe1 with nextest profile: default
+    Starting 3 tests across 2 binaries (100 tests and 25 binaries skipped)
+        PASS [   0.010s] goway sshsetup::tests::windows_key_acl_grants_the_sid_before_removing_inheritance
+        PASS [   0.012s] goway paths::tests::an_existing_roaming_config_dir_moves_to_the_local_profile
+        PASS [   0.013s] goway sshsetup::tests::the_user_sid_is_read_from_whoami_csv_and_nothing_else
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.014s] 3 tests run: 3 passed, 100 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(goway) & (test(windows_key_acl) | test(the_user_sid) | test(an_existing_roaming))'"
+size = 797
+status = "measured"
+tests = ["sshsetup::tests::windows_key_acl_grants_the_sid_before_removing_inheritance", "paths::tests::an_existing_roaming_config_dir_moves_to_the_local_profile", "sshsetup::tests::the_user_sid_is_read_from_whoami_csv_and_nothing_else"]
+at = "2026-10-03T20:59:36Z"
+actor = "lognd"
+rev = 1

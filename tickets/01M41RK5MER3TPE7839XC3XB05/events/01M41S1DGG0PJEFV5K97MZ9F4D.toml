@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T20:59:37Z"
+digest = "68277f10c55402a7d30e0ee99b7f10da2a2524c22ab42649761361399c29a845"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e0a12ce2-913c-4fe2-ad4a-07920b749fad with nextest profile: default
+    Starting 3 tests across 2 binaries (33 tests and 25 binaries skipped)
+        PASS [   0.012s] goway-setup::relay the_relay_task_runs_the_script_as_the_user_with_highest_privileges_and_stores_no_password
+        PASS [   0.011s] goway-setup::hostsys scripts_name_the_right_cmdlets_and_quote_their_values
+        PASS [   0.013s] goway-setup::relay the_relay_task_only_runs_the_refresh_script_by_absolute_path
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.022s] 3 tests run: 3 passed, 33 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(relay) & (test(the_relay_task_only_runs) | test(the_relay_task_runs)) | binary(hostsys) & test(scripts_name_the_right_cmdlets)'"
+size = 822
+status = "measured"
+tests = ["scripts_name_the_right_cmdlets_and_quote_their_values", "the_relay_task_runs_the_script_as_the_user_with_highest_privileges_and_stores_no_password", "the_relay_task_only_runs_the_refresh_script_by_absolute_path"]
+at = "2026-10-03T20:59:37Z"
+actor = "lognd"
+rev = 1
