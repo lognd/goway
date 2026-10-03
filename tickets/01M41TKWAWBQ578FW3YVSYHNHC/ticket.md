@@ -2,7 +2,8 @@
 id = "01M41TKWAWBQ578FW3YVSYHNHC"
 title = "Detect GoogleTest and Catch2 test binaries by their embedded flag strings on the helper, so --shard needs no GOWAY_RUNNER"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
