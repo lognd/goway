@@ -1,0 +1,12 @@
+kind = "create"
+title = "Sync a WSL work tree to an NTFS copy per repository and worktree, incrementally, without scanning across drvfs"
+type = "story"
+category = "todo"
+priority = "medium"
+points = 5
+parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
+scope = ["crates/goway/src/sync.rs", "crates/goway/src/interop.rs", "crates/goway/tests/**", "docs/design.md"]
+acceptance = ["Given an interop host, when goway syncs, then the file set is git ls-files -co --exclude-standard minus secrets, written into goway's own NTFS directory for that repository and worktree, never another repository's", "Given a repeat sync, when few files changed, then only those are written, decided on the WSL side without stat-scanning the NTFS copy, and deletions touch only goway's own directory", "Given Windows paths, when goway translates them, then it uses wslpath and refuses paths outside goway's root"]
+at = "2026-10-03T20:27:24Z"
+actor = "lognd"
+rev = 1
