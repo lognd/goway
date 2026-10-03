@@ -2,13 +2,14 @@
 id = "01M41G49E3ZHDEV6ST5MKRRE51"
 title = "M4: sanitize remote-originated text before rendering; reject non-finite probe values"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T18:23:54Z"
-updated = "2026-10-03T18:43:03Z"
+updated = "2026-10-03T18:43:04Z"
 labels = ["security"]
 scope = ["crates/goway/**"]
 
