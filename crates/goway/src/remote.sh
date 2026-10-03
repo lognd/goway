@@ -303,6 +303,176 @@ envfile() {
   chmod 600 "$work/env"
 }
 
+# ---- shard framework detection (goway run --shard) -------------------
+#
+# Before a shard's command runs, the program it names may turn out to be a
+# GoogleTest or Catch2 v3 test binary (usually one built on this host during
+# the run). The file is only ever READ, never executed: it must be a regular
+# ELF or PE executable (magic bytes, so scripts never count) and contain
+# EVERY marker string of a framework, found with a fixed-string search over
+# a bounded prefix. Markers are flag and variable names the frameworks need
+# to parse their own command line; unlike symbols they survive stripping.
+SNIFF_CAP=$((256 * 1024 * 1024))
+GTEST_MARKERS=(GTEST_SHARD_INDEX GTEST_TOTAL_SHARDS --gtest_list_tests --gtest_filter)
+CATCH2_MARKERS=(--shard-count --shard-index --list-tests Catch2TestRun)
+
+# resolve_program NAME: the file the shell will execute for NAME (a path
+# containing "/" is relative to the current directory, otherwise PATH is
+# searched, files only), or nothing.
+resolve_program() {
+  case "$1" in
+    */*) if [ -f "$1" ]; then printf '%s' "$1"; fi ;;
+    *) type -P -- "$1" 2>/dev/null || true ;;
+  esac
+}
+
+# sniff_binary FILE: print gtest, catch2 or none. Reads FILE, never runs it.
+sniff_binary() {
+  local f=$1 magic hits m all
+  if [ -z "$f" ] || [ ! -f "$f" ] || [ ! -r "$f" ]; then printf 'none'; return 0; fi
+  magic=$(head -c 4 <"$f" 2>/dev/null | od -An -tx1 | tr -d ' \n' || true)
+  case "$magic" in
+    7f454c46 | 4d5a*) ;;
+    *) printf 'none'; return 0 ;;
+  esac
+  # One pass for all markers; the output is capped so a hostile file full
+  # of markers cannot grow it.
+  hits=$(
+    head -c "$SNIFF_CAP" <"$f" 2>/dev/null \
+      | LC_ALL=C grep -a -o -F -e "${GTEST_MARKERS[0]}" -e "${GTEST_MARKERS[1]}" -e "${GTEST_MARKERS[2]}" \
+        -e "${GTEST_MARKERS[3]}" -e "${CATCH2_MARKERS[0]}" -e "${CATCH2_MARKERS[1]}" \
+        -e "${CATCH2_MARKERS[2]}" -e "${CATCH2_MARKERS[3]}" 2>/dev/null \
+      | head -c 65536 | sort -u || true
+  )
+  hits=$'\n'$hits$'\n'
+  local found_gtest=1 found_catch2=1
+  for m in "${GTEST_MARKERS[@]}"; do
+    case "$hits" in *$'\n'"$m"$'\n'*) ;; *) found_gtest=0 ;; esac
+  done
+  for m in "${CATCH2_MARKERS[@]}"; do
+    case "$hits" in *$'\n'"$m"$'\n'*) ;; *) found_catch2=0 ;; esac
+  done
+  all=$((found_gtest + found_catch2))
+  # Both complete would be a binary that links both: ambiguous, so neither.
+  if [ "$all" = 1 ] && [ "$found_gtest" = 1 ]; then
+    printf 'gtest'
+  elif [ "$all" = 1 ]; then
+    printf 'catch2'
+  else
+    printf 'none'
+  fi
+}
+
+# launch_job CMD...: start the job as run does (own session, pid recorded
+# for the watchdog, polite priority). JOB_PID and JOB_NICER are run's.
+launch_job() {
+  setsid sh -c 'echo $$ >"$0"; exec "$@"' "$JOB_PID" "${JOB_NICER[@]}" "$@"
+}
+
+# catch2_rejected ERRFILE RC: whether Catch2 refused the shard flags before
+# running anything: a non-zero exit whose stderr STARTS with Catch2's
+# command-line error and names one of the two flags. Anything less certain
+# is not a rejection.
+catch2_rejected() {
+  local first
+  [ "$2" -ne 0 ] || return 1
+  first=$(grep -m1 -v '^[[:space:]]*$' "$1" 2>/dev/null || true)
+  [ "$first" = "Error(s) in input:" ] || return 1
+  grep -qE 'Unrecognised token: --shard-(count|index)' "$1" 2>/dev/null
+}
+
+# catch2_attempt ATTEMPT IDX CNT ERRFILE CMD...: run CMD once. Attempt 1
+# adds Catch2's shard flags, attempt 2 (the one rerun) adds none. Stderr
+# still reaches the caller live; a copy of its first 64 KiB or so goes to
+# ERRFILE (a fifo and a size-limited tee, so nothing unbounded is written).
+# Sets ATTEMPT_REJECTED=1 when the attempt was certainly rejected.
+catch2_attempt() {
+  local attempt=$1 idx=$2 cnt=$3 errfile=$4 rc=0 extra=() fifo tpid
+  shift 4
+  if [ "$attempt" = 1 ]; then extra=(--shard-count "$cnt" --shard-index $((idx - 1))); fi
+  ATTEMPT_REJECTED=0
+  fifo="$errfile.fifo"
+  rm -f "$errfile" "$fifo"
+  mkfifo "$fifo"
+  # Not the run's lock fds (7, 9): a lingering tee must never hold a slot.
+  (trap '' XFSZ; ulimit -f 128; exec tee "$errfile" <"$fifo" >&2) 7>&- 9>&- &
+  tpid=$!
+  launch_job "$@" "${extra[@]}" 2>"$fifo" || rc=$?
+  wait "$tpid" || true
+  rm -f "$fifo"
+  if catch2_rejected "$errfile" "$rc"; then ATTEMPT_REJECTED=1; fi
+  return "$rc"
+}
+
+# shard_run SPEC WORK CMD...: run a shard whose framework goway may detect.
+# SPEC is "index:count:nonce". Prints goway's notes on stderr and, last, one
+# result line "\001goway-shard-result:NONCE key=value..." that the client
+# strips from the stream and records. Returns the command's exit code.
+# The rerun after a certain Catch2 rejection happens at most once, by
+# construction: attempt 1 and attempt 2 are two explicit calls.
+shard_run() {
+  local spec=$1 work=$2 idx cnt nonce file kind rc=0 rc2=0 attempts rerun=0 rejected=0
+  local flagged=0 dup=0 status="$2/gtest-shard-status" err="$2/shard-stderr" a
+  shift 2
+  IFS=: read -r idx cnt nonce <<<"$spec"
+  file=$(resolve_program "$1")
+  kind=$(sniff_binary "$file")
+  for a in "$@"; do
+    case "$a" in
+      --shard-count | --shard-count=* | --shard-index | --shard-index=*) kind=none ;;
+    esac
+  done
+  if [ "$kind" = gtest ] && { [ -n "${GTEST_TOTAL_SHARDS:-}" ] || [ -n "${GTEST_SHARD_INDEX:-}" ]; }; then
+    kind=none
+  fi
+  case "$kind" in
+    gtest)
+      printf 'goway: shard %s/%s: %s is a GoogleTest binary (detected by reading it); sharding with GTEST_TOTAL_SHARDS and GTEST_SHARD_INDEX\n' "$idx" "$cnt" "$1" >&2
+      rm -f "$status"
+      export GTEST_TOTAL_SHARDS=$cnt GTEST_SHARD_INDEX=$((idx - 1)) GTEST_SHARD_STATUS_FILE=$status
+      launch_job "$@" || rc=$?
+      attempts=$rc
+      # GoogleTest creates the status file when it applies sharding. List
+      # and help runs return before that point, so they are not judged.
+      local judged=1
+      for a in "$@"; do
+        case "$a" in --gtest_list_tests | --help | -h | --gtest_help) judged=0 ;; esac
+      done
+      if [ "$judged" = 1 ] && [ "$cnt" -gt 1 ] && [ ! -e "$status" ]; then
+        dup=1
+        printf 'goway: warning: %s: GoogleTest did not apply sharding (no status file), so this shard ran the whole suite; results stand but work was duplicated\n' "$1" >&2
+      fi
+      ;;
+    catch2)
+      printf 'goway: shard %s/%s: %s is a Catch2 v3 binary (detected by reading it); sharding with --shard-count and --shard-index\n' "$idx" "$cnt" "$1" >&2
+      catch2_attempt 1 "$idx" "$cnt" "$err" "$@" || rc=$?
+      attempts=$rc
+      if [ "$ATTEMPT_REJECTED" = 1 ]; then
+        printf 'goway: warning: %s rejected the shard flags before running any test; rerunning this shard once without them (it runs the whole suite)\n' "$1" >&2
+        rerun=1
+        catch2_attempt 2 "$idx" "$cnt" "$err" "$@" || rc2=$?
+        rc=$rc2
+        attempts="$attempts,$rc2"
+        if [ "$ATTEMPT_REJECTED" = 1 ]; then
+          rejected=1
+          printf 'goway: warning: %s was rejected again after the rerun; not trying again\n' "$1" >&2
+        fi
+      elif [ "$rc" -ne 0 ] && grep -qE 'Unrecognised token|Error\(s\) in input' "$err" 2>/dev/null; then
+        flagged=1
+        printf 'goway: warning: %s failed with a command-line error that may be about the shard flags; not certain, so it is not rerun\n' "$1" >&2
+      fi
+      rm -f "$err"
+      ;;
+    *)
+      launch_job "$@" || rc=$?
+      attempts=$rc
+      ;;
+  esac
+  printf '\001goway-shard-result:%s detected=%s attempts=%s rerun=%s rejected=%s flagged=%s duplicated=%s\n' \
+    "$nonce" "$kind" "$attempts" "$rerun" "$rejected" "$flagged" "$dup" >&2
+  return "$rc"
+}
+
 # run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 TTLS PRIORITY KEEP_IGNORED
 #     KEEP_B64 -- CMD...
 # The work dir was created by receive (a hard-link snapshot of the seed).
@@ -318,6 +488,17 @@ run() {
   local root_arg=$1 run_id=$2 repo_id=$3 keep=$4 slots=$5 cache_meta=$6
   local ttls=$7 priority=$8 keepignored=$9 keepb64=${10} nicer=()
   shift 10
+  # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
+  # framework detection of the command's program (see shard_run).
+  local detect=""
+  while [ $# -gt 0 ] && [ "$1" != "--" ]; do
+    case "$1" in
+      shard-detect:[0-9]*:[0-9]*:[A-Za-z0-9]*) detect=${1#shard-detect:} ;;
+      *) die "run: unknown option $1" ;;
+    esac
+    shift
+  done
+  case "$detect" in *[!A-Za-z0-9:]*) die "run: bad shard-detect" ;; esac
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
@@ -413,7 +594,13 @@ run() {
     if command -v nice >/dev/null 2>&1; then nicer+=(nice -n 10); fi
     if command -v ionice >/dev/null 2>&1; then nicer+=(ionice -c 3); fi
   fi
-  setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "${nicer[@]}" "$@" || rc=$?
+  if [ -n "$detect" ]; then
+    JOB_PID="$work/pid"
+    JOB_NICER=("${nicer[@]}")
+    shard_run "$detect" "$work" "$@" || rc=$?
+  else
+    setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "${nicer[@]}" "$@" || rc=$?
+  fi
   kill "$wd" 2>/dev/null || true
   cd "$root"
   if [ "$keep" = 1 ]; then cp -a --reflink=auto "$rundir" "$work/tree"; fi

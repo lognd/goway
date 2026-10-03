@@ -147,6 +147,16 @@ pub fn gc(
         )
         .map(|found| parse(&found.output))
     });
+    // Remembered detection failures are local state: `--repo` clears that
+    // repository's, `--all` everyone's.
+    if !args.dry_run && (args.repo.is_some() || args.all) {
+        let cleared = crate::detect::clear(&mut state, args.repo.as_deref());
+        if cleared > 0 {
+            renderer.note(format_args!(
+                "forgot {cleared} remembered failed test-binary detections"
+            ));
+        }
+    }
     if let Err(e) = state.save(&paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
     }

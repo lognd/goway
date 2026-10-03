@@ -8,7 +8,10 @@
 //! classes) with a stable sort and round-robin, so every test runs on
 //! exactly one shard and the split needs no remote round trip. An unknown
 //! command is left alone (it still sees `GOWAY_SHARD` and
-//! `GOWAY_SHARD_COUNT`). A command that already shards itself is refused.
+//! `GOWAY_SHARD_COUNT`), except that the helper reads its program just
+//! before running it and shards it natively when it is a `GoogleTest` or
+//! Catch2 v3 binary ([`Plan::detect`], [`crate::detect`]). A command that
+//! already shards itself is refused.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -26,7 +29,7 @@ pub enum Framework {
     Jest,
     /// Playwright test: `--shard=i/N`.
     Playwright,
-    /// Catch2 v3: `--shard-count N --shard-index i-1` (needs `GOWAY_RUNNER=catch2`).
+    /// Catch2 v3: `--shard-count N --shard-index i-1` (`GOWAY_RUNNER=catch2`; otherwise the helper detects it).
     Catch2,
     /// `GoogleTest`: `GTEST_TOTAL_SHARDS` and `GTEST_SHARD_INDEX`.
     GoogleTest,
@@ -115,12 +118,16 @@ pub struct Plan {
     pub command: Vec<String>,
     /// Extra `KEY=VALUE` environment for this shard.
     pub env: Vec<String>,
+    /// The program is not a known tool, so the helper checks whether it is
+    /// a `GoogleTest` or Catch2 binary just before it runs (see [`crate::detect`]).
+    pub detect: bool,
 }
 
 /// The command a shard runs when the split leaves it no tests.
 fn nothing_to_do(framework: Framework) -> Plan {
     Plan {
         framework: Some(framework),
+        detect: false,
         command: vec!["true".to_owned()],
         env: Vec::new(),
     }
@@ -296,12 +303,15 @@ pub fn plan(
             framework: None,
             command: command.to_vec(),
             env: Vec::new(),
+            // A GOWAY_RUNNER (even an unknown one) is the user's say-so; no detection then.
+            detect: !command.is_empty() && !env.iter().any(|e| e.starts_with("GOWAY_RUNNER=")),
         });
     };
     tracing::debug!(framework = framework.name(), index, count, "shard adapter");
     let flag = |pair: String| vec![pair];
     let mut plan = Plan {
         framework: Some(framework),
+        detect: false,
         command: command.to_vec(),
         env: Vec::new(),
     };
@@ -613,6 +623,7 @@ fn split_by_path(
     kept.extend(mine);
     Ok(Plan {
         framework: Some(framework),
+        detect: false,
         command: kept,
         env: Vec::new(),
     })
@@ -708,6 +719,7 @@ fn split_go(command: &[String], project: &Project, index: usize, count: usize) -
     out.splice(at..at, pkgs);
     Ok(Plan {
         framework: Some(framework),
+        detect: false,
         command: out,
         env: Vec::new(),
     })
@@ -781,6 +793,7 @@ fn split_java(
     }
     Ok(Plan {
         framework: Some(framework),
+        detect: false,
         command: out,
         env: Vec::new(),
     })
@@ -854,6 +867,25 @@ mod tests {
         assert_eq!(p.command, words("make test"));
         assert_eq!(p.framework, None);
         assert!(p.env.is_empty());
+    }
+
+    // frob:tests crates/goway/src/runners.rs::plan
+    #[test]
+    fn unknown_programs_ask_the_helper_to_detect_but_known_ones_and_overrides_do_not() {
+        assert!(planned("./build/tests", &[], 1, 2).detect);
+        assert!(planned("make test", &[], 1, 2).detect);
+        assert!(!planned("cargo nextest run", &[], 1, 2).detect);
+        assert!(!planned("npx vitest run", &[], 1, 2).detect);
+        let env = vec!["GOWAY_RUNNER=gtest".to_owned()];
+        let p = plan(&words("./build/tests"), &env, &project(&[]), 1, 2).unwrap();
+        assert!(!p.detect, "GOWAY_RUNNER overrides detection");
+        assert_eq!(p.framework, Some(Framework::GoogleTest));
+        let env = vec!["GOWAY_RUNNER=whatever".to_owned()];
+        assert!(
+            !plan(&words("./t"), &env, &project(&[]), 1, 2)
+                .unwrap()
+                .detect
+        );
     }
 
     // frob:tests crates/goway/src/runners.rs::plan

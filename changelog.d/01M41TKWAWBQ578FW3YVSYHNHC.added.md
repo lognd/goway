@@ -1,0 +1,1 @@
+goway run --shard now detects GoogleTest and Catch2 v3 test binaries on the helper by reading their embedded flag strings (never executing them), reruns a Catch2 shard once if the shard flags are rejected, and remembers failed detections locally.

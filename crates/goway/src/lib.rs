@@ -4,6 +4,7 @@
 pub mod add;
 pub mod cli;
 pub mod config;
+pub mod detect;
 pub mod doctor;
 pub mod error;
 pub mod facts;

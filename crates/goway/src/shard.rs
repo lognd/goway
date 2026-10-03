@@ -15,6 +15,7 @@ use serde::Serialize;
 
 use crate::cli::RunArgs;
 use crate::config::Config;
+use crate::detect::{self, Detection, ResultSplitter};
 use crate::error::{Error, Result};
 use crate::pool;
 use crate::render::{self, Renderer};
@@ -42,6 +43,9 @@ pub struct ShardReport {
     pub command: Vec<String>,
     /// This shard's exit code.
     pub exit_code: u8,
+    /// What the helper's test-binary detection did, when it was asked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detection: Option<Detection>,
     /// Seconds including sync.
     pub duration_secs: f64,
 }
@@ -102,6 +106,38 @@ fn pump_with(reader: impl std::io::Read, prefix: &str, filter: bool, mut write: 
     write(&framed);
 }
 
+/// Tell what the helper's detection did for one shard; true when it failed
+/// in a way worth remembering (the next run then skips detection).
+fn note_detection(renderer: Renderer, report: &ShardReport, d: &Detection, program: &str) -> bool {
+    let at = format!("shard {} on {}", report.shard, report.host);
+    if d.duplicated {
+        renderer.warn(format_args!(
+            "{at}: {program} is a GoogleTest binary but did not apply sharding, so this shard ran the whole suite; \
+             results stand, the work was duplicated; later runs use GOWAY_SHARD only"
+        ));
+    }
+    if d.rerun {
+        renderer.warn(format_args!(
+            "{at}: {program} rejected the Catch2 shard flags; the shard was rerun once without them \
+             (attempts exited {:?}); later runs use GOWAY_SHARD only",
+            d.attempts
+        ));
+    }
+    if d.rejected_again {
+        renderer.warn(format_args!(
+            "{at}: {program} was rejected again after the rerun; goway stopped there (exit {})",
+            report.exit_code
+        ));
+    }
+    if d.flagged {
+        renderer.warn(format_args!(
+            "{at}: {program} failed with a command-line error that may be about the shard flags; \
+             not certain, so it was not rerun"
+        ));
+    }
+    d.failed()
+}
+
 /// `goway run --shard N`.
 ///
 /// # Panics
@@ -114,14 +150,30 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
     let project = runners::project_for(&args.command, &args.env, &repo.root)?;
+    let mut state = State::load(&env.paths.state_file())?;
     // Plan every shard first, so a command that cannot be split is refused before any host is touched.
-    let plans = (1..=count)
+    let mut plans = (1..=count)
         .map(|index| runners::plan(&args.command, &args.env, &project, index, count))
         .collect::<Result<Vec<_>>>()?;
     if let Some(framework) = plans.first().and_then(|p| p.framework) {
         renderer.note(format_args!("sharding as {}", framework.name()));
     }
-    let mut state = State::load(&env.paths.state_file())?;
+    let program = args.command.first().cloned().unwrap_or_default();
+    if plans.first().is_some_and(|p| p.detect) {
+        if detect::is_marked(&state, &repo.id, &program) {
+            renderer.note(format_args!(
+                "not detecting the test framework of {program}: it failed before in this repository; \
+                 shards only see GOWAY_SHARD and GOWAY_SHARD_COUNT (GOWAY_RUNNER=gtest or catch2 overrides)"
+            ));
+            for plan in &mut plans {
+                plan.detect = false;
+            }
+        } else {
+            renderer.note(format_args!(
+                "each helper checks whether {program} is a GoogleTest or Catch2 v3 binary (reading it, never running it)"
+            ));
+        }
+    }
     let hosts = pool::choose_many(&config, &mut state, env.lookup, env.prober, count)?;
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
@@ -158,12 +210,19 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                     pairs.extend(plan.env.iter().cloned());
                     let command = plan.command.clone();
                     run::send_env(env, config, found, &run_id, &run::encode_env(&pairs)?)?;
-                    let cmd = run::run_invocation(
+                    let nonce = detect::nonce();
+                    let extra: Vec<String> = if plan.detect {
+                        vec![detect::request_word(index, count, &nonce)]
+                    } else {
+                        Vec::new()
+                    };
+                    let cmd = run::run_invocation_with(
                         config,
                         config.priority_of(host).as_str(),
                         repo,
                         &run_id,
                         args.keep,
+                        &extra,
                         &command,
                     );
                     let mut child =
@@ -185,6 +244,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                         args.output,
                         std::io::IsTerminal::is_terminal(&std::io::stderr()),
                     );
+                    let mut result_line = None;
                     std::thread::scope(|s| {
                         if let Some(out) = out {
                             let p = prefix.clone();
@@ -192,9 +252,18 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                         }
                         if let Some(err) = err {
                             let p = prefix.clone();
-                            s.spawn(move || pump(err, true, &p, filter_err));
+                            if plan.detect {
+                                let (split, line) = ResultSplitter::new(err, &nonce);
+                                result_line = Some(line);
+                                s.spawn(move || pump(split, true, &p, filter_err));
+                            } else {
+                                s.spawn(move || pump(err, true, &p, filter_err));
+                            }
                         }
                     });
+                    let detection = result_line
+                        .and_then(|f| f.lock().ok().and_then(|l| l.clone()))
+                        .and_then(|text| Detection::parse(&text));
                     let status = child.wait().map_err(|e| Error::Ssh {
                         host: host.name.clone(),
                         message: format!("ssh failed: {e}"),
@@ -215,6 +284,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                         hostname: probe.hostname.clone(),
                         command,
                         exit_code: code,
+                        detection,
                         duration_secs: shard_started.elapsed().as_secs_f64(),
                     })
                 })
@@ -227,9 +297,13 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
     });
     let mut shards = Vec::new();
     let mut code = 0;
+    let mut remember = false;
     for (i, result) in results.into_iter().enumerate() {
         match result {
             Ok(report) => {
+                if let Some(d) = &report.detection {
+                    remember |= note_detection(renderer, &report, d, &program);
+                }
                 let line = format_args!(
                     "shard {}/{count} on {}: exit {} in {:.1}s",
                     report.shard, report.host, report.exit_code, report.duration_secs
@@ -251,6 +325,12 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                 }
                 tracing::warn!(shard = i + 1, error = %e, "shard failed to run");
             }
+        }
+    }
+    if remember {
+        detect::mark(&mut state, &repo.name, &repo.id, &program);
+        if let Err(e) = state.save(&env.paths.state_file()) {
+            tracing::warn!(error = %e, "cannot remember the failed detection");
         }
     }
     let elapsed = started.elapsed();

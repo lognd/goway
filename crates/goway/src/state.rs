@@ -21,6 +21,17 @@ pub struct HostState {
     pub last_ok: u64,
 }
 
+/// Programs of one repository whose shard detection failed.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct ShardMarks {
+    /// The repository's readable name (so `gc --repo NAME` finds it).
+    #[serde(default)]
+    pub repo: String,
+    /// The programs as typed on the command line.
+    #[serde(default)]
+    pub programs: Vec<String>,
+}
+
 /// The state file: host name (lowercase) to its cached state.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct State {
@@ -30,6 +41,10 @@ pub struct State {
     /// Cached static host facts (GPUs, CPU features, KVM, Docker), per host.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub facts: BTreeMap<String, Cached>,
+    /// Programs whose test-framework detection failed, per repository id
+    /// (kept only here, never sent to a host; cleared by `goway gc --repo`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub shard_marks: BTreeMap<String, ShardMarks>,
     /// Probe static facts on the next probe regardless of age (not saved).
     #[serde(skip)]
     pub refresh_facts: bool,

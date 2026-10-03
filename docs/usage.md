@@ -112,14 +112,78 @@ already splits itself: `--partition`, `--shard`, `--shard-count`,
 |---|---|---|---|
 | cargo nextest | `--partition count:i/N` | none | tested (unit, and in CI) |
 | vitest, jest, Playwright | `--shard=i/N`; also via `npm/pnpm/yarn test` when `scripts.test` names the tool (`npm test -- --shard=i/N`) | the framework 3.x/29+/1.x | argument rewriting unit-tested; not run against the real tools |
-| Catch2 v3 | `--shard-count N --shard-index i-1` | pass `--env GOWAY_RUNNER=catch2` (a test binary cannot be recognised from its name) | argument rewriting unit-tested; not run against the real library |
-| GoogleTest | env `GTEST_TOTAL_SHARDS=N`, `GTEST_SHARD_INDEX=i-1` | a `--gtest_*` argument, or `--env GOWAY_RUNNER=gtest` | env rewriting unit-tested; not run against the real library |
+| Catch2 v3 | `--shard-count N --shard-index i-1` | detected from the binary on the helper (below), or `--env GOWAY_RUNNER=catch2` | detection tested end to end with faithful fixture binaries; not run against the real library |
+| GoogleTest | env `GTEST_TOTAL_SHARDS=N`, `GTEST_SHARD_INDEX=i-1` | detected from the binary on the helper (below), a `--gtest_*` argument, or `--env GOWAY_RUNNER=gtest` | detection tested end to end with faithful fixture binaries; not run against the real library |
 | CTest | `-I i,,N` (every Nth test starting at the i-th) | `ctest` on the host | tested with real ctest through the fake-ssh harness |
 | pytest | goway splits the `test_*.py` / `*_test.py` files of the synced project (sorted, round-robin) and passes them as arguments; explicit path arguments narrow the set and `--ignore` is honoured; composes with pytest-xdist (`-n auto` runs inside each shard) | none | tested with real pytest through the fake-ssh harness; xdist not run |
 | go test | goway splits the packages that contain `*_test.go` (skipping `testdata`, `vendor` and nested modules); needs a pattern such as `./...` or `./x/...` | none | tested with real `go test` through the fake-ssh harness |
 | Maven | `-Dtest=<fully qualified classes>` from `src/test/**` (surefire's `Test*`, `*Test`, `*Tests`, `*TestCase`), plus `-Dsurefire.failIfNoSpecifiedTests=false` | surefire 2.19 or newer | class split unit-tested; Maven not run |
 | Gradle | repeated `--tests <fully qualified class>` | a project where every module with tests has matching classes (Gradle fails a project whose filter matches nothing) | class split unit-tested; Gradle not run |
 | RSpec | goway splits the `*_spec.rb` files under `spec/` and passes them as arguments | none | file split unit-tested; RSpec not run |
+
+#### Test binaries: GoogleTest and Catch2 are detected
+
+`goway run --shard N -- ./build/tests` needs no `GOWAY_RUNNER`. A command
+whose program is not a known tool is checked on each helper, right before it
+runs (the binary is usually built there during the run), by
+`shard_run` in `remote.sh`:
+
+- The program is resolved the way the shell will (a path containing `/`
+  relative to the work tree, otherwise a `PATH` search) and only that file is
+  inspected, never its arguments.
+- The file is **read, never executed**. It must start with ELF or PE magic
+  bytes (scripts never count) and contain every marker of one framework,
+  found with a fixed-string search over at most its first 256 MiB. The
+  markers are flag and variable names a framework needs to parse its own
+  command line, so they survive stripping:
+  GoogleTest `GTEST_SHARD_INDEX`, `GTEST_TOTAL_SHARDS`, `--gtest_list_tests`,
+  `--gtest_filter`; Catch2 v3 `--shard-count`, `--shard-index`,
+  `--list-tests`, `Catch2TestRun`. A file with only some markers is not
+  detected, Catch2 v2 (no shard flags) is not detected, and neither is a
+  file with both sets (goway's own binary carries both, because it embeds
+  this script). An undetected program runs unchanged and sees `GOWAY_SHARD`
+  and `GOWAY_SHARD_COUNT`.
+- `GOWAY_RUNNER=gtest|catch2` overrides detection (no check is made). A
+  program that already has `GTEST_TOTAL_SHARDS`/`GTEST_SHARD_INDEX` in its
+  environment or `--shard-count`/`--shard-index` among its arguments is left
+  alone.
+
+Checks afterwards, because a marker proves a binary can parse the options,
+not that sharding took effect:
+
+- **GoogleTest** shards get `GTEST_SHARD_STATUS_FILE`. GoogleTest creates it
+  when it applies sharding. If it is missing after the run (`--gtest_list_tests`
+  and help runs are not judged), goway warns and does **not** rerun: every
+  shard ran the whole suite, so the results stand, but the work was
+  duplicated. `--report` records `"duplicated": true`.
+- **Catch2** shards are rerun when the binary rejected the shard flags: the
+  attempt exited non-zero and its stderr *begins* with Catch2's
+  `Error(s) in input:` and names `--shard-count` or `--shard-index`, so no test
+  ran. The shard then runs **once** more without the flags (it runs the whole
+  suite) and `--report` records both attempts. The rerun is the second of two
+  explicit calls in the script (attempt 1 has the flags, attempt 2 has
+  none and nothing follows it); it is never driven by the environment or by
+  output. If the rerun is rejected as well, goway stops and reports the
+  failure (`"rejected_again": true`). Any less certain command-line error is
+  only flagged (`"flagged": true`) and never rerun.
+
+After a failed detection (the missing status file, or a Catch2 rerun) goway
+remembers the program path for that repository in its **local state file
+only** and skips detection on later runs, with a note, so shards use the
+`GOWAY_SHARD` fallback. `GOWAY_RUNNER` overrides the memory, and
+`goway gc --repo NAME` (or `--all`) clears it.
+
+The helper reports what it did in one result line at the end of the shard's
+stderr; goway strips that line (it carries a per-shard nonce) and records it
+in `--report` under each shard's `detection`. The line only feeds the report,
+the notes and the local memory.
+
+Fixtures: the real frameworks are not installed on the test machines, so
+`tests/shard_detect.rs` builds tiny stripped C programs (real ELF files) that
+embed exactly the frameworks' marker strings and behave like them (read the
+shard variables or flags, touch the status file, or reject the flags with
+Catch2's error text). Windows `.exe` helpers need the same checks in
+`remote.ps1` (PE `MZ` magic, same markers).
 
 Splitting by file works from the synced file list, so it needs no round
 trip to the host. A shard that receives no tests runs `true` instead of

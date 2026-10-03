@@ -312,6 +312,20 @@ pub(crate) fn run_invocation(
     keep: bool,
     command: &[String],
 ) -> String {
+    run_invocation_with(config, priority, repo, run_id, keep, &[], command)
+}
+
+/// [`run_invocation`] with extra option words for the remote `run` verb
+/// (such as the shard detection request), placed before the command.
+pub(crate) fn run_invocation_with(
+    config: &Config,
+    priority: &str,
+    repo: &Repo,
+    run_id: &str,
+    keep: bool,
+    extra: &[String],
+    command: &[String],
+) -> String {
     let cache_meta = label_b64(repo, "cache");
     let slots = config.defaults.target_slots.max(1).to_string();
     let keep = if keep { "1" } else { "0" };
@@ -334,8 +348,9 @@ pub(crate) fn run_invocation(
         priority,
         keep_ignored,
         &keep_list,
-        "--",
     ];
+    words.extend(extra.iter().map(String::as_str));
+    words.push("--");
     words.extend(command.iter().map(String::as_str));
     remote::invocation("run", &words)
 }
