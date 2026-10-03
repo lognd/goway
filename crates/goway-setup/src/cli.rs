@@ -12,7 +12,8 @@ use crate::elevate;
 use crate::error::SetupError;
 use crate::helper::{HelperInfo, check_wsl, next_steps, public_network_warning, wsl_steps};
 use crate::host::{
-    self, DEFAULT_DISTRO, DEFAULT_PORT, HostFacts, HostParams, HostSettings, Keepalive, host_plan,
+    self, DEFAULT_DISTRO, DEFAULT_PORT, HostFacts, HostParams, HostSettings, Keepalive,
+    NetworkChoice, NetworkMode, host_plan,
 };
 use crate::hostsys::{HostSystem, Invocation, ProcessRunner, Runner, probe_wsl, wsl_exe_present};
 use crate::layout::{DEFAULT_PROFILE, Layout};
@@ -89,6 +90,11 @@ pub enum Command {
         /// Host: when the keepalive task starts the distro.
         #[arg(long, value_enum, default_value_t)]
         keepalive: Keepalive,
+        /// Host: how other computers reach the WSL sshd. `auto` uses mirrored networking when
+        /// this Windows supports it (11 22H2+) and `.wslconfig` does not say nat, otherwise a
+        /// Windows port relay (netsh portproxy) that a scheduled task keeps pointed at WSL.
+        #[arg(long, value_enum, default_value_t)]
+        network: NetworkChoice,
         /// Host: deprecated no-op; hardening is the default (see --no-harden).
         #[arg(long, hide = true, conflicts_with = "no_harden")]
         harden: bool,
@@ -166,6 +172,7 @@ struct InstallRequest {
     port: u16,
     distro: String,
     keepalive: Keepalive,
+    network: NetworkChoice,
     harden: bool,
     allow_from: Vec<String>,
     activate: bool,
@@ -203,6 +210,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             port,
             distro,
             keepalive,
+            network,
             harden: _,
             no_harden,
             allow_from,
@@ -220,6 +228,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
                 port: *port,
                 distro: distro.clone(),
                 keepalive: *keepalive,
+                network: *network,
                 harden: !*no_harden,
                 allow_from: allow_from.clone(),
                 activate: !*no_activate,
@@ -306,7 +315,7 @@ fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), Setup
         match component {
             Component::Client => install_client(r, &layout, req.dry_run)?,
             Component::Host if req.dry_run => {
-                dry_run_host(r, &layout, &host_params(req)?)?;
+                dry_run_host(r, &layout, req)?;
             }
             Component::Host => {
                 let exe = current_exe()?;
@@ -350,12 +359,15 @@ fn precheck_wsl(distro: &str) -> Result<(), SetupError> {
 /// restart question, then the block that tells the user what to run on the main laptop. Failures
 /// here never fail the install, which is already done.
 fn after_host_install(r: Renderer, layout: &Layout, req: &InstallRequest) {
-    let need = match app::load_journal(&layout.host_view()) {
-        Ok(Some(journal)) => host::restart_need(&journal),
-        Ok(None) => host::RestartNeed::default(),
+    let (need, network) = match app::load_journal(&layout.host_view()) {
+        Ok(Some(journal)) => (
+            host::restart_need(&journal),
+            host::network_in_journal(&journal),
+        ),
+        Ok(None) => (host::RestartNeed::default(), NetworkMode::Mirrored),
         Err(e) => {
             tracing::error!(error = %e, "could not read the host journal for the restart check");
-            host::RestartNeed::default()
+            (host::RestartNeed::default(), NetworkMode::Mirrored)
         }
     };
     let console = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
@@ -385,7 +397,7 @@ fn after_host_install(r: Renderer, layout: &Layout, req: &InstallRequest) {
             }
         }
     }
-    show_helper_block(r, &req.distro, req.port);
+    show_helper_block(r, &req.distro, req.port, network);
 }
 
 /// Ask a yes/no question on the console; anything but y or yes is no.
@@ -428,7 +440,7 @@ fn restart_wsl(r: Renderer, need: host::RestartNeed, distro: &str, command: &str
 
 /// Read the helper's name, host key fingerprint and Linux user from this laptop and print the
 /// block with the one command to run on the main laptop.
-fn show_helper_block(r: Renderer, distro: &str, port: u16) {
+fn show_helper_block(r: Renderer, distro: &str, port: u16, network: NetworkMode) {
     let sys = HostSystem::new(distro);
     let user = match sys.default_user() {
         Ok(u) => u,
@@ -447,6 +459,7 @@ fn show_helper_block(r: Renderer, distro: &str, port: u16) {
         fingerprint,
         user,
         port,
+        network,
     };
     r.block(&next_steps(&info));
 }
@@ -456,6 +469,8 @@ fn show_helper_block(r: Renderer, distro: &str, port: u16) {
 fn install_child_args(profile: &str, req: &InstallRequest) -> Vec<String> {
     let keepalive = clap::ValueEnum::to_possible_value(&req.keepalive)
         .map_or_else(|| "logon".to_owned(), |v| v.get_name().to_owned());
+    let network = clap::ValueEnum::to_possible_value(&req.network)
+        .map_or_else(|| "auto".to_owned(), |v| v.get_name().to_owned());
     let mut args: Vec<String> = [
         "install",
         "--host",
@@ -467,6 +482,8 @@ fn install_child_args(profile: &str, req: &InstallRequest) -> Vec<String> {
         &req.distro,
         "--keepalive",
         &keepalive,
+        "--network",
+        &network,
     ]
     .map(str::to_owned)
     .to_vec();
@@ -518,9 +535,10 @@ fn install_client(r: Renderer, layout: &Layout, dry_run: bool) -> Result<(), Set
     Ok(())
 }
 
-fn host_params(req: &InstallRequest) -> Result<HostParams, SetupError> {
+fn host_params(req: &InstallRequest, network: NetworkMode) -> Result<HostParams, SetupError> {
     let home = dirs::home_dir().ok_or(SetupError::NoLocalAppData)?;
     Ok(HostParams {
+        network,
         port: req.port,
         distro: req.distro.clone(),
         keepalive: req.keepalive,
@@ -532,12 +550,17 @@ fn host_params(req: &InstallRequest) -> Result<HostParams, SetupError> {
 
 /// Print the host plan; on Windows with a reachable distro, probe the machine (read-only) so the
 /// plan reflects the real facts and marks what is already in place.
-fn dry_run_host(r: Renderer, layout: &Layout, params: &HostParams) -> Result<(), SetupError> {
+fn dry_run_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<(), SetupError> {
     let label = format!("host component of profile {}", layout.profile);
-    let sys = HostSystem::new(&params.distro);
+    let sys = HostSystem::new(&req.distro);
+    let home = dirs::home_dir().ok_or(SetupError::NoLocalAppData)?;
     if cfg!(windows) && sys.distro_reachable()? {
-        let facts = sys.probe()?;
-        let plan = host_plan(layout, params, &facts);
+        let facts = sys.probe(&home)?;
+        let network = host::resolve_network(req.network, &facts)?;
+        let params = host_params(req, network)?;
+        r.notice(&format!("network mode: {}", network.as_str()));
+        host::check_relay_port(network, params.port, &facts.portproxy)?;
+        let plan = host_plan(layout, &params, &facts);
         let holds = plan
             .iter()
             .map(|c| still_applied(c, &sys))
@@ -545,29 +568,36 @@ fn dry_run_host(r: Renderer, layout: &Layout, params: &HostParams) -> Result<(),
         r.plan_component(&label, &plan, Some(&holds));
         warn_public_networks(r, &sys);
     } else {
-        let plan = host_plan(layout, params, &HostFacts::assumed());
+        let facts = HostFacts::assumed();
+        let network = host::resolve_network(req.network, &facts)?;
+        let params = host_params(req, network)?;
+        r.notice(&format!("network mode: {}", network.as_str()));
+        let plan = host_plan(layout, &params, &facts);
         r.plan_component(&label, &plan, None);
     }
     Ok(())
 }
 
 fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<(), SetupError> {
-    let params = host_params(req)?;
     let view = layout.host_view();
     if req.dry_run {
-        return dry_run_host(r, layout, &params);
+        return dry_run_host(r, layout, req);
     }
     app::ensure_not_installed(&view)?;
-    let mut sys = HostSystem::new(&params.distro);
+    let mut sys = HostSystem::new(&req.distro);
     if !sys.distro_reachable()? {
-        return Err(SetupError::DistroUnreachable(params.distro));
+        return Err(SetupError::DistroUnreachable(req.distro.clone()));
     }
     if !sys.systemd_running()? {
         return Err(SetupError::SystemdOff {
-            distro: params.distro,
+            distro: req.distro.clone(),
         });
     }
-    let facts = sys.probe()?;
+    let home = dirs::home_dir().ok_or(SetupError::NoLocalAppData)?;
+    let facts = sys.probe(&home)?;
+    let network = host::resolve_network(req.network, &facts)?;
+    host::check_relay_port(network, req.port, &facts.portproxy)?;
+    let params = host_params(req, network)?;
     let plan = host_plan(layout, &params, &facts);
     app::save_settings(
         layout,
@@ -575,6 +605,7 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
             distro: params.distro.clone(),
             port: params.port,
             allow_from: params.allow_from.clone(),
+            network,
         },
     )?;
     let journal = match app::install(&mut sys, &view, &plan) {
@@ -594,13 +625,16 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
         }
     }
     r.host_installed(layout, &params.distro, params.port, journal.entries.len());
+    if network == NetworkMode::Nat {
+        r.notice(&host::nat_notice(params.port));
+    }
     exposure_warnings(r, layout, &params, &facts, &sys);
     if req.activate {
         if host::sshd_changed(&journal) {
             let how = sys.activate_sshd(params.port)?;
             tracing::info!(?how, "sshd activated");
         }
-        if let Some(task) = host::created_task(&journal) {
+        for task in host::created_tasks(&journal) {
             sys.start_task(task)?;
         }
     } else {
@@ -965,7 +999,7 @@ fn status(r: Renderer, profile: &str) -> Result<(), SetupError> {
         let settings = app::load_settings(&layout)?.unwrap_or_default();
         let sys = HostSystem::new(&settings.distro);
         r.status(&view, &app::status(&sys, &journal)?);
-        show_helper_block(r, &settings.distro, settings.port);
+        show_helper_block(r, &settings.distro, settings.port, settings.network);
     }
     if !any {
         r.not_installed(&layout);

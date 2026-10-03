@@ -17,6 +17,10 @@ pub enum Tool {
     PowerShell,
     /// `cmd.exe`.
     Cmd,
+    /// `netsh.exe`, which manages the portproxy relay.
+    Netsh,
+    /// `conhost.exe`, which runs a task's program without a window.
+    Conhost,
 }
 
 impl Tool {
@@ -26,6 +30,8 @@ impl Tool {
             Self::Wsl => "wsl.exe",
             Self::PowerShell => r"WindowsPowerShell\v1.0\powershell.exe",
             Self::Cmd => "cmd.exe",
+            Self::Netsh => "netsh.exe",
+            Self::Conhost => "conhost.exe",
         }
     }
 
@@ -35,6 +41,8 @@ impl Tool {
             Self::Wsl => "wsl.exe",
             Self::PowerShell => "powershell.exe",
             Self::Cmd => "cmd.exe",
+            Self::Netsh => "netsh.exe",
+            Self::Conhost => "conhost.exe",
         }
     }
 }

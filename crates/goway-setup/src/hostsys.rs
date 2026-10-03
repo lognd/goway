@@ -21,6 +21,7 @@ use goway_journal::{LocalSystem, RegValue, ResourceKind, SysResult, System, Syst
 use crate::helper::{HOST_KEY_FILE, WslProbe, parse_fingerprint};
 use crate::host::{FirewallSpec, HostFacts, HyperVSpec, TaskSpec};
 use crate::ps;
+use crate::relay::{self, PortProxyRule, PortProxySpec, RelayTaskSpec};
 use crate::sysapi::{Tool, tool_path};
 
 /// One external command to run.
@@ -289,6 +290,12 @@ impl<R: Runner> HostSystem<R> {
             .map_err(|e| SystemError::InvalidState(format!("bad {kind:?} spec for {name}: {e}")))
     }
 
+    /// Parse a portproxy resource name (`<listen address>:<port>`).
+    fn relay_name(name: &str) -> SysResult<(std::net::Ipv4Addr, u16)> {
+        relay::parse_relay_name(name)
+            .ok_or_else(|| SystemError::InvalidState(format!("bad portproxy name {name:?}")))
+    }
+
     fn wsl_str(path: &Path) -> SysResult<&str> {
         path.to_str()
             .ok_or_else(|| SystemError::InvalidState(format!("non-UTF-8 path {}", path.display())))
@@ -365,12 +372,76 @@ impl<R: Runner> HostSystem<R> {
         self.wsl_test("-s", &path)
     }
 
-    /// Probe everything the plan depends on.
-    pub fn probe(&self) -> SysResult<HostFacts> {
+    /// The Windows build number; `None` when the query fails or answers something else.
+    pub fn windows_build(&self) -> Option<u32> {
+        match self.powershell("query Windows build", &ps::windows_build()) {
+            Ok(out) => out.text().parse().ok(),
+            Err(e) => {
+                tracing::warn!(error = %e, "could not read the Windows build");
+                None
+            }
+        }
+    }
+
+    /// `networkingMode` in the user's `.wslconfig` under `home`, if the file sets one.
+    pub fn wslconfig_network(&self, home: &Path) -> SysResult<Option<String>> {
+        let text = self.local.read_file(&home.join(".wslconfig"))?;
+        Ok(text.as_deref().and_then(parse_networking_mode))
+    }
+
+    /// The machine's portproxy rules (`netsh interface portproxy show v4tov4`).
+    pub fn portproxy_rules(&self) -> SysResult<Vec<PortProxyRule>> {
+        let inv = Invocation {
+            program: tool_path(Tool::Netsh),
+            args: ["interface", "portproxy", "show", "v4tov4"]
+                .map(str::to_owned)
+                .to_vec(),
+            stdin: None,
+        };
+        let out = self.run("list portproxy rules", &inv)?;
+        if !out.success() {
+            return Err(cmd_error("list portproxy rules", &out));
+        }
+        Ok(relay::parse_portproxy_table(&out.text()))
+    }
+
+    /// The distro's current IPv4 address (the first one `hostname -I` prints).
+    pub fn wsl_ip(&self) -> SysResult<std::net::Ipv4Addr> {
+        let out = self.wsl(&["hostname", "-I"])?;
+        relay::parse_wsl_ip(&out.text()).ok_or_else(|| {
+            SystemError::InvalidState(format!(
+                "no usable IPv4 address in the distro's `hostname -I` output {:?}",
+                out.text()
+            ))
+        })
+    }
+
+    /// Run netsh with `args` and require success.
+    fn netsh(&self, what: &str, args: Vec<String>) -> SysResult<Output> {
+        let out = self.run(
+            what,
+            &Invocation {
+                program: tool_path(Tool::Netsh),
+                args,
+                stdin: None,
+            },
+        )?;
+        if out.success() {
+            Ok(out)
+        } else {
+            Err(cmd_error(what, &out))
+        }
+    }
+
+    /// Probe everything the plan depends on (`home` is where `.wslconfig` lives).
+    pub fn probe(&self, home: &Path) -> SysResult<HostFacts> {
         let facts = HostFacts {
             hyperv_firewall: self.hyperv_firewall_available()?,
             sshd_ports: self.sshd_ports()?,
             authorized_keys: self.default_user_has_authorized_keys()?,
+            windows_build: self.windows_build(),
+            wslconfig_network: self.wslconfig_network(home)?,
+            portproxy: self.portproxy_rules()?,
         };
         tracing::info!(?facts, "probed host");
         Ok(facts)
@@ -491,6 +562,24 @@ pub fn probe_wsl(runner: &impl Runner, wsl_exe: bool) -> WslProbe {
     let probe = WslProbe { wsl_exe, distros };
     tracing::info!(?probe, "probed WSL");
     probe
+}
+
+/// The `networkingMode` value in `[wsl2]` of `.wslconfig` text (key and section names are not
+/// case sensitive to WSL); `None` when the file does not set it.
+pub fn parse_networking_mode(text: &str) -> Option<String> {
+    let mut in_wsl2 = false;
+    let mut found = None;
+    for line in text.lines().map(str::trim) {
+        if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
+            in_wsl2 = name.trim().eq_ignore_ascii_case("wsl2");
+        } else if in_wsl2
+            && let Some((key, value)) = line.split_once('=')
+            && key.trim().eq_ignore_ascii_case("networkingMode")
+        {
+            found = Some(value.trim().to_owned());
+        }
+    }
+    found
 }
 
 /// Ports from `sshd -T` output (`port 2222` lines).
@@ -711,6 +800,13 @@ impl<R: Runner> System for HostSystem<R> {
             ResourceKind::ScheduledTask => {
                 self.ps_flag("query scheduled task", &ps::task_exists(name))
             }
+            ResourceKind::PortProxy => {
+                let (addr, port) = Self::relay_name(name)?;
+                Ok(self
+                    .portproxy_rules()?
+                    .iter()
+                    .any(|r| r.listen_address == addr && r.listen_port == port))
+            }
             ResourceKind::WslPackage => Ok(self.dpkg_state(name)? == DpkgState::Installed),
             ResourceKind::WslUnit => {
                 // A unit that does not exist (an older distro without ssh.socket) has nothing
@@ -741,9 +837,35 @@ impl<R: Runner> System for HostSystem<R> {
                     .map(drop)
             }
             ResourceKind::ScheduledTask => {
+                // The relay refresh task's spec carries a script path; the keepalive's does not.
+                if let Ok(s) = serde_json::from_str::<RelayTaskSpec>(spec) {
+                    let script = ps::relay_task_create(
+                        name,
+                        &s,
+                        &tool_path(Tool::Conhost),
+                        &tool_path(Tool::PowerShell),
+                    );
+                    return self.powershell("register relay task", &script).map(drop);
+                }
                 let s: TaskSpec = Self::spec(kind, name, spec)?;
                 self.powershell("register scheduled task", &ps::task_create(name, &s))
                     .map(drop)
+            }
+            ResourceKind::PortProxy => {
+                let s: PortProxySpec = Self::spec(kind, name, spec)?;
+                let (addr, port) = Self::relay_name(name)?;
+                if s.listen_address != addr.to_string() || s.port != port {
+                    return Err(SystemError::InvalidState(format!(
+                        "portproxy spec {spec} does not match its name {name}"
+                    )));
+                }
+                let ip = self.wsl_ip()?;
+                tracing::info!(%addr, port, %ip, "creating portproxy relay");
+                self.netsh(
+                    "create portproxy relay",
+                    relay::netsh_args("add", &s.listen_address, port, &ip.to_string()),
+                )
+                .map(drop)
             }
             ResourceKind::WslPackage => {
                 // `resource_exists` already refused every state but absent and clean.
@@ -783,6 +905,14 @@ impl<R: Runner> System for HostSystem<R> {
             ResourceKind::ScheduledTask => self
                 .powershell("remove scheduled task", &ps::task_delete(name))
                 .map(drop),
+            ResourceKind::PortProxy => {
+                let (addr, port) = Self::relay_name(name)?;
+                self.netsh(
+                    "remove portproxy relay",
+                    relay::netsh_delete_args(&addr.to_string(), port),
+                )
+                .map(drop)
+            }
             ResourceKind::WslPackage => {
                 // Remove, never purge: configuration, sshd_config and host keys stay.
                 self.wsl(&[

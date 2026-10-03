@@ -43,6 +43,18 @@ When it finishes it prints this block (the values are the ones of that laptop):
 fingerprint with the one you passed, so you know you are talking to the laptop you just set up and
 not to something else on the network.
 
+**Windows 10, or Windows 11 without "mirrored" networking.** The installer works out by itself how
+other computers can reach the Linux inside this laptop. Windows 11 22H2 or newer can mirror its
+network into Linux; older Windows (10 21H2 and later, or 11 before 22H2), or a laptop whose
+`.wslconfig` already says `networkingMode=nat`, cannot, so there the installer sets up a small
+**relay** instead: Windows itself listens on the helper's port and hands each connection on to
+Linux, and a scheduled task keeps the relay pointed at Linux even though Linux gets a new internal
+address every time WSL restarts. You do nothing different: the same command, the same `goway add`
+line (the relay listens on the same port number), the same firewall limits on who may connect, and
+the same uninstall, which removes the relay and the task again. The finished block says which mode
+was used ("Network mode: mirrored" or "Network mode: nat"); `--network mirrored|nat|auto` forces
+one. In `nat` mode the installer does not touch `.wslconfig` at all.
+
 **To remove the helper again**, use Windows Settings, Apps, "goway helper (host)", Uninstall (the
 installer keeps its own protected copy, so you do not need the file you downloaded), or run
 `goway-setup.exe uninstall --host`.
@@ -118,11 +130,34 @@ laptops were set up by hand. Windows side:
 
 | What | Value |
 |---|---|
-| `%USERPROFILE%\.wslconfig` | `[wsl2] networkingMode=mirrored` (ini key; prior value journaled; a no-op when already set) |
+| `%USERPROFILE%\.wslconfig` | `[wsl2] networkingMode=mirrored` (ini key; prior value journaled; a no-op when already set). Only in mirrored mode; in nat mode the file is never touched |
 | Add/Remove Programs entry | `HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\P-host` (machine-wide, because the host component is): `DisplayName` `goway helper (host)` (`goway helper (host, profile P)` for another profile), `DisplayVersion`, `Publisher`, `InstallLocation` (`%ProgramData%\goway\P`), `DisplayIcon` and `UninstallString` running the protected copy: `"%ProgramData%\goway\P\bin\goway-setup.exe" uninstall --host --profile P`; `NoModify=1`, `NoRepair=1`. It is the first change of the plan, so it is reverted last: a stopped uninstall can still be finished from Settings. The elevated validator accepts exactly these values (`DisplayVersion` may be that of another goway-setup version). Because Windows opens a console just for this entry, the uninstaller waits for Enter before closing it |
 | Defender Firewall rule | inbound TCP `N`, Allow, profiles Private and Domain only, remote address `LocalSubnet` (plus any `--allow-from`), display name `WSL SSH N` (default profile; `P WSL SSH N` otherwise) |
 | Hyper-V firewall rule | inbound TCP `N` Allow for the WSL VM (`VMCreatorId {40E0AC32-46A5-438A-A0B2-2B479E8F2E90}`), named `WSL SSH N (Hyper-V)`; skipped when the cmdlets do not exist (before Windows 11 22H2). Scoped like the Windows rule (Private and Domain profiles, `LocalSubnet` plus any `--allow-from`). A specific rule is used instead of flipping the default inbound action |
 | scheduled task | `WSL Keepalive` (`P WSL Keepalive`): at logon of the invoking user, `conhost.exe --headless wsl.exe -d D --exec /bin/sh -c "exec sleep infinity"`, Interactive, no time limit, runs on battery, one instance. `--keepalive boot` registers `WSL Keepalive (boot)` at startup with an `S4U` principal instead |
+
+In **nat mode** (`--network nat`, or `auto` when the Windows build is older than 22621 / Windows 11
+22H2, the build is unknown, or `.wslconfig` explicitly says `networkingMode=nat`; `--network
+mirrored` on such a build is refused with an explanation) the plan swaps the `.wslconfig` change for
+the relay, placed right after the keepalive task so it is reverted before it:
+
+| What | Value |
+|---|---|
+| refresh script | `%ProgramData%\goway\P\relay-refresh.ps1`, a `write file` entry in the host journal, in the administrator-only directory. It reads the IPv4 of the distro (`wsl.exe -d D --exec hostname -I`, first address), accepts only a dotted quad that is not 0.x, 127.x or 169.254.x, reads the relay's current target with `netsh interface portproxy show v4tov4` and runs `netsh interface portproxy set v4tov4 listenaddress=0.0.0.0 listenport=N connectaddress=<ip> connectport=N` only when it differs. `wsl.exe` and `netsh.exe` are started by absolute System32 path. Distro and port are literals from the validated settings |
+| relay | `netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=N connectaddress=<WSL IPv4> connectport=N`, journaled as resource `0.0.0.0:N` (created only when absent; uninstall deletes only the rule it created). The Defender rule above (Private and Domain, `LocalSubnet` plus `--allow-from`) decides who can reach port `N` |
+| scheduled task | `WSL Relay` (`P WSL Relay`; `WSL Relay (boot)` with `--keepalive boot`): runs `conhost.exe --headless <System32>\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%ProgramData%\goway\P\relay-refresh.ps1"` at logon of the invoking user (so after the keepalive has started WSL) and then every 5 minutes, for at most 5 minutes per run, one instance. It runs as the invoking user (only that user can see the distro) with the highest privileges (netsh needs administrator rights); `Interactive` logon type for the logon variant and `S4U` for the boot variant, so no password is ever stored |
+
+If another portproxy rule (one goway did not create) already listens on port `N`, a nat install
+refuses before changing anything and prints the `netsh interface portproxy delete` command for that
+rule or suggests another `--port`; goway never edits or removes a rule it did not create. Rules on
+other ports are never touched. The elevated uninstall accepts exactly these entries (relay
+resource, refresh task, script file under the admin directory) for the mode recorded in the host
+settings and nothing else; entries of the other mode, another port, another listen address, wildcard
+names or another path are refused. `goway-setup status --host` shows the mode, and in nat mode
+that the helper is reached through the relay on port `N`.
+
+The Hyper-V firewall rule is still created in nat mode when the cmdlets exist: it is scoped like the
+Defender rule and harmless there.
 
 WSL side (run as root through `wsl.exe -d D -u root --exec ...`; no password, no shell):
 
@@ -136,9 +171,9 @@ WSL side (run as root through `wsl.exe -d D -u root --exec ...`; no password, no
 
 Unless `--no-activate` is given, a changed sshd is then validated (`sshd -t`), systemd reloaded, and
 the socket (or service) restarted only when the port is not yet listening (otherwise only reloaded),
-and a newly registered keepalive task is started.
+and the newly registered tasks (the keepalive and, in nat mode, the relay refresh) are started.
 
-WSL is restarted only when you say so: if `.wslconfig` (mirrored networking) or `wsl.conf` changed,
+WSL is restarted only when you say so: if `.wslconfig` (mirrored networking; never in nat mode) or `wsl.conf` changed,
 the install asks on the console "Restart WSL now? [y/N]", explaining that a restart closes open
 Linux windows; the default is No. With `--yes`, `--no-activate` or no console (a pipe, an SSH
 session) it asks nothing and prints the exact `wsl --shutdown` / `wsl --terminate D` instead. Before
@@ -344,6 +379,17 @@ file; the listener on 2222 is not touched), logs in through the Windows address,
 and requires identical snapshots. Port 2222 is logged into once a second throughout and must never
 fail. Probes are full public-key logins on purpose: `ssh-keyscan` or a bare connect counts as an
 unauthenticated connection, which sshd 9.8+ penalises per source address.
+
+`GOWAY_CASES="nat" scripts/windows/roundtrip-host.sh Helios` runs only the third case, which
+forces `--network nat` on its own port 2399 and needs no WSL restart or change of `.wslconfig`: it
+checks the relay, the script file and the refresh task (highest privileges, logon trigger repeating
+every 5 minutes), sets the relay to a wrong address by hand and starts the task to see it put the
+WSL address back, then points the relay at the live sshd on the host's own 127.0.0.1:2222 for one
+full login through port 2399 (entered through Windows OpenSSH's TCP forwarding, because a login from
+a Public network is rightly blocked by the firewall scope and a mirrored host cannot reach its own
+address), and requires the portproxy table, tasks, firewall rules, `.wslconfig` and `%ProgramData%`
+to be identical after uninstall. A mirrored machine's WSL address is the Windows address itself, so
+this proves the mechanism but not a real NAT address change; that needs a Windows 10 machine.
 
 </details>
 

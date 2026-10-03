@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:27:05Z"
+digest = "517f155e2ae6a09a871c729543a9904d0ca64adab366c55271a623b77de05252"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 0593b2c1-d913-492f-a404-8dca9f0ff5a2 with nextest profile: default
+    Starting 1 test across 24 binaries (255 tests skipped)
+        PASS [   0.010s] goway sync::tests::secret_files_are_recognized_case_insensitively
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.012s] 1 test run: 1 passed, 255 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(secret_files_are_recognized_case_insensitively)'"
+size = 559
+status = "measured"
+tests = ["sync::tests::secret_files_are_recognized_case_insensitively"]
+at = "2026-10-03T20:27:05Z"
+actor = "lognd"
+rev = 1

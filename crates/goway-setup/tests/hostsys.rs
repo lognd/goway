@@ -542,11 +542,12 @@ fn probing_collects_the_facts_the_plan_depends_on() {
         ("test -s /home/user/.ssh/authorized_keys", 0, ""),
         ("--exec true", 0, ""),
         ("ps -p 1 -o comm=", 0, "systemd\n"),
+        ("netsh.exe", 0, ""),
     ]);
     let s = sys(&fake);
     assert!(s.distro_reachable().unwrap());
     assert!(s.systemd_running().unwrap());
-    let facts = s.probe().unwrap();
+    let facts = s.probe(Path::new("/nonexistent-home")).unwrap();
     assert!(facts.hyperv_firewall);
     assert_eq!(facts.sshd_ports, [2222]);
     assert!(facts.authorized_keys);
@@ -557,9 +558,10 @@ fn probing_collects_the_facts_the_plan_depends_on() {
         ("printenv HOME", 0, "/home/user\n"),
         ("test -s", 1, ""),
         ("ps -p 1", 0, "init\n"),
+        ("netsh.exe", 0, ""),
     ]);
     let b = sys(&bare);
-    let facts = b.probe().unwrap();
+    let facts = b.probe(Path::new("/nonexistent-home")).unwrap();
     assert!(!facts.hyperv_firewall && facts.sshd_ports.is_empty() && !facts.authorized_keys);
     assert!(!b.systemd_running().unwrap());
 }

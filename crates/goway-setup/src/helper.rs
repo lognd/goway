@@ -4,7 +4,7 @@
 //! Everything here is pure text from probe results, so it is tested off Windows; the probes
 //! themselves live in [`crate::hostsys`].
 
-use crate::host::DEFAULT_PORT;
+use crate::host::{DEFAULT_PORT, NetworkMode};
 
 /// The ssh host key type goway pins; the one the next-steps block fingerprints.
 pub const HOST_KEY_FILE: &str = "/etc/ssh/ssh_host_ed25519_key.pub";
@@ -113,6 +113,8 @@ pub struct HelperInfo {
     pub user: String,
     /// The sshd port of the install.
     pub port: u16,
+    /// How other computers reach the distro (mirrored networking or the NAT relay).
+    pub network: NetworkMode,
 }
 
 /// The block printed when the helper install finishes (and by `status --host`).
@@ -160,6 +162,8 @@ pub fn next_steps(info: &HelperInfo) -> String {
                 .to_owned(),
         ]),
     }
+    lines.push(String::new());
+    lines.push(network_line(info.network, info.port));
     if user == "root" {
         lines.push(
             "Note: the Linux user is root, so Ubuntu has no ordinary user yet. Open Ubuntu from the Start menu and create one first."
@@ -168,6 +172,18 @@ pub fn next_steps(info: &HelperInfo) -> String {
     }
     lines.push(rule);
     lines.join("\n")
+}
+
+/// The one-line statement of how this helper is reached, for the next-steps block and `status`.
+pub fn network_line(network: NetworkMode, port: u16) -> String {
+    match network {
+        NetworkMode::Mirrored => {
+            "Network mode: mirrored (WSL shares this laptop's network; the firewall rules are the only gate).".to_owned()
+        }
+        NetworkMode::Nat => format!(
+            "Network mode: nat (the helper is reached through the Windows relay on port {port}, which a scheduled task keeps pointed at WSL; the command above is unchanged)."
+        ),
+    }
 }
 
 /// The command to run on the main laptop to add this helper.

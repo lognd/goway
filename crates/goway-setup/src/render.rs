@@ -70,6 +70,7 @@ pub fn describe_kind(kind: ResourceKind) -> &'static str {
         ResourceKind::FirewallRule => "Windows Firewall rule",
         ResourceKind::HyperVFirewallRule => "Hyper-V firewall rule",
         ResourceKind::ScheduledTask => "scheduled task",
+        ResourceKind::PortProxy => "Windows port relay (portproxy)",
         ResourceKind::Service => "service",
         ResourceKind::WslPackage => "WSL package",
         ResourceKind::WslUnit => "enabled WSL systemd unit",

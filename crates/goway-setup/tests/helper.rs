@@ -8,7 +8,9 @@ use goway_setup::helper::{
     HelperInfo, WslCheck, WslProbe, add_command, check_wsl, helper_name, next_steps,
     parse_fingerprint, public_network_warning, wsl_steps,
 };
-use goway_setup::host::{RestartAction, RestartNeed, is_yes, restart_action, restart_need};
+use goway_setup::host::{
+    NetworkMode, RestartAction, RestartNeed, is_yes, restart_action, restart_need,
+};
 use goway_setup::hostsys::{Invocation, Output, Runner, parse_distro_list, probe_wsl};
 
 const FP: &str = "SHA256:Qk3nW0xk3b0nS0meFingerprintValue+/abc123XYZ";
@@ -19,6 +21,7 @@ fn info(fingerprint: Option<&str>) -> HelperInfo {
         fingerprint: fingerprint.map(str::to_owned),
         user: "user".into(),
         port: 2222,
+        network: NetworkMode::Mirrored,
     }
 }
 
