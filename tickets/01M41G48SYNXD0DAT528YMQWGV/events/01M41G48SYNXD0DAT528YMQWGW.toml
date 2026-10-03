@@ -1,0 +1,13 @@
+kind = "create"
+title = "M1: a stale deletions file must never delete files on a later sync"
+type = "security"
+category = "todo"
+priority = "high"
+points = 2
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+labels = ["security"]
+scope = ["crates/goway/**"]
+acceptance = ["Given a sync whose upload failed after its deletions were stored, when the file is restored locally and goway syncs again, then the file is present on the remote"]
+at = "2026-10-03T18:23:54Z"
+actor = "lognd"
+rev = 1
