@@ -2,7 +2,8 @@
 id = "01M41P2FWVAT5AP3XD121HE9YF"
 title = "Shard adapters for common test frameworks"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 8
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
