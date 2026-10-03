@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-03T21:57:47Z"
+digest = "5ad60bd3ebb278a8b60de5e2d396acf5df9cbcb80f063bc8cc3317e69a691476"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 5025d8dd-7e07-4c6e-b1c7-e16964c0821a with nextest profile: default
+    Starting 1 test across 33 binaries (394 tests skipped)
+        PASS [   0.009s] goway project::tests::unknown_keys_and_bad_terms_are_errors_naming_file_and_line
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.011s] 1 test run: 1 passed, 394 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "unknown_keys_and_bad_terms"
+size = 574
+status = "measured"
+tests = ["project::tests::unknown_keys_and_bad_terms_are_errors_naming_file_and_line"]
+at = "2026-10-03T21:57:47Z"
+actor = "lognd"
+rev = 1
