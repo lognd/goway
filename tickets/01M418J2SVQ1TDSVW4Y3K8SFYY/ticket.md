@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a remote manifest, when goway diffs it, then only files with changed size or mtime are sent and files gone locally are deleted"
-bound = false
+bound = true
 +++
