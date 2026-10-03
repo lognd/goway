@@ -26,6 +26,7 @@ fn params(port: u16, keepalive: Keepalive, harden: bool) -> HostParams {
         distro: "Ubuntu".into(),
         keepalive,
         harden,
+        allow_from: Vec::new(),
         home: PathBuf::from(HOME),
     }
 }
@@ -451,6 +452,7 @@ fn the_host_journal_and_settings_live_in_the_admin_dir_apart_from_the_client_jou
     let settings = HostSettings {
         distro: "Ubuntu".into(),
         port: DEFAULT_PORT,
+        allow_from: Vec::new(),
     };
     app::save_settings(&l, &settings).unwrap();
     assert_eq!(app::load_settings(&l).unwrap(), Some(settings));
@@ -474,4 +476,116 @@ fn the_host_journal_and_settings_live_in_the_admin_dir_apart_from_the_client_jou
     assert!(!l.admin_dir.exists(), "empty admin dir is removed");
     assert!(!l.admin_root.exists(), "empty admin root is removed");
     assert_eq!(sys, base_machine());
+}
+
+// frob:tests crates/goway-setup/src/host.rs::Scope.new
+// frob:tests crates/goway-setup/src/host.rs::host_plan
+#[test]
+fn firewall_rules_default_to_private_and_domain_on_the_local_subnet() {
+    let spec_of = |plan: &[Change], kind| {
+        plan.iter()
+            .find_map(|c| match c {
+                Change::EnsureResource { kind: k, spec, .. } if *k == kind => Some(spec.clone()),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let plan = host_plan(
+        &layout("p"),
+        &params(2299, Keepalive::Logon, true),
+        &HostFacts::assumed(),
+    );
+    for kind in [ResourceKind::FirewallRule, ResourceKind::HyperVFirewallRule] {
+        let v: serde_json::Value = serde_json::from_str(&spec_of(&plan, kind)).unwrap();
+        assert_eq!(v["profiles"], "Private,Domain", "{kind:?}");
+        assert_eq!(
+            v["remote_addresses"],
+            serde_json::json!(["LocalSubnet"]),
+            "{kind:?}"
+        );
+    }
+    let mut wide = params(2299, Keepalive::Logon, true);
+    wide.allow_from = vec![
+        "100.64.0.0/10".into(),
+        "100.64.0.0/10".into(),
+        "fd7a:115c:a1e0::/48".into(),
+    ];
+    let plan = host_plan(&layout("p"), &wide, &HostFacts::assumed());
+    let v: serde_json::Value =
+        serde_json::from_str(&spec_of(&plan, ResourceKind::FirewallRule)).unwrap();
+    assert_eq!(
+        v["remote_addresses"],
+        serde_json::json!(["LocalSubnet", "100.64.0.0/10", "fd7a:115c:a1e0::/48"])
+    );
+}
+
+// frob:tests crates/goway-setup/src/host.rs::validate_allow_from
+#[test]
+fn allow_from_accepts_addresses_and_cidrs_and_refuses_everything_else() {
+    for ok in [
+        "100.64.0.0/10",
+        "192.168.1.7",
+        "10.0.0.0/8",
+        "fd7a:115c:a1e0::/48",
+        "::1",
+    ] {
+        assert!(host::validate_allow_from(ok).is_ok(), "{ok}");
+    }
+    for bad in [
+        "",
+        "Any",
+        "LocalSubnet",
+        "0.0.0.0/0",
+        "::/0",
+        "10.0.0.0/33",
+        "fd00::/129",
+        "10.0.0.0/",
+        "10.0.0.0/x",
+        "10.0.0/8",
+        "10.0.0.0/8,10.1.0.0/16",
+        "1.2.3.4'; calc",
+        "example.com",
+    ] {
+        assert!(
+            host::validate_allow_from(bad).is_err(),
+            "{bad:?} must be refused"
+        );
+    }
+    let settings = HostSettings {
+        distro: "Ubuntu".into(),
+        port: 2222,
+        allow_from: vec!["0.0.0.0/0".into()],
+    };
+    assert!(settings.validate(Path::new("s.json")).is_err());
+}
+
+// frob:tests crates/goway-setup/src/host.rs::validate_journal
+// frob:tests crates/goway-setup/src/host.rs::expected_changes
+#[test]
+fn a_journal_from_before_scoping_can_still_be_uninstalled() {
+    let l = layout("p");
+    let settings = HostSettings {
+        distro: "Ubuntu".into(),
+        port: 2299,
+        allow_from: Vec::new(),
+    };
+    let legacy_fw = Change::EnsureResource {
+        kind: ResourceKind::FirewallRule,
+        name: "p WSL SSH 2299".into(),
+        spec: r#"{"port":2299,"description":"WSL sshd; goway-setup profile p"}"#.into(),
+    };
+    let mut j = goway_journal::Journal::new("t");
+    j.entries.push(goway_journal::Entry {
+        change: legacy_fw,
+        prior: goway_journal::Prior::ResourceCreated,
+        reverted: false,
+    });
+    host::validate_journal(&j, &l, &settings, Path::new(HOME)).unwrap();
+    // A rule with a different description or an extra field is not what goway wrote.
+    j.entries[0].change = Change::EnsureResource {
+        kind: ResourceKind::FirewallRule,
+        name: "p WSL SSH 2299".into(),
+        spec: r#"{"port":2299,"description":"WSL sshd; goway-setup profile p","x":1}"#.into(),
+    };
+    assert!(host::validate_journal(&j, &l, &settings, Path::new(HOME)).is_err());
 }

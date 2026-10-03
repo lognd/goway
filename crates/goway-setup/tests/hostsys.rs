@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::path::Path;
 
 use goway_journal::{ResourceKind, System, SystemError};
-use goway_setup::host::{FirewallSpec, HyperVSpec, Keepalive, TaskSpec};
+use goway_setup::host::{FirewallSpec, HyperVSpec, Keepalive, Scope, TaskSpec};
 use goway_setup::hostsys::{
     Activation, HostSystem, Invocation, Output, Runner, is_wsl_path, parse_listening_ports,
     parse_sshd_ports,
@@ -155,12 +155,13 @@ fn scripts_name_the_right_cmdlets_and_quote_their_values() {
         &FirewallSpec {
             port: 2299,
             description: "d".into(),
+            scope: Scope::new(&[]),
         },
     );
     assert!(fw.contains("New-NetFirewallRule -Name 'it''s' -DisplayName 'it''s'"));
-    assert!(
-        fw.contains("-Direction Inbound -Action Allow -Protocol TCP -LocalPort 2299 -Profile Any")
-    );
+    assert!(fw.contains(
+        "-Direction Inbound -Action Allow -Protocol TCP -LocalPort 2299 -Profile 'Private','Domain' -RemoteAddress 'LocalSubnet' -Enabled True"
+    ));
     assert!(fw.starts_with("$ErrorActionPreference = 'Stop'"));
     assert!(
         ps::firewall_exists("x")
@@ -173,10 +174,11 @@ fn scripts_name_the_right_cmdlets_and_quote_their_values() {
             port: 2299,
             vm_creator_id: "{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}".into(),
             description: String::new(),
+            scope: Scope::new(&[]),
         },
     );
     assert!(hv.contains("New-NetFirewallHyperVRule -Name 'h'"));
-    assert!(hv.contains("-VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol TCP -LocalPorts 2299 -Action Allow"));
+    assert!(hv.contains("-VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol TCP -LocalPorts 2299 -Profiles 'Private','Domain' -RemoteAddresses 'LocalSubnet' -Action Allow"));
     assert!(
         ps::hyperv_exists("h")
             .contains("Get-NetFirewallHyperVRule -Name ([WildcardPattern]::Escape('h'))")
@@ -391,6 +393,7 @@ fn windows_resources_run_the_matching_powershell_and_report_failures() {
     let spec = serde_json::to_string(&FirewallSpec {
         port: 2299,
         description: "d".into(),
+        scope: Scope::new(&[]),
     })
     .unwrap();
     s.resource_create(ResourceKind::FirewallRule, "r", &spec)
@@ -676,4 +679,68 @@ fn system_tools_are_started_by_the_expected_path() {
     } else {
         assert_eq!((ps.as_str(), wsl.as_str()), ("powershell.exe", "wsl.exe"));
     }
+}
+
+// frob:tests crates/goway-setup/src/ps.rs::firewall_create
+// frob:tests crates/goway-setup/src/ps.rs::hyperv_create
+#[test]
+fn firewall_rules_are_scoped_to_local_networks_and_never_open_to_everyone() {
+    let spec = |scope| FirewallSpec {
+        port: 2299,
+        description: "d".into(),
+        scope,
+    };
+    let default = ps::firewall_create("r", &spec(Scope::new(&[])));
+    assert!(default.contains("-RemoteAddress"), "{default}");
+    assert!(!default.contains("-Profile Any"), "{default}");
+    assert!(!default.contains("Public"), "{default}");
+    // Widening is explicit and keeps the local subnet.
+    let wide = ps::firewall_create("r", &spec(Scope::new(&["100.64.0.0/10".to_owned()])));
+    assert!(
+        wide.contains("-RemoteAddress 'LocalSubnet','100.64.0.0/10'"),
+        "{wide}"
+    );
+    // Scopes read from an old journal (or damaged ones) never produce an open rule.
+    for scope in [
+        Scope::default(),
+        Scope {
+            profiles: Some("Any".into()),
+            remote_addresses: Vec::new(),
+        },
+        Scope {
+            profiles: Some("Private,Public; calc".into()),
+            remote_addresses: Vec::new(),
+        },
+    ] {
+        let script = ps::firewall_create("r", &spec(scope));
+        assert!(script.contains("-RemoteAddress 'LocalSubnet'"), "{script}");
+        assert!(
+            !script.contains("-Profile Any") && !script.contains("calc"),
+            "{script}"
+        );
+    }
+    let hv = ps::hyperv_create(
+        "h",
+        &HyperVSpec {
+            port: 2299,
+            vm_creator_id: "{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}".into(),
+            description: String::new(),
+            scope: Scope::new(&["10.0.0.0/8".to_owned()]),
+        },
+    );
+    assert!(
+        hv.contains("-RemoteAddresses 'LocalSubnet','10.0.0.0/8'")
+            && hv.contains("-Profiles 'Private','Domain'"),
+        "{hv}"
+    );
+}
+
+// frob:tests crates/goway-setup/src/ps.rs::public_networks
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.public_networks
+#[test]
+fn public_networks_are_listed_one_per_line() {
+    let fake = Fake::new(vec![("powershell.exe", 0, "Cafe Wi-Fi\r\n\r\nOther\n")]);
+    let s = sys(&fake);
+    assert_eq!(s.public_networks().unwrap(), ["Cafe Wi-Fi", "Other"]);
+    assert!(ps::public_networks().contains("NetworkCategory -eq 'Public'"));
 }

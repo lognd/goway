@@ -300,6 +300,19 @@ impl<R: Runner> HostSystem<R> {
         self.ps_flag("probe Hyper-V firewall", &ps::hyperv_available())
     }
 
+    /// Names of the connected networks Windows classifies as Public (where the goway firewall
+    /// rules do not apply); empty when none or when the query is unavailable.
+    pub fn public_networks(&self) -> SysResult<Vec<String>> {
+        let out = self.powershell("query network profiles", &ps::public_networks())?;
+        Ok(out
+            .text()
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(str::to_owned)
+            .collect())
+    }
+
     /// Whether the distro answers (exists and starts).
     pub fn distro_reachable(&self) -> SysResult<bool> {
         Ok(self.wsl_raw(&["true"], None)?.success())

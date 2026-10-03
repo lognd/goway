@@ -86,9 +86,17 @@ pub enum Command {
         /// Host: when the keepalive task starts the distro.
         #[arg(long, value_enum, default_value_t)]
         keepalive: Keepalive,
-        /// Host: disable password logins for sshd (only when the default user has an authorized key).
-        #[arg(long)]
+        /// Host: deprecated no-op; hardening is the default (see --no-harden).
+        #[arg(long, hide = true, conflicts_with = "no_harden")]
         harden: bool,
+        /// Host: do not disable sshd password logins (by default they are disabled once the
+        /// distro's default user has an authorized key).
+        #[arg(long)]
+        no_harden: bool,
+        /// Host: also admit this remote address or CIDR (repeatable; for example Tailscale's
+        /// 100.64.0.0/10); by default only the local subnet may connect.
+        #[arg(long, value_name = "CIDR")]
+        allow_from: Vec<String>,
         /// Host: do not reload or restart sshd or start the keepalive task afterwards.
         #[arg(long)]
         no_activate: bool,
@@ -152,6 +160,7 @@ struct InstallRequest {
     distro: String,
     keepalive: Keepalive,
     harden: bool,
+    allow_from: Vec<String>,
     activate: bool,
     elevate: Elevate,
 }
@@ -186,7 +195,9 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             port,
             distro,
             keepalive,
-            harden,
+            harden: _,
+            no_harden,
+            allow_from,
             no_activate,
             no_elevate,
             profile,
@@ -200,7 +211,8 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
                 port: *port,
                 distro: distro.clone(),
                 keepalive: *keepalive,
-                harden: *harden,
+                harden: !*no_harden,
+                allow_from: allow_from.clone(),
                 activate: !*no_activate,
                 elevate: Elevate::new(*no_elevate, child),
             },
@@ -249,6 +261,9 @@ fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), Setup
     }
     if wants_host {
         host::validate_distro(&req.distro)?;
+        for cidr in &req.allow_from {
+            host::validate_allow_from(cidr)?;
+        }
         if !req.dry_run && !cfg!(windows) {
             return Err(SetupError::HostNeedsWindows);
         }
@@ -302,8 +317,11 @@ fn install_child_args(profile: &str, req: &InstallRequest) -> Vec<String> {
     ]
     .map(str::to_owned)
     .to_vec();
-    if req.harden {
-        args.push("--harden".to_owned());
+    if !req.harden {
+        args.push("--no-harden".to_owned());
+    }
+    for cidr in &req.allow_from {
+        args.extend(["--allow-from".to_owned(), cidr.clone()]);
     }
     if !req.activate {
         args.push("--no-activate".to_owned());
@@ -354,6 +372,7 @@ fn host_params(req: &InstallRequest) -> Result<HostParams, SetupError> {
         distro: req.distro.clone(),
         keepalive: req.keepalive,
         harden: req.harden,
+        allow_from: req.allow_from.clone(),
         home,
     })
 }
@@ -371,6 +390,7 @@ fn dry_run_host(r: Renderer, layout: &Layout, params: &HostParams) -> Result<(),
             .map(|c| still_applied(c, &sys))
             .collect::<Result<Vec<_>, _>>()?;
         r.plan_component(&label, &plan, Some(&holds));
+        warn_public_networks(r, &sys);
     } else {
         let plan = host_plan(layout, params, &HostFacts::assumed());
         r.plan_component(&label, &plan, None);
@@ -395,15 +415,13 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
         });
     }
     let facts = sys.probe()?;
-    if params.harden && !facts.authorized_keys {
-        r.notice("not hardening sshd: the distro's default user has no authorized key yet (run `goway ssh setup` first)");
-    }
     let plan = host_plan(layout, &params, &facts);
     app::save_settings(
         layout,
         &HostSettings {
             distro: params.distro.clone(),
             port: params.port,
+            allow_from: params.allow_from.clone(),
         },
     )?;
     let journal = match app::install(&mut sys, &view, &plan) {
@@ -423,6 +441,7 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
         }
     }
     r.host_installed(layout, &params.distro, params.port, journal.entries.len());
+    exposure_warnings(r, layout, &params, &facts, &sys);
     if req.activate {
         if host::sshd_changed(&journal) {
             let how = sys.activate_sshd(params.port)?;
@@ -438,6 +457,44 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
         r.notice(&notice);
     }
     Ok(())
+}
+
+/// Loud follow-ups about who can reach sshd: password login left on, and Public networks where
+/// the (Private and Domain only) firewall rules do not apply.
+fn exposure_warnings(
+    r: Renderer,
+    layout: &Layout,
+    params: &HostParams,
+    facts: &HostFacts,
+    sys: &HostSystem,
+) {
+    if !params.harden {
+        r.notice("sshd password login was left on because of --no-harden");
+    } else if !facts.authorized_keys {
+        r.warning(&format!(
+            "sshd password login is still ON: the distro's default user has no authorized key yet, so it was not disabled. \
+             Next step: from your main laptop run `goway ssh setup <this host>`, then run `goway doctor <this host> --fix --rsudo` \
+             (or uninstall and rerun `goway-setup install --host --profile {}`) to turn password login off.",
+            layout.profile
+        ));
+    }
+    warn_public_networks(r, sys);
+}
+
+/// Warn about every connected network Windows classifies as Public.
+fn warn_public_networks(r: Renderer, sys: &HostSystem) {
+    match sys.public_networks() {
+        Ok(names) => {
+            for name in names {
+                r.warning(&format!(
+                    "the active network {name:?} is classified Public, where the goway firewall rules do not apply, so sshd is not reachable over it. \
+                     If you trust that network, mark it Private (administrator PowerShell: `Set-NetConnectionProfile -Name '{}' -NetworkCategory Private`).",
+                    name.replace('\'', "''")
+                ));
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "could not query the network profiles"),
+    }
 }
 
 fn uninstall(
@@ -530,10 +587,7 @@ fn uninstall_host(
     if !cfg!(windows) {
         return Err(SetupError::HostNeedsWindows);
     }
-    let settings = app::load_settings(layout)?.unwrap_or(HostSettings {
-        distro: DEFAULT_DISTRO.to_owned(),
-        port: DEFAULT_PORT,
-    });
+    let settings = app::load_settings(layout)?.unwrap_or_default();
     let home = dirs::home_dir().ok_or(SetupError::NoLocalAppData)?;
     let mut sys = HostSystem::new(&settings.distro);
     let report = app::uninstall_checked(&mut sys, &view, Retry::ONCE, |journal| {
@@ -762,10 +816,7 @@ fn status(r: Renderer, profile: &str) -> Result<(), SetupError> {
     let view = layout.host_view();
     if let Some(journal) = app::load_journal(&view)? {
         any = true;
-        let settings = app::load_settings(&layout)?.unwrap_or(HostSettings {
-            distro: DEFAULT_DISTRO.to_owned(),
-            port: DEFAULT_PORT,
-        });
+        let settings = app::load_settings(&layout)?.unwrap_or_default();
         let sys = HostSystem::new(&settings.distro);
         r.status(&view, &app::status(&sys, &journal)?);
     }

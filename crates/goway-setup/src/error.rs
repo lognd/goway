@@ -21,6 +21,14 @@ pub enum SetupError {
         /// Journal path.
         journal: String,
     },
+    /// An `--allow-from` value is not an address or CIDR block the firewall can use.
+    #[error("invalid --allow-from {value:?}: {why} (use an address or CIDR such as 100.64.0.0/10)")]
+    BadAllowFrom {
+        /// The rejected value.
+        value: String,
+        /// What is wrong with it.
+        why: String,
+    },
     /// The WSL distro name is empty or contains characters unsafe in command lines.
     #[error("invalid distro name {0:?}: use letters, digits, '.', '-' and '_'")]
     BadDistro(String),

@@ -8,8 +8,8 @@ replaced, so `uninstall` replays the journal backwards and restores the machine.
 ## Commands
 
     goway-setup install [--client] [--host] [--profile NAME] [--dry-run]
-                        [--port N] [--distro NAME] [--keepalive logon|boot] [--harden]
-                        [--no-activate] [--no-elevate]
+                        [--port N] [--distro NAME] [--keepalive logon|boot] [--no-harden]
+                        [--allow-from CIDR]... [--no-activate] [--no-elevate]
     goway-setup uninstall [--client] [--host] [--profile NAME] [--no-activate] [--no-elevate]
     goway-setup status [--profile NAME]
 
@@ -52,8 +52,8 @@ laptops were set up by hand. Windows side:
 | What | Value |
 |---|---|
 | `%USERPROFILE%\.wslconfig` | `[wsl2] networkingMode=mirrored` (ini key; prior value journaled; a no-op when already set) |
-| Defender Firewall rule | inbound TCP `N`, Allow, profile Any, display name `WSL SSH N` (default profile; `P WSL SSH N` otherwise) |
-| Hyper-V firewall rule | inbound TCP `N` Allow for the WSL VM (`VMCreatorId {40E0AC32-46A5-438A-A0B2-2B479E8F2E90}`), named `WSL SSH N (Hyper-V)`; skipped when the cmdlets do not exist (before Windows 11 22H2). A specific rule is used instead of flipping the default inbound action |
+| Defender Firewall rule | inbound TCP `N`, Allow, profiles Private and Domain only, remote address `LocalSubnet` (plus any `--allow-from`), display name `WSL SSH N` (default profile; `P WSL SSH N` otherwise) |
+| Hyper-V firewall rule | inbound TCP `N` Allow for the WSL VM (`VMCreatorId {40E0AC32-46A5-438A-A0B2-2B479E8F2E90}`), named `WSL SSH N (Hyper-V)`; skipped when the cmdlets do not exist (before Windows 11 22H2). Scoped like the Windows rule (Private and Domain profiles, `LocalSubnet` plus any `--allow-from`). A specific rule is used instead of flipping the default inbound action |
 | scheduled task | `WSL Keepalive` (`P WSL Keepalive`): at logon of the invoking user, `conhost.exe --headless wsl.exe -d D --exec /bin/sh -c "exec sleep infinity"`, Interactive, no time limit, runs on battery, one instance. `--keepalive boot` registers `WSL Keepalive (boot)` at startup with an `S4U` principal instead |
 
 WSL side (run as root through `wsl.exe -d D -u root --exec ...`; no password, no shell):
@@ -63,7 +63,7 @@ WSL side (run as root through `wsl.exe -d D -u root --exec ...`; no password, no
 | `/etc/wsl.conf` | `[boot] systemd=true` (a no-op when set; systemd must already be PID 1, otherwise the install stops with the exact commands to enable it, because that needs a WSL restart goway will not do for you) |
 | `openssh-server` | installed with `apt-get install -y` only when dpkg shows it cleanly absent |
 | `/etc/ssh/sshd_config.d/20-P-port.conf` | `Port N` (skipped when `sshd -T` already lists `N`); Ubuntu's socket generator turns it into `ssh.socket` listen addresses |
-| `/etc/ssh/sshd_config.d/10-P-hardening.conf` | `PasswordAuthentication no`, only with `--harden` and only when the distro's default user already has an authorized key (otherwise a note; `goway ssh setup` handles keys) |
+| `/etc/ssh/sshd_config.d/10-P-hardening.conf` | `PasswordAuthentication no`, written by default as soon as the distro's default user has an authorized key (`--no-harden` opts out); without a key it is skipped and the install ends with a loud warning naming the next step |
 | `ssh.socket`, `ssh.service` | enabled at boot (a unit that does not exist is skipped) |
 
 Unless `--no-activate` is given, a changed sshd is then validated (`sshd -t`), systemd reloaded, and
@@ -154,6 +154,55 @@ as administrator; a planted entry could overwrite a system file or delete every 
 
 </details>
 
+## Who can reach sshd (network scope and password login)
+
+In plain words: by default only machines on your own local network can connect, and only while the
+network is one you marked Private (or a domain network); and once a key works, passwords stop
+working. Before this change the firewall rules were open on every network profile and to every
+address, so a laptop on cafe Wi-Fi (a Public network) exposed the WSL sshd, with password login
+on, to everyone on that network.
+
+* **Firewall rules** (the Windows Defender rule and the Hyper-V rule for the WSL VM) apply only on
+  the Private and Domain profiles and admit only the local subnet.
+* **Widening is explicit.** `--allow-from CIDR` (repeatable) adds a remote address or range to the
+  rules, for example `--allow-from 100.64.0.0/10` for Tailscale. The values are checked (an address
+  or CIDR; `0.0.0.0/0` and `::/0` are refused because they would undo the scoping) and are kept in the
+  host settings so uninstall rebuilds the same plan.
+* **Password login is switched off by default** by the `PasswordAuthentication no` drop-in, but only
+  when the distro's default user already has an authorized key, so you cannot lock yourself out.
+  `--no-harden` opts out. With no key yet, the install finishes with a loud warning: run
+  `goway ssh setup HOST` from your main laptop, then `goway doctor HOST --fix --rsudo` (or uninstall
+  and rerun the install) to turn passwords off.
+* **Public networks are called out.** If a connected network is classified Public, the install
+  warns that the rules do not apply there (sshd is not reachable over it) and shows the command to
+  mark a network you trust as Private. `--dry-run` shows the same warning.
+
+<details><summary>Details</summary>
+
+* Windows rule: `New-NetFirewallRule ... -Profile 'Private','Domain' -RemoteAddress 'LocalSubnet'[,...]`.
+  Hyper-V rule: `New-NetFirewallHyperVRule ... -Profiles 'Private','Domain' -RemoteAddresses
+  'LocalSubnet'[,...]` (the cmdlet takes the same keyword and CIDR forms). Both keep the `-Enabled`
+  and action settings of before; only the scope changed. `ps::firewall_create` never emits
+  `-Profile Any` (a missing, `Any` or damaged scope in a journal falls back to Private and Domain), and
+  `tests/hostsys.rs` asserts it.
+* The scope is part of the rule's recorded spec, so uninstall removes exactly what was created. A
+  journal written before this change (no scope fields) is still accepted by the elevated validator
+  and uninstalled.
+* The `--allow-from` list is saved in `host-settings.json` and the expected-plan validator of the
+  elevated uninstall is built from it; settings with an invalid CIDR are refused.
+* Tailscale: its adapter must itself be classified Private (or Domain) for the rule to apply; if
+  Windows labels it Public, run `Set-NetConnectionProfile -InterfaceAlias Tailscale -NetworkCategory Private`
+  in an administrator PowerShell, or leave it Public and reach the host over the local network.
+* `--harden` is still accepted and does nothing (it is the default); combining it with `--no-harden`
+  is an error.
+* The live proof (`scripts/windows/roundtrip-host.sh`) installs with `--allow-from 100.64.0.0/10`
+  (it logs in over the host's Tailscale address), then checks that both rules show only the
+  Private and Domain profiles and `LocalSubnet` plus that range, that `sshd -T` reports
+  `passwordauthentication no` for the default case and `yes` with `--no-harden`, and that
+  snapshots before and after uninstall are identical.
+
+</details>
+
 ## Why uninstall provably restores the machine
 
 * Each entry stores the prior state (absent file, previous registry value and type, whether the
@@ -199,7 +248,7 @@ rules (all, with ports and actions), Hyper-V firewall rules and VM settings, non
 tasks, the `.wslconfig` bytes (`snapshot-host.ps1`), and `/etc/wsl.conf`, `/etc/ssh/sshd_config.d`
 (hashes), the `ssh.socket` and `ssh.service` units including generated overrides, the package state,
 unit enablement and listening ports (`snapshot-wsl.sh`, over the WSL sshd). Then, for a logon
-keepalive with `--harden` and for a boot keepalive, it installs, checks the new rules and task, runs
+keepalive with the default hardening and for a boot keepalive with `--no-harden` (both with `--allow-from 100.64.0.0/10`), it installs, checks the new rules and task, runs
 `sshd -t`, starts a second temporary `sshd -p 2299` with the installed configuration (own pid
 file; the listener on 2222 is not touched), logs in through the Windows address, kills it, uninstalls
 and requires identical snapshots. Port 2222 is logged into once a second throughout and must never

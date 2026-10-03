@@ -212,6 +212,11 @@ impl Renderer {
         self.line(WARN, "note", text);
     }
 
+    /// A loud warning about a security-relevant state the user must fix.
+    pub fn warning(self, text: &str) {
+        let _ = writeln!(self.err(), "{ERROR}WARNING{ERROR:#}: {text}");
+    }
+
     /// Announce a finished host install.
     pub fn host_installed(self, layout: &Layout, distro: &str, port: u16, applied: usize) {
         self.line(

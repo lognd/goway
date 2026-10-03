@@ -17,7 +17,10 @@
 # the Windows firewall rule and the Hyper-V firewall are on the path), and killed again. Port
 # 2222 is logged into once a second for the whole run and must never fail.
 #
-# Two cases: (1) logon keepalive task with password hardening; (2) boot (S4U) keepalive task.
+# Two cases: (1) logon keepalive task with the default password hardening; (2) boot (S4U)
+# keepalive task with --no-harden. Both pass --allow-from 100.64.0.0/10 because this script logs in
+# over the host's Tailscale address, which the default local-subnet scope would (rightly) refuse.
+# The rules must be limited to the Private and Domain profiles and to LocalSubnet plus that range.
 # Needs key-based ssh to the host's Windows OpenSSH (port 22) and to its WSL sshd (port 2222).
 # Exits nonzero unless every before/after snapshot pair is identical.
 set -euo pipefail
@@ -98,7 +101,7 @@ scp -q -o BatchMode=yes "$exe" "$ip:$remote_dir/"
 # Guard: on a live host every WSL-side resource must already be in place (the dry run probes the
 # machine read-only), so the run can never install, remove or purge a package or unit. Only the
 # goway-test firewall rules, task and sshd drop-ins are created and removed.
-plan="$(setup install --host --dry-run --port $port --profile "$profile" --harden --color never)"
+plan="$(setup install --host --dry-run --port $port --profile "$profile" --color never)"
 echo "$plan"
 for need in "ensure WSL package openssh-server" "ensure enabled WSL systemd unit ssh.socket" "ensure enabled WSL systemd unit ssh.service" "set [boot] systemd=true in /etc/wsl.conf" "ensure directory /etc/ssh/sshd_config.d"; do
     grep -F "$need" <<<"$plan" | grep -q "in place" || { echo "REFUSING: '$need' is not already in place on this host" >&2; exit 2; }
@@ -111,25 +114,38 @@ done
   done ) &
 poller_pid=$!
 
-run_case() { # run_case LABEL EXPECT_TASK_SUFFIX install-args...
-    local label="$1" suffix="$2"; shift 2
+run_case() { # run_case LABEL EXPECT_TASK_SUFFIX EXPECT_PASSWORDAUTH install-args...
+    local label="$1" suffix="$2" expect_password="$3"; shift 3
     echo "== case $label"
     snapshot "before-$label"
     setup install --host --port $port --profile "$profile" --no-activate --no-elevate "$@" -v
     setup status --profile "$profile" --color never
     local win; win="$(winps_cmd "
-Get-NetFirewallRule -DisplayName 'goway-test WSL SSH $port' | % { 'rule: ' + \$_.DisplayName + ' ' + \$_.Direction + ' ' + \$_.Action + ' ' + \$_.Profile }
+Get-NetFirewallRule -DisplayName 'goway-test WSL SSH $port' | % { 'rule: ' + \$_.DisplayName + ' ' + \$_.Direction + ' ' + \$_.Action + ' profiles=' + \$_.Profile }
+(Get-NetFirewallRule -DisplayName 'goway-test WSL SSH $port' | Get-NetFirewallAddressFilter | % { 'rule remote: ' + (\$_.RemoteAddress -join ',') })
 (Get-NetFirewallRule -DisplayName 'goway-test WSL SSH $port' | Get-NetFirewallPortFilter | % { 'rule port: ' + \$_.Protocol + '/' + \$_.LocalPort })
-Get-NetFirewallHyperVRule -Name 'goway-test WSL SSH $port (Hyper-V)' | % { 'hyperv: ' + \$_.Direction + ' ' + \$_.Action + ' ' + \$_.Protocol + '/' + \$_.LocalPorts + ' vm=' + \$_.VMCreatorId }
+Get-NetFirewallHyperVRule -Name 'goway-test WSL SSH $port (Hyper-V)' | % { 'hyperv: ' + \$_.Direction + ' ' + \$_.Action + ' ' + \$_.Protocol + '/' + \$_.LocalPorts + ' vm=' + \$_.VMCreatorId + ' profiles=' + \$_.Profiles + ' remote=' + (\$_.RemoteAddresses -join ',') }
 Get-ScheduledTask -TaskName 'goway-test WSL Keepalive$suffix' | % { 'task: ' + \$_.TaskName + ' ' + \$_.State + ' ' + \$_.Principal.LogonType + ' ' + \$_.Triggers[0].CimClass.CimClassName }
 ")"
     echo "$win"
-    for want in "rule: goway-test WSL SSH $port Inbound Allow Any" "rule port: TCP/$port" "hyperv: Inbound Allow TCP/$port vm={40E0AC32-46A5-438A-A0B2-2B479E8F2E90}" "task: goway-test WSL Keepalive$suffix"; do
+    for want in "rule: goway-test WSL SSH $port Inbound Allow profiles=" "rule port: TCP/$port" "hyperv: Inbound Allow TCP/$port vm={40E0AC32-46A5-438A-A0B2-2B479E8F2E90}" "task: goway-test WSL Keepalive$suffix"; do
         grep -qF "$want" <<<"$win" || { echo "FAIL: after install, missing: $want"; status=1; }
+    done
+    # Scope: Private and Domain only (never Public or Any), local subnet plus the allowed range.
+    local scoped
+    for scoped in "rule: goway-test" "hyperv: Inbound"; do
+        local line; line="$(grep -F "$scoped" <<<"$win" | head -n1)"
+        if [[ "$line" == *Private* && "$line" == *Domain* && "$line" != *Public* && "$line" != *Any* ]]; then echo "ok: '$scoped' limited to Private,Domain"; else echo "FAIL: '$scoped' profiles are not Private,Domain: $line"; status=1; fi
+    done
+    for scoped in "rule remote: " "hyperv: Inbound"; do
+        local line; line="$(grep -F "$scoped" <<<"$win" | head -n1)"
+        if [[ "$line" == *LocalSubnet* && "$line" =~ 100\.64\.0\.0/(10|255\.192\.0\.0) && "$line" != *Any* ]]; then echo "ok: '$scoped' limited to LocalSubnet + 100.64.0.0/10"; else echo "FAIL: '$scoped' remote scope wrong: $line"; status=1; fi
     done
     echo "-- sshd configuration check as root (sshd -t) and effective ports"
     rwsl /usr/sbin/sshd -t && echo "sshd -t ok"
-    rwsl /usr/sbin/sshd -T | grep -E '^(port|passwordauthentication) ' | sort | tr '\n' ' '; echo
+    local effective; effective="$(rwsl /usr/sbin/sshd -T | grep -E '^(port|passwordauthentication) ' | sort | tr '\n' ' ')"
+    echo "$effective"
+    [[ "$effective" == *"passwordauthentication $expect_password"* ]] || { echo "FAIL: expected passwordauthentication $expect_password"; status=1; }
     echo "-- temporary sshd on $port with the installed configuration"
     rwsl /usr/sbin/sshd -p $port -o PidFile=/run/goway-test-sshd.pid
     sleep 1
@@ -143,8 +159,8 @@ Get-ScheduledTask -TaskName 'goway-test WSL Keepalive$suffix' | % { 'task: ' + \
     compare "$label" "before-$label" "after-$label"
 }
 
-run_case logon "" --harden
-run_case boot " (boot)" --keepalive boot
+run_case logon "" no --allow-from 100.64.0.0/10
+run_case boot " (boot)" yes --no-harden --keepalive boot --allow-from 100.64.0.0/10
 compare "restored-original" before-logon after-boot
 
 kill "$poller_pid" 2>/dev/null || true; poller_pid=""

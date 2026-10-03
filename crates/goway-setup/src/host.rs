@@ -24,6 +24,11 @@ pub const SSHD_PACKAGE: &str = "openssh-server";
 pub const SSHD_DROPIN_DIR: &str = "/etc/ssh/sshd_config.d";
 /// The distro's WSL settings file.
 pub const WSL_CONF: &str = "/etc/wsl.conf";
+/// The firewall profiles the rules apply to by default: networks the user marked Private, and
+/// domain networks. Public networks (cafe Wi-Fi) are deliberately excluded.
+pub const FIREWALL_PROFILES: &str = "Private,Domain";
+/// The firewall keyword for "the subnet(s) this machine is directly attached to".
+pub const LOCAL_SUBNET: &str = "LocalSubnet";
 /// The systemd units enabled so sshd starts with the distro.
 pub const SSHD_UNITS: [&str; 2] = ["ssh.socket", "ssh.service"];
 
@@ -49,6 +54,8 @@ pub struct HostParams {
     pub keepalive: Keepalive,
     /// Add a drop-in disabling password authentication (only applied when a key is authorized).
     pub harden: bool,
+    /// Extra remote addresses (validated CIDRs) allowed in besides the local subnet.
+    pub allow_from: Vec<String>,
     /// The user's home directory, where `.wslconfig` lives.
     pub home: PathBuf,
 }
@@ -82,12 +89,29 @@ pub struct HostSettings {
     pub distro: String,
     /// The sshd port the install configured.
     pub port: u16,
+    /// Extra remote addresses the firewall rules admit besides the local subnet.
+    #[serde(default)]
+    pub allow_from: Vec<String>,
+}
+
+impl Default for HostSettings {
+    /// What an uninstall assumes when no settings were saved: the default distro and port.
+    fn default() -> Self {
+        Self {
+            distro: DEFAULT_DISTRO.to_owned(),
+            port: DEFAULT_PORT,
+            allow_from: Vec::new(),
+        }
+    }
 }
 
 impl HostSettings {
     /// Refuse settings an elevated process must not build its expected plan from.
     pub fn validate(&self, path: &std::path::Path) -> Result<(), crate::error::SetupError> {
         validate_distro(&self.distro)?;
+        for cidr in &self.allow_from {
+            validate_allow_from(cidr)?;
+        }
         if self.port == 0 {
             return Err(crate::error::SetupError::UntrustedState {
                 path: path.display().to_string(),
@@ -98,6 +122,34 @@ impl HostSettings {
     }
 }
 
+/// Where a firewall rule applies. `None`/empty is how journals written before scoping existed
+/// deserialize (and serialize back unchanged); creating a rule treats them as the safe default.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct Scope {
+    /// Comma-separated firewall profiles (`Private,Domain`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profiles: Option<String>,
+    /// Remote addresses the rule admits (`LocalSubnet`, CIDRs).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remote_addresses: Vec<String>,
+}
+
+impl Scope {
+    /// The scope of new rules: Private and Domain profiles, the local subnet plus `allow_from`.
+    pub fn new(allow_from: &[String]) -> Self {
+        let mut remote_addresses = vec![LOCAL_SUBNET.to_owned()];
+        for cidr in allow_from {
+            if !remote_addresses.contains(cidr) {
+                remote_addresses.push(cidr.clone());
+            }
+        }
+        Self {
+            profiles: Some(FIREWALL_PROFILES.to_owned()),
+            remote_addresses,
+        }
+    }
+}
+
 /// Spec of a Windows Defender Firewall rule resource (JSON in `Change::EnsureResource::spec`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FirewallSpec {
@@ -105,6 +157,9 @@ pub struct FirewallSpec {
     pub port: u16,
     /// Free-text description stored on the rule.
     pub description: String,
+    /// Profiles and remote addresses the rule is limited to.
+    #[serde(flatten)]
+    pub scope: Scope,
 }
 
 /// Spec of a Hyper-V firewall rule resource.
@@ -116,6 +171,38 @@ pub struct HyperVSpec {
     pub vm_creator_id: String,
     /// Free-text description stored on the rule.
     pub description: String,
+    /// Profiles and remote addresses the rule is limited to.
+    #[serde(flatten)]
+    pub scope: Scope,
+}
+
+/// Accept an `--allow-from` value: an IPv4 or IPv6 address, optionally with a prefix length.
+///
+/// A zero-length prefix (`0.0.0.0/0`) is refused because it would undo the scoping entirely.
+pub fn validate_allow_from(value: &str) -> Result<(), crate::error::SetupError> {
+    let bad = |why: &str| {
+        tracing::warn!(value, why, "rejected --allow-from value");
+        Err(crate::error::SetupError::BadAllowFrom {
+            value: value.to_owned(),
+            why: why.to_owned(),
+        })
+    };
+    let (addr, prefix) = match value.split_once('/') {
+        Some((a, p)) => (a, Some(p)),
+        None => (value, None),
+    };
+    let Ok(ip) = addr.parse::<std::net::IpAddr>() else {
+        return bad("not an IPv4 or IPv6 address");
+    };
+    let max = if ip.is_ipv4() { 32 } else { 128 };
+    if let Some(p) = prefix {
+        match p.parse::<u8>() {
+            Ok(0) => return bad("a /0 prefix would admit every address"),
+            Ok(n) if n <= max => {}
+            _ => return bad("the prefix length is out of range"),
+        }
+    }
+    Ok(())
 }
 
 /// Spec of the keepalive scheduled task resource.
@@ -205,7 +292,8 @@ fn resource(kind: ResourceKind, name: String, spec: &impl Serialize) -> Change {
 
 /// The changes of the host component, in application order (reverted in the opposite order).
 ///
-/// Windows side: `.wslconfig` mirrored networking, the inbound firewall rule, the Hyper-V
+/// Windows side: `.wslconfig` mirrored networking, the inbound firewall rule (Private and Domain
+/// profiles, local subnet plus `--allow-from` only), the Hyper-V
 /// firewall rule (when the cmdlets exist) and the keepalive task. WSL side: systemd in
 /// `/etc/wsl.conf`, the sshd package, the port (and optional hardening) drop-ins, and sshd
 /// enabled at boot. The drop-ins are written before the package so a first install starts
@@ -227,6 +315,7 @@ pub fn host_plan(layout: &Layout, params: &HostParams, facts: &HostFacts) -> Vec
             &FirewallSpec {
                 port,
                 description: format!("WSL sshd; {note}"),
+                scope: Scope::new(&params.allow_from),
             },
         ),
     ];
@@ -238,6 +327,7 @@ pub fn host_plan(layout: &Layout, params: &HostParams, facts: &HostFacts) -> Vec
                 port,
                 vm_creator_id: WSL_VM_CREATOR_ID.into(),
                 description: format!("WSL sshd; {note}"),
+                scope: Scope::new(&params.allow_from),
             },
         ));
     }
@@ -401,6 +491,7 @@ pub fn expected_changes(
                         distro: settings.distro.clone(),
                         keepalive,
                         harden,
+                        allow_from: settings.allow_from.clone(),
                         home: home.to_path_buf(),
                     };
                     let facts = HostFacts {
@@ -409,8 +500,13 @@ pub fn expected_changes(
                         authorized_keys: true,
                     };
                     for change in host_plan(layout, &params, &facts) {
-                        if !all.contains(&change) {
-                            all.push(change);
+                        for variant in [legacy_variant(&change), Some(change)]
+                            .into_iter()
+                            .flatten()
+                        {
+                            if !all.contains(&variant) {
+                                all.push(variant);
+                            }
                         }
                     }
                 }
@@ -418,6 +514,32 @@ pub fn expected_changes(
         }
     }
     all
+}
+
+/// The firewall change as an install before scoping existed recorded it (no profile or
+/// remote-address fields), so a journal from such an install can still be uninstalled.
+fn legacy_variant(change: &Change) -> Option<Change> {
+    let Change::EnsureResource { kind, name, spec } = change else {
+        return None;
+    };
+    let legacy_spec = match kind {
+        ResourceKind::FirewallRule => {
+            let mut s: FirewallSpec = serde_json::from_str(spec).ok()?;
+            s.scope = Scope::default();
+            serde_json::to_string(&s).ok()?
+        }
+        ResourceKind::HyperVFirewallRule => {
+            let mut s: HyperVSpec = serde_json::from_str(spec).ok()?;
+            s.scope = Scope::default();
+            serde_json::to_string(&s).ok()?
+        }
+        _ => return None,
+    };
+    Some(Change::EnsureResource {
+        kind: *kind,
+        name: name.clone(),
+        spec: legacy_spec,
+    })
 }
 
 /// Refuse a host journal holding anything the host plan for `settings` could not have produced.

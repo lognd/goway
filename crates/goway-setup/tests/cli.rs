@@ -123,7 +123,8 @@ fn a_host_dry_run_prints_the_plan_and_a_real_host_install_needs_windows() {
         "Ubuntu",
         "--keepalive",
         "boot",
-        "--harden",
+        "--allow-from",
+        "100.64.0.0/10",
         "--no-activate",
         "--no-elevate",
         "--profile",
@@ -176,6 +177,7 @@ fn status_and_uninstall_of_an_unknown_profile_report_nothing_to_do() {
 // frob:tests crates/goway-setup/src/render.rs::Renderer.passthrough
 // frob:tests crates/goway-setup/src/render.rs::Renderer.elevating
 // frob:tests crates/goway-setup/src/render.rs::Renderer.notice
+// frob:tests crates/goway-setup/src/render.rs::Renderer.warning
 // frob:tests crates/goway-setup/src/render.rs::Renderer.host_installed
 // frob:tests crates/goway-setup/src/render.rs::Renderer.plan_component
 // frob:tests crates/goway-setup/src/render.rs::Renderer.uninstalled_component
@@ -188,6 +190,7 @@ fn host_messages_render_without_panicking() {
     r.passthrough("child output\n");
     r.elevating("the host install");
     r.notice("restart WSL");
+    r.warning("sshd password login is still ON");
     r.host_installed(&layout, "Ubuntu", 2299, 11);
     let change = Change::EnsureResource {
         kind: ResourceKind::WslUnit,
@@ -251,4 +254,43 @@ fn the_elevated_rerun_refuses_the_client_component() {
             "{err:?}"
         );
     }
+}
+
+// frob:tests crates/goway-setup/src/cli.rs::run
+#[test]
+fn hardening_is_on_by_default_and_allow_from_is_validated_before_anything_happens() {
+    use goway_setup::cli::Command;
+    let parse = |extra: &[&str]| {
+        let mut argv = vec!["goway-setup", "install", "--host", "--dry-run"];
+        argv.extend(extra);
+        Cli::try_parse_from(argv)
+    };
+    let Command::Install {
+        no_harden,
+        allow_from,
+        ..
+    } = parse(&[
+        "--allow-from",
+        "100.64.0.0/10",
+        "--allow-from",
+        "10.0.0.0/8",
+    ])
+    .unwrap()
+    .command
+    else {
+        panic!("install expected");
+    };
+    assert!(!no_harden, "hardening is the default");
+    assert_eq!(allow_from, ["100.64.0.0/10", "10.0.0.0/8"]);
+    assert!(parse(&["--no-harden"]).is_ok());
+    assert!(
+        parse(&["--harden", "--no-harden"]).is_err(),
+        "they contradict"
+    );
+    let bad = parse(&["--allow-from", "0.0.0.0/0", "--profile", "allow-from-test"]).unwrap();
+    let err = run(&bad, Renderer::new(ColorWhen::Never)).unwrap_err();
+    assert!(
+        matches!(err, goway_setup::error::SetupError::BadAllowFrom { .. }),
+        "{err:?}"
+    );
 }

@@ -19,6 +19,7 @@ fn settings() -> HostSettings {
     HostSettings {
         distro: "Ubuntu".into(),
         port: 2299,
+        allow_from: Vec::new(),
     }
 }
 
@@ -45,6 +46,7 @@ fn plan(layout: &Layout, harden: bool) -> Vec<Change> {
             distro: "Ubuntu".into(),
             keepalive: Keepalive::Logon,
             harden,
+            allow_from: Vec::new(),
             home: PathBuf::from(HOME),
         },
         &HostFacts::assumed(),

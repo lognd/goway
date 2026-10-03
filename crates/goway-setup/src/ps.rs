@@ -4,7 +4,9 @@
 //! command-line quoting layer between goway-setup and PowerShell. Existence probes print `1` or
 //! `0`; everything else prints nothing and signals failure through the exit code.
 
-use crate::host::{FirewallSpec, HyperVSpec, Keepalive, TaskSpec};
+use crate::host::{
+    FIREWALL_PROFILES, FirewallSpec, HyperVSpec, Keepalive, LOCAL_SUBNET, Scope, TaskSpec,
+};
 
 /// Single-quote a value as a PowerShell string literal (`'` doubles).
 pub fn quote(value: &str) -> String {
@@ -64,13 +66,48 @@ pub fn firewall_exists(name: &str) -> String {
     ))
 }
 
-/// Script creating an inbound TCP allow rule for every profile.
+/// The profile list of a rule as a PowerShell array literal.
+///
+/// Only the three real profile names are passed through; anything else (including `Any` and a
+/// missing value) falls back to the default Private and Domain, so a rule is never created
+/// open to Public networks by accident.
+fn profiles_arg(scope: &Scope) -> String {
+    let wanted = scope.profiles.as_deref().unwrap_or(FIREWALL_PROFILES);
+    let mut names: Vec<&str> = wanted
+        .split(',')
+        .map(str::trim)
+        .filter(|p| matches!(*p, "Private" | "Domain" | "Public"))
+        .collect();
+    if names.is_empty() {
+        names = FIREWALL_PROFILES.split(',').collect();
+    }
+    names.iter().map(|n| quote(n)).collect::<Vec<_>>().join(",")
+}
+
+/// The remote address list of a rule as a PowerShell array literal (never empty: the local
+/// subnet when nothing is given).
+fn remote_arg(scope: &Scope) -> String {
+    if scope.remote_addresses.is_empty() {
+        return quote(LOCAL_SUBNET);
+    }
+    scope
+        .remote_addresses
+        .iter()
+        .map(|a| quote(a))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// Script creating an inbound TCP allow rule limited to the Private and Domain profiles and to
+/// the local subnet plus any `--allow-from` addresses (never `-Profile Any`, never every address).
 pub fn firewall_create(name: &str, spec: &FirewallSpec) -> String {
     strict(&format!(
-        "New-NetFirewallRule -Name {n} -DisplayName {n} -Description {d} -Direction Inbound -Action Allow -Protocol TCP -LocalPort {p} -Profile Any -Enabled True | Out-Null",
+        "New-NetFirewallRule -Name {n} -DisplayName {n} -Description {d} -Direction Inbound -Action Allow -Protocol TCP -LocalPort {p} -Profile {profiles} -RemoteAddress {remote} -Enabled True | Out-Null",
         n = quote(name),
         d = quote(&spec.description),
-        p = spec.port
+        p = spec.port,
+        profiles = profiles_arg(&spec.scope),
+        remote = remote_arg(&spec.scope),
     ))
 }
 
@@ -90,13 +127,16 @@ pub fn hyperv_exists(name: &str) -> String {
     ))
 }
 
-/// Script creating an inbound TCP allow rule for the WSL VM in the Hyper-V firewall.
+/// Script creating an inbound TCP allow rule for the WSL VM in the Hyper-V firewall, limited to
+/// the same profiles and remote addresses as the Windows rule.
 pub fn hyperv_create(name: &str, spec: &HyperVSpec) -> String {
     strict(&format!(
-        "New-NetFirewallHyperVRule -Name {n} -DisplayName {n} -Direction Inbound -VMCreatorId {v} -Protocol TCP -LocalPorts {p} -Action Allow | Out-Null",
+        "New-NetFirewallHyperVRule -Name {n} -DisplayName {n} -Direction Inbound -VMCreatorId {v} -Protocol TCP -LocalPorts {p} -Profiles {profiles} -RemoteAddresses {remote} -Action Allow | Out-Null",
         n = quote(name),
         v = quote(&spec.vm_creator_id),
-        p = spec.port
+        p = spec.port,
+        profiles = profiles_arg(&spec.scope),
+        remote = remote_arg(&spec.scope),
     ))
 }
 
@@ -164,4 +204,11 @@ pub fn task_start(name: &str) -> String {
         "{} | Start-ScheduledTask",
         exact_lookup("Get-ScheduledTask", "-TaskName", "TaskName", name)
     ))
+}
+
+/// Script printing the name of every connected network the firewall classifies as Public.
+pub fn public_networks() -> String {
+    strict(
+        "Get-NetConnectionProfile | Where-Object { $_.NetworkCategory -eq 'Public' } | ForEach-Object { $_.Name }",
+    )
 }
