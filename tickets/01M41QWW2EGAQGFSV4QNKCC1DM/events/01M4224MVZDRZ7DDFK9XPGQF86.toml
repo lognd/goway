@@ -1,0 +1,11 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T23:38:40Z"
+digest = "c528c635cbad0d3028b4dabbdf1c89fed5a6b25d9d0ab22531eadbb3d2ec8312"
+provider = "file"
+ref = "docs/install-methods.md"
+size = 5757
+status = "measured"
+at = "2026-10-03T23:38:40Z"
+actor = "lognd"
+rev = 1
