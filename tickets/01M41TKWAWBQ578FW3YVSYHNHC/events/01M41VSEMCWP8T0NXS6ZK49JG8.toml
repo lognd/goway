@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-03T21:47:42Z"
+digest = "56d7d5d8f4a522b640395a94d631b24c05df65b4ff92efe6562a65dc6e2ed041"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 253f3b80-f52c-45fb-9eb0-47eb2ad04910 with nextest profile: default
+    Starting 1 test across 31 binaries (371 tests skipped)
+        PASS [   1.155s] goway::shard_detect catch2_v2_and_partial_marker_binaries_fall_back_to_goway_shard
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.157s] 1 test run: 1 passed, 371 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "catch2_v2_and_partial_marker"
+size = 576
+status = "measured"
+tests = ["catch2_v2_and_partial_marker_binaries_fall_back_to_goway_shard"]
+at = "2026-10-03T21:47:42Z"
+actor = "lognd"
+rev = 1
