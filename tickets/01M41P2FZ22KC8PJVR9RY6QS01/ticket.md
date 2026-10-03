@@ -8,7 +8,7 @@ points = 8
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-03T21:12:07Z"
+updated = "2026-10-03T21:12:08Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/src/config.rs", "crates/goway/tests/**", "docs/usage.md", "docs/config.md", "crates/goway/src/gc.rs", "docs/design.md"]
 
 [[acceptance]]
@@ -29,5 +29,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a slot idle past the cache expiry (7 days default), when auto gc or goway gc runs, then the slot tree is removed with its build cache"
-bound = false
+bound = true
 +++

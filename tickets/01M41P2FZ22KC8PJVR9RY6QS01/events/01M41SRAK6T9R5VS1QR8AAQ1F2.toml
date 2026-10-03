@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [5]
+captured_at = "2026-10-03T21:12:08Z"
+digest = "d77455259e09f3582d325ebeee3b798145f0df367b0c38e6262c702e6a1b7e0f"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e3f0a98c-0385-4bdf-bd69-833dd5de86ce with nextest profile: default
+    Starting 1 test across 28 binaries (321 tests skipped)
+        PASS [   0.415s] goway::slot_trees gc_removes_an_idle_slot_tree_with_its_cache
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.419s] 1 test run: 1 passed, 321 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(gc_removes_an_idle_slot_tree_with_its_cache)'"
+size = 555
+status = "measured"
+tests = ["gc_removes_an_idle_slot_tree_with_its_cache"]
+at = "2026-10-03T21:12:08Z"
+actor = "lognd"
+rev = 1
