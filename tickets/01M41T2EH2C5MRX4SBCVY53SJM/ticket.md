@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:17:40Z"
-updated = "2026-10-03T21:54:25Z"
+updated = "2026-10-03T21:54:28Z"
 scope = ["crates/goway/src/cli.rs", "crates/goway/src/pool.rs", "crates/goway/src/needs.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs", "crates/goway/src/error.rs", "crates/goway/tests/**", "docs/usage.md", "crates/goway/src/facts.rs", "crates/goway/src/remote.sh", "crates/goway/src/config.rs", "crates/goway/src/lib.rs", "crates/goway/Cargo.toml", "Cargo.lock", "crates/goway/src/resolve.rs", "crates/goway/src/status.rs", "crates/goway/src/hosts.rs", "crates/goway/src/sshsetup.rs", "docs/config.md"]
 
 [[links]]
@@ -29,5 +29,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a finished run, when the report is written, then it records the host facts the needs and prefers matched (for example GPU model and memory), so frob evidence says what the result was measured on"
-bound = false
+bound = true
 +++
