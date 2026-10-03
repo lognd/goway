@@ -2,7 +2,8 @@
 id = "01M41TY572561EPG8TRX6SY2NM"
 title = "Nested goway is bounded: GOWAY_DEPTH stops goway from recursively spawning itself through the commands it runs"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
