@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:40:16Z"
+digest = "3a8be3483d9d0158cb91cb05807a5e19365ef6556d977b8963c1ad1cce3e5d38"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 6ae42d88-4395-414b-8cf6-b31a502c04f1 with nextest profile: default
+    Starting 3 tests across 21 binaries (186 tests skipped)
+        PASS [   0.043s] goway ssh::tests::ssh_pins_identity_by_alias_with_strict_checking
+        PASS [   0.045s] goway ssh::tests::ssh_gets_only_the_allowlisted_environment
+        PASS [   0.443s] goway::run_local local_environment_never_travels_to_the_host
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.448s] 3 tests run: 3 passed, 186 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(ssh_pins_identity_by_alias_with_strict_checking) | test(ssh_gets_only_the_allowlisted_environment) | test(local_environment_never_travels_to_the_host)'"
+size = 732
+status = "measured"
+tests = ["ssh::tests::ssh_pins_identity_by_alias_with_strict_checking", "ssh::tests::ssh_gets_only_the_allowlisted_environment", "local_environment_never_travels_to_the_host"]
+at = "2026-10-03T18:40:16Z"
+actor = "lognd"
+rev = 1

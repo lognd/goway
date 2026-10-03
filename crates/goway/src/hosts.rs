@@ -128,15 +128,109 @@ pub fn forget_key(known_hosts: &Path, alias: &str) {
     let _ = std::fs::remove_file(old);
 }
 
-/// The SHA256 fingerprint line(s) of a `known_hosts` file.
-fn fingerprint(known_hosts: &Path) -> String {
-    Command::new("ssh-keygen")
+/// The SHA256 fingerprints of the keys in a `known_hosts` file.
+pub fn fingerprints(known_hosts: &Path) -> Vec<String> {
+    let out = Command::new("ssh-keygen")
         .arg("-l")
         .arg("-f")
         .arg(known_hosts)
         .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
-        .unwrap_or_default()
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+        .unwrap_or_default();
+    out.split_whitespace()
+        .filter(|w| w.starts_with("SHA256:"))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// `SHA256:...` with the prefix added if the user left it out.
+pub fn normalize_fingerprint(given: &str) -> String {
+    let given = given.trim();
+    if given.starts_with("SHA256:") {
+        given.to_owned()
+    } else {
+        format!("SHA256:{given}")
+    }
+}
+
+/// The command that shows a WSL host's key fingerprint, for the user.
+pub const FINGERPRINT_HINT: &str = "ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub";
+
+/// Trust on first use, made explicit: the key the host presented (in
+/// `scratch`) is accepted only if it equals `--fingerprint`, or the user
+/// confirms it at a terminal. Nothing is pinned and no password is sent
+/// otherwise.
+pub fn confirm_key(
+    renderer: Renderer,
+    name: &str,
+    address: &str,
+    scratch: &Path,
+    expected: Option<&str>,
+) -> Result<String> {
+    let seen = fingerprints(scratch);
+    let Some(first) = seen.first().cloned() else {
+        return Err(Error::HostAdd {
+            name: name.to_owned(),
+            reason: format!("{address} presented no host key"),
+        });
+    };
+    if let Some(expected) = expected {
+        let expected = normalize_fingerprint(expected);
+        return if seen.contains(&expected) {
+            tracing::info!(host = name, fingerprint = %expected, "host key matches --fingerprint");
+            Ok(expected)
+        } else {
+            Err(Error::HostAdd {
+                name: name.to_owned(),
+                reason: format!(
+                    "{address} presented {first}, not {expected}; it is not the machine you named (or the fingerprint was mistyped)"
+                ),
+            })
+        };
+    }
+    renderer.headline(format_args!(
+        "{address} says it is {name} and presents the host key {first}"
+    ));
+    renderer.note(format_args!(
+        "check it on {name} (in its WSL terminal): {FINGERPRINT_HINT}"
+    ));
+    match crate::render::ask("Is that the same fingerprint? Pin this key [y/N]: ") {
+        Some(answer) if matches!(answer.trim(), "y" | "Y" | "yes" | "YES" | "Yes") => {
+            tracing::info!(host = name, fingerprint = %first, "host key confirmed by the user");
+            Ok(first)
+        }
+        Some(_) => Err(Error::HostAdd {
+            name: name.to_owned(),
+            reason: "the host key was not confirmed; nothing was pinned".to_owned(),
+        }),
+        None => Err(Error::HostAdd {
+            name: name.to_owned(),
+            reason: format!(
+                "the host key {first} needs confirmation; run this in a terminal, or pass --fingerprint SHA256:... (get it on {name} with: {FINGERPRINT_HINT})"
+            ),
+        }),
+    }
+}
+
+/// Pin the confirmed key from `scratch`, add the host to the config and
+/// remember its address.
+pub fn register(
+    paths: &Paths,
+    host: &HostConfig,
+    address: &str,
+    port: u16,
+    scratch: &Path,
+) -> Result<()> {
+    let alias = config::key_alias(&host.name);
+    adopt_key(scratch, &paths.known_hosts(), &alias)?;
+    let _ = std::fs::remove_file(scratch);
+    let config = Config::load(&paths.config_file())?;
+    let mut stored = host.clone();
+    stored.port = (port != config.defaults.port).then_some(port);
+    config::add_host(&paths.config_file(), &stored)?;
+    let mut state = State::load(&paths.state_file())?;
+    state.remember(&host.name, address, port, crate::state::now_secs());
+    state.save(&paths.state_file())
 }
 
 /// Move the pinned entry from the scratch file into goway's `known_hosts`.
@@ -228,22 +322,17 @@ pub fn add(
                     renderer.warn(finding);
                 }
                 let alias = config::key_alias(&args.name);
-                renderer.note(format_args!("host key: {}", fingerprint(&scratch)));
-                adopt_key(&scratch, &paths.known_hosts(), &alias)?;
-                let _ = std::fs::remove_file(&scratch);
-                let mut stored = candidate.clone();
-                if port == config.defaults.port {
-                    stored.port = None;
-                }
-                config::add_host(&config_file, &stored)?;
-                let mut state = State::load(&paths.state_file())?;
-                state.remember(
+                if let Err(e) = confirm_key(
+                    renderer,
                     &args.name,
                     &found.target.address,
-                    port,
-                    crate::state::now_secs(),
-                );
-                state.save(&paths.state_file())?;
+                    &scratch,
+                    args.fingerprint.as_deref(),
+                ) {
+                    let _ = std::fs::remove_file(&scratch);
+                    return Err(e);
+                }
+                register(paths, &candidate, &found.target.address, port, &scratch)?;
                 renderer.ok(format_args!(
                     "added {} ({} {}, hostname {}) at {}:{port} via {}; key pinned as {alias}",
                     args.name, id.os, id.arch, id.hostname, found.target.address, found.source
@@ -312,6 +401,7 @@ mod tests {
         let text = std::fs::read_to_string(&kh).unwrap();
         assert_eq!(text.matches("goway-q ").count(), 1, "{text}");
         assert!(text.contains("goway-other"));
-        assert!(fingerprint(&kh).contains("SHA256:"));
+        assert!(fingerprints(&kh)[0].starts_with("SHA256:"));
+        assert_eq!(normalize_fingerprint("abc"), "SHA256:abc");
     }
 }

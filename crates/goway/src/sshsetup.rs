@@ -231,15 +231,29 @@ pub fn setup(
         "echo goway-key-login-ok",
     )?;
     let target = found.target.clone();
+    // A new host's key is confirmed before anything else happens, in
+    // particular before ssh can ask for a password.
+    if configured.is_none()
+        && let Err(e) = hosts::confirm_key(
+            renderer,
+            name,
+            &target.address,
+            &scratch,
+            args.fingerprint.as_deref(),
+        )
+    {
+        let _ = std::fs::remove_file(&scratch);
+        return Err(e);
+    }
     if found.output.contains("goway-key-login-ok") {
         renderer.ok(format_args!(
             "key login to {name} at {} already works; nothing to change",
             target.address
         ));
-        let _ = std::fs::remove_file(&scratch);
         if configured.is_none() {
-            add_host(paths, renderer, &host, &target)?;
+            hosts::register(paths, &host, &target.address, target.port, &scratch)?;
         }
+        let _ = std::fs::remove_file(&scratch);
         return Ok(0);
     }
     renderer.headline(format_args!(
@@ -362,7 +376,8 @@ pub fn setup(
     if configured.is_none() {
         let mut stored = host.clone();
         stored.identity.clone_from(&identity);
-        add_host(paths, renderer, &stored, &check_target)?;
+        // Pin the key confirmed above: no second trust-on-first-use round.
+        hosts::register(paths, &stored, &target.address, target.port, &scratch)?;
         record.host_added = true;
     } else if identity.is_some() {
         config::set_host_identity(&paths.config_file(), name, identity.as_deref())?;
@@ -389,26 +404,6 @@ fn local_marker() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
     format!("{}-{}", now.as_secs(), std::process::id())
-}
-
-/// Pin and add a host found during setup, through the normal `host add`.
-fn add_host(paths: &Paths, renderer: Renderer, host: &HostConfig, target: &Target) -> Result<()> {
-    let args = crate::cli::HostAddArgs {
-        name: host.name.clone(),
-        address: Some(
-            host.address
-                .clone()
-                .unwrap_or_else(|| target.address.clone()),
-        ),
-        port: Some(target.port),
-        user: host.user.clone(),
-        max_jobs: host.max_jobs,
-    };
-    hosts::add(paths, renderer, &args, &resolve::SystemLookup)?;
-    if host.identity.is_some() {
-        config::set_host_identity(&paths.config_file(), &host.name, host.identity.as_deref())?;
-    }
-    Ok(())
 }
 
 /// Revert a recorded setup: host side first (while the key still works),

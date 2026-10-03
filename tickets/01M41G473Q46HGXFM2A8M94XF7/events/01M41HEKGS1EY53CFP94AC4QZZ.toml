@@ -1,0 +1,72 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:47:01Z"
+digest = "e83f0aa5cf4551dc5939811b7c88dd284b47bf9d682413029d77478d5397d5d4"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 7331bbd7-a02b-4a87-92d9-9b189b145ea7 with nextest profile: default
+    Starting 50 tests across 5 binaries (5 binaries skipped)
+        PASS [   0.010s] goway-setup::elevate output_redirection_and_dll_restriction_are_harmless_off_windows
+        PASS [   0.012s] goway-setup::cli platform_helpers_are_harmless_off_windows
+        PASS [   0.015s] goway-setup::elevate quoting_follows_the_windows_rules_for_backslashes_and_quotes
+        PASS [   0.015s] goway-setup::cli status_and_uninstall_of_an_unknown_profile_report_nothing_to_do
+        PASS [   0.015s] goway-setup::elevate elevation_probes_do_not_panic_and_relaunch_is_unavailable_off_windows
+        PASS [   0.020s] goway-setup::cli a_bad_profile_is_rejected_before_anything_happens
+        PASS [   0.008s] goway-setup::elevated a_directory_removal_prior_cannot_reach_outside_its_own_path
+        PASS [   0.020s] goway-setup::cli the_elevated_rerun_refuses_the_client_component
+        PASS [   0.009s] goway-setup::elevate the_elevated_command_line_is_the_quoted_arguments_and_nothing_else
+        PASS [   0.008s] goway-setup::elevated elevated_log_names_are_plain_file_names
+        PASS [   0.028s] goway-setup::cli a_host_dry_run_prints_the_plan_and_a_real_host_install_needs_windows
+        PASS [   0.034s] goway-setup::cli every_message_renders_without_panicking
+        PASS [   0.035s] goway-setup::elevate arguments_are_quoted_only_when_needed
+        PASS [   0.020s] goway-setup::elevated a_loosened_or_linked_state_directory_is_refused_off_windows_too
+        PASS [   0.012s] goway-setup::elevated the_admin_dir_acl_check_accepts_what_goway_creates
+        PASS [   0.040s] goway-setup::cli host_messages_render_without_panicking
+        PASS [   0.025s] goway-setup::elevated a_journal_in_an_untrusted_directory_is_not_read
+        PASS [   0.023s] goway-setup::elevated a_wildcard_resource_name_is_refused
+        PASS [   0.014s] goway-setup::elevated settings_with_a_bad_distro_or_port_are_refused_when_loaded
+        PASS [   0.027s] goway-setup::elevated a_planted_write_file_outside_the_host_plan_is_refused_before_anything_is_reverted
+        PASS [   0.012s] goway-setup::host_plan a_new_port_on_a_set_up_machine_is_a_pure_addition_that_uninstall_removes
+        PASS [   0.028s] goway-setup::elevated registry_acl_install_file_and_other_planted_kinds_are_refused
+        PASS [   0.013s] goway-setup::elevated the_protected_exe_is_copied_and_purged_with_the_state_directory
+        PASS [   0.014s] goway-setup::elevated the_admin_dir_acl_check_refuses_a_wrong_owner_or_a_writable_acl
+        PASS [   0.013s] goway-setup::host_plan distro_names_are_restricted_to_safe_characters
+        PASS [   0.014s] goway-setup::host_plan changing_wsl_settings_asks_for_a_restart
+        PASS [   0.016s] goway-setup::host_plan a_test_profile_gets_its_own_names_and_files
+        PASS [   0.009s] goway-setup::host_plan optional_steps_follow_the_probed_facts
+        PASS [   0.014s] goway-setup::host_plan a_user_change_after_install_is_left_alone_and_reported
+        PASS [   0.009s] goway-setup::host_plan the_default_profile_reuses_the_names_of_the_hand_made_setup
+        PASS [   0.014s] goway-setup::host_plan on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall_keeps_it_all
+        PASS [   0.050s] goway-setup::elevated a_genuine_host_journal_is_accepted_and_reverts_to_the_start
+        PASS [   0.019s] goway-setup::hostsys activation_restarts_only_when_the_port_is_not_yet_listening
+        PASS [   0.012s] goway-setup::hostsys powershell_encoding_and_quoting_are_exact
+        PASS [   0.022s] goway-setup::host_plan the_host_journal_and_settings_live_in_the_admin_dir_apart_from_the_client_journal_and_are_cleaned_up
+        PASS [   0.014s] goway-setup::hostsys powershell_resources_with_wildcard_names_never_reach_powershell
+        PASS [   0.023s] goway-setup::hostsys directory_digest_and_mode_operations_map_to_plain_commands
+        PASS [   0.012s] goway-setup::hostsys probing_collects_the_facts_the_plan_depends_on
+        PASS [   0.023s] goway-setup::hostsys port_lists_are_parsed_from_sshd_and_ss_output
+        PASS [   0.023s] goway-setup::hostsys packages_in_odd_dpkg_states_are_refused_and_no_apt_command_runs
+        PASS [   0.023s] goway-setup::hostsys lookups_match_a_name_exactly_and_never_as_a_wildcard
+        PASS [   0.023s] goway-setup::hostsys deactivation_leaves_a_port_that_is_still_configured_and_starts_tasks_by_name
+        PASS [   0.012s] goway-setup::hostsys system_tools_are_started_by_the_expected_path
+        PASS [   0.015s] goway-setup::hostsys scripts_name_the_right_cmdlets_and_quote_their_values
+        PASS [   0.035s] goway-setup::hostsys packages_install_noninteractively_and_are_removed_never_purged
+        PASS [   0.009s] goway-setup::hostsys windows_resources_run_the_matching_powershell_and_report_failures
+        PASS [   0.013s] goway-setup::hostsys wsl_resources_exist_by_package_state_and_unit_enablement
+        PASS [   0.013s] goway-setup::hostsys unix_paths_go_to_the_distro_as_root_and_windows_paths_stay_local
+        PASS [   0.099s] goway-setup::host_plan reverting_the_host_plan_restores_any_machine_including_ones_where_parts_pre_exist
+        PASS [   3.089s] goway-setup::cli a_dry_run_install_succeeds_and_changes_nothing
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   3.090s] 50 tests run: 50 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(elevated) | binary(elevate) | binary(hostsys) | binary(host_plan) | binary(cli)' -p goway-setup"
+size = 5656
+status = "measured"
+tests = ["output_redirection_and_dll_restriction_are_harmless_off_windows", "quoting_follows_the_windows_rules_for_backslashes_and_quotes", "elevation_probes_do_not_panic_and_relaunch_is_unavailable_off_windows", "the_elevated_command_line_is_the_quoted_arguments_and_nothing_else", "arguments_are_quoted_only_when_needed", "a_directory_removal_prior_cannot_reach_outside_its_own_path", "elevated_log_names_are_plain_file_names", "a_loosened_or_linked_state_directory_is_refused_off_windows_too", "the_admin_dir_acl_check_accepts_what_goway_creates", "a_journal_in_an_untrusted_directory_is_not_read", "a_wildcard_resource_name_is_refused", "settings_with_a_bad_distro_or_port_are_refused_when_loaded", "a_planted_write_file_outside_the_host_plan_is_refused_before_anything_is_reverted", "registry_acl_install_file_and_other_planted_kinds_are_refused", "the_protected_exe_is_copied_and_purged_with_the_state_directory", "the_admin_dir_acl_check_refuses_a_wrong_owner_or_a_writable_acl", "a_genuine_host_journal_is_accepted_and_reverts_to_the_start", "activation_restarts_only_when_the_port_is_not_yet_listening", "powershell_encoding_and_quoting_are_exact", "powershell_resources_with_wildcard_names_never_reach_powershell", "directory_digest_and_mode_operations_map_to_plain_commands", "probing_collects_the_facts_the_plan_depends_on", "port_lists_are_parsed_from_sshd_and_ss_output", "packages_in_odd_dpkg_states_are_refused_and_no_apt_command_runs", "lookups_match_a_name_exactly_and_never_as_a_wildcard", "deactivation_leaves_a_port_that_is_still_configured_and_starts_tasks_by_name", "system_tools_are_started_by_the_expected_path", "scripts_name_the_right_cmdlets_and_quote_their_values", "packages_install_noninteractively_and_are_removed_never_purged", "windows_resources_run_the_matching_powershell_and_report_failures", "wsl_resources_exist_by_package_state_and_unit_enablement", "unix_paths_go_to_the_distro_as_root_and_windows_paths_stay_local", "a_new_port_on_a_set_up_machine_is_a_pure_addition_that_uninstall_removes", "distro_names_are_restricted_to_safe_characters", "changing_wsl_settings_asks_for_a_restart", "a_test_profile_gets_its_own_names_and_files", "optional_steps_follow_the_probed_facts", "a_user_change_after_install_is_left_alone_and_reported", "the_default_profile_reuses_the_names_of_the_hand_made_setup", "on_a_machine_set_up_by_hand_the_default_install_changes_nothing_and_uninstall_keeps_it_all", "the_host_journal_and_settings_live_in_the_admin_dir_apart_from_the_client_journal_and_are_cleaned_up", "reverting_the_host_plan_restores_any_machine_including_ones_where_parts_pre_exist", "platform_helpers_are_harmless_off_windows", "status_and_uninstall_of_an_unknown_profile_report_nothing_to_do", "a_bad_profile_is_rejected_before_anything_happens", "the_elevated_rerun_refuses_the_client_component", "a_host_dry_run_prints_the_plan_and_a_real_host_install_needs_windows", "every_message_renders_without_panicking", "host_messages_render_without_panicking", "a_dry_run_install_succeeds_and_changes_nothing"]
+at = "2026-10-03T18:47:01Z"
+actor = "lognd"
+rev = 1

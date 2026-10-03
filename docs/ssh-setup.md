@@ -11,9 +11,13 @@ chmods, and it can be undone.
 ## What it does
 
 1. **Find the host** with the normal resolution (docs/hosts.md). A
-   configured host must present its pinned key. A new host is reached
-   with a scratch `known_hosts` and checked by hostname in step 3. If
-   key login already works, setup says so and changes nothing.
+   configured host must present its pinned key. For a new host, goway
+   shows the fingerprint of the key it presents. You confirm it at the
+   terminal or with `--fingerprint SHA256:...`, which you get on the
+   helper with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`. This
+   happens **before any password is asked for**, so an impostor
+   answering for the name never sees your password. If key login
+   already works, setup says so and only pins the confirmed key.
 2. **Pick a public key**, without ever reading private keys:
    - the ssh agent's first key (`ssh-add -L`), else
    - the first default identity (from `ssh -G`) that has a `.pub`
@@ -35,8 +39,8 @@ chmods, and it can be undone.
      `goway:<id>` (skipped if the key is already there)
    - `authorized_keys` has mode 600
 4. **Verify** that a key-only login now works, add the host to the
-   pool if it was new (pinning its key, see `host add`), and save the
-   record.
+   pool if it was new (pinning exactly the key you confirmed in step 1),
+   and save the record.
 
 ## Undo
 

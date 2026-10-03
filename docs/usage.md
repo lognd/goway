@@ -28,7 +28,9 @@ What happens:
    reading its manifest and uploading, the upload is refused and the
    sync starts over, so a delta never lands on the wrong base.
 3. **Snapshot.** In the same locked step as the upload, the run gets a
-   fresh work dir that is a hard-link copy of the seed.
+   fresh work dir that is a copy of the seed (reflinked where the
+   filesystem supports it), so nothing the job writes reaches the seed
+   or another run.
    Concurrent runs from the same or other worktrees never
    see each other's files, and a later sync never changes a running
    snapshot.
@@ -117,7 +119,9 @@ goway gc --host helios --all          # everything not in use
 ```
 
 Locked entries (a run in progress) are reported `busy` and never
-touched.
+touched. gc removes only entries goway labelled itself, and only under a
+root that carries goway's `.goway-root` marker. Anything else you put
+there is left alone and reported as `unlabelled`.
 
 ## Doctor
 
@@ -156,7 +160,10 @@ is undone by `goway ssh setup HOST --undo`; see docs/ssh-setup.md.
 
 - The git-visible work tree (see Sync above), without `.git` and
   without `.env` files.
-- The command line and any `--env` values.
+- The command line, and any `--env` values. The values travel over the
+  encrypted ssh connection's input into a file only you can read, which
+  is deleted when the job starts. They never appear in the host's process
+  list or in goway's logs.
 - Labels: repository name, a repository id (a hash of the root commit),
   the local worktree path, and this machine's hostname.
 

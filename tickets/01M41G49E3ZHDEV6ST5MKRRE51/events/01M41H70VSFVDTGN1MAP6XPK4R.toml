@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-03T18:42:52Z"
+digest = "219dce1f67c46399bfe55d34654724dbc05a06a899ff31881ea8a21d0a2fd0d2"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID a7d02ff4-e6b4-4a90-af2f-435b4bad2870 with nextest profile: default
+    Starting 2 tests across 21 binaries (188 tests skipped)
+        PASS [   0.014s] goway render::tests::remote_control_characters_never_reach_the_terminal
+        PASS [   0.014s] goway pool::tests::parses_probe_output
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.015s] 2 tests run: 2 passed, 188 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(remote_control_characters_never_reach_the_terminal) | test(parses_probe_output)'"
+size = 631
+status = "measured"
+tests = ["render::tests::remote_control_characters_never_reach_the_terminal", "pool::tests::parses_probe_output"]
+at = "2026-10-03T18:42:52Z"
+actor = "lognd"
+rev = 1

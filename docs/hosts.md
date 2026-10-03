@@ -65,10 +65,14 @@ machine it trusts:
   is rejected and its key is discarded. Giving `--address` as an
   explicit IP means you are vouching for that machine, so the hostname
   check is skipped.
-- Candidates are probed against a scratch `known_hosts`. Only the
-  accepted machine's key moves into goway's file. The fingerprint is
-  shown so you can compare it with
-  `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on the host.
+- Candidates are probed against a scratch `known_hosts`. The key the
+  machine presents is pinned only after you confirm it. goway shows the
+  fingerprint and asks at the terminal, or you pass
+  `--fingerprint SHA256:...`. Without either, nothing is pinned.
+  Anyone on the same Wi-Fi can answer for `NAME.local`, and a hostname
+  is easy to fake, so this confirmation is the check that counts.
+  On the helper laptop, get the real fingerprint from its WSL terminal
+  with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
 - Local ssh problems are reported, with only metadata read and never
   key contents: no agent keys and no identity file, an identity file
   readable by others, or no ssh client.

@@ -52,7 +52,8 @@ pub fn init_tracing(verbose: u8) {
 pub fn main_with(cli: &Cli) -> ExitCode {
     init_tracing(cli.verbose);
     let renderer = Renderer::new(cli.color);
-    tracing::debug!(command = ?cli.command, "dispatch");
+    // Only the verb: arguments can carry --env values.
+    tracing::debug!(verb = cli.command.verb(), "dispatch");
     match dispatch(&cli.command, renderer) {
         Ok(code) => ExitCode::from(code),
         Err(error) => {

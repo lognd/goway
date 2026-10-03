@@ -6,6 +6,18 @@ use clap::{Args, Parser, Subcommand};
 
 use crate::render::ColorWhen;
 
+/// Host names name files, ssh key aliases and config entries, so they are
+/// checked here, before anything happens: 1-63 letters, digits, `-`, `_`.
+fn host_name(s: &str) -> Result<String, String> {
+    if crate::config::valid_name(s) {
+        Ok(s.to_owned())
+    } else {
+        Err(format!(
+            "`{s}` is not a host name: use 1-63 letters, digits, `-` or `_`, not starting with `-` (the Windows device name works, e.g. Helios)"
+        ))
+    }
+}
+
 /// goway ("go away"): run a command on another machine, natively, from the
 /// current git work tree.
 #[derive(Debug, Parser)]
@@ -46,11 +58,26 @@ pub enum Command {
     Config(ConfigCommand),
 }
 
+impl Command {
+    /// The verb's name, for logs (arguments may hold secrets).
+    pub fn verb(&self) -> &'static str {
+        match self {
+            Self::Run(_) => "run",
+            Self::Status => "status",
+            Self::Gc(_) => "gc",
+            Self::Doctor(_) => "doctor",
+            Self::Host(_) => "host",
+            Self::Ssh(_) => "ssh",
+            Self::Config(_) => "config",
+        }
+    }
+}
+
 /// Arguments of `goway run`.
 #[derive(Debug, Args)]
 pub struct RunArgs {
     /// Run on this host instead of the least-loaded one.
-    #[arg(long)]
+    #[arg(long, value_parser = host_name)]
     pub host: Option<String>,
     /// Keep the remote work directory after the run.
     #[arg(long)]
@@ -75,7 +102,7 @@ pub struct RunArgs {
 #[derive(Debug, Args)]
 pub struct GcArgs {
     /// Only this host.
-    #[arg(long)]
+    #[arg(long, value_parser = host_name)]
     pub host: Option<String>,
     /// Only entries of this repository (name or id).
     #[arg(long)]
@@ -95,6 +122,7 @@ pub struct GcArgs {
 #[derive(Debug, Args)]
 pub struct DoctorArgs {
     /// Only this host (default: every configured host).
+    #[arg(value_parser = host_name)]
     pub host: Option<String>,
     /// Run the fixes that need no root; explain the ones that do.
     #[arg(long)]
@@ -115,6 +143,7 @@ pub enum HostCommand {
     /// Remove a host and its pinned key.
     Remove {
         /// The host name.
+        #[arg(value_parser = host_name)]
         name: String,
     },
 }
@@ -123,6 +152,7 @@ pub enum HostCommand {
 #[derive(Debug, Args)]
 pub struct HostAddArgs {
     /// The host's name (its identity; also tried as `NAME.local`).
+    #[arg(value_parser = host_name)]
     pub name: String,
     /// An address to try first (name or IP); goway never depends on it staying valid.
     #[arg(long)]
@@ -136,6 +166,11 @@ pub struct HostAddArgs {
     /// Most goway jobs at once on this host.
     #[arg(long)]
     pub max_jobs: Option<u32>,
+    /// The host key fingerprint to trust (`SHA256:...`, shown on the host
+    /// by `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`); without it
+    /// goway asks you to confirm the key at the terminal.
+    #[arg(long, value_name = "SHA256:...")]
+    pub fingerprint: Option<String>,
 }
 
 /// `goway ssh` verbs.
@@ -150,6 +185,7 @@ pub enum SshCommand {
 #[derive(Debug, Args)]
 pub struct SshSetupArgs {
     /// The host name (configured or new).
+    #[arg(value_parser = host_name)]
     pub host: String,
     /// Undo exactly what a previous setup of this host changed.
     #[arg(long)]
@@ -163,6 +199,10 @@ pub struct SshSetupArgs {
     /// For a new host: the remote user.
     #[arg(long, conflicts_with = "undo")]
     pub user: Option<String>,
+    /// For a new host: the host key fingerprint to trust (`SHA256:...`);
+    /// without it goway asks you to confirm the key before any password.
+    #[arg(long, value_name = "SHA256:...", conflicts_with = "undo")]
+    pub fingerprint: Option<String>,
 }
 
 /// `goway config` verbs.
@@ -180,6 +220,25 @@ mod tests {
     fn cli_is_well_formed() {
         use clap::CommandFactory;
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn host_names_are_checked_before_anything_runs() {
+        for bad in ["a*", "../x", "-x", "a b", ""] {
+            assert!(
+                Cli::try_parse_from(["goway", "host", "add", bad]).is_err(),
+                "{bad}"
+            );
+            assert!(
+                Cli::try_parse_from(["goway", "ssh", "setup", bad]).is_err(),
+                "{bad}"
+            );
+            assert!(
+                Cli::try_parse_from(["goway", "run", "--host", bad, "--", "x"]).is_err(),
+                "{bad}"
+            );
+        }
+        assert!(Cli::try_parse_from(["goway", "host", "add", "Orion-Notebook"]).is_ok());
     }
 
     #[test]

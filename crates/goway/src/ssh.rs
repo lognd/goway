@@ -101,6 +101,17 @@ pub fn args(target: &Target, settings: &Settings, policy: KeyPolicy) -> Vec<OsSt
         "ServerAliveInterval=15".to_owned(),
         "ServerAliveCountMax=4".to_owned(),
         "LogLevel=ERROR".to_owned(),
+        // Whatever the user's ssh config says, a build host gets no agent,
+        // no X11, no tunnels, no delegated credentials, and cannot rewrite
+        // goway's known_hosts.
+        "ForwardAgent=no".to_owned(),
+        "ForwardX11=no".to_owned(),
+        "ClearAllForwardings=yes".to_owned(),
+        "GSSAPIDelegateCredentials=no".to_owned(),
+        "PermitLocalCommand=no".to_owned(),
+        "UpdateHostKeys=no".to_owned(),
+        "VerifyHostKeyDNS=no".to_owned(),
+        "CheckHostIP=no".to_owned(),
     ];
     if let Some(dir) = &settings.control_dir {
         opts.push("ControlMaster=auto".to_owned());
@@ -115,6 +126,8 @@ pub fn args(target: &Target, settings: &Settings, policy: KeyPolicy) -> Vec<OsSt
     if let Some(identity) = &target.identity {
         out.push("-o".into());
         out.push(format!("IdentityFile={}", option_value(identity)).into());
+        out.push("-o".into());
+        out.push("IdentitiesOnly=yes".into());
     }
     out.push("-p".into());
     out.push(target.port.to_string().into());
@@ -141,6 +154,7 @@ pub fn command(target: &Target, settings: &Settings, policy: KeyPolicy, remote: 
     }
     let mut cmd = Command::new("ssh");
     cmd.args(args(target, settings, policy)).arg(remote);
+    scrub_env(&mut cmd);
     tracing::debug!(host = %target.name, address = %target.address, port = target.port, ?policy, "ssh");
     cmd
 }
@@ -159,6 +173,7 @@ pub fn allow_password(cmd: &mut Command) {
         .collect();
     let mut rebuilt = Command::new(cmd.get_program());
     rebuilt.args(args);
+    scrub_env(&mut rebuilt);
     *cmd = rebuilt;
 }
 
@@ -168,7 +183,54 @@ pub fn force_tty(cmd: &mut Command) {
     let args: Vec<OsString> = cmd.get_args().map(OsString::from).collect();
     let mut rebuilt = Command::new(cmd.get_program());
     rebuilt.arg("-t").args(args);
+    scrub_env(&mut rebuilt);
     *cmd = rebuilt;
+}
+
+/// The environment ssh itself needs; nothing else reaches it, so no local
+/// variable can travel to a host through a `SendEnv` in the user's config.
+const SSH_ENV: &[&str] = &[
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "PATH",
+    "SHELL",
+    "TERM",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "SSH_AUTH_SOCK",
+    "XDG_RUNTIME_DIR",
+    "TMPDIR",
+    // Windows OpenSSH.
+    "SYSTEMROOT",
+    "SYSTEMDRIVE",
+    "WINDIR",
+    "COMSPEC",
+    "PATHEXT",
+    "USERPROFILE",
+    "USERNAME",
+    "USERDOMAIN",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "PROGRAMDATA",
+    "TEMP",
+    "TMP",
+];
+
+/// Clear `cmd`'s environment down to [`SSH_ENV`], plus the comma-separated
+/// names in `GOWAY_SSH_PASS_ENV` (for test harnesses with a fake ssh).
+pub fn scrub_env(cmd: &mut Command) {
+    cmd.env_clear();
+    let extra = std::env::var("GOWAY_SSH_PASS_ENV").unwrap_or_default();
+    let extra = extra.split(',').map(str::trim).filter(|s| !s.is_empty());
+    for name in SSH_ENV.iter().copied().chain(extra) {
+        if let Some(value) = std::env::var_os(name) {
+            cmd.env(name, value);
+        }
+    }
 }
 
 /// Quote `s` for a POSIX shell (single quotes, embedded quotes escaped).
@@ -273,6 +335,15 @@ mod tests {
         assert!(a.contains(&"UserKnownHostsFile=\"/c/my dir/known_hosts\"".to_owned()));
         assert!(a.contains(&"GlobalKnownHostsFile=none".to_owned()));
         assert!(a.contains(&"BatchMode=yes".to_owned()));
+        for hardened in [
+            "ForwardAgent=no",
+            "ForwardX11=no",
+            "ClearAllForwardings=yes",
+            "UpdateHostKeys=no",
+            "PermitLocalCommand=no",
+        ] {
+            assert!(a.contains(&hardened.to_owned()), "{hardened}");
+        }
         assert_eq!(
             &a[a.len() - 6..],
             ["-p", "2222", "-l", "user", "--", "192.0.2.10"]
@@ -310,6 +381,23 @@ mod tests {
             runtime_dir: None,
         };
         assert_eq!(Settings::from_paths(&paths).control_dir, None);
+    }
+
+    #[test]
+    fn ssh_gets_only_the_allowlisted_environment() {
+        let cmd = command(&target(), &settings(), KeyPolicy::Strict, "true");
+        let names: Vec<String> = cmd
+            .get_envs()
+            .filter(|(_, v)| v.is_some())
+            .map(|(k, _)| k.to_string_lossy().into_owned())
+            .collect();
+        assert!(
+            names.iter().all(|n| SSH_ENV.contains(&n.as_str())
+                || std::env::var("GOWAY_SSH_PASS_ENV").is_ok_and(|e| e.contains(n.as_str()))),
+            "{names:?}"
+        );
+        let cleared = cmd.get_envs().count() >= names.len();
+        assert!(cleared);
     }
 
     #[test]

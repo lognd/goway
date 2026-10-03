@@ -1,0 +1,1 @@
+Security: goway host add and goway ssh setup pin a new host's key only after you confirm its fingerprint (at the terminal or with --fingerprint), and ssh setup asks for the password only after that, so a machine impersonating the name on the network can neither be pinned nor receive the password.

@@ -58,36 +58,42 @@ impl Renderer {
     /// Report a goway failure on stderr.
     pub fn error(self, error: &Error) {
         use std::io::Write as _;
+        let error = clean(&error.to_string());
         let _ = writeln!(self.err(), "{ERROR}goway: error:{ERROR:#} {error}");
     }
 
     /// Report a non-fatal problem on stderr.
     pub fn warn(self, message: impl Display) {
         use std::io::Write as _;
+        let message = clean(&message.to_string());
         let _ = writeln!(self.err(), "{WARN}goway: warning:{WARN:#} {message}");
     }
 
     /// A progress or status note on stderr.
     pub fn note(self, message: impl Display) {
         use std::io::Write as _;
+        let message = clean(&message.to_string());
         let _ = writeln!(self.err(), "{DIM}goway:{DIM:#} {message}");
     }
 
     /// A success line on stderr.
     pub fn ok(self, message: impl Display) {
         use std::io::Write as _;
+        let message = clean(&message.to_string());
         let _ = writeln!(self.err(), "{GOOD}goway:{GOOD:#} {message}");
     }
 
     /// An accented headline on stderr, such as where a run is going.
     pub fn headline(self, message: impl Display) {
         use std::io::Write as _;
+        let message = clean(&message.to_string());
         let _ = writeln!(self.err(), "{ACCENT}goway:{ACCENT:#} {message}");
     }
 
     /// A line of primary output on stdout (tables, paths, lists).
     pub fn line(self, message: impl Display) {
         use std::io::Write as _;
+        let message = clean(&message.to_string());
         let _ = writeln!(self.out(), "{message}");
     }
 
@@ -95,7 +101,11 @@ impl Renderer {
     pub fn table(self, rows: &[Vec<String>]) {
         use std::io::Write as _;
         let mut out = self.out();
-        for (i, row) in format_table(rows).iter().enumerate() {
+        let rows: Vec<Vec<String>> = rows
+            .iter()
+            .map(|r| r.iter().map(|c| clean(c)).collect())
+            .collect();
+        for (i, row) in format_table(&rows).iter().enumerate() {
             let _ = if i == 0 {
                 writeln!(out, "{ACCENT}{row}{ACCENT:#}")
             } else {
@@ -103,6 +113,38 @@ impl Renderer {
             };
         }
     }
+}
+
+/// Text goway prints itself may carry data from a host (hostnames, paths,
+/// ssh errors). Control characters are replaced, so a host cannot move the
+/// cursor, rewrite the screen or set the window title through goway's own
+/// lines; newlines and tabs stay. The remote command's stream is exempt.
+pub fn clean(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            if c == '\n' || c == '\t' || !c.is_control() {
+                c
+            } else {
+                '?'
+            }
+        })
+        .collect()
+}
+
+/// Ask a question on the terminal and read one line of answer; `None`
+/// when stdin is not a terminal (scripts must pass flags instead).
+pub fn ask(prompt: &str) -> Option<String> {
+    use std::io::{BufRead as _, IsTerminal as _, Write as _};
+    if !std::io::stdin().is_terminal() {
+        return None;
+    }
+    let mut err = std::io::stderr().lock();
+    let _ = write!(err, "goway: {prompt}");
+    let _ = err.flush();
+    drop(err);
+    let mut line = String::new();
+    std::io::stdin().lock().read_line(&mut line).ok()?;
+    Some(line)
 }
 
 /// Write one line of a remote command's output with a `[host] ` prefix
@@ -164,6 +206,12 @@ mod tests {
         r.headline("h");
         r.line("l");
         r.table(&[vec!["a".to_owned()]]);
+    }
+
+    #[test]
+    fn remote_control_characters_never_reach_the_terminal() {
+        let hostile = "evil\u{1b}]0;pwned\u{7}\u{1b}[2J\r\u{9b}x\nnext\tcol";
+        assert_eq!(clean(hostile), "evil?]0;pwned??[2J??x\nnext\tcol");
     }
 
     #[test]

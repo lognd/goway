@@ -591,9 +591,18 @@ fn sync_once(
         deleted: plan.delete.len(),
     };
     tracing::info!(?stats, remote_files = remote_entries.len(), "sync plan");
+    // Deletions are bound to this attempt: a list stored by an attempt
+    // whose upload failed is discarded, never applied later.
+    let attempt = format!(
+        "{}-{}",
+        crate::state::now_secs(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.subsec_nanos())
+    );
     if !plan.delete.is_empty() {
         transport.exchange(
-            &remote::invocation("deletions", &[remote_root, &seed]),
+            &remote::invocation("deletions", &[remote_root, &seed, &attempt]),
             &nul_list(plan.delete.iter().map(String::as_str)),
         )?;
     }
@@ -624,6 +633,7 @@ fn sync_once(
             run_id,
             work_meta,
             keep,
+            &attempt,
         ],
     );
     transport.feed(&cmd, &mut |w| {
@@ -1114,6 +1124,79 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(seed.join("tree/f0")).unwrap(),
             "changed"
+        );
+    }
+
+    /// Fails the first upload (after deletions were stored), like a
+    /// dropped connection.
+    struct DropFirstUpload {
+        dropped: std::cell::Cell<bool>,
+    }
+
+    impl Transport for DropFirstUpload {
+        fn output(&self, cmd: &str) -> Result<Vec<u8>> {
+            LocalTransport.output(cmd)
+        }
+        fn exchange(&self, cmd: &str, input: &[u8]) -> Result<Vec<u8>> {
+            LocalTransport.exchange(cmd, input)
+        }
+        fn feed(
+            &self,
+            cmd: &str,
+            feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
+        ) -> Result<()> {
+            if !self.dropped.replace(true) {
+                return Err(Error::Ssh {
+                    host: "test".to_owned(),
+                    message: "connection dropped".to_owned(),
+                });
+            }
+            LocalTransport.feed(cmd, feed)
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_stale_deletion_list_never_deletes_restored_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("proj");
+        std::fs::create_dir(&root).unwrap();
+        init(&root);
+        std::fs::write(root.join("a"), "a").unwrap();
+        std::fs::write(root.join("b"), "b").unwrap();
+        let repo = Repo::discover(&root).unwrap();
+        let remote_root = dir.path().join("remote").to_string_lossy().into_owned();
+        sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
+
+        // b deleted locally; the sync stores the deletion, then the upload drops.
+        let saved = std::fs::read(root.join("b")).unwrap();
+        let mtime = std::fs::metadata(root.join("b"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        std::fs::remove_file(root.join("b")).unwrap();
+        let flaky = DropFirstUpload {
+            dropped: std::cell::Cell::new(false),
+        };
+        assert!(sync(&flaky, &remote_root, &repo, false, None).is_err());
+
+        // b restored exactly; the next sync has nothing to send.
+        std::fs::write(root.join("b"), saved).unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(root.join("b"))
+            .unwrap()
+            .set_modified(mtime)
+            .unwrap();
+        sync(&LocalTransport, &remote_root, &repo, false, None).unwrap();
+        let tree = dir
+            .path()
+            .join("remote/seed")
+            .join(repo.seed_key())
+            .join("tree");
+        assert!(
+            tree.join("b").is_file(),
+            "the stale deletion list was applied"
         );
     }
 }

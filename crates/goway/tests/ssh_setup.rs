@@ -13,17 +13,27 @@ use std::process::Output;
 use common::{World, world_with_ssh};
 
 const AUTH_SSH: &str = r#"#!/bin/sh
-batch=no; idf=""
+batch=no; idf=""; kh=""; alias=""; accept=no
 while [ $# -gt 0 ]; do
   case "$1" in
     -G) echo "user tester"; exit 0 ;;
-    -o) case "$2" in BatchMode=yes) batch=yes ;; IdentityFile=*) idf=${2#IdentityFile=} ;; esac; shift 2 ;;
+    -o) case "$2" in
+          BatchMode=yes) batch=yes ;;
+          IdentityFile=*) idf=${2#IdentityFile=} ;;
+          UserKnownHostsFile=*) kh=${2#UserKnownHostsFile=} ;;
+          HostKeyAlias=*) alias=${2#HostKeyAlias=} ;;
+          StrictHostKeyChecking=accept-new) accept=yes ;;
+        esac; shift 2 ;;
     -p|-l) shift 2 ;;
     -t) shift ;;
     --) shift; shift; break ;;
     *) shift ;;
   esac
 done
+if [ "$accept" = yes ] && [ -n "$kh" ] && ! grep -q "^$alias " "$kh" 2>/dev/null; then
+  echo "$alias ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >>"$kh"
+fi
+if [ "$batch" = no ]; then : >"$HOME/../password-login-happened"; fi
 if [ "$batch" = yes ]; then
   if [ -z "$idf" ] || [ ! -f "$idf.pub" ] || ! grep -qF "$(cut -d' ' -f2 "$idf.pub")" "$HOME/.ssh/authorized_keys" 2>/dev/null; then
     echo "tester@127.0.0.1: Permission denied (publickey)." >&2
@@ -173,5 +183,68 @@ fn existing_ssh_dir_and_keys_are_restored_exactly_by_undo() {
         (snapshot(&s.home), snapshot(&s.w.config)),
         before,
         "loose modes and content back"
+    );
+}
+
+fn fake_fingerprint() -> String {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("k");
+    std::fs::write(
+        &file,
+        "x ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n",
+    )
+    .unwrap();
+    let out = std::process::Command::new("ssh-keygen")
+        .arg("-lf")
+        .arg(&file)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&out.stdout)
+        .split_whitespace()
+        .find(|w| w.starts_with("SHA256:"))
+        .unwrap()
+        .to_owned()
+}
+
+#[test]
+fn a_new_host_is_confirmed_before_any_password_and_pinned_once() {
+    let s = setup_world();
+    let unconfirmed = s.run(&["ssh", "setup", "newbox", "--address", "127.0.0.1"]);
+    assert_eq!(unconfirmed.status.code(), Some(125));
+    assert!(
+        !s.w.root.join("password-login-happened").exists(),
+        "no password login before the key is confirmed"
+    );
+    assert!(!s.home.join(".ssh").exists());
+
+    let fp = fake_fingerprint();
+    let out = s.run(&[
+        "ssh",
+        "setup",
+        "newbox",
+        "--address",
+        "127.0.0.1",
+        "--fingerprint",
+        &fp,
+    ]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let kh = std::fs::read_to_string(s.w.config.join("known_hosts")).unwrap();
+    assert_eq!(kh.matches("goway-newbox ").count(), 1, "{kh}");
+    let config = std::fs::read_to_string(s.w.config.join("config.toml")).unwrap();
+    assert!(config.contains("name = \"newbox\""), "{config}");
+    let undo = s.run(&["ssh", "setup", "newbox", "--undo"]);
+    assert!(
+        undo.status.success(),
+        "{}",
+        String::from_utf8_lossy(&undo.stderr)
+    );
+    assert!(
+        !std::fs::read_to_string(s.w.config.join("config.toml"))
+            .unwrap()
+            .contains("newbox")
     );
 }

@@ -18,6 +18,12 @@ root_dir() {
   esac
 }
 
+# Mark ROOT as goway's (gc refuses to remove anything under an unmarked root).
+mark_root() {
+  mkdir -p "$1"
+  [ -e "$1/.goway-root" ] || printf 'goway state; safe to delete with goway gc --all\n' >"$1/.goway-root"
+}
+
 new_generation() { printf '%s-%s-%s\n' "$(date +%s%N)" "$$" "$RANDOM"; }
 
 # Start a new worktree's seed as a hard-link copy of the most recently used
@@ -71,18 +77,22 @@ hashes() {
   xargs -0 -r sha256sum -z -- 2>/dev/null || true
 }
 
-# deletions ROOT SEED: NUL-separated paths on stdin to delete at the next
-# receive (stdin, not an argument: one argument is limited to 128 KiB).
+# deletions ROOT SEED ATTEMPT: NUL-separated paths on stdin to delete at
+# the receive of the same sync ATTEMPT (stdin, not an argument: one
+# argument is limited to 128 KiB). A list left by a failed attempt is
+# never applied by a later one.
 deletions() {
   local root seed
   root=$(root_dir "$1"); seed="$root/seed/$2"
+  case "$3" in *[!A-Za-z0-9-]* | "") die "deletions: bad attempt id" ;; esac
+  mark_root "$root"
   mkdir -p "$seed"
   exec 8>"$seed/lock"
   flock -x 8
-  cat >"$seed/deletions"
+  cat >"$seed/deletions.$3"
 }
 
-# receive ROOT SEED META_B64 GENERATION RUN_ID WORK_META_B64 KEEP:
+# receive ROOT SEED META_B64 GENERATION RUN_ID WORK_META_B64 KEEP ATTEMPT:
 # under the seed's exclusive lock, check that the seed is still the one the
 # manifest described (GENERATION, empty for "no tree yet"), apply pending
 # deletions, extract the tar on stdin, and (when RUN_ID is given) snapshot
@@ -92,13 +102,16 @@ deletions() {
 receive() {
   local root seed gen work
   root=$(root_dir "$1"); seed="$root/seed/$2"
+  mark_root "$root"
   mkdir -p "$seed"
   exec 8>"$seed/lock"
   flock -x 8
   gen=$(cat "$seed/generation" 2>/dev/null || true)
   if [ ! -d "$seed/tree" ]; then gen=""; fi
+  local attempt=${8:-}
+  case "$attempt" in *[!A-Za-z0-9-]*) die "receive: bad attempt id" ;; esac
   if [ "$gen" != "$4" ]; then
-    rm -f "$seed/deletions"
+    rm -f "$seed"/deletions.*
     printf 'goway-remote: seed changed (have "%s", expected "%s")\n' "$gen" "$4" >&2
     cat >/dev/null
     exit 75
@@ -108,10 +121,10 @@ receive() {
     new_generation >"$seed/generation"
   fi
   printf '%s' "$3" | base64 -d >"$seed/meta.json"
-  if [ -f "$seed/deletions" ]; then
-    (cd "$seed/tree" && xargs -0 -r rm -f -- <"$seed/deletions")
-    rm -f "$seed/deletions"
+  if [ -n "$attempt" ] && [ -f "$seed/deletions.$attempt" ]; then
+    (cd "$seed/tree" && xargs -0 -r rm -f -- <"$seed/deletions.$attempt")
   fi
+  rm -f "$seed"/deletions.*
   tar -x --unlink-first --recursive-unlink --no-same-owner -C "$seed/tree" -f -
   find "$seed/tree" -mindepth 1 -depth -type d -empty -delete
   if [ -n "${5:-}" ]; then
@@ -119,7 +132,9 @@ receive() {
     mkdir -p "$work"
     printf '%s' "$6" | base64 -d >"$work/meta.json"
     if [ "${7:-0}" = 1 ]; then : >"$work/keep"; fi
-    cp -al "$seed/tree" "$work/tree"
+    # A real copy (reflinked where the filesystem can): a job that
+    # writes a file in place must never change the seed or other runs.
+    cp -a --reflink=auto "$seed/tree" "$work/tree"
   fi
 }
 
@@ -144,7 +159,18 @@ watchdog() {
   fi
 }
 
-# run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 ENV_B64 TTLS PRIORITY -- CMD...
+# envfile ROOT RUN_ID: store the run's --env values (NUL-separated on
+# stdin, never in argv) in its work dir, readable by the owner only.
+envfile() {
+  local root work
+  root=$(root_dir "$1"); work="$root/work/$2"
+  case "$2" in *[!A-Za-z0-9-]* | "") die "envfile: bad run id" ;; esac
+  [ -d "$work" ] || die "envfile: no work dir $work"
+  cat >"$work/env"
+  chmod 600 "$work/env"
+}
+
+# run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 TTLS PRIORITY -- CMD...
 # The work dir was created by receive (snapshot of the seed).
 # TTLS is "cache:orphan:kept" in seconds, for the automatic gc afterwards.
 # Snapshot the seed into a fresh work dir, pick a free cargo target slot,
@@ -153,14 +179,15 @@ watchdog() {
 run() {
   local root work cache slot="" k rc=0 wd rundir
   root=$(root_dir "$1"); work="$root/work/$2"; cache="$root/cache/$3"
-  local root_arg=$1 run_id=$2 repo_id=$3 keep=$4 slots=$5 cache_meta=$6 envb=$7
-  local ttls=$8 priority=$9 nicer=()
-  shift 9
+  local root_arg=$1 run_id=$2 repo_id=$3 keep=$4 slots=$5 cache_meta=$6
+  local ttls=$7 priority=$8 nicer=()
+  shift 8
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
   rundir="$work/tree"
 
+  mark_root "$root"
   mkdir -p "$cache"
   exec 9>"$work/lock"
   flock -x 9
@@ -172,8 +199,9 @@ run() {
   # remote environment and ~/.cargo/env, then the user's --env values;
   # goway only fills in what is still unset.
   if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; fi
-  if [ -n "$envb" ]; then
-    while IFS= read -r -d '' kv; do export "$kv"; done < <(printf '%s' "$envb" | base64 -d)
+  if [ -f "$work/env" ]; then
+    while IFS= read -r -d '' kv; do export "$kv"; done <"$work/env"
+    rm -f "$work/env"
   fi
   if [ -z "${CARGO_TARGET_DIR:-}" ]; then
     for ((k = 0; k < slots; k++)); do
@@ -290,6 +318,11 @@ gc_entry() {
     cache) for l in "$dir"/target-*.lock; do [ -e "$l" ] && locks+=("$l"); done ;;
     *) locks=("$dir/lock") ;;
   esac
+  # Only entries goway labelled as this kind are ever removed.
+  if ! grep -q "\"kind\":\"$kind\"" "$dir/meta.json" 2>/dev/null; then
+    printf 'unlabelled\t%s\t0\t0\t-\t-\t%s\n' "$kind" "$dir"
+    return 0
+  fi
   # Take every lock of the entry first, then read its age: a sync or run
   # that refreshed the entry just before cannot be raced.
   action=keep
@@ -317,6 +350,10 @@ gc() {
   root=$(root_dir "$1"); now=$2; cache_ttl=$3; orphan_ttl=$4; kept_ttl=$5
   mode=$6; repo=$7; older=$8
   [ -d "$root" ] || return 0
+  if [ ! -e "$root/.goway-root" ]; then
+    printf 'goway-remote: %s is not marked as goway state; gc removes nothing there\n' "$root" >&2
+    return 0
+  fi
   for d in "$root"/work/*/; do
     [ -d "$d" ] || continue
     d=${d%/}
@@ -368,6 +405,7 @@ case "$verb" in
   hashes) hashes "$@" ;;
   deletions) deletions "$@" ;;
   run) run "$@" ;;
+  envfile) envfile "$@" ;;
   probe) probe "$@" ;;
   gc) gc "$@" ;;
   doctor) doctor "$@" ;;

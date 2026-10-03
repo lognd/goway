@@ -95,6 +95,11 @@ impl World {
             .env("GOWAY_CONFIG_DIR", &self.config)
             .env("GOWAY_STATE_DIR", self.root.join("state"))
             .env("GOWAY_WINDOWS_LOOKUP", "0")
+            // The fake ssh reads these; real ssh never sees them.
+            .env(
+                "GOWAY_SSH_PASS_ENV",
+                "FAKE_HOSTNAME,FAKE_WINDOWS_PORT,RUSTC_WRAPPER,CARGO_TARGET_DIR,GOWAY_WINDOWS_LOOKUP",
+            )
             // The fake remote is this machine: settings inherited from an
             // outer goway job (or the user's shell) must not leak in.
             .env_remove("RUSTC_WRAPPER")
