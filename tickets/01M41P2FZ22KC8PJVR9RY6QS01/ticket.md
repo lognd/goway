@@ -2,7 +2,8 @@
 id = "01M41P2FZ22KC8PJVR9RY6QS01"
 title = "Persistent slot trees: update each build slot in place instead of copy-then-delete; dependency dirs stay warm"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 8
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
