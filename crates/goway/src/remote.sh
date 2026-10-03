@@ -68,7 +68,7 @@ watchdog() {
   fi
 }
 
-# run ROOT SEED RUN_ID REPO_ID KEEP SLOTS META_B64 CACHE_META_B64 ENV_B64 TTLS -- CMD...
+# run ROOT SEED RUN_ID REPO_ID KEEP SLOTS META_B64 CACHE_META_B64 ENV_B64 TTLS PRIORITY -- CMD...
 # TTLS is "cache:orphan:kept" in seconds, for the automatic gc afterwards.
 # Snapshot the seed into a fresh work dir, pick a free cargo target slot,
 # run CMD in its own process group with stdio passed through, clean up,
@@ -78,8 +78,8 @@ run() {
   root=$(root_dir "$1"); seed="$root/seed/$2"; work="$root/work/$3"
   cache="$root/cache/$4"
   local root_arg=$1 run_id=$3 repo_id=$4 keep=$5 slots=$6 meta=$7 cache_meta=$8 envb=$9
-  local ttls=${10}
-  shift 10
+  local ttls=${10} priority=${11} nicer=()
+  shift 11
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$seed/tree" ] || die "run: no synced tree at $seed"
@@ -143,7 +143,12 @@ run() {
   wd=$!
   # Foreground (not `&`): background jobs of a non-interactive shell start
   # with SIGINT and SIGQUIT ignored, and the command must not inherit that.
-  setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "$@" || rc=$?
+  # A polite guest on someone's laptop: low CPU and idle-class I/O.
+  if [ "$priority" = low ]; then
+    if command -v nice >/dev/null 2>&1; then nicer+=(nice -n 10); fi
+    if command -v ionice >/dev/null 2>&1; then nicer+=(ionice -c 3); fi
+  fi
+  setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "${nicer[@]}" "$@" || rc=$?
   kill "$wd" 2>/dev/null || true
   cd "$root"
   if [ "$keep" != 1 ]; then rm -rf "$work"; fi

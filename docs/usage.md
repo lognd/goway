@@ -13,7 +13,8 @@ What happens:
 
 1. **Pick a host.** Without `--host`, every host is probed in parallel
    (one ssh call each) and the lowest `(load1 + goway jobs) / cores`
-   wins. Unreachable hosts and hosts at `max_jobs` are skipped.
+   wins. Unreachable hosts, hosts at `max_jobs` and hosts above
+   `max_load` (load per core) are skipped.
 2. **Sync.** The file set is exactly what git shows:
    `git ls-files -co --exclude-standard`, minus files deleted from the
    work tree, minus `.env`/`.env.*`. It goes to a per-worktree seed on
@@ -28,7 +29,8 @@ What happens:
    and stderr passed through untouched. `CARGO_TARGET_DIR` points at
    the first free per-repository target slot (a new one when all are
    busy, up to `target_slots`). `~/.cargo/env` is sourced. sccache is
-   used if installed.
+   used if installed. With `priority = "low"` (the default) the job
+   runs under `nice -n 10` with idle-class I/O.
 5. **Finish.** The work dir is removed unless `--keep` is given, a
    cheap gc of expired entries runs in the background, and goway exits
    with the command's exit code.

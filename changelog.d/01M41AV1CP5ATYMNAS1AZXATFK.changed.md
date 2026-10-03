@@ -1,0 +1,1 @@
+Remote jobs run as polite guests by default (priority = "low": nice 10 and idle-class I/O; priority = "normal" opts out), and max_load skips hosts whose load per core is already above a ceiling unless pinned with --host.

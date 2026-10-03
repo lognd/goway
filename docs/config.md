@@ -29,6 +29,8 @@ kept_ttl = "3d"                # work dirs kept with `goway run --keep`
 target_slots = 4               # most cargo target dirs per repository per host
 send_env_files = false         # .env and .env.* are never sent unless true
 port = 2222                    # ssh port when a host does not set one (WSL sshd)
+priority = "low"               # "low": jobs run under nice 10 with idle-class I/O; "normal"
+# max_load = 0.8               # skip hosts whose 1-minute load per core is above this
 
 [[host]]
 name = "helios"                # identity; also tried as helios.local
@@ -36,6 +38,8 @@ name = "helios"                # identity; also tried as helios.local
 # port = 22
 # user = "user"               # default: whatever ssh config says
 # max_jobs = 2                 # skip this host while it runs this many goway jobs
+# priority = "normal"          # override defaults.priority for this host
+# max_load = 0.5               # override defaults.max_load for this host
 ```
 
 Durations use humantime syntax: `90s`, `30m`, `12h`, `7d`.

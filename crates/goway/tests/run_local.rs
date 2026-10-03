@@ -478,3 +478,24 @@ fn a_run_leaves_no_files_outside_its_root_and_no_processes() {
     }
     assert!(leftovers.is_empty(), "processes left behind: {leftovers:?}");
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn low_priority_jobs_run_niced_with_idle_io() {
+    let w = world();
+    let base: i32 = String::from_utf8_lossy(&Command::new("nice").output().unwrap().stdout)
+        .trim()
+        .parse()
+        .unwrap();
+    let show = ["run", "--", "sh", "-c", "nice; ionice"];
+    let low = String::from_utf8_lossy(&w.run(&show).stdout).into_owned();
+    let mut lines = low.lines();
+    assert_eq!(lines.next().unwrap().parse::<i32>().unwrap(), (base + 10).min(19), "{low}");
+    assert_eq!(lines.next().unwrap().trim(), "idle", "{low}");
+
+    let mut config = std::fs::read_to_string(w.config.join("config.toml")).unwrap();
+    config = config.replace("target_slots = 2", "target_slots = 2\npriority = \"normal\"");
+    std::fs::write(w.config.join("config.toml"), config).unwrap();
+    let normal = String::from_utf8_lossy(&w.run(&show).stdout).into_owned();
+    assert_eq!(normal.lines().next().unwrap().parse::<i32>().unwrap(), base, "{normal}");
+}

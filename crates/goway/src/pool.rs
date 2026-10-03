@@ -65,8 +65,9 @@ pub struct Probed<'a> {
     pub result: Result<(Found, Probe)>,
 }
 
-/// Index of the best host among `probed`, if any is usable.
-pub fn pick(probed: &[Probed<'_>]) -> Option<usize> {
+/// Index of the best host among `probed`, if any is usable. Hosts at
+/// `max_jobs` or above their `max_load` (load per core) are skipped.
+pub fn pick(config: &Config, probed: &[Probed<'_>]) -> Option<usize> {
     probed
         .iter()
         .enumerate()
@@ -74,6 +75,11 @@ pub fn pick(probed: &[Probed<'_>]) -> Option<usize> {
             let (_, probe) = p.result.as_ref().ok()?;
             if p.host.max_jobs.is_some_and(|m| probe.jobs >= m) {
                 tracing::info!(host = %p.host.name, jobs = probe.jobs, "host at max_jobs; skipped");
+                return None;
+            }
+            let per_core = probe.load[0] / f64::from(probe.cores.max(1));
+            if config.max_load_of(p.host).is_some_and(|m| per_core > m) {
+                tracing::info!(host = %p.host.name, per_core, "host above max_load; skipped");
                 return None;
             }
             Some((i, score(probe), probe.jobs))
@@ -203,7 +209,7 @@ pub fn choose(
         ));
     }
     let mut results = probe_all(config, state, lookup, prober, false);
-    match pick(&results) {
+    match pick(config, &results) {
         Some(i) => {
             let chosen = results.swap_remove(i);
             let (found, probe) = chosen.result?;
@@ -213,7 +219,10 @@ pub fn choose(
             results
                 .iter()
                 .map(|p| match &p.result {
-                    Ok((_, probe)) => format!("{}: busy ({} goway jobs)", p.host.name, probe.jobs),
+                    Ok((_, probe)) => format!(
+                        "{}: busy (load {:.2} on {} cores, {} goway jobs)",
+                        p.host.name, probe.load[0], probe.cores, probe.jobs
+                    ),
                     Err(e) => format!("{}: {e}", p.host.name),
                 })
                 .collect(),
@@ -245,6 +254,8 @@ mod tests {
             port: None,
             user: None,
             max_jobs,
+            priority: None,
+            max_load: None,
         }
     }
 
@@ -307,13 +318,55 @@ mod tests {
             },
         ];
         // big: 4/16 = 0.25, small: 1/4 = 0.25 -> fewer jobs wins (small).
-        assert_eq!(pick(&probed), Some(4));
-        assert_eq!(pick(&probed[..2]), Some(1));
+        assert_eq!(pick(&Config::default(), &probed), Some(4));
+        assert_eq!(pick(&Config::default(), &probed[..2]), Some(1));
         assert_eq!(
-            pick(&probed[2..4]),
+            pick(&Config::default(), &probed[2..4]),
             None,
             "full and down hosts are never picked"
         );
+    }
+
+    #[test]
+    fn hosts_above_max_load_are_skipped_unless_pinned() {
+        let mut hosts = [host("hot", None), host("cool", None)];
+        hosts[0].max_load = Some(0.5);
+        let probed = vec![
+            Probed {
+                host: &hosts[0],
+                result: Ok((found("hot"), probe(64, 40.0, 0))),
+            },
+            Probed {
+                host: &hosts[1],
+                result: Ok((found("cool"), probe(2, 1.8, 0))),
+            },
+        ];
+        let config = Config::default();
+        // hot: 40/64 = 0.625 per core > 0.5 -> skipped even though its score is lower.
+        assert_eq!(pick(&config, &probed), Some(1));
+        let mut ceiling = Config::default();
+        ceiling.defaults.max_load = Some(0.5);
+        let only_cool = [Probed {
+            host: &hosts[1],
+            result: Ok((found("cool"), probe(2, 1.8, 0))),
+        }];
+        assert_eq!(
+            pick(&ceiling, &only_cool),
+            None,
+            "defaults.max_load applies too"
+        );
+    }
+
+    #[test]
+    fn pinned_host_ignores_max_load() {
+        let mut config = Config::default();
+        let mut h = host("a", None);
+        h.address = Some("10.0.0.1".to_owned());
+        h.max_load = Some(0.0);
+        config.hosts.push(h);
+        let mut state = State::default();
+        assert!(choose(&config, &mut state, &NoLookup, &ByAddress, None).is_err());
+        assert!(choose(&config, &mut state, &NoLookup, &ByAddress, Some("a")).is_ok());
     }
 
     struct ByAddress;

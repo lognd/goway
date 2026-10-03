@@ -154,7 +154,14 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     ));
 
     let run_id = new_run_id();
-    let cmd = run_invocation(&config, &repo, &run_id, args, &env_b64);
+    let cmd = run_invocation(
+        &config,
+        config.priority_of(&host).as_str(),
+        &repo,
+        &run_id,
+        args,
+        &env_b64,
+    );
 
     renderer.headline(format_args!(
         "running on {} ({arch}, {hostname}) at {}: {}",
@@ -207,6 +214,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
 /// The remote `run` invocation for this run.
 fn run_invocation(
     config: &Config,
+    priority: &str,
     repo: &Repo,
     run_id: &str,
     args: &RunArgs,
@@ -244,6 +252,7 @@ fn run_invocation(
         &cache_meta,
         env_b64,
         &ttls,
+        priority,
         "--",
     ];
     words.extend(args.command.iter().map(String::as_str));

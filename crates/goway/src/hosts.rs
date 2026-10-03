@@ -191,6 +191,8 @@ pub fn add(
             port: Some(port),
             user: args.user.clone(),
             max_jobs: args.max_jobs,
+            priority: None,
+            max_load: None,
         };
         let prober = AddProber {
             inner: SshProber {
