@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:27:02Z"
-updated = "2026-10-03T20:53:17Z"
+updated = "2026-10-03T20:53:22Z"
 scope = ["crates/goway-setup/**"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given system-derived text with control characters, when goway-setup renders it, then the control and bidi characters are stripped"
-bound = false
+bound = true
 +++

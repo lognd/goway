@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T20:53:22Z"
+digest = "cc8fd1ad9e9f17517f250e6f1ac346033b19aed99444b82d72b8c6ccdc087b79"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2c245c26-9340-47b4-ba0e-690f5c407b8f with nextest profile: default
+    Starting 1 test across 1 binary (1 test and 25 binaries skipped)
+        PASS [   0.007s] goway-setup::render system_text_loses_control_and_bidi_characters
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.008s] 1 test run: 1 passed, 1 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(render) & test(system_text_loses)'"
+size = 567
+status = "measured"
+tests = ["system_text_loses_control_and_bidi_characters"]
+at = "2026-10-03T20:53:22Z"
+actor = "lognd"
+rev = 1
