@@ -2,13 +2,13 @@
 id = "01M41K9Y2VNX7T4HRTW0MWPSWG"
 title = "Screen-reader friendly output: --plain renders tables as labelled lines"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:19:25Z"
-updated = "2026-10-03T19:19:25Z"
+updated = "2026-10-03T19:19:26Z"
 labels = ["newcomer"]
 scope = ["crates/goway/**", "README.md"]
 
