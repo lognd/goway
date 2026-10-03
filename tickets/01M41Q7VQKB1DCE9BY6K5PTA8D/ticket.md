@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T20:28:11Z"
-updated = "2026-10-03T20:33:30Z"
+updated = "2026-10-03T20:33:31Z"
 scope = ["crates/goway/src/uninstall.rs", "crates/goway/src/doctor.rs", "crates/goway/src/remote.sh", "crates/goway/tests/uninstall_records.rs", "crates/goway/tests/install_scripts.rs", "scripts/uninstall.sh", "docs/usage.md"]
 
 [[acceptance]]
@@ -25,7 +25,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a CRLF profile with goway PATH line, When the journal is reverted, Then the other lines keep their CRLF bytes exactly"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given rustup existed before doctor --fix, When uninstall runs, Then rustup self uninstall is not run"
