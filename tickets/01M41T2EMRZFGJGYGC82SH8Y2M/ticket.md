@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:17:40Z"
-updated = "2026-10-03T21:57:14Z"
+updated = "2026-10-03T21:57:29Z"
 scope = ["crates/goway/src/project.rs", "crates/goway/src/config.rs", "crates/goway/src/run.rs", "crates/goway/tests/**", "docs/config.md", "docs/usage.md", "crates/goway/src/needs.rs", "crates/goway/src/lib.rs", "crates/goway/src/shard.rs"]
 
 [[links]]
@@ -17,7 +17,7 @@ target = "01M41T2EH2C5MRX4SBCVY53SJM"
 
 [[acceptance]]
 text = "Given goway.toml at the repository root with [[rule]] entries (command glob, needs, prefers), when goway run starts, then the first matching rule's needs and prefers apply, merged with the command line (command line wins), and goway says which rule applied"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given labels = [...] on a [[host]] in the user config, when --needs label=NAME or a rule asks for it, then only hosts with that label qualify"
