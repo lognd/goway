@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/**"]
+new = ["crates/goway/**", "docs/usage.md", "docs/install-linux.md", "scripts/uninstall.sh"]
+at = "2026-10-03T19:09:07Z"
+actor = "lognd"
+rev = 1

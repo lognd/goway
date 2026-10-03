@@ -8,9 +8,9 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:01:41Z"
-updated = "2026-10-03T19:01:41Z"
+updated = "2026-10-03T19:09:07Z"
 labels = ["newcomer"]
-scope = ["crates/goway/**"]
+scope = ["crates/goway/**", "docs/usage.md", "docs/install-linux.md", "scripts/uninstall.sh"]
 
 [[acceptance]]
 text = "Given a laptop with goway set up for helpers, when goway uninstall --everywhere runs, then each helper loses goway's remote state, the authorized key line and the tools goway installed, and this laptop loses goway's config, state and binary"
