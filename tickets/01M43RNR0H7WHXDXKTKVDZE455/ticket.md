@@ -7,7 +7,7 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T15:31:44Z"
-updated = "2026-10-04T15:41:57Z"
+updated = "2026-10-04T15:42:31Z"
 scope = [".config/nextest.toml", ".github/workflows/ci.yml", "scripts/ci-ps-watch.sh", "docs/macos.md"]
 
 [[acceptance]]
