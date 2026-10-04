@@ -2,7 +2,7 @@
 id = "01M41T4HN7VTHZZZP7ZTQP4A3T"
 title = "doctor on Windows hosts: MSVC Build Tools, rustup msvc toolchain and nextest, installed with winget and recorded"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
