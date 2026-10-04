@@ -1,0 +1,13 @@
+kind = "create"
+title = "Audit3 H2: administrator routes never start goway-setup by bare name; a protected, verified copy only"
+type = "security"
+category = "todo"
+priority = "high"
+points = 5
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+labels = ["security"]
+scope = ["crates/goway/src/winadmin.rs", "crates/goway/src/winadmin.ps1", "crates/goway/src/doctor/windows.rs", "crates/goway/src/add.rs", "crates/goway/tests/win_elevate.rs", "crates/goway/tests/winadmin_setup.rs", "docs/install-windows.md"]
+acceptance = ["Given a goway-setup planted in a user-writable PATH directory on a Windows helper, when an administrator route runs the setup step, then the planted program never runs and the route reports that no protected goway-setup was found", "Given a goway-setup in an administrator-only directory (trusted owner, no write access for others, no links), when the step runs, then that absolute path is run with the arguments exactly as given"]
+at = "2026-10-04T21:41:00Z"
+actor = "lognd"
+rev = 1
