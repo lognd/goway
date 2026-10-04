@@ -302,6 +302,8 @@ fn make_rebuilds_when_an_older_branch_reuses_the_slot() {
     std::fs::write(w.repo.join(".gitignore"), "out\n").unwrap();
     write_dated(&w.repo.join("src.txt"), "from A\n", 0);
     assert_eq!(sh(&w, "make -s && cat out"), "from A\n");
+    // Apple's make 3.81 compares whole seconds only: B's stamp must fall in a later second than A's output.
+    std::thread::sleep(std::time::Duration::from_millis(1100));
     write_dated(&w.repo.join("src.txt"), "from B\n", 3600);
     assert_eq!(sh(&w, "make -s && cat out"), "from B\n");
 }

@@ -13,21 +13,20 @@ fn fake(w: &common::World, name: &str, body: &str) {
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
 }
 
-/// A world whose `systemd-inhibit` creates `held` while the wrapped command runs
+/// A world whose `systemd-inhibit` (and, for a Mac helper, `caffeinate`) creates `held` while the wrapped command runs
 /// (the probe `true` is run plainly, so it never leaves the marker behind).
 fn inhibit_world() -> (common::World, std::path::PathBuf) {
     let w = common::world();
     let held = w.root.join("held");
-    fake(
-        &w,
-        "systemd-inhibit",
-        &format!(
-            "#!/bin/sh\nwhile [ $# -gt 0 ]; do case \"$1\" in --*) shift ;; *) break ;; esac; done\n\
-             [ \"$1\" = true ] && exec \"$@\"\n\
-             : > '{held}'; \"$@\"; rc=$?; rm -f '{held}'; exit $rc\n",
-            held = held.display()
-        ),
+    let body = format!(
+        "#!/bin/sh\nwhile [ $# -gt 0 ]; do case \"$1\" in -*) shift ;; *) break ;; esac; done\n\
+         [ \"$1\" = true ] && exec \"$@\"\n\
+         : > '{held}'; \"$@\"; rc=$?; rm -f '{held}'; exit $rc\n",
+        held = held.display()
     );
+    for name in ["systemd-inhibit", "caffeinate"] {
+        fake(&w, name, &body);
+    }
     (w, held)
 }
 
