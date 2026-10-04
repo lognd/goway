@@ -290,12 +290,20 @@ receive() {
   fi
   rm -f "$seed"/changes.*
   rm -f "$seed/fresh"
-  tar -x --unlink-first --recursive-unlink --no-same-owner -C "$seed/tree" -f "$tarsrc"
+  # Files dated in this host's future (the laptop's clock runs ahead) are not
+  # an error: the slot's copies get this host's time (sync_slot), so tar's
+  # "time stamp is in the future" warnings are only noise.
+  tar -x --unlink-first --recursive-unlink --no-same-owner --warning=no-timestamp -C "$seed/tree" -f "$tarsrc"
   if [ "$tarsrc" != - ]; then rm -f "$tarsrc"; fi
   find "$seed/tree" -mindepth 1 -depth -type d -empty -delete
   if [ -n "${5:-}" ]; then
     work="$root/work/$5"
     mkdir -p "$work"
+    # What keeps gc from removing this dir before its run takes the lock,
+    # whatever the wall clock does: this process while it lives, then the
+    # monotonic time since boot (see work_young).
+    printf '%s %s\n' "$$" "$(proc_start "$$")" >"$work/creator"
+    printf '%s\n' "$(uptime_secs)" >"$work/born"
     printf '%s' "$6" | base64 -d >"$work/meta.json"
     if [ "${7:-0}" = 1 ]; then : >"$work/keep"; fi
     printf '%s' "$2" >"$work/seed"
@@ -1134,6 +1142,8 @@ run() {
   flock -x 9
   # The client's lifeline stops this shell with SIGTERM while it is still
   # preparing (before the job exists): clean up and go.
+  # The lock protects the dir from here on; the starting-run markers are done.
+  rm -f "$work/born" "$work/creator"
   printf '%s\n' "$$" >"$work/runner"
   trap 'remove_work "$work"; exit 143' TERM
   if [ -e "$work/lost" ]; then remove_work "$work"; exit 143; fi
@@ -1533,6 +1543,37 @@ probe() {
 # A work dir with no lock file yet and younger than this (seconds) is never removed by gc.
 WORK_GRACE=120
 
+# Seconds since boot: monotonic, so a step of the wall clock never changes
+# it. Empty where the host does not say (/proc/uptime).
+uptime_secs() {
+  local up
+  read -r up _ </proc/uptime 2>/dev/null || return 0
+  printf '%s' "${up%%.*}"
+}
+
+# proc_start PID: the start time (clock ticks since boot) of process PID, so
+# a recycled pid is not mistaken for the process that wrote it. Empty if unknown.
+proc_start() {
+  { sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null || true; } | awk '{ print $20 }'
+}
+
+# work_young DIR: whether the run that owns work dir DIR is still starting.
+# True while its creator process is alive, or for WORK_GRACE seconds after
+# the dir was born by the monotonic clock. Never judged by wall-clock age,
+# which a clock jump can make huge. A dir without the marker (an older
+# goway made it) is not young by this test.
+work_young() {
+  local pid start born now
+  if read -r pid start <"$1/creator" 2>/dev/null && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    if [ -z "$start" ] || [ "$(proc_start "$pid")" = "$start" ]; then return 0; fi
+  fi
+  born=$(cat "$1/born" 2>/dev/null || true)
+  now=$(uptime_secs)
+  case "$born" in "" | *[!0-9]*) return 1 ;; esac
+  case "$now" in "" | *[!0-9]*) return 1 ;; esac
+  [ "$now" -ge "$born" ] && [ $((now - born)) -lt "$WORK_GRACE" ]
+}
+
 # Seconds since the last use of DIR (its meta.json mtime).
 age_of() {
   local m
@@ -1604,6 +1645,10 @@ gc_entry() {
   # for a moment the dir is unlocked and has no lock file yet. Never remove
   # such a young dir, not even with --all (a finished run always has the file).
   if [ "$kind" = work ] && [ "$action" = "$verb" ] && [ ! -e "$dir/lock" ] && [ "$age" -lt "$WORK_GRACE" ]; then action=keep; fi
+  # A run that is starting is protected by liveness (its creator process, or
+  # the monotonic clock), not by wall-clock age: if the host's clock jumps
+  # forward every age is huge, and this dir must still survive.
+  if [ "$kind" = work ] && [ "$action" = "$verb" ] && work_young "$dir"; then action=keep; fi
   bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$action" "$kind" "$age" "${bytes:-0}" "$repo" "$dir"
   GC_ACTION=$action; GC_BYTES=${bytes:-0}
