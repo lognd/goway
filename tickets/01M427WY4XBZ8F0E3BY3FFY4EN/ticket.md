@@ -2,7 +2,8 @@
 id = "01M427WY4XBZ8F0E3BY3FFY4EN"
 title = "Optional git metadata on the helper: --with-git gives the run a .git that matches the work tree, for tests that inspect the repository"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
