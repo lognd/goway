@@ -2,12 +2,12 @@
 id = "01M43EWZGMJC3DDZRGAD6024D0"
 title = "macOS CI: scratch_fs tests assume a case-sensitive file system"
 type = "bug"
-category = "in-progress"
+category = "todo"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T12:40:55Z"
-updated = "2026-10-04T12:45:13Z"
+updated = "2026-10-04T15:29:27Z"
 scope = ["crates/goway/tests/scratch_fs.rs"]
 
 [[acceptance]]
