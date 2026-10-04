@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["Given a Windows machine that can be spared (no hand-made OpenSSH setup in use), when goway-setup install --host --native then uninstall run in the goway-test profile, then before and after snapshots of the capability, sshd service, firewall rules, HKLM OpenSSH key and key files are identical; found while working ~VHRF97S, whose PowerShell scripts are only tested through a fake runner"]
+moved = []
+at = "2026-10-04T00:30:25Z"
+actor = "lognd"
+rev = 1
