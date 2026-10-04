@@ -810,7 +810,7 @@ user = "user"
     }
 
     // frob:ticket 01M43JBGHCD68QDZVMDMG5P4GS
-    // frob:tests crates/goway/src/config.rs::Config::budget_of
+    // frob:tests crates/goway/src/config.rs::Config
     #[test]
     fn a_hosts_disk_budget_overrides_the_defaults_value_by_value() {
         let c = Config::parse(
