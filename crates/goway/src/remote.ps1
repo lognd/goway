@@ -206,7 +206,7 @@ function Mark-Root([string]$Root) {
   New-Dir $Root
   foreach ($e in [IO.Directory]::EnumerateFileSystemEntries($Root)) {
     $n = [IO.Path]::GetFileName($e)
-    if (@('work', 'seed', 'cache', 'gpu', 'gc.lock', '.goway-root') -notcontains $n) {
+    if (@('work', 'seed', 'cache', 'gpu', 'gc.lock', 'evicted.log', '.goway-root') -notcontains $n) {
       Die "$Root exists, is not empty and is not goway state; pick a dedicated remote_root"
     }
   }
@@ -1035,13 +1035,45 @@ function Free-Bytes([string]$Path) {
   return 0
 }
 
-# probe ROOT [disk] [static]: key=value facts for scheduling and status.
+# The size in bytes of the drive holding $Path (0 when unknown).
+function Total-Bytes([string]$Path) {
+  try {
+    $full = [IO.Path]::GetFullPath($Path)
+    $best = $null
+    foreach ($d in [IO.DriveInfo]::GetDrives()) {
+      if ($d.IsReady -and $full.StartsWith($d.Name, [StringComparison]::OrdinalIgnoreCase)) {
+        if (-not $best -or $d.Name.Length -gt $best.Name.Length) { $best = $d }
+      }
+    }
+    if ($best) { return [long]$best.TotalSize }
+  } catch { }
+  return 0
+}
+
+# The disk budget in bytes: $Max when set (> 0), else the smaller of 20% of
+# the drive holding $Path and 50 GiB (the same rule as remote.sh).
+function Budget-Max([string]$Path, [long]$Max) {
+  if ($Max -gt 0) { return $Max }
+  $total = Total-Bytes $Path
+  return [math]::Min([long][math]::Floor($total / 5), [long]53687091200)
+}
+
+# Binary units, one decimal ("3.1 GiB").
+function Human-Bytes([double]$B) {
+  $u = @('B', 'KiB', 'MiB', 'GiB', 'TiB'); $i = 0
+  while ($B -ge 1024 -and $i -lt 4) { $B /= 1024; $i++ }
+  if ($i -eq 0) { return ('{0} B' -f [long]$B) }
+  return ('{0:F1} {1}' -f $B, $u[$i])
+}
+
+# probe ROOT [disk] [budget:MAX:MIN_FREE] [static]: key=value facts for scheduling and status.
 function Verb-probe([string[]]$A) {
   $root = Get-Root $A[0]
-  $wantDisk = $false; $wantStatic = $false
+  $wantDisk = $false; $wantStatic = $false; $budget = $null
   foreach ($x in $A[1..([math]::Max($A.Length - 1, 1))]) {
     if ($x -eq 'disk') { $wantDisk = $true }
     if ($x -eq 'static') { $wantStatic = $true }
+    if ($x -match '^budget:(\d+):(\d+)$') { $budget = @([long]$Matches[1], [long]$Matches[2]) }
   }
   $sb = New-Object Text.StringBuilder
   $m = Get-Mem
@@ -1065,6 +1097,7 @@ function Verb-probe([string[]]$A) {
   [void]$sb.Append("jobs=$jobs`n")
   if ($wantDisk) {
     [void]$sb.Append("disk_used=$(Dir-Bytes $root)`ndisk_free=$(Free-Bytes (Get-Home))`n")
+    if ($budget) { [void]$sb.Append("disk_max=$(Budget-Max (Get-Home) $budget[0])`ndisk_min_free=$($budget[1])`n") }
   }
   Write-Out $sb.ToString()
 }
@@ -1132,6 +1165,14 @@ function Verb-argsfile([string[]]$A) {
 # A work dir with no lock file yet and younger than this (seconds) is never removed by gc.
 $script:WorkGrace = 120
 
+# What the last Gc-Entry/Evict-Slot decided (action and bytes), the bytes gc
+# has removed or would remove so far, and the paths a dry run lists as gone,
+# so a dry-run eviction never counts them twice.
+$script:GcAction = ''
+$script:GcBytes = [long]0
+$script:GcFreed = [long]0
+$script:GcGone = New-Object 'System.Collections.Generic.HashSet[string]'
+
 function Repo-Of([string]$Dir) {
   $meta = Read-TextOrEmpty ([IO.Path]::Combine($Dir, 'meta.json'))
   $name = '-'; $id = '-'
@@ -1152,7 +1193,8 @@ function Age-Of([string]$Dir, [long]$Now) {
 # Decide one entry: print "action TAB kind TAB age TAB bytes TAB repo TAB id
 # TAB path" and remove it when the action is "remove" and $Mode is apply. The
 # entry's locks are taken exclusively (non-blocking) while it is judged.
-function Gc-Entry([string]$Kind, [string]$Dir, [long]$Ttl, [long]$Now, [string]$Mode, [string]$RepoFilter) {
+function Gc-Entry([string]$Kind, [string]$Dir, [long]$Ttl, [long]$Now, [string]$Mode, [string]$RepoFilter, [string]$Verb = 'remove') {
+  $script:GcAction = 'skip'; $script:GcBytes = 0
   if (-not [IO.Directory]::Exists($Dir)) { return }
   $repo = Repo-Of $Dir
   if ($RepoFilter -and $repo[0] -ne $RepoFilter -and $repo[1] -ne $RepoFilter) { return }
@@ -1175,20 +1217,122 @@ function Gc-Entry([string]$Kind, [string]$Dir, [long]$Ttl, [long]$Now, [string]$
     if ($fs) { $held += $fs } else { $action = 'busy' }
   }
   $age = Age-Of $Dir $Now
-  if ($action -eq 'keep' -and $age -ge $Ttl) { $action = 'remove' }
+  if ($action -eq 'keep' -and $age -ge $Ttl) { $action = $Verb }
   # A run creates its work dir in one call and its lock in the next: never
   # remove such a young dir, not even with --all.
-  if ($Kind -eq 'work' -and $action -eq 'remove' -and -not [IO.File]::Exists([IO.Path]::Combine($Dir, 'lock')) -and $age -lt $script:WorkGrace) { $action = 'keep' }
+  if ($Kind -eq 'work' -and $action -eq $Verb -and -not [IO.File]::Exists([IO.Path]::Combine($Dir, 'lock')) -and $age -lt $script:WorkGrace) { $action = 'keep' }
   $bytes = Dir-Bytes $Dir
   Write-Out ("$action`t$Kind`t$age`t$bytes`t$($repo[0])`t$($repo[1])`t$Dir`n")
+  $script:GcAction = $action; $script:GcBytes = $bytes
+  if ($action -eq $Verb) { $script:GcFreed += $bytes; [void]$script:GcGone.Add($Dir) }
   # A handle blocks deletion on Windows: let go of the locks first.
   foreach ($fs in $held) { $fs.Dispose() }
-  if ($action -eq 'remove' -and $Mode -eq 'apply') {
+  if ($action -eq $Verb -and $Mode -eq 'apply') {
     try { Remove-Tree $Dir } catch { Write-Err "goway-remote: cannot remove ${Dir}: $($_.Exception.Message)`n" }
   }
 }
 
-# gc ROOT NOW CACHE_TTL ORPHAN_TTL KEPT_TTL MODE REPO OLDER_THAN
+# Evict-Slot CACHE_DIR K NOW MODE REPO: evict one build slot (its tree-K and
+# target-K) of a per-repository cache when its lock is free. The slot's age
+# is its lock file's mtime, read after the lock is held.
+function Evict-Slot([string]$Dir, [int]$K, [long]$Now, [string]$Mode, [string]$RepoFilter) {
+  $script:GcAction = 'skip'; $script:GcBytes = 0
+  $lock = [IO.Path]::Combine($Dir, "target-$K.lock")
+  $tree = [IO.Path]::Combine($Dir, "tree-$K"); $target = [IO.Path]::Combine($Dir, "target-$K")
+  if (-not [IO.File]::Exists($lock)) { return }
+  if (-not ([IO.Directory]::Exists($tree) -or [IO.Directory]::Exists($target))) { return }
+  if ((Read-TextOrEmpty ([IO.Path]::Combine($Dir, 'meta.json'))) -notmatch '"kind":"cache"') { return }
+  $repo = Repo-Of $Dir
+  if ($RepoFilter -and $repo[0] -ne $RepoFilter -and $repo[1] -ne $RepoFilter) { return }
+  $fs = Get-Lock $lock $true 0
+  if (-not $fs) {
+    Write-Out ("busy`tslot`t0`t0`t$($repo[0])`t$($repo[1])`t$tree`n")
+    $script:GcAction = 'busy'
+    return
+  }
+  try {
+    $age = $Now - [long]([DateTimeOffset][IO.File]::GetLastWriteTimeUtc($lock)).ToUnixTimeSeconds()
+    $bytes = (Dir-Bytes $tree) + (Dir-Bytes $target)
+    Write-Out ("evict`tslot`t$age`t$bytes`t$($repo[0])`t$($repo[1])`t$tree`n")
+    $script:GcAction = 'evict'; $script:GcBytes = $bytes
+    $script:GcFreed += $bytes
+    if ($Mode -eq 'apply') {
+      # The lock file is outside both trees, so the held handle does not block this.
+      try { Remove-Tree $tree; Remove-Tree $target } catch { Write-Err "goway-remote: cannot evict slot ${K}: $($_.Exception.Message)`n" }
+    }
+  } finally { $fs.Dispose() }
+}
+
+# Evict-Budget ROOT NOW MODE REPO MAX_DISK MIN_FREE [log]: when goway's root is
+# over its budget (MAX_DISK bytes, 0 = auto) or the disk has less than MIN_FREE
+# bytes free, evict unlocked entries, least recently used first (build slots,
+# then work dirs, seeds, whole repository caches at the same age), until both
+# hold. Entries in use are skipped. With "log" a summary is left for the next
+# run to print. The same rules as remote.sh (evict).
+function Evict-Budget([string]$Root, [long]$Now, [string]$Mode, [string]$Repo, [long]$MaxDisk, [long]$MinFree, [string]$Log) {
+  $before = $script:GcFreed
+  $max = Budget-Max $Root $MaxDisk
+  $used = Dir-Bytes $Root
+  $free = Free-Bytes $Root
+  # A dry run has not removed what gc listed before this; pretend it did.
+  if ($Mode -ne 'apply') {
+    $used = [math]::Max($used - $before, 0); $free += $before
+  }
+  # On a small disk a fixed MIN_FREE could never be met and would empty
+  # goway's root after every run: cap it at a quarter of the disk.
+  $total = Total-Bytes $Root
+  $minFree = [math]::Min($MinFree, [long][math]::Floor($total / 4))
+  $need = $used - $max
+  if (($minFree - $free) -gt $need) { $need = $minFree - $free }
+  if ($need -le 0) { return }
+  $list = New-Object System.Collections.Generic.List[object]
+  $add = { param($d, $rank, $kind, $k)
+    $meta = [IO.Path]::Combine($d, 'meta.json')
+    $t = try { if ([IO.File]::Exists($meta)) { [IO.File]::GetLastWriteTimeUtc($meta) } else { [IO.Directory]::GetLastWriteTimeUtc($d) } } catch { [DateTime]::UtcNow }
+    $list.Add([pscustomobject]@{ M = [long]([DateTimeOffset]$t).ToUnixTimeSeconds(); Rank = $rank; Kind = $kind; Path = $d; K = $k })
+  }
+  $work = P $Root @('work')
+  if ([IO.Directory]::Exists($work)) { foreach ($d in [IO.Directory]::EnumerateDirectories($work)) { & $add $d 1 'work' 0 } }
+  $seed = P $Root @('seed')
+  if ([IO.Directory]::Exists($seed)) {
+    foreach ($r in [IO.Directory]::EnumerateDirectories($seed)) { foreach ($d in [IO.Directory]::EnumerateDirectories($r)) { & $add $d 1 'seed' 0 } }
+  }
+  $cache = P $Root @('cache')
+  if ([IO.Directory]::Exists($cache)) {
+    foreach ($d in [IO.Directory]::EnumerateDirectories($cache)) {
+      & $add $d 2 'cache' 0
+      foreach ($l in [IO.Directory]::EnumerateFiles($d, 'target-*.lock')) {
+        $k = [IO.Path]::GetFileNameWithoutExtension($l).Substring(7)
+        if ($k -notmatch '^\d+$') { continue }
+        $m = try { [long]([DateTimeOffset][IO.File]::GetLastWriteTimeUtc($l)).ToUnixTimeSeconds() } catch { $Now }
+        $list.Add([pscustomobject]@{ M = $m; Rank = 0; Kind = 'slot'; Path = $d; K = [int]$k })
+      }
+    }
+  }
+  $freed = [long]0; $count = 0
+  $slotLog = @{}
+  foreach ($e in @($list | Sort-Object M, Rank)) {
+    if ($freed -ge $need) { break }
+    if ($script:GcGone.Contains($e.Path)) { continue }
+    if ($e.Kind -eq 'slot') { Evict-Slot $e.Path $e.K $Now $Mode $Repo }
+    else { Gc-Entry $e.Kind $e.Path 0 $Now $Mode $Repo 'evict' }
+    if ($script:GcAction -eq 'evict') {
+      $sub = [long]0
+      # A dry run has not removed the slots it listed; do not count them twice.
+      if ($e.Kind -eq 'cache' -and $Mode -ne 'apply' -and $slotLog.ContainsKey($e.Path)) { $sub = $slotLog[$e.Path] }
+      if ($e.Kind -eq 'slot') { $slotLog[$e.Path] = [long]($slotLog[$e.Path]) + $script:GcBytes }
+      $freed += $script:GcBytes - $sub
+      $count++
+    }
+  }
+  $script:GcFreed = $before + $freed
+  if ($Mode -eq 'apply' -and $count -gt 0 -and $Log -eq 'log') {
+    $line = 'goway: disk budget: evicted {0} entries, freed {1} (goway used {2} of {3}, {4} free)' -f $count, (Human-Bytes $freed), (Human-Bytes $used), (Human-Bytes $max), (Human-Bytes $free)
+    try { [IO.File]::AppendAllText((P $Root @('evicted.log')), $line + "`n", $script:Utf8) } catch { }
+  }
+}
+
+# gc ROOT NOW CACHE_TTL ORPHAN_TTL KEPT_TTL MODE REPO OLDER_THAN [MAX_DISK MIN_FREE [log]]
 function Verb-gc([string[]]$A) {
   $root = Get-Root $A[0]; $now = [long]$A[1]
   $cacheTtl = [long]$A[2]; $orphanTtl = [long]$A[3]; $keptTtl = [long]$A[4]
@@ -1228,6 +1372,11 @@ function Verb-gc([string[]]$A) {
     foreach ($r in @([IO.Directory]::EnumerateDirectories($seed))) {
       if (-not (@([IO.Directory]::EnumerateFileSystemEntries($r)).Count)) { try { [IO.Directory]::Delete($r) } catch { } }
     }
+  }
+  $minFree = if ($A.Length -gt 9) { $A[9] } else { '' }
+  if ($minFree -match '^\d+$') {
+    $maxDisk = if ($A.Length -gt 8 -and $A[8] -match '^\d+$') { [long]$A[8] } else { 0 }
+    Evict-Budget $root $now $mode $repo $maxDisk ([long]$minFree) $(if ($A.Length -gt 10) { $A[10] } else { '' })
   }
 }
 
@@ -1953,7 +2102,10 @@ function Test-GcDue([string]$Root, [string]$Ttls) {
 function Start-AutoGc([string]$RootArg, [string]$Ttls) {
   $t = $Ttls.Split(':')
   if ($t.Length -lt 3 -or -not $script:SelfPath) { return }
-  $source = ps-call-source @($script:SelfPath, 'auto-gc', $RootArg, [string](Unix-Secs), $t[0], $t[1], $t[2], 'apply', '', '')
+  # TTLS is "cache:orphan:kept[:max_disk:min_free:cache_size]"; with the budget fields the
+  # detached gc also evicts to the disk budget and leaves a note for the next run.
+  $budget = if ($t.Length -ge 5) { @($t[3], $t[4], 'log') } else { @() }
+  $source = ps-call-source (@($script:SelfPath, 'auto-gc', $RootArg, [string](Unix-Secs), $t[0], $t[1], $t[2], 'apply', '', '') + $budget)
   $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($source))
   $exe = (Get-Process -Id $PID).Path
   $scratch = [IO.Path]::GetTempPath()
@@ -2038,6 +2190,13 @@ function Verb-run([string[]]$A) {
   if (-not [IO.Directory]::Exists((P $work @('tree')))) { Die "run: no work dir at $work (was it synced?)" }
 
   Mark-Root $root
+  # What the last automatic disk-budget eviction freed (it ran detached).
+  $evictedLog = P $root @('evicted.log')
+  if ([IO.File]::Exists($evictedLog)) {
+    $note = Read-TextOrEmpty $evictedLog
+    if ($note) { Write-Err $note }
+    try { [IO.File]::Delete($evictedLog) } catch { }
+  }
   New-Dir $cache
   [void](Test-ParentAlive)
   Lock-Dir 'work' $work $true
@@ -2092,6 +2251,8 @@ function Verb-run([string[]]$A) {
   }
   if (-not [IO.File]::Exists($meta)) { [IO.File]::WriteAllBytes($meta, [Convert]::FromBase64String($cacheMeta)) }
   [IO.File]::SetLastWriteTimeUtc($meta, [DateTime]::UtcNow)
+  # The slot's last use, for least-recently-used eviction (Evict-Slot).
+  try { [IO.File]::SetLastWriteTimeUtc((P $cache @("target-$slot.lock")), [DateTime]::UtcNow) } catch { }
   if ($aff) { Write-Text $aff ([string]$slot) }
   # Builds bake absolute source paths into binaries, so a slot's binaries
   # always run against a tree at the same path: tree-<slot>.
@@ -2120,6 +2281,15 @@ function Verb-run([string[]]$A) {
     if (-not $env:SCCACHE_DIR) { [Environment]::SetEnvironmentVariable('SCCACHE_DIR', (P $cache @('sccache'))) }
     if (-not $env:SCCACHE_IDLE_TIMEOUT) { [Environment]::SetEnvironmentVariable('SCCACHE_IDLE_TIMEOUT', '300') }
   }
+  # Compiler caches stay under a size cap unless the user chose one (MB suffix, as remote.sh).
+  $csize = [long]0
+  $tf = $ttls.Split(':')
+  if ($tf.Length -ge 6 -and $tf[5] -match '^\d+$') { $csize = [long]$tf[5] }
+  if ($csize -gt 0) {
+    $mb = [string][long][math]::Floor($csize / 1048576) + 'M'
+    if (-not $env:SCCACHE_CACHE_SIZE) { [Environment]::SetEnvironmentVariable('SCCACHE_CACHE_SIZE', $mb) }
+    if (-not $env:CCACHE_MAXSIZE) { [Environment]::SetEnvironmentVariable('CCACHE_MAXSIZE', $mb) }
+  }
   [Environment]::SetEnvironmentVariable('GOWAY', '1')
   [Environment]::SetEnvironmentVariable('GOWAY_RUN_ID', $runId)
   [Environment]::SetEnvironmentVariable('GOWAY_HOST', [Environment]::MachineName)
@@ -2145,7 +2315,8 @@ function Verb-run([string[]]$A) {
   Unlock-Key 'work'
   if ($keep -ne '1') { try { Remove-Tree $work } catch { } }
   # Cheap automatic gc of expired entries, detached.
-  if ($ttls -and (Test-GcDue $rootArg $ttls)) { Start-AutoGc $rootArg $ttls }
+  # With a disk budget it always starts (usage is checked there, not here).
+  if ($ttls -and (($ttls.Split(':').Length -ge 5) -or (Test-GcDue $rootArg $ttls))) { Start-AutoGc $rootArg $ttls }
   exit $rc
 }
 

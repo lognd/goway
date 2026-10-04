@@ -246,6 +246,23 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         poll: pool::DEFAULT_POLL,
         note: &|line| renderer.note(line),
     };
+    crate::drift::ask_where_stale(
+        &mut state,
+        &config
+            .hosts
+            .iter()
+            .map(|h| h.name.clone())
+            .collect::<Vec<_>>(),
+        &repo.id,
+        crate::state::now_secs(),
+        || match crate::doctor::project_needs() {
+            Ok(needs) => needs.probe_names(),
+            Err(e) => {
+                tracing::debug!(error = %e, "cannot read the project needs; no versions asked");
+                Vec::new()
+            }
+        },
+    );
     let (host, found, probe, claim) = pool::choose_queued(
         &config,
         &selection,
@@ -256,6 +273,12 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         args.host.as_deref(),
         &wait,
     )?;
+    crate::drift::record_probed(
+        &mut state,
+        &host.name,
+        crate::state::now_secs(),
+        &probe.facts.tools,
+    );
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host address");
     }
@@ -287,7 +310,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
 
     let remote_root = config.defaults.remote_root.as_str();
     let now = crate::state::now_secs();
-    // From goway doctor's cache; never probed, so a run never waits for it.
+    // From the cache (goway doctor, or this run's own probe when it was stale); never probed separately.
     let versions = crate::drift::for_run(&state, &host.name, &repo.id, now);
     if let Some(note) = &versions.note {
         renderer.note(note);

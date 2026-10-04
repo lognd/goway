@@ -872,8 +872,13 @@ from the others for a tool the project uses, goway prints one note
 12) ...`, with how long ago doctor saw them). `--report` records those
 versions under `tool_versions` (with `source` and the time they were
 captured), so frob evidence says what built and tested the run. The cache is
-per repository: run `goway doctor` in the project to refresh it, and a run in
-another project does not use it.
+per repository, and a run in another project does not use it. Nothing needs
+`goway doctor` first: when a host's cache for the repository is missing or
+over a day old, the probe the run already makes also asks that host for the
+versions of the project's tools (the probe word `tools:cc,make,...`, a
+bounded `--version` each), and the run stores what the chosen host reports.
+A fresh cache adds nothing to the probe. A helper whose scripts predate this
+reports nothing and keeps its old cache.
 
 Hardening, such as turning off ssh password login, is not needed to run
 anything. It is listed separately as optional and is applied only with

@@ -444,11 +444,14 @@ pub fn choose_many(
 
 /// The remote command line that probes a Unix host (also this machine).
 pub fn probe_command(config: &Config, disk: bool, statics: bool) -> String {
-    probe_call(config, disk, statics).bash()
+    probe_call(config, disk, statics, &[]).bash()
 }
 
 /// The call that probes a host, whatever it speaks.
-pub fn probe_call(config: &Config, disk: bool, statics: bool) -> Call {
+///
+/// A non-empty `tools` adds the word `tools:A,B`: the host also reports the
+/// versions of those tools (names with other characters are left out).
+pub fn probe_call(config: &Config, disk: bool, statics: bool, tools: &[String]) -> Call {
     let root = config.defaults.remote_root.as_str();
     let mut args = vec![root];
     let budget;
@@ -463,6 +466,20 @@ pub fn probe_call(config: &Config, disk: bool, statics: bool) -> Call {
     }
     if !config.defaults.owner_idle.is_zero() {
         args.push("owner");
+    }
+    let wanted = tools
+        .iter()
+        .filter(|t| {
+            !t.is_empty()
+                && t.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "._+-".contains(c))
+        })
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join(",");
+    let wanted = format!("tools:{wanted}");
+    if wanted.len() > "tools:".len() {
+        args.push(&wanted);
     }
     Call::new("probe", &args)
 }
@@ -479,16 +496,22 @@ pub fn probe_one(
     let key = host.name.to_ascii_lowercase();
     let now = crate::state::now_secs();
     let statics = state.refresh_facts || facts::stale(state.facts.get(&key), now);
-    let found = resolve::resolve_call(
-        config,
-        host,
-        state,
-        lookup,
-        prober,
-        KeyPolicy::Strict,
-        &probe_call(config, disk, statics),
-    )?;
-    let probe = complete_probe(&host.name, &found.output, state, now)?;
+    let call = probe_call(config, disk, statics, state.tools_to_probe(&host.name, now));
+    let (found, sent, rtt) = crate::facts::clock::timed(|| {
+        resolve::resolve_call(
+            config,
+            host,
+            state,
+            lookup,
+            prober,
+            KeyPolicy::Strict,
+            &call,
+        )
+    });
+    let found = found?;
+    let mut probe = complete_probe(&host.name, &found.output, state, now)?;
+    // frob:ticket 01M42TD5V6H043JYBGK591BBA2
+    probe.facts.clock_offset_ms = crate::facts::clock::measure(&found.output, sent, rtt);
     Ok((found, probe))
 }
 
@@ -1162,13 +1185,13 @@ mod tests {
     fn the_probe_asks_for_the_owner_state_unless_it_is_switched_off() {
         let mut config = Config::default();
         assert!(
-            probe_call(&config, false, false)
+            probe_call(&config, false, false, &[])
                 .args
                 .contains(&"owner".to_owned())
         );
         config.defaults.owner_idle = std::time::Duration::ZERO;
         assert!(
-            !probe_call(&config, false, false)
+            !probe_call(&config, false, false, &[])
                 .args
                 .contains(&"owner".to_owned())
         );
@@ -1505,6 +1528,43 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    /// A host whose clock runs `ahead` seconds fast (and `None`: it reports no epoch).
+    struct Clocked(Option<i64>);
+    impl Prober for Clocked {
+        fn probe(&self, _: &Target, _: KeyPolicy, _: &str) -> resolve::ProbeResult {
+            let epoch = self.0.map_or_else(String::new, |a| {
+                let now = i64::try_from(crate::state::now_secs()).unwrap();
+                format!("epoch={}\n", now + a)
+            });
+            Ok(format!(
+                "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\njobs=0\n{epoch}"
+            ))
+        }
+    }
+
+    // frob:tests crates/goway/src/pool.rs::probe_one
+    #[test]
+    fn probe_one_measures_the_helper_clock_offset() {
+        let mut h = host("h", None);
+        h.address = Some("10.0.0.9".to_owned());
+        let mut config = Config::default();
+        config.hosts.push(h.clone());
+        let offset = |ahead| {
+            let mut state = State::default();
+            probe_one(&config, &h, &mut state, &NoLookup, &Clocked(ahead), false)
+                .unwrap()
+                .1
+                .facts
+                .clock_offset_ms
+        };
+        let ms = offset(Some(3600)).unwrap();
+        assert!((3_595_000..=3_605_000).contains(&ms), "{ms}");
+        let ms = offset(Some(-90)).unwrap();
+        assert!((-95_000..=-85_000).contains(&ms), "{ms}");
+        assert!(offset(Some(0)).unwrap().abs() < 2_000);
+        assert_eq!(offset(None), None);
     }
 
     /// Answers every address like a different machine: only `10.0.0.2` has a GPU.

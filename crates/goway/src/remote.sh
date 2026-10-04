@@ -1502,15 +1502,16 @@ idle_secs() {
   return 0
 }
 
-# probe ROOT [disk] [budget:MAX:MIN_FREE] [static] [owner]: key=value facts for scheduling and status.
+# probe ROOT [disk] [budget:MAX:MIN_FREE] [static] [owner] [tools:A,B]: key=value facts for scheduling and status.
+# "tools:A,B" adds want.TOOL=<version line> for each tool (a run refreshing its version cache).
 # RAM is always reported; "static" adds the rarely changing hardware facts;
 # "owner" adds power= and idle_secs= when they can be read (absent: unknown).
 probe() {
-  local root jobs=0 l a want_disk=0 want_static=0 want_owner=0 budget="" room=1073741824:10
+  local root jobs=0 l a want_disk=0 want_static=0 want_owner=0 budget="" tools="" room=1073741824:10
   root=$(root_dir "$1")
   shift
   for a in "$@"; do
-    case "$a" in room:[0-9]*:[0-9]*) room=${a#room:} ;; disk) want_disk=1 ;; static) want_static=1 ;; owner) want_owner=1 ;; budget:[0-9]*:[0-9]*) budget=${a#budget:} ;; esac
+    case "$a" in room:[0-9]*:[0-9]*) room=${a#room:} ;; disk) want_disk=1 ;; static) want_static=1 ;; owner) want_owner=1 ;; budget:[0-9]*:[0-9]*) budget=${a#budget:} ;; tools:*) tools=${a#tools:} ;; esac
   done
   if [ "$IS_DARWIN" = 1 ]; then
     mem_darwin
@@ -1520,6 +1521,8 @@ probe() {
   if [ "$want_static" = 1 ]; then static_facts; fi
   printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(machine)" "$(uname -n)" "$(cores)"
   printf 'os=%s\n' "$(uname -s | tr '[:upper:]' '[:lower:]')"
+  # The host's wall clock in whole seconds; goway computes the clock offset from it.
+  printf 'epoch=%s\n' "$(date +%s)"
   if [ "$IS_DARWIN" = 1 ]; then
     # "{ 1.23 1.45 1.67 }"
     read -r _ l1 l5 l15 _ < <(sysctl -n vm.loadavg)
@@ -1536,6 +1539,10 @@ probe() {
   printf 'jobs=%s\n' "$jobs"
   if [ "$want_owner" = 1 ]; then power_state; idle_secs; fi
   probe_footprints "$root" "$room" "$want_disk"
+  if [ -n "$tools" ]; then
+    # shellcheck disable=SC2086 # the comma-separated names are split on purpose
+    (IFS=,; want_facts $tools)
+  fi
   if [ "$want_disk" = 1 ]; then
     printf 'disk_used=%s\n' "$(du -sb "$root" 2>/dev/null | cut -f1 || true)"
     printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
@@ -1970,6 +1977,19 @@ fs_facts() {
   printf '%s_fs=%s\n%s_free=%s\n%s_size=%s\n%s_noexec=%s\n' "$1" "${type:-unknown}" "$1" "${free:-}" "$1" "${size:-}" "$1" "$noexec"
 }
 
+# want_facts TOOL...: want.TOOL=<version line> for each safe tool name, empty when missing.
+want_facts() {
+  local t
+  for t in "$@"; do
+    case "$t" in '' | *[!A-Za-z0-9._+-]*) continue ;; esac
+    if command -v "$t" >/dev/null 2>&1; then
+      printf 'want.%s=%s\n' "$t" "$(want_version "$t")"
+    else
+      printf 'want.%s=\n' "$t"
+    fi
+  done
+}
+
 doctor() {
   local t v pa out root
   root=$(root_dir "$1")
@@ -1979,6 +1999,7 @@ doctor() {
   # Names only: a proxy URL may carry credentials, so values never leave the host.
   printf 'proxy_vars=%s\n' "$({ env | sed -n 's/=.*//p' | grep -iE '^(https?|all|no)_proxy$' | sort -u | paste -sd, - ; } 2>/dev/null || true)"
   printf 'kernel=%s\n' "$(uname -s)"
+  printf 'epoch=%s\n' "$(date +%s)"
   if [ "$IS_DARWIN" = 1 ]; then
     # Which tools still resolve to the BSD versions (no --version, or not GNU).
     v=""
@@ -2000,14 +2021,7 @@ doctor() {
       printf 'tool.%s=\n' "$t"
     fi
   done
-  for t in "$@"; do
-    case "$t" in '' | *[!A-Za-z0-9._+-]*) continue ;; esac
-    if command -v "$t" >/dev/null 2>&1; then
-      printf 'want.%s=%s\n' "$t" "$(want_version "$t")"
-    else
-      printf 'want.%s=\n' "$t"
-    fi
-  done
+  want_facts "$@"
   if [ "$IS_DARWIN" != 1 ]; then
     printf 'os=%s\n' "$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}")"
   fi

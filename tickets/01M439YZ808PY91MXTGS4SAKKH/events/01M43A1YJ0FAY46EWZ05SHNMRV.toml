@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T11:16:15Z"
+digest = "99276ca4f61c397c07ed0cf0e7ce2ca6ce780276f68a5416a57639469ece456d"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 29.58s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 311e10f7-41a1-4175-83fc-5ac183d0455a with nextest profile: default
+    Starting 2 tests across 64 binaries (754 tests skipped)
+        PASS [   0.013s] goway shard::tests::the_os_a_host_reported_beats_the_configured_one
+        PASS [   3.076s] goway::cross_os each_os_runs_once_per_reachable_os_with_prefixes_and_a_summary
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   3.079s] 2 tests run: 2 passed, 754 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/the_os_a_host_reported_beats_the_configured_one|each_os_runs_once_per_reachable_os/)'"
+size = 852
+status = "measured"
+tests = ["shard::tests::the_os_a_host_reported_beats_the_configured_one", "each_os_runs_once_per_reachable_os_with_prefixes_and_a_summary"]
+at = "2026-10-04T11:16:15Z"
+actor = "lognd"
+rev = 1

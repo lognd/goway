@@ -1,0 +1,7 @@
+kind = "transition"
+from = "in-progress"
+to = "todo"
+reason = "lease expired during a long verification"
+at = "2026-10-04T11:32:28Z"
+actor = "lognd"
+rev = 1
