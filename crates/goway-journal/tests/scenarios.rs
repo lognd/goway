@@ -454,6 +454,8 @@ fn registry_key_is_removed_only_when_goway_created_it_and_it_is_empty() {
 
 // frob:tests crates/goway-journal/src/plan.rs::plan_apply
 // frob:tests crates/goway-journal/src/plan.rs::plan_revert
+// frob:tests crates/goway-journal/src/system.rs::System.resource_outdated
+// frob:tests crates/goway-journal/src/system.rs::System.resource_restore
 #[test]
 fn an_outdated_resource_is_replaced_with_its_old_state_journaled_and_undo_restores_it() {
     let key = (ResourceKind::ScheduledTask, "T".to_owned());
