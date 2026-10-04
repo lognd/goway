@@ -33,6 +33,10 @@ done
 if [ "$accept" = yes ] && [ -n "$kh" ] && ! grep -q "^$alias " "$kh" 2>/dev/null; then
   echo "$alias ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >>"$kh"
 fi
+if [ "$batch" = no ] && [ -f "$HOME/../no-password" ]; then
+  echo "tester@127.0.0.1: Permission denied (publickey,password)." >&2
+  exit 255
+fi
 if [ "$batch" = no ]; then : >"$HOME/../password-login-happened"; fi
 if [ "$batch" = yes ]; then
   if [ -z "$idf" ] || [ ! -f "$idf.pub" ] || ! grep -qF "$(cut -d' ' -f2 "$idf.pub")" "$HOME/.ssh/authorized_keys" 2>/dev/null; then
@@ -360,4 +364,176 @@ fn uninstall_everywhere_removes_goway_from_helper_and_laptop() {
         left.is_empty(),
         "goway files left in its config dir: {left:?}"
     );
+}
+
+/// The commands goway printed for the user to run on the helper, one per line.
+fn printed_commands(text: &str) -> String {
+    text.lines()
+        .map(|l| l.trim_end_matches('\r'))
+        .filter(|l| {
+            l.starts_with("mkdir -p ~/.ssh")
+                || l.starts_with("echo 'no-agent-forwarding")
+                || l.starts_with("chmod 600 ~/.ssh")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Run the printed commands as the helper's user (the fake helper shares this machine).
+fn run_on_helper(s: &Setup, commands: &str) {
+    let ok = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(commands)
+        .env("HOME", &s.home)
+        .status()
+        .unwrap();
+    assert!(ok.success(), "{commands}");
+}
+
+// frob:tests crates/goway/src/sshsetup.rs::HandInstall
+#[test]
+fn a_helper_that_refuses_passwords_gets_the_key_by_hand_without_a_terminal() {
+    let s = setup_world();
+    std::fs::write(s.w.root.join("no-password"), "").unwrap();
+    let fp = fake_fingerprint();
+    let args = [
+        "ssh",
+        "setup",
+        "newbox",
+        "--address",
+        "127.0.0.1",
+        "--fingerprint",
+        &fp,
+    ];
+    let out = s.run(&args);
+    let (stdout, stderr) = (
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    );
+    assert_eq!(out.status.code(), Some(125), "{stderr}");
+    for cause in [
+        "passwd -S",
+        "faillock --user",
+        "fail2ban-client",
+        "AllowUsers",
+    ] {
+        assert!(stderr.contains(cause), "{cause} in {stderr}");
+    }
+    assert!(stderr.contains("rerun"), "{stderr}");
+    let commands = printed_commands(&stdout);
+    assert!(
+        commands.starts_with("mkdir -p ~/.ssh && chmod 700 ~/.ssh\necho 'no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 "),
+        "{stdout}"
+    );
+    // Only the public half is ever printed.
+    let public = std::fs::read_to_string(s.w.config.join("id_ed25519.pub")).unwrap();
+    let blob = public.split_whitespace().nth(1).unwrap();
+    assert!(commands.contains(blob), "{commands}");
+    assert!(!stdout.contains("PRIVATE KEY") && !stderr.contains("PRIVATE KEY"));
+    assert!(
+        !s.home.join(".ssh/authorized_keys").exists(),
+        "nothing was installed"
+    );
+    assert!(
+        !std::fs::read_to_string(s.w.config.join("config.toml"))
+            .unwrap()
+            .contains("newbox"),
+        "the host is not added before its key works"
+    );
+
+    // The user runs the commands on the helper and reruns the same command.
+    run_on_helper(&s, &commands);
+    let again = s.run(&args);
+    let stderr = String::from_utf8_lossy(&again.stderr).into_owned();
+    assert!(again.status.success(), "{stderr}");
+    assert!(stderr.contains("key login to newbox works"), "{stderr}");
+    let config = std::fs::read_to_string(s.w.config.join("config.toml")).unwrap();
+    assert!(config.contains("name = \"newbox\""), "{config}");
+}
+
+// frob:tests crates/goway/src/sshsetup.rs::HandInstall
+#[test]
+fn no_password_never_tries_a_password_login() {
+    let s = setup_world();
+    let fp = fake_fingerprint();
+    let out = s.run(&[
+        "ssh",
+        "setup",
+        "newbox",
+        "--address",
+        "127.0.0.1",
+        "--fingerprint",
+        &fp,
+        "--no-password",
+    ]);
+    assert_eq!(out.status.code(), Some(125));
+    assert!(
+        printed_commands(&String::from_utf8_lossy(&out.stdout)).contains("authorized_keys"),
+        "{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    assert!(
+        !s.w.root.join("password-login-happened").exists(),
+        "no password login was attempted"
+    );
+}
+
+// frob:tests crates/goway/src/sshsetup.rs::HandInstall
+#[test]
+fn on_a_terminal_goway_waits_for_enter_then_carries_on() {
+    use std::io::{Read as _, Write as _};
+    use std::process::Stdio;
+    use std::sync::{Arc, Mutex};
+    if !std::path::Path::new("/usr/bin/script").exists() {
+        return; // no pty helper on this machine
+    }
+    let s = setup_world();
+    std::fs::write(s.w.root.join("no-password"), "").unwrap();
+    let fp = fake_fingerprint();
+    let line = format!(
+        "{} ssh setup newbox --address 127.0.0.1 --fingerprint {fp}",
+        env!("CARGO_BIN_EXE_goway")
+    );
+    let probe = s.w.goway(&["--version"]);
+    let mut cmd = std::process::Command::new("script");
+    cmd.args(["-qec", &line, "/dev/null"]);
+    for (k, v) in probe.get_envs() {
+        match v {
+            Some(v) => cmd.env(k, v),
+            None => cmd.env_remove(k),
+        };
+    }
+    cmd.env("HOME", &s.home).env_remove("SSH_AUTH_SOCK");
+    let mut child = cmd
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut stdout = child.stdout.take().unwrap();
+    let seen = Arc::new(Mutex::new(String::new()));
+    let sink = Arc::clone(&seen);
+    std::thread::spawn(move || {
+        let mut chunk = [0u8; 4096];
+        while let Ok(n) = stdout.read(&mut chunk) {
+            if n == 0 {
+                break;
+            }
+            sink.lock()
+                .unwrap()
+                .push_str(&String::from_utf8_lossy(&chunk[..n]));
+        }
+    });
+    common::wait_for("the Enter prompt", || {
+        seen.lock()
+            .unwrap()
+            .contains("press Enter once you have done this")
+    });
+    let text = seen.lock().unwrap().clone();
+    run_on_helper(&s, &printed_commands(&text));
+    child.stdin.as_mut().unwrap().write_all(b"\n").unwrap();
+    let status = child.wait().unwrap();
+    let text = seen.lock().unwrap().clone();
+    assert!(status.success(), "{text}");
+    assert!(text.contains("key login to newbox works"), "{text}");
 }

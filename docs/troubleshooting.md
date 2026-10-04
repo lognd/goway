@@ -47,6 +47,54 @@ helper you can also see it in its WSL terminal with
 `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
 </details>
 
+<details><summary>goway add says Permission denied</summary>
+
+`goway add` logs in once with a password to install its key. ssh asks
+for that password itself (goway never sees, stores or sends a password
+other than through ssh's own prompt). "Permission denied
+(publickey,password)" after the prompts means the helper refused the
+login. Check the causes on the helper, in this order (`USER` is the
+Linux account you pass with `--user`):
+
+1. **No password is set for the account.** Common with automatic login
+   on a native Linux install. `passwd -S USER` shows `NP`. sshd never
+   accepts an empty password, however it is typed. Either set one
+   (`sudo passwd USER`) or add goway's key by hand (below).
+2. **A mistyped password.** Try again, or use the by-hand path.
+3. **Password login is switched off** (or a second factor is
+   required): `sudo sshd -T | grep -i passwordauthentication` says `no`.
+   Use the by-hand path.
+4. **The wrong user.** Pass the helper's own Linux account:
+   `goway add NAME --user USER`.
+5. **A lockout or a ban after failed attempts:** `faillock --user USER`
+   (clear it with `faillock --user USER --reset`) and
+   `sudo fail2ban-client status sshd` (unban with
+   `sudo fail2ban-client set sshd unbanip ADDRESS`).
+6. **AllowUsers or AllowGroups** leaves the account out:
+   `sudo sshd -T | grep -iE 'allowusers|allowgroups'`.
+
+**Adding the key by hand.** goway does this itself when the password
+login is refused, or from the start with `goway add NAME --no-password`.
+It prints three commands with goway's public key already filled in
+(only the `.pub` text is ever printed, never a private key). Run them in
+a terminal on the helper:
+
+```bash
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo 'no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 AAAA... goway@laptop goway:1' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+The line carries the same restrictions as the one the password path
+installs. In a terminal goway then says "press Enter once you have done
+this on the helper", checks key login with the pinned host key and goes
+on with the normal setup. Without a terminal it stops with exit code 125
+after printing the commands; run them on the helper and repeat the same
+`goway add` command. `goway ssh setup NAME --undo` cannot remove a line
+you added by hand: delete the line tagged `goway:` from
+`~/.ssh/authorized_keys` yourself.
+</details>
+
 <details><summary>"... is not in one" (not a git project)</summary>
 
 goway runs a command from inside a project folder that git tracks. Use

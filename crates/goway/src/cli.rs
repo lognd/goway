@@ -226,6 +226,9 @@ pub struct AddArgs {
     /// Do not ask before the --rsudo / --lsudo changes.
     #[arg(long, short = 'y')]
     pub yes: bool,
+    /// Do not try a password: print goway's key and the commands to add it by hand on the helper.
+    #[arg(long)]
+    pub no_password: bool,
 }
 
 /// `goway host` verbs.
@@ -302,6 +305,9 @@ pub struct SshSetupArgs {
     /// without it goway asks you to confirm the key before any password.
     #[arg(long, value_name = "SHA256:...", conflicts_with = "undo")]
     pub fingerprint: Option<String>,
+    /// Do not try a password: print goway's key and the commands to add it by hand on the host.
+    #[arg(long, conflicts_with = "undo")]
+    pub no_password: bool,
 }
 
 /// `goway config` verbs.

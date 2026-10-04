@@ -399,18 +399,59 @@ pub fn setup(
         (key, Some(private.to_string_lossy().into_owned()))
     };
 
-    // 2. One password login: check the machine, then authorize the key.
-    renderer.note(format_args!(
-        "logging in to {name} with a password once (ssh will ask) to authorize the key"
-    ));
+    // 2. One password login (or the key added by hand): check the machine,
+    // then authorize the key.
+    let facts_script = "uname -s; uname -n; printf '%s\\n' \"$HOME\"; cat ~/.ssh/authorized_keys 2>/dev/null || true";
+    let key_target = Target {
+        identity: identity.as_ref().map(PathBuf::from),
+        ..target.clone()
+    };
+    let by_hand = HandInstall {
+        renderer,
+        name,
+        public_key: &public_key,
+        target: &key_target,
+        settings: &settings,
+    };
     let mut remote_sys = RemoteSystem {
         target: target.clone(),
         settings: settings.clone(),
-        password: true,
+        password: !args.no_password,
     };
-    let facts = remote_sys
-        .output("uname -s; uname -n; printf '%s\\n' \"$HOME\"; cat ~/.ssh/authorized_keys 2>/dev/null || true")
-        .map_err(|e| sys_err(name, e))?;
+    if args.no_password {
+        renderer.note(format_args!(
+            "--no-password: not asking for a password; the key is added by hand"
+        ));
+        by_hand.run()?;
+        remote_sys.target = key_target.clone();
+    } else {
+        renderer.note(format_args!(
+            "logging in to {name} with a password once (ssh will ask) to authorize the key"
+        ));
+    }
+    let first = remote_sys.output(facts_script);
+    let facts = match first {
+        Err(e)
+            if remote_sys.password
+                && ssh::classify_failure(&e.to_string()) == Failure::AuthRefused =>
+        {
+            tracing::warn!(host = name, error = %e, "password login refused; key to be added by hand");
+            renderer.warn(format_args!(
+                "the password login to {name} was refused: {e}"
+            ));
+            renderer.next(format_args!(
+                "{}",
+                crate::error::permission_denied_hint(target.user.as_deref().unwrap_or("USER"))
+            ));
+            by_hand.run()?;
+            remote_sys.password = false;
+            remote_sys.target = key_target.clone();
+            remote_sys
+                .output(facts_script)
+                .map_err(|e| sys_err(name, e))?
+        }
+        other => other.map_err(|e| sys_err(name, e))?,
+    };
     let mut lines = facts.lines();
     let (os, hostname, home) = (
         lines.next().unwrap_or_default(),
@@ -505,6 +546,88 @@ pub fn setup(
             "the key is authorized but key login still fails; check `goway doctor {name}` (undo with --undo)"
         ));
         Ok(1)
+    }
+}
+
+/// Installing goway's key on the helper by hand, for a helper whose password login is refused or
+/// unusable (no password set, password login off, a second factor).
+struct HandInstall<'a> {
+    renderer: Renderer,
+    name: &'a str,
+    public_key: &'a str,
+    /// The target with goway's own key as identity, so a key-only login offers it.
+    target: &'a Target,
+    settings: &'a ssh::Settings,
+}
+
+/// How many times the user may press Enter before goway gives up waiting for the key.
+const HAND_ATTEMPTS: u32 = 3;
+
+impl HandInstall<'_> {
+    /// The commands to run on the helper: the key line is the same restricted one the password
+    /// path installs, from the `.pub` text only.
+    fn commands(&self) -> [String; 3] {
+        let line = format!("{KEY_OPTIONS} {} goway:{}", self.public_key, local_marker());
+        [
+            "mkdir -p ~/.ssh && chmod 700 ~/.ssh".to_owned(),
+            format!("echo {} >> ~/.ssh/authorized_keys", ssh::shell_quote(&line)),
+            "chmod 600 ~/.ssh/authorized_keys".to_owned(),
+        ]
+    }
+
+    /// Whether key-only login with the pinned host key works now (a fresh connection).
+    fn key_works(&self) -> bool {
+        SshProber {
+            settings: ssh::Settings {
+                control_dir: None,
+                ..self.settings.clone()
+            },
+        }
+        .probe(self.target, KeyPolicy::Strict, "true")
+        .is_ok()
+    }
+
+    /// Print the commands and wait until key login works: with a terminal the user presses
+    /// Enter after running them; without one goway stops with the next step.
+    fn run(&self) -> Result<()> {
+        let name = self.name;
+        if self.key_works() {
+            self.renderer
+                .ok(format_args!("goway's key already works on {name}"));
+            return Ok(());
+        }
+        self.renderer.headline(format_args!(
+            "add goway's key on {name} yourself; on {name}, in a terminal, run:"
+        ));
+        for command in self.commands() {
+            self.renderer.line(&command);
+        }
+        for attempt in 1..=HAND_ATTEMPTS {
+            let Some(_) = crate::render::ask(
+                "press Enter once you have done this on the helper (or Ctrl-C to stop): ",
+            ) else {
+                self.renderer.next(format_args!(
+                    "run the commands above on {name}, then rerun the same `goway add {name}` command"
+                ));
+                return Err(setup_err(
+                    name,
+                    "goway's key is not installed there yet, and there is no terminal to wait on",
+                ));
+            };
+            if self.key_works() {
+                self.renderer
+                    .ok(format_args!("key login to {name} works now"));
+                tracing::info!(host = name, attempt, "key added by hand works");
+                return Ok(());
+            }
+            self.renderer.warn(format_args!(
+                "key login to {name} still fails; check the three commands ran as the right user"
+            ));
+        }
+        Err(setup_err(
+            name,
+            "key login still fails after the key was added by hand; check `~/.ssh` is 700 and `authorized_keys` is 600 and owned by that user",
+        ))
     }
 }
 
