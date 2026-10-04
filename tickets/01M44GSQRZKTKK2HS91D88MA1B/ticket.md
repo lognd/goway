@@ -2,12 +2,12 @@
 id = "01M44GSQRZKTKK2HS91D88MA1B"
 title = "The WSL keepalive task starts only at boot, so a WSL shutdown leaves the helper offline until reboot"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T22:33:20Z"
-updated = "2026-10-04T22:33:20Z"
+updated = "2026-10-04T22:33:56Z"
 scope = ["crates/goway-setup/src/ps.rs", "crates/goway-setup/tests/host_plan.rs"]
 
 [[acceptance]]
