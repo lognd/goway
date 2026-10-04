@@ -1,0 +1,8 @@
+kind = "transition"
+from = "todo"
+to = "done"
+outcome = "wont-fix"
+reason = "already fixed by e3ced3d (framed protocol); remote::tests::invocation_runs_locally_through_a_shell passes on macOS CI run 37178481402"
+at = "2026-10-04T05:22:44Z"
+actor = "lognd"
+rev = 1
