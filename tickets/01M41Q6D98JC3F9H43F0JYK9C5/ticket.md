@@ -8,7 +8,7 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-04T00:33:50Z"
+updated = "2026-10-04T00:33:52Z"
 scope = ["crates/goway/src/sync.rs", "crates/goway/src/interop.rs", "docs/design.md", "crates/goway/src/gc.rs", "crates/goway/src/run.rs", "crates/goway/src/pool.rs", "crates/goway/src/status.rs", "crates/goway/src/transport.rs", "crates/goway/src/remote.ps1", "crates/goway/src/remote.rs", "crates/goway/src/resolve.rs", "crates/goway/src/shard.rs", "crates/goway/src/uninstall.rs", "crates/goway/src/local.rs", "crates/goway/src/cli.rs", "crates/goway/src/lib.rs", "crates/goway/src/ssh.rs", "crates/goway/src/remotesys.rs"]
 
 [[links]]
@@ -29,7 +29,7 @@ bound = true
 
 [[acceptance]]
 text = "Given an NTFS copy, a cargo target dir or a run folder on a Windows host, when it is past its expiry (7 days for caches, 1 day for orphaned run folders, same config as other hosts) or its repository was removed, then the automatic gc on the next run deletes it, and goway gc --older-than/--repo/--all removes it on demand"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given repeated runs on a Windows host, when they reuse a slot, then the slot tree is updated in place like on Linux (persistent slot trees), not copied and deleted per run"

@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-04T00:33:52Z"
+digest = "50b9963220bb12bc6e4eeb374a117b4b1e149ad67d390d9792d112c7b8cca700"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID aed47c4a-a983-442d-b6c4-d220beff8edc with nextest profile: default
+    Starting 2 tests across 43 binaries (516 tests skipped)
+        PASS [   0.509s] goway::remote_ps1 gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones
+        PASS [   0.513s] goway::remote_ps1 every_run_triggers_a_detached_gc_of_expired_entries
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.524s] 2 tests run: 2 passed, 516 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones) | test(every_run_triggers_a_detached_gc_of_expired_entries)'"
+size = 685
+status = "measured"
+tests = ["gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones", "every_run_triggers_a_detached_gc_of_expired_entries"]
+at = "2026-10-04T00:33:52Z"
+actor = "lognd"
+rev = 1
