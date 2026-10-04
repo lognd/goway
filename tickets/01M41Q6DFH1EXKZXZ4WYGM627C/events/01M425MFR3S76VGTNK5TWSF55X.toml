@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T00:39:45Z"
+digest = "ca649ccbce950839c0be0504f15e0444bd4e05a938c7c248b0d9a07c719518e0"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d818e640-2eb9-45c7-a45f-6110714146d5 with nextest profile: default
+    Starting 2 tests across 45 binaries (548 tests skipped)
+        PASS [   0.012s] goway run::tests::the_report_names_host_os_arch_and_the_commands_exit_code
+        PASS [   0.149s] goway::remote_ps1 a_run_passes_output_and_the_exit_code_and_removes_its_work_dir
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.153s] 2 tests run: 2 passed, 548 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_report_names_host_os_arch_and_the_commands_exit_code) | test(a_run_passes_output_and_the_exit_code_and_removes_its_work_dir)'"
+size = 676
+status = "measured"
+tests = ["run::tests::the_report_names_host_os_arch_and_the_commands_exit_code", "a_run_passes_output_and_the_exit_code_and_removes_its_work_dir"]
+at = "2026-10-04T00:39:45Z"
+actor = "lognd"
+rev = 1

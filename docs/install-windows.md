@@ -145,7 +145,7 @@ the relay, placed right after the keepalive task so it is reverted before it:
 |---|---|
 | refresh script | `%ProgramData%\goway\P\relay-refresh.ps1`, a `write file` entry in the host journal, in the administrator-only directory. It reads the IPv4 of the distro (`wsl.exe -d D --exec hostname -I`, first address), accepts only a dotted quad in a private (RFC 1918) range that lies inside the subnet of the WSL virtual adapter (`vEthernet (WSL...)`, read with .NET, not a module) and is not the adapter's own address, reads the relay's current target with `netsh interface portproxy show v4tov4` and runs `netsh interface portproxy set v4tov4 listenaddress=0.0.0.0 listenport=N connectaddress=<ip> connectport=N` only when it differs. `wsl.exe` and `netsh.exe` are started by absolute path under the directory Windows reports as the system directory (never `%SystemRoot%`, which a user-level variable could override), and `PSModulePath` is reset first. Distro and port are literals from the validated settings |
 | relay | `netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=N connectaddress=<WSL IPv4> connectport=N`, journaled as resource `0.0.0.0:N` (created only when absent; uninstall deletes only a rule that still looks like the relay, one listening on `0.0.0.0:N` and forwarding to port `N` on a private address, and leaves any other alone). The Defender rule above (Private and Domain, `LocalSubnet` plus `--allow-from`) decides who can reach port `N` |
-| scheduled task | `WSL Relay` (`P WSL Relay`; `WSL Relay (boot)` with `--keepalive boot`): runs `conhost.exe --headless <System32>\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%ProgramData%\goway\P\relay-refresh.ps1"` at logon of the invoking user (so after the keepalive has started WSL) and then every 5 minutes, for at most 5 minutes per run, one instance. It runs as the invoking user (only that user can see the distro) with the highest privileges (netsh needs administrator rights); `Interactive` logon type for the logon variant and `S4U` for the boot variant, so no password is ever stored |
+| scheduled task | `WSL Relay` (`P WSL Relay`; `WSL Relay (boot)` with `--keepalive boot`): runs `conhost.exe --headless <System32>\cmd.exe /D /S /C "(for ... do set VAR=) & <System32>\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%ProgramData%\goway\P\relay-refresh.ps1""` (the `cmd.exe` stub first deletes the .NET and PowerShell injection variables, see "Known limit of the relay task") at logon of the invoking user (so after the keepalive has started WSL) and then every 5 minutes, for at most 5 minutes per run, one instance. It runs as the invoking user (only that user can see the distro) with the highest privileges (netsh needs administrator rights); `Interactive` logon type for the logon variant and `S4U` for the boot variant, so no password is ever stored |
 
 If another portproxy rule (one goway did not create) already listens on port `N`, a nat install
 refuses before changing anything and prints the `netsh interface portproxy delete` command for that
@@ -276,11 +276,31 @@ in a test profile (`--profile goway-test`), and compare what `uninstall` leaves 
   gateway. Anyone with root in the distro can make `hostname -I` print anything; none of it can steer the
   relay to a public address or another machine. On a mirrored machine (no WSL adapter) a forced
   `--network nat` install is refused and rolled back.
-* **Known limit of the relay task.** It runs elevated as you, in your environment, because only
-  your user can see the distro. The script and every path it uses are administrator-only or
-  absolute, but a process of your own account that can set user-level environment variables
-  (`COR_PROFILER` and friends for the .NET runtime inside PowerShell) is not stopped by that.
-  Treat the helper's Windows account as you treat any administrator account.
+* **Known limit of the relay task, and what is done about it.** The task runs elevated as you, in your
+  environment, because only your user can see the distro. The script and every path it uses are
+  administrator-only or absolute. The one thing a script cannot protect itself from is what the runtime
+  loads before the first script line: Windows PowerShell is a .NET program, and the .NET runtime loads a
+  profiler DLL named by the user-level variables `COR_ENABLE_PROFILING` and `COR_PROFILER` (and the
+  `CORECLR_*`, `COMPlus_*`, `DOTNET_*` families) into the process. So the task does not start PowerShell
+  directly. It starts a native `cmd.exe` (not .NET, so it ignores those variables) with `/D`, so your
+  `HKCU\Software\Microsoft\Command Processor\AutoRun` command is skipped; that `cmd.exe` deletes from its own
+  environment every variable starting with `COR_`, `CORECLR_`, `COMPlus_` or `DOTNET_` and the variables
+  `PSModulePath`, `PSExecutionPolicyPreference`, `__PSLockdownPolicy` and `__COMPAT_LAYER`, and then starts
+  PowerShell, which inherits the cleaned environment. All three programs are named by absolute path under the
+  system directory Windows reports.
+
+  What is still true, honestly: (1) this has been checked in tests that build the command and decide which
+  names it removes, not by running a profiler against an elevated task on a real machine, so it is a
+  mitigation of the cheap routes through the environment, not a proof. (2) An account that is itself an
+  administrator and runs a hostile program at normal integrity is not protected by User Account Control:
+  Microsoft does not treat the step from "you" to "you, elevated" as a security boundary, and such a
+  program has other ways to get elevated (it can ask Windows to run an auto-elevating program, edit your
+  other per-user settings, or wait for you to approve a prompt). This change closes the silent
+  environment routes into this one task; it does not make an administrator account safe against its own
+  malware. (3) The variable list is a list: a new runtime knob that loads code from the environment is
+  not covered until added to `SCRUB_PREFIXES` or `SCRUB_NAMES` in `crates/goway-setup/src/relay.rs`.
+  Treat the helper's Windows account as you treat any administrator account. The alternative that would
+  remove the question, a small signed helper program instead of a script, is not built.
 
 ## Security of the elevated host steps
 

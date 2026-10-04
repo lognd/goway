@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T00:39:44Z"
+digest = "db905def0f64bd010d1b50e6ecf070cee9d86ee3d738cb52357ed4e5d1c3dd12"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 22.67s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d82ba645-841d-431a-9b41-ea9544c9a637 with nextest profile: default
+    Starting 2 tests across 45 binaries (548 tests skipped)
+        PASS [   0.354s] goway run::tests::a_windows_host_reuses_one_target_dir_per_repository_so_the_second_run_is_warm
+        PASS [   0.406s] goway::remote_ps1 a_slot_tree_persists_updates_in_place_and_removes_leftovers
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.416s] 2 tests run: 2 passed, 548 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_windows_host_reuses_one_target_dir_per_repository_so_the_second_run_is_warm) | test(a_slot_tree_persists_updates_in_place_and_removes_leftovers)'"
+size = 827
+status = "measured"
+tests = ["run::tests::a_windows_host_reuses_one_target_dir_per_repository_so_the_second_run_is_warm", "a_slot_tree_persists_updates_in_place_and_removes_leftovers"]
+at = "2026-10-04T00:39:44Z"
+actor = "lognd"
+rev = 1

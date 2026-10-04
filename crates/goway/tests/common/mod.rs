@@ -37,6 +37,15 @@ fn drain(mut from: impl std::io::Read + Send + 'static) -> Arc<Mutex<Vec<u8>>> {
     buf
 }
 
+/// Whether any process on this machine has `needle` on its command line.
+#[cfg(target_os = "linux")]
+pub fn process_mentions(needle: &str) -> bool {
+    std::fs::read_dir("/proc").unwrap().flatten().any(|e| {
+        std::fs::read(e.path().join("cmdline"))
+            .is_ok_and(|c| String::from_utf8_lossy(&c).contains(needle))
+    })
+}
+
 /// A goway run whose command holds its slot (and GPU) until released, so a
 /// test never guesses how long to sleep: it waits for the run to have started,
 /// does its work, then releases it.
@@ -226,10 +235,14 @@ impl World {
         let id = HELD.fetch_add(1, Ordering::Relaxed);
         let started = self.root.join(format!("held-{id}.started"));
         let release = self.root.join(format!("held-{id}.release"));
+        // The poll ends on release, when the world's directory is gone (the
+        // test died without running Drop), or after ten minutes: whatever
+        // happens to the test, no poller outlives it.
         let script = format!(
-            "{body}; : > '{}'; while [ ! -e '{}' ]; do sleep 0.05; done",
-            started.display(),
-            release.display()
+            "{body}; : > '{started}'; n=0; while [ ! -e '{release}' ] && [ -d '{root}' ] && [ $n -lt 12000 ]; do sleep 0.05; n=$((n+1)); done",
+            started = started.display(),
+            release = release.display(),
+            root = self.root.display()
         );
         let mut args = vec!["run"];
         args.extend_from_slice(run_args);

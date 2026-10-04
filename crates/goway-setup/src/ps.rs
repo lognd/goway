@@ -198,21 +198,22 @@ pub fn task_create(name: &str, spec: &TaskSpec, conhost_exe: &str, wsl_exe: &str
     ))
 }
 
-/// The conhost command line that runs the refresh script with no window, through the absolute
-/// `powershell.exe` and with the user's profile and the execution policy out of the picture.
-pub fn relay_arguments(powershell_exe: &str, script: &str) -> String {
-    format!(
-        "--headless \"{powershell_exe}\" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{script}\""
-    )
+/// The conhost command line that runs the refresh script with no window and without injectable
+/// environment variables (see [`crate::relay::scrubbed_arguments`]); the programs are absolute
+/// paths and the user's profile and the execution policy are out of the picture.
+pub fn relay_arguments(cmd_exe: &str, powershell_exe: &str, script: &str) -> String {
+    crate::relay::scrubbed_arguments(cmd_exe, powershell_exe, script)
 }
 
 /// Script registering the relay refresh task: it runs as the invoking user (only that user can
 /// see the distro) with the highest privileges (netsh needs them), at logon or startup like the
-/// keepalive and then every few minutes. No password is stored (`Interactive` or `S4U`).
+/// keepalive and then every few minutes. No password is stored (`Interactive` or `S4U`). The
+/// script starts through an environment-scrubbing `cmd.exe` stub ([`relay_arguments`]).
 pub fn relay_task_create(
     name: &str,
     spec: &RelayTaskSpec,
     conhost_exe: &str,
+    cmd_exe: &str,
     powershell_exe: &str,
 ) -> String {
     let (trigger, logon) = match spec.keepalive {
@@ -232,7 +233,7 @@ pub fn relay_task_create(
          $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew\n\
          Register-ScheduledTask -TaskName {name} -Description {desc} -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null",
         conhost = quote(conhost_exe),
-        args = quote(&relay_arguments(powershell_exe, &spec.script)),
+        args = quote(&relay_arguments(cmd_exe, powershell_exe, &spec.script)),
         minutes = spec.interval_minutes,
         name = quote(name),
         desc = quote(&spec.description),
