@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T21:24:47Z"
+digest = "e8035a75d7a23519ddb2842e73a8924abd37aa504ab99c78d0288abfe15e0c91"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 6c3f42c8-be12-43a8-9e21-7dc36e6bf0b5 with nextest profile: default
+    Starting 1 test across 72 binaries (827 tests skipped)
+        PASS [   0.007s] goway::publishing the_github_release_needs_an_approved_environment_and_a_tag_on_main
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.011s] 1 test run: 1 passed, 827 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_github_release_needs_an_approved_environment_and_a_tag_on_main)'"
+size = 578
+status = "measured"
+tests = ["the_github_release_needs_an_approved_environment_and_a_tag_on_main"]
+at = "2026-10-04T21:24:47Z"
+actor = "lognd"
+rev = 1

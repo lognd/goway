@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T21:24:46Z"
+digest = "75fda661c94e94b0bae3b4acfdfe4a96748bee41bae6b7f9007a7a4a243f1b1c"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 24.52s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 7d026460-9007-4446-8bac-0c4a4d1de911 with nextest profile: default
+    Starting 1 test across 72 binaries (827 tests skipped)
+        PASS [   0.009s] goway::publishing the_github_release_needs_an_approved_environment_and_a_tag_on_main
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.014s] 1 test run: 1 passed, 827 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_github_release_needs_an_approved_environment_and_a_tag_on_main)'"
+size = 763
+status = "measured"
+tests = ["the_github_release_needs_an_approved_environment_and_a_tag_on_main"]
+at = "2026-10-04T21:24:46Z"
+actor = "lognd"
+rev = 1

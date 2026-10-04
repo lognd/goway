@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T21:28:54Z"
+digest = "aea3486b58bd8c76578a8f4d607d6edf4a5d968228e40942998f93f38f7bae91"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b525705a-f416-46ba-a543-b71338f8d0fa with nextest profile: default
+    Starting 1 test across 73 binaries (829 tests skipped)
+        PASS [   1.992s] goway::repo_code_never_runs project_tools_never_run_repo_code
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.996s] 1 test run: 1 passed, 829 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(project_tools_never_run_repo_code)'"
+size = 555
+status = "measured"
+tests = ["project_tools_never_run_repo_code"]
+at = "2026-10-04T21:28:54Z"
+actor = "lognd"
+rev = 1
