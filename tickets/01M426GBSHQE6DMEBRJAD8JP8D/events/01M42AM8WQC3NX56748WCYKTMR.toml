@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway-setup/src/elevate.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/elevate.rs", "crates/goway/src/add.rs", "crates/goway/src/doctor.rs", "crates/goway/src/cli.rs", "docs/install-windows.md", "docs/usage.md"]
+new = ["crates/goway-setup/src/elevate.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/elevate.rs", "docs/install-windows.md", "docs/troubleshooting.md"]
+at = "2026-10-04T02:07:01Z"
+actor = "lognd"
+rev = 1
