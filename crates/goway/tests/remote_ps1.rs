@@ -1506,3 +1506,141 @@ fn shard_detection_reads_binaries_and_reruns_catch2_at_most_once() {
     let out = run("sd4", Path::new("a.txt"));
     assert!(text(&out.stderr).contains("detected=none") || out.status.code() != Some(0));
 }
+
+const MIB: u64 = 1 << 20;
+const TEN_YEARS: &str = "315360000";
+
+/// Set a file's mtime to `secs` seconds ago.
+fn age(path: &Path, secs: u64) {
+    let when = std::time::SystemTime::now() - Duration::from_secs(secs);
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .unwrap()
+        .set_modified(when)
+        .unwrap();
+}
+
+/// A marked root with one repository cache per `(name, [slot ages])`; every slot holds a
+/// 1 MiB tree. Returns the cache dir of each repository in order.
+fn budget_root(h: &Host, repos: &[(&str, &[u64])]) {
+    h.ok(&["manifest", &h.root(), "abc"], b"");
+    for (name, slots) in repos {
+        let cache = h.root.join("cache").join(name);
+        std::fs::create_dir_all(&cache).unwrap();
+        std::fs::write(
+            cache.join("meta.json"),
+            format!(r#"{{"kind":"cache","repo":"{name}","repo_id":"id-{name}"}}"#),
+        )
+        .unwrap();
+        for (k, secs) in slots.iter().enumerate() {
+            std::fs::create_dir_all(cache.join(format!("tree-{k}"))).unwrap();
+            let f = std::fs::File::create(cache.join(format!("tree-{k}/big"))).unwrap();
+            f.set_len(MIB).unwrap();
+            let lock = cache.join(format!("target-{k}.lock"));
+            std::fs::write(&lock, "").unwrap();
+            age(&lock, *secs);
+        }
+        age(&cache.join("meta.json"), *slots.iter().min().unwrap());
+    }
+}
+
+fn budget_gc(h: &Host, mode: &str, max_disk: u64) -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string();
+    h.ok(
+        &[
+            "gc",
+            &h.root(),
+            &now,
+            TEN_YEARS,
+            TEN_YEARS,
+            TEN_YEARS,
+            mode,
+            "",
+            "",
+            &max_disk.to_string(),
+            "0",
+        ],
+        b"",
+    )
+}
+
+fn evict_lines(out: &str) -> Vec<&str> {
+    out.lines().filter(|l| l.starts_with("evict\t")).collect()
+}
+
+// frob:ticket 01M4262XD6M7F91AA2VMVTNZHA
+// frob:tests crates/goway/src/remote.ps1
+#[test]
+fn eviction_removes_the_least_recently_used_slot_first_and_reports_it() {
+    let Some(h) = Host::new() else { return };
+    // alpha's slot 1 is the oldest, then alpha 0, then beta 0; 3 MiB against 2.5 MiB.
+    budget_root(&h, &[("alpha", &[3000, 5000]), ("beta", &[1000])]);
+    let out = budget_gc(&h, "apply", 2 * MIB + MIB / 2);
+    let evicted = evict_lines(&out);
+    assert_eq!(evicted.len(), 1, "{out}");
+    assert!(evicted[0].contains("\tslot\t"), "{out}");
+    assert!(evicted[0].ends_with("tree-1"), "{out}");
+    assert!(evicted[0].contains("\talpha\tid-alpha\t"), "{out}");
+    assert!(!h.root.join("cache/alpha/tree-1").exists());
+    assert!(h.root.join("cache/alpha/tree-0").exists());
+    assert!(h.root.join("cache/beta/tree-0").exists());
+}
+
+// frob:ticket 01M4262XD6M7F91AA2VMVTNZHA
+// frob:tests crates/goway/src/remote.ps1
+#[test]
+fn a_dry_run_lists_what_eviction_would_remove_and_removes_nothing() {
+    let Some(h) = Host::new() else { return };
+    budget_root(&h, &[("alpha", &[3000, 5000])]);
+    let out = budget_gc(&h, "dry", MIB + MIB / 2);
+    assert_eq!(evict_lines(&out).len(), 1, "{out}");
+    assert!(h.root.join("cache/alpha/tree-1").exists());
+    // Within budget: nothing to evict.
+    assert!(evict_lines(&budget_gc(&h, "dry", 100 * MIB)).is_empty());
+}
+
+// frob:ticket 01M4262XD6M7F91AA2VMVTNZHA
+// frob:tests crates/goway/src/remote.ps1
+#[test]
+fn the_automatic_gc_leaves_a_summary_and_probe_reports_the_budget() {
+    let Some(h) = Host::new() else { return };
+    budget_root(&h, &[("alpha", &[3000, 5000])]);
+    let now = "4102444800"; // far future: nothing is expired by age, the budget decides
+    h.ok(
+        &[
+            "auto-gc",
+            &h.root(),
+            now,
+            TEN_YEARS,
+            TEN_YEARS,
+            TEN_YEARS,
+            "apply",
+            "",
+            "",
+            &(MIB + MIB / 2).to_string(),
+            "0",
+            "log",
+        ],
+        b"",
+    );
+    let log = std::fs::read_to_string(h.root.join("evicted.log")).unwrap();
+    assert!(log.contains("evicted 1 entries, freed 1.0 MiB"), "{log}");
+    let probe = h.ok(&["probe", &h.root(), "disk", "budget:1000:2000"], b"");
+    assert!(probe.contains("disk_max=1000\n"), "{probe}");
+    assert!(probe.contains("disk_min_free=2000\n"), "{probe}");
+    // 0 means automatic: 20% of the disk, at most 50 GiB.
+    let probe = h.ok(&["probe", &h.root(), "disk", "budget:0:2000"], b"");
+    let max: u64 = probe
+        .lines()
+        .find_map(|l| l.strip_prefix("disk_max="))
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    assert!(max > 0 && max <= 50 << 30, "{probe}");
+}
