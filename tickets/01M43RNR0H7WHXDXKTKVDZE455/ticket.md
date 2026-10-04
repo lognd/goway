@@ -2,7 +2,8 @@
 id = "01M43RNR0H7WHXDXKTKVDZE455"
 title = "CI: per-test timeouts in nextest and per-job timeout-minutes, plus a stuck-process dump on macOS"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
