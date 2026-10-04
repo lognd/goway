@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T00:02:31Z"
-updated = "2026-10-04T00:04:19Z"
+updated = "2026-10-04T00:05:14Z"
 scope = ["README.md", "crates/goway/tests/publishing.rs"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given the release workflow, when a test compares every releases/latest/download link in README.md with the files the workflow puts in dist, then every linked file is one the release publishes"
-bound = false
+bound = true
 +++
