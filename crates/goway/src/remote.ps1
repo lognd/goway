@@ -1833,6 +1833,37 @@ function ps-call-source([string[]]$Words) {
   return '& ' + (($Words | ForEach-Object { "'" + $_.Replace("'", "''") + "'" }) -join ' ')
 }
 
+# Git for Windows' usr\bin directory (it holds sh.exe and the Unix tools
+# tests spawn), or $null: the install root is found from git.exe's location,
+# then the standard install paths; only an existing directory counts.
+function Find-GitUsrBin {
+  $roots = New-Object System.Collections.Generic.List[string]
+  $git = Resolve-Program 'git'
+  if ($git) {
+    $d = [IO.Path]::GetDirectoryName($git)
+    for ($n = 0; $d -and $n -lt 3; $n++) { $roots.Add($d); $d = [IO.Path]::GetDirectoryName($d) }
+  }
+  foreach ($v in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramW6432)) {
+    if ($v) { $roots.Add([IO.Path]::Combine($v, 'Git')) }
+  }
+  if ($env:LOCALAPPDATA) { $roots.Add([IO.Path]::Combine($env:LOCALAPPDATA, 'Programs', 'Git')) }
+  foreach ($r in $roots) {
+    $u = [IO.Path]::Combine($r, 'usr', 'bin')
+    if ([IO.File]::Exists([IO.Path]::Combine($u, 'sh.exe'))) { return $u }
+  }
+  return $null
+}
+
+# Where sh is missing, append Git for Windows' usr\bin to PATH (never
+# prepend: the host's own tools keep winning) and say so on stderr.
+function Add-GitUsrBin {
+  if (Resolve-Program 'sh') { return }
+  $u = Find-GitUsrBin
+  if (-not $u) { return }
+  $env:PATH = $env:PATH + [IO.Path]::PathSeparator + $u
+  Write-Err "goway: sh was not on PATH; appended $u (Git for Windows)`n"
+}
+
 # run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 TTLS PRIORITY KEEP_IGNORED
 #     KEEP_B64 [WORD...] -- CMD...
 # The work dir was created by receive (a hard-link snapshot of the seed).
@@ -1885,6 +1916,7 @@ function Verb-run([string[]]$A) {
   if ([IO.Directory]::Exists($cargoBin) -and ($env:PATH -notlike "*$cargoBin*")) {
     $env:PATH = $cargoBin + [IO.Path]::PathSeparator + $env:PATH
   }
+  if ($script:IsWin) { Add-GitUsrBin }
   $envFile = P $work @('env')
   if ([IO.File]::Exists($envFile)) {
     foreach ($kv in (Split-Nul ([IO.File]::ReadAllBytes($envFile)))) {
