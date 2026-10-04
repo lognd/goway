@@ -2,13 +2,13 @@
 id = "01M43BR5Y9TSZXKPEYJQVJQFJR"
 title = "README: why goway instead of a Kubernetes cluster or Docker, and when to use those instead"
 type = "docs"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T11:45:52Z"
-updated = "2026-10-04T11:45:52Z"
+updated = "2026-10-04T11:45:55Z"
 scope = ["README.md", "docs/positioning.md"]
 
 [[acceptance]]
