@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T12:42:34Z"
+digest = "7bf727a10dc7702fbf055f2c32be9ee52026674f02acf9e3d1bbc52a48efd18a"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9331a668-d9db-45e9-945e-9d0f04ee8fe9 with nextest profile: default
+    Starting 2 tests across 69 binaries (806 tests skipped)
+        PASS [   4.911s] goway::mem_footprint a_job_in_its_own_scope_gets_its_command_line_untouched
+        PASS [  12.187s] goway::mem_footprint a_job_the_oom_killer_killed_is_explained_in_plain_words
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  12.193s] 2 tests run: 2 passed, 806 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_job_the_oom_killer_killed_is_explained_in_plain_words) | test(a_job_in_its_own_scope_gets_its_command_line_untouched)'"
+size = 673
+status = "measured"
+tests = ["a_job_in_its_own_scope_gets_its_command_line_untouched", "a_job_the_oom_killer_killed_is_explained_in_plain_words"]
+at = "2026-10-04T12:42:34Z"
+actor = "lognd"
+rev = 1

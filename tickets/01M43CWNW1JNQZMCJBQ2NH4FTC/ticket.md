@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T12:05:48Z"
-updated = "2026-10-04T12:42:21Z"
+updated = "2026-10-04T12:42:34Z"
 scope = ["crates/goway/src/footprint.rs", "crates/goway/src/pool.rs", "crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/tests/mem_footprint.rs", "docs/usage.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a run in which the kernel's OOM killer killed a process of the job, when goway reports the result, then it says the helper ran out of memory, the repository's measured peak and the helper's total, and suggests another host, --needs mem>=SIZE, fewer parallel jobs (CARGO_BUILD_JOBS) or giving the helper more memory (goway-setup tune on WSL helpers)"
-bound = false
+bound = true
 +++
