@@ -94,6 +94,15 @@ pub struct Defaults {
     pub kept_ttl: Duration,
     /// Most cargo target directories per repository on one host.
     pub target_slots: u32,
+    /// Most disk goway's remote root may use (`20G`); unset: the smaller of
+    /// 20% of the host's disk and 50 GiB. Over it, least recently used
+    /// unlocked entries are evicted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_disk: Option<String>,
+    /// Free space goway keeps on a host's disk by evicting (`10G`).
+    pub min_free: String,
+    /// Size cap of each repository's sccache and ccache, unless the user set one (`2G`).
+    pub cache_size: String,
     /// Send secret-looking files (env files, credentials, private keys)
     /// to the remote; off: they are never sent.
     #[serde(alias = "send_env_files")]
@@ -125,6 +134,19 @@ pub struct Defaults {
 
 const DAY: u64 = 24 * 60 * 60;
 
+impl Defaults {
+    /// The disk budget words `max_disk:min_free:cache_size` in bytes (max 0 =
+    /// automatic), as the remote `run` verb and `gc` take them.
+    pub fn budget_bytes(&self) -> (u64, u64, u64) {
+        let size = |text: &str| crate::needs::parse_size(text).unwrap_or(0);
+        (
+            self.max_disk.as_deref().map_or(0, size),
+            size(&self.min_free),
+            size(&self.cache_size),
+        )
+    }
+}
+
 impl Default for Defaults {
     fn default() -> Self {
         Self {
@@ -133,6 +155,9 @@ impl Default for Defaults {
             orphan_ttl: Duration::from_secs(DAY),
             kept_ttl: Duration::from_secs(3 * DAY),
             target_slots: 4,
+            max_disk: None,
+            min_free: "10G".to_owned(),
+            cache_size: "2G".to_owned(),
             send_secret_files: false,
             secret_allow: Vec::new(),
             port: 2222,
@@ -372,6 +397,21 @@ impl Config {
                 path: origin.to_owned(),
                 message: format!("remote_root `{}` {why}", self.defaults.remote_root),
             });
+        }
+        let d = &self.defaults;
+        for (key, text) in [
+            ("max_disk", d.max_disk.as_deref()),
+            ("min_free", Some(d.min_free.as_str())),
+            ("cache_size", Some(d.cache_size.as_str())),
+        ] {
+            if let Some(t) = text
+                && crate::needs::parse_size(t).is_none()
+            {
+                return Err(Error::Config {
+                    path: origin.to_owned(),
+                    message: format!("{key} `{t}` is not a size such as 20G"),
+                });
+            }
         }
         for entry in &self.defaults.keep {
             if let Err(why) = check_keep_entry(entry) {
@@ -685,6 +725,19 @@ user = "user"
         assert_eq!(c.port_of(q), 2222);
         assert_eq!(c.port_of(c.host("orion-notebook").unwrap()), 22);
         assert_eq!(q.key_alias(), "goway-helios");
+    }
+
+    #[test]
+    fn disk_budget_defaults_and_validation() {
+        let c = Config::default();
+        assert_eq!(c.defaults.budget_bytes(), (0, 10 << 30, 2 << 30));
+        let c = Config::parse(
+            "[defaults]\nmax_disk = \"30G\"\nmin_free = \"5G\"\ncache_size = \"512M\"\n",
+            Path::new("c.toml"),
+        )
+        .unwrap();
+        assert_eq!(c.defaults.budget_bytes(), (30 << 30, 5 << 30, 512 << 20));
+        assert!(Config::parse("[defaults]\nmax_disk = \"lots\"\n", Path::new("c.toml")).is_err());
     }
 
     #[test]

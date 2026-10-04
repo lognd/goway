@@ -29,7 +29,7 @@ mark_root() {
   for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
     [ -e "$e" ] || [ -L "$e" ] || continue
     case "${e##*/}" in
-      work | seed | cache | gpu | gc.lock | .goway-root) ;;
+      work | seed | cache | gpu | gc.lock | evicted.log | .goway-root) ;;
       *) die "$1 exists, is not empty and is not goway state; pick a dedicated remote_root" ;;
     esac
   done
@@ -797,6 +797,9 @@ run() {
     esac
     shift
   done
+  # TTLS is "cache:orphan:kept[:max_disk:min_free:cache_size]" (bytes).
+  local t_cache t_orphan t_kept t_max t_minfree t_csize
+  IFS=: read -r t_cache t_orphan t_kept t_max t_minfree t_csize <<<"$ttls"
   case "$detect" in *[!A-Za-z0-9:]*) die "run: bad shard-detect" ;; esac
   case "$gpu_per" in *[!0-9]*) die "run: bad gpu-slots" ;; esac
   [ "${1:-}" = "--" ] && shift
@@ -807,6 +810,11 @@ run() {
   mkdir -p "$cache"
   exec 9>"$work/lock"
   flock -x 9
+  # What the last automatic disk-budget eviction freed (it ran detached).
+  if [ -s "$root/evicted.log" ]; then
+    cat "$root/evicted.log" >&2 2>/dev/null || true
+    rm -f "$root/evicted.log"
+  fi
 
   [ -f "$cache/meta.json" ] || printf '%s' "$cache_meta" | base64 -d >"$cache/meta.json"
   touch "$cache/meta.json"
@@ -856,6 +864,8 @@ run() {
   fi
   [ -f "$cache/meta.json" ] || printf '%s' "$cache_meta" | base64 -d >"$cache/meta.json"
   touch "$cache/meta.json"
+  # The slot's last use, for least-recently-used eviction (evict_slot).
+  touch "$cache/target-$slot.lock"
   [ -z "$aff" ] || printf '%s' "$slot" >"$aff"
   # Builds bake absolute source paths into binaries (CARGO_MANIFEST_DIR,
   # file!()), and cargo reuses them when only the workspace moved. So a
@@ -896,6 +906,12 @@ run() {
     # sccache's server is the one process allowed to outlive a run (it
     # keeps the cache warm); make it leave soon after the last build.
     export SCCACHE_IDLE_TIMEOUT="${SCCACHE_IDLE_TIMEOUT:-300}"
+  fi
+  # Compiler caches stay under a size cap unless the user chose one. ccache
+  # reads bare numbers as GB and sccache needs a suffix, so both get MB.
+  if [ -n "$t_csize" ] && [ "$t_csize" -gt 0 ] 2>/dev/null; then
+    export SCCACHE_CACHE_SIZE="${SCCACHE_CACHE_SIZE:-$((t_csize / 1048576))M}"
+    export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-$((t_csize / 1048576))M}"
   fi
   export GOWAY=1 GOWAY_RUN_ID="$run_id" GOWAY_HOST
   GOWAY_HOST=$(uname -n)
@@ -941,11 +957,10 @@ run() {
   # Cheap automatic gc of expired entries, detached so it never delays
   # the exit (and never holds the ssh session open).
   if [ -n "$ttls" ]; then
-    IFS=: read -r t_cache t_orphan t_kept <<<"$ttls"
     # At most one automatic gc per root (gc.lock); it only ever removes
     # files and never starts a goway run.
     (trap '' HUP; flock -n 8 || exit 0
-     gc "$root_arg" "$(date +%s)" "$t_cache" "$t_orphan" "$t_kept" apply "" "") \
+     gc "$root_arg" "$(date +%s)" "$t_cache" "$t_orphan" "$t_kept" apply "" "" "$t_max" "$t_minfree" log) \
       8>"$root/gc.lock" </dev/null >/dev/null 2>&1 5>&- 7>&- 9>&- &
   fi
   exit "$rc"
@@ -1007,14 +1022,14 @@ static_facts() {
   printf 'wsl=%s\nwinvideo=%s\n' "$wsl" "$win"
 }
 
-# probe ROOT [disk] [static]: key=value facts for scheduling and status.
+# probe ROOT [disk] [budget:MAX:MIN_FREE] [static]: key=value facts for scheduling and status.
 # RAM is always reported; "static" adds the rarely changing hardware facts.
 probe() {
-  local root jobs=0 l a want_disk=0 want_static=0
+  local root jobs=0 l a want_disk=0 want_static=0 budget=""
   root=$(root_dir "$1")
   shift
   for a in "$@"; do
-    case "$a" in disk) want_disk=1 ;; static) want_static=1 ;; esac
+    case "$a" in disk) want_disk=1 ;; static) want_static=1 ;; budget:[0-9]*:[0-9]*) budget=${a#budget:} ;; esac
   done
   awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {if (t) printf "mem_total=%.0f\n", t*1024; if (a) printf "mem_avail=%.0f\n", a*1024}' /proc/meminfo 2>/dev/null || true
   if [ "$want_static" = 1 ]; then static_facts; fi
@@ -1032,6 +1047,9 @@ probe() {
   if [ "$want_disk" = 1 ]; then
     printf 'disk_used=%s\n' "$(du -sb "$root" 2>/dev/null | cut -f1 || true)"
     printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
+    if [ -n "$budget" ]; then
+      printf 'disk_max=%s\ndisk_min_free=%s\n' "$(budget_max "$HOME" "${budget%%:*}")" "${budget#*:}"
+    fi
   fi
 }
 
@@ -1055,11 +1073,21 @@ repo_of() {
   printf '%s\t%s' "${name:--}" "${id:--}"
 }
 
+# What the last gc_entry/evict_slot decided (action and bytes), the bytes
+# gc has removed or would remove so far, and the paths a dry run lists as
+# gone ("|path|" each), so a dry-run eviction never counts them twice.
+GC_ACTION=""
+GC_BYTES=0
+GC_FREED=0
+GC_GONE=""
+
 # Decide one entry: print "action TAB kind TAB age TAB bytes TAB repo TAB id TAB path"
 # and remove it when the action is "remove" and MODE is apply. The entry's
-# locks are taken exclusively (non-blocking) while it is removed.
+# locks are taken exclusively (non-blocking) while it is removed. VERB is
+# the word printed for a removal ("remove", or "evict" for the disk budget).
 gc_entry() {
-  local kind=$1 dir=$2 ttl=$3 now=$4 mode=$5 repo_filter=$6 action age bytes repo locks=() l fd
+  local kind=$1 dir=$2 ttl=$3 now=$4 mode=$5 repo_filter=$6 verb=${7:-remove} action age bytes repo locks=() l fd
+  GC_ACTION=skip; GC_BYTES=0
   [ -d "$dir" ] || return 0
   repo=$(repo_of "$dir")
   if [ -n "$repo_filter" ] && [ "${repo%%$'\t'*}" != "$repo_filter" ] && [ "${repo##*$'\t'}" != "$repo_filter" ]; then
@@ -1080,28 +1108,160 @@ gc_entry() {
   fd=20
   for l in "${locks[@]}"; do
     [ -e "$l" ] || continue
-    eval "exec $fd>\"\$l\""
+    # Append, never truncate: opening for write would refresh a slot lock's
+    # mtime, which is the slot's last-use stamp (evict_slot).
+    eval "exec $fd>>\"\$l\""
     if ! flock -n "$fd"; then action=busy; fi
     fd=$((fd + 1))
   done
   age=$(age_of "$dir" "$now")
-  if [ "$action" = keep ] && [ "$age" -ge "$ttl" ]; then action=remove; fi
+  if [ "$action" = keep ] && [ "$age" -ge "$ttl" ]; then action=$verb; fi
   # A run creates its work dir in one ssh call and its lock in the next, so
   # for a moment the dir is unlocked and has no lock file yet. Never remove
   # such a young dir, not even with --all (a finished run always has the file).
-  if [ "$kind" = work ] && [ "$action" = remove ] && [ ! -e "$dir/lock" ] && [ "$age" -lt "$WORK_GRACE" ]; then action=keep; fi
+  if [ "$kind" = work ] && [ "$action" = "$verb" ] && [ ! -e "$dir/lock" ] && [ "$age" -lt "$WORK_GRACE" ]; then action=keep; fi
   bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$action" "$kind" "$age" "${bytes:-0}" "$repo" "$dir"
-  if [ "$action" = remove ] && [ "$mode" = apply ]; then
-    rm -rf "$dir"
+  GC_ACTION=$action; GC_BYTES=${bytes:-0}
+  if [ "$action" = "$verb" ]; then
+    GC_FREED=$((GC_FREED + GC_BYTES))
+    GC_GONE="$GC_GONE|$dir|"
+    if [ "$mode" = apply ]; then rm -rf "$dir"; fi
   fi
   while [ "$fd" -gt 20 ]; do fd=$((fd - 1)); eval "exec $fd>&-"; done
 }
 
-# gc ROOT NOW CACHE_TTL ORPHAN_TTL KEPT_TTL MODE REPO OLDER_THAN
-# TTLs in seconds; OLDER_THAN (seconds, or empty) replaces every TTL.
+# human BYTES: binary units, one decimal ("3.1 GiB").
+human() {
+  awk -v b="$1" 'BEGIN { split("B KiB MiB GiB TiB", u, " "); i = 1; while (b >= 1024 && i < 5) { b /= 1024; i++ }
+    if (i == 1) printf "%d B", b; else printf "%.1f %s", b, u[i] }'
+}
+
+# The disk budget in bytes: MAX when set (> 0), else the smaller of 20% of
+# the filesystem holding ROOT and 50 GiB.
+budget_max() {
+  local total
+  if [ "${2:-0}" -gt 0 ] 2>/dev/null; then printf '%s' "$2"; return 0; fi
+  total=$(df -B1 --output=size "$1" 2>/dev/null | tail -1 | tr -d ' ')
+  total=${total:-0}
+  if [ $((total / 5)) -lt 53687091200 ]; then printf '%s' $((total / 5)); else printf '%s' 53687091200; fi
+}
+
+# evict_slot CACHE_DIR K NOW MODE REPO: evict one build slot (its tree-K and
+# target-K) of a per-repository cache when its lock is free. The slot's age
+# is its lock file's mtime, read after the lock is held.
+evict_slot() {
+  local dir=$1 k=$2 now=$3 mode=$4 repo_filter=$5 lock repo age bytes m
+  lock="$dir/target-$k.lock"
+  GC_ACTION=skip; GC_BYTES=0
+  [ -e "$lock" ] || return 0
+  [ -d "$dir/tree-$k" ] || [ -d "$dir/target-$k" ] || return 0
+  grep -q '"kind":"cache"' "$dir/meta.json" 2>/dev/null || return 0
+  repo=$(repo_of "$dir")
+  if [ -n "$repo_filter" ] && [ "${repo%%$'\t'*}" != "$repo_filter" ] && [ "${repo##*$'\t'}" != "$repo_filter" ]; then
+    return 0
+  fi
+  exec 20>>"$lock"
+  if ! flock -n 20 || [ ! "$lock" -ef /proc/self/fd/20 ]; then
+    exec 20>&-
+    printf 'busy\tslot\t0\t0\t%s\t%s\n' "$repo" "$dir/tree-$k"
+    GC_ACTION=busy
+    return 0
+  fi
+  m=$(stat -c %Y "$lock" 2>/dev/null || echo "$now")
+  age=$((now - m))
+  bytes=$({ du -sbc "$dir/tree-$k" "$dir/target-$k" 2>/dev/null || true; } | tail -1 | cut -f1)
+  printf 'evict\tslot\t%s\t%s\t%s\t%s\n' "$age" "${bytes:-0}" "$repo" "$dir/tree-$k"
+  GC_ACTION=evict; GC_BYTES=${bytes:-0}
+  GC_FREED=$((GC_FREED + GC_BYTES))
+  if [ "$mode" = apply ]; then rm -rf "$dir/tree-$k" "$dir/target-$k"; fi
+  exec 20>&-
+}
+
+# evict ROOT NOW MODE REPO MAX_DISK MIN_FREE [log]: when goway's root is over
+# its budget (MAX_DISK bytes, 0 = auto) or the disk has less than MIN_FREE
+# bytes free, evict unlocked entries, least recently used first (build slots,
+# then work dirs, seeds, whole repository caches at the same age), until both
+# hold. Entries in use are skipped; the same lock rules as gc_entry apply.
+# With "log" a summary is left for the next run to print.
+evict() {
+  local root=$1 now=$2 mode=$3 repo=$4 total minfree max used free need freed=0 count=0 m rank kind path k d l slot_log="" sub list
+  local before=$GC_FREED
+  max=$(budget_max "$root" "$5")
+  used=$(du -sb "$root" 2>/dev/null | cut -f1 || echo 0)
+  free=$(df -B1 --output=avail "$root" 2>/dev/null | tail -1 | tr -d ' ')
+  used=${used:-0}; free=${free:-0}
+  # A dry run has not removed what gc listed before this; pretend it did.
+  if [ "$mode" != apply ]; then
+    used=$((used - before)); free=$((free + before))
+    [ "$used" -ge 0 ] || used=0
+  fi
+  # On a small disk (a tmpfs, a tiny VM) a fixed MIN_FREE could never be met
+  # and would empty goway's root after every run: cap it at a quarter of the disk.
+  total=$(df -B1 --output=size "$root" 2>/dev/null | tail -1 | tr -d ' ')
+  minfree=$6
+  if [ $((${total:-0} / 4)) -lt "$minfree" ]; then minfree=$((${total:-0} / 4)); fi
+  need=$((used - max))
+  if [ $((minfree - free)) -gt "$need" ]; then need=$((minfree - free)); fi
+  [ "$need" -gt 0 ] || return 0
+  list=$(
+    for d in "$root"/work/*/; do
+      [ -d "$d" ] || continue
+      d=${d%/}
+      m=$(stat -c %Y "$d/meta.json" 2>/dev/null || stat -c %Y "$d" 2>/dev/null || echo "$now")
+      printf '%s\t1\twork\t%s\t-\n' "$m" "$d"
+    done
+    for d in "$root"/seed/*/*/; do
+      [ -d "$d" ] || continue
+      d=${d%/}
+      m=$(stat -c %Y "$d/meta.json" 2>/dev/null || stat -c %Y "$d" 2>/dev/null || echo "$now")
+      printf '%s\t1\tseed\t%s\t-\n' "$m" "$d"
+    done
+    for d in "$root"/cache/*/; do
+      [ -d "$d" ] || continue
+      d=${d%/}
+      m=$(stat -c %Y "$d/meta.json" 2>/dev/null || stat -c %Y "$d" 2>/dev/null || echo "$now")
+      printf '%s\t2\tcache\t%s\t-\n' "$m" "$d"
+      for l in "$d"/target-*.lock; do
+        [ -e "$l" ] || continue
+        k=${l##*/target-}
+        k=${k%.lock}
+        case "$k" in "" | *[!0-9]*) continue ;; esac
+        printf '%s\t0\tslot\t%s\t%s\n' "$(stat -c %Y "$l" 2>/dev/null || echo "$now")" "$d" "$k"
+      done
+    done | sort -n -k1,1 -k2,2
+  )
+  while IFS=$'\t' read -r m rank kind path k; do
+    [ -n "$kind" ] || continue
+    [ "$freed" -lt "$need" ] || break
+    case "$GC_GONE" in *"|$path|"*) continue ;; esac
+    case "$kind" in
+      slot) evict_slot "$path" "$k" "$now" "$mode" "$repo" ;;
+      *) gc_entry "$kind" "$path" 0 "$now" "$mode" "$repo" evict ;;
+    esac
+    if [ "$GC_ACTION" = evict ]; then
+      sub=0
+      # A dry run has not removed the slots it listed; do not count them twice.
+      if [ "$kind" = cache ] && [ "$mode" != apply ]; then
+        sub=$(printf '%s' "$slot_log" | awk -F'\t' -v d="$path" '$1 == d { s += $2 } END { print s + 0 }')
+      fi
+      [ "$kind" != slot ] || slot_log="$slot_log$path"$'\t'"$GC_BYTES"$'\n'
+      freed=$((freed + GC_BYTES - sub))
+      count=$((count + 1))
+    fi
+  done <<<"$list"
+  GC_FREED=$((before + freed))
+  if [ "$mode" = apply ] && [ "$count" -gt 0 ] && [ "${7:-}" = log ]; then
+    printf 'goway: disk budget: evicted %s entries, freed %s (goway used %s of %s, %s free)\n' \
+      "$count" "$(human "$freed")" "$(human "$used")" "$(human "$max")" "$(human "$free")" >>"$root/evicted.log" 2>/dev/null || true
+  fi
+}
+
+# gc ROOT NOW CACHE_TTL ORPHAN_TTL KEPT_TTL MODE REPO OLDER_THAN [MAX_DISK MIN_FREE [log]]
+# TTLs in seconds; OLDER_THAN (seconds, or empty) replaces every TTL. With
+# MAX_DISK and MIN_FREE (bytes) it then evicts to the disk budget (evict).
 gc() {
-  local root now cache_ttl orphan_ttl kept_ttl mode repo older d ttl
+  local root now cache_ttl orphan_ttl kept_ttl mode repo older d ttl max_disk=${9:-} min_free=${10:-}
   root=$(root_dir "$1"); now=$2; cache_ttl=$3; orphan_ttl=$4; kept_ttl=$5
   mode=$6; repo=$7; older=$8
   [ -d "$root" ] || return 0
@@ -1126,6 +1286,7 @@ gc() {
   if [ "$mode" = apply ]; then
     find "$root/seed" -mindepth 1 -maxdepth 1 -type d -empty -delete 2>/dev/null || true
   fi
+  if [ -n "$min_free" ]; then evict "$root" "$now" "$mode" "$repo" "${max_disk:-0}" "$min_free" "${11:-}"; fi
 }
 
 # doctor ROOT: key=value facts about the toolchain and host for `goway doctor`.
@@ -1177,7 +1338,7 @@ purge() {
     SCCACHE_SERVER_UDS="$s" sccache --stop-server >/dev/null 2>&1 || true
   done
   # Only goway's own entries: a root that also holds foreign files keeps them.
-  rm -rf "$root/work" "$root/seed" "$root/cache" "$root/gpu" "$root/gc.lock"
+  rm -rf "$root/work" "$root/seed" "$root/cache" "$root/gpu" "$root/gc.lock" "$root/evicted.log"
   rm -f "$root/.goway-root"
   rmdir "$root" 2>/dev/null || true
   printf 'removed\n'

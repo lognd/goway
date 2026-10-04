@@ -803,8 +803,9 @@ pub(crate) fn run_invocation_with(
     let slots = config.defaults.target_slots.max(1).to_string();
     let keep = if keep { "1" } else { "0" };
     let d = &config.defaults;
+    let (max_disk, min_free, cache_size) = d.budget_bytes();
     let ttls = format!(
-        "{}:{}:{}",
+        "{}:{}:{}:{max_disk}:{min_free}:{cache_size}",
         d.cache_ttl.as_secs(),
         d.orphan_ttl.as_secs(),
         d.kept_ttl.as_secs()

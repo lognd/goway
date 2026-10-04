@@ -40,6 +40,8 @@ pub struct Probe {
     pub disk_used: Option<u64>,
     /// Bytes free in the remote home (status only).
     pub disk_free: Option<u64>,
+    /// The host's disk budget for goway in bytes (status only).
+    pub disk_max: Option<u64>,
     /// RAM, GPUs and other facts (see [`crate::facts`]).
     pub facts: Facts,
 }
@@ -74,6 +76,7 @@ pub fn parse_probe(text: &str) -> Option<Probe> {
         jobs,
         disk_used: kv.get("disk_used").and_then(|v| v.parse().ok()),
         disk_free: kv.get("disk_free").and_then(|v| v.parse().ok()),
+        disk_max: kv.get("disk_max").and_then(|v| v.parse().ok()),
         facts: facts::parse_live(
             &kv.iter()
                 .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
@@ -275,8 +278,12 @@ pub fn choose_many(
 pub fn probe_command(config: &Config, disk: bool, statics: bool) -> String {
     let root = config.defaults.remote_root.as_str();
     let mut args = vec![root];
+    let budget;
     if disk {
         args.push("disk");
+        let (max_disk, min_free, _) = config.defaults.budget_bytes();
+        budget = format!("budget:{max_disk}:{min_free}");
+        args.push(&budget);
     }
     if statics {
         args.push("static");
@@ -512,6 +519,7 @@ mod tests {
             jobs,
             disk_used: None,
             disk_free: None,
+            disk_max: None,
             facts: Facts::default(),
         }
     }
