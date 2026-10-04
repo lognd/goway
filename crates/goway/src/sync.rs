@@ -520,6 +520,15 @@ pub fn diff(local: &[LocalFile], remote: &BTreeMap<String, RemoteEntry>) -> Plan
     plan
 }
 
+/// Where `rel` is read from: `.git/...` paths come from the `--with-git`
+/// overlay when there is one, everything else from the work tree.
+fn base_for<'a>(root: &'a Path, overlay: Option<&'a Path>, rel: &str) -> &'a Path {
+    match overlay {
+        Some(o) if rel.starts_with(".git/") => o,
+        _ => root,
+    }
+}
+
 /// Write the selected files as a tar stream, preserving mtime and exec bit.
 ///
 /// Mtimes are whole seconds, so two same-size edits within one second look
@@ -533,9 +542,21 @@ pub fn write_tar<W: std::io::Write>(
     racy_from: u64,
     out: W,
 ) -> Result<W> {
+    write_tar_with(root, None, files, racy_from, out)
+}
+
+/// [`write_tar`] with the `.git/...` files read from `overlay` (`--with-git`).
+pub fn write_tar_with<W: std::io::Write>(
+    root: &Path,
+    overlay: Option<&Path>,
+    files: &[&LocalFile],
+    racy_from: u64,
+    out: W,
+) -> Result<W> {
     let mut builder = tar::Builder::new(out);
     builder.mode(tar::HeaderMode::Deterministic);
     for f in files {
+        let root = base_for(root, overlay, &f.path);
         let mut header = tar::Header::new_gnu();
         header.set_mtime(if f.mtime >= racy_from {
             f.mtime.saturating_sub(1)
@@ -605,6 +626,8 @@ pub struct Stats {
     pub behind_links: Vec<String>,
     /// The files this sync was made from (for the copy-integrity check).
     pub manifest: Manifest,
+    /// Where the `.git/...` files of a `--with-git` sync are read from.
+    pub git_overlay: Option<PathBuf>,
 }
 
 /// The local file set a sync was made from, as it was then.
@@ -996,6 +1019,16 @@ pub struct Comparison {
 /// manifest). A local file that changed since the sync (size or mtime) is
 /// skipped: the helper has the older, correct copy.
 pub fn compare_claims(root: &Path, files: &Manifest, claims: &[(String, Claim)]) -> Comparison {
+    compare_claims_with(root, None, files, claims)
+}
+
+/// [`compare_claims`] with the `.git/...` files read from `overlay` (`--with-git`).
+pub fn compare_claims_with(
+    root: &Path,
+    overlay: Option<&Path>,
+    files: &Manifest,
+    claims: &[(String, Claim)],
+) -> Comparison {
     let by_path: BTreeMap<&str, &LocalFile> =
         files.0.iter().map(|f| (f.path.as_str(), f)).collect();
     let mut out = Comparison::default();
@@ -1008,7 +1041,7 @@ pub fn compare_claims(root: &Path, files: &Manifest, claims: &[(String, Claim)])
             });
             continue;
         };
-        let full = root.join(path);
+        let full = base_for(root, overlay, path).join(path);
         let meta = std::fs::symlink_metadata(&full).ok();
         let mtime = meta
             .as_ref()
@@ -1112,9 +1145,21 @@ pub fn sync(
     secrets: &Secrets,
     snapshot: Option<&Snapshot>,
 ) -> Result<Stats> {
+    sync_with(transport, remote_root, repo, secrets, snapshot, None)
+}
+
+/// [`sync`] that also sends the `--with-git` overlay's `.git/...` files.
+pub fn sync_with(
+    transport: &dyn Transport,
+    remote_root: &str,
+    repo: &Repo,
+    secrets: &Secrets,
+    snapshot: Option<&Snapshot>,
+    git: Option<&crate::gitmeta::Overlay>,
+) -> Result<Stats> {
     let mut attempt = 1;
     loop {
-        match sync_once(transport, remote_root, repo, secrets, snapshot) {
+        match sync_once(transport, remote_root, repo, secrets, snapshot, git) {
             Err(Error::Ssh { message, .. })
                 if message.contains("seed changed") && attempt < SYNC_ATTEMPTS =>
             {
@@ -1126,19 +1171,26 @@ pub fn sync(
     }
 }
 
+#[allow(clippy::too_many_lines)] // one sequence: plan, send, receive
 fn sync_once(
     transport: &dyn Transport,
     remote_root: &str,
     repo: &Repo,
     secrets: &Secrets,
     snapshot: Option<&Snapshot>,
+    git: Option<&crate::gitmeta::Overlay>,
 ) -> Result<Stats> {
     let started = std::time::Instant::now();
     // Taken before the files are read: a file modified at or after this
     // second may still be modified again within the same second.
     let racy_from = crate::state::now_secs().saturating_sub(1);
     let set = file_set(&repo.root, secrets)?;
-    let local = set.files;
+    let overlay = git.map(|g| g.root.as_path());
+    let mut local = set.files;
+    if let Some(g) = git {
+        local.extend(g.files.iter().cloned());
+        local.sort_by(|a, b| a.path.cmp(&b.path));
+    }
     let seed = repo.seed_key();
     let manifest = transport.output(&Call::new("manifest", &[remote_root, &seed]))?;
     let generation = manifest_generation(&manifest);
@@ -1152,7 +1204,8 @@ fn sync_once(
         for &i in &plan.verify {
             let f = &local[i];
             let same = remote_hashes.get(&f.path).is_some_and(|h| {
-                file_sha256(&repo.root.join(&f.path)).as_deref() == Some(h.as_str())
+                file_sha256(&base_for(&repo.root, overlay, &f.path).join(&f.path)).as_deref()
+                    == Some(h.as_str())
             });
             if same {
                 unchanged += 1;
@@ -1175,6 +1228,7 @@ fn sync_once(
         kept_local: set.kept_local,
         behind_links: set.behind_links,
         manifest: Manifest(local.clone()),
+        git_overlay: git.map(|g| g.root.clone()),
     };
     tracing::info!(?stats, remote_files = remote_entries.len(), "sync plan");
     // Deletions are bound to this attempt: a list stored by an attempt
@@ -1229,7 +1283,7 @@ fn sync_once(
         ],
     );
     transport.feed(&cmd, &mut |w| {
-        write_tar(&repo.root, &to_send, racy_from, w).map(|_| ())
+        write_tar_with(&repo.root, overlay, &to_send, racy_from, w).map(|_| ())
     })?;
     tracing::info!(?stats, elapsed = ?started.elapsed(), "synced");
     Ok(stats)

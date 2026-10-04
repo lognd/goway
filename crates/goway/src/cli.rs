@@ -96,6 +96,11 @@ pub struct RunArgs {
     /// Keep the remote work directory after the run.
     #[arg(long)]
     pub keep: bool,
+    /// Give the helper's copy a `.git` (HEAD, index) matching this work
+    /// tree, for tests that ask git about the repository; also
+    /// `with_git = true` in goway.toml. No remotes, credentials or hooks.
+    #[arg(long)]
+    pub with_git: bool,
     /// Write host, arch, address and exit code as JSON to this file.
     #[arg(long, env = "GOWAY_REPORT")]
     pub report: Option<PathBuf>,

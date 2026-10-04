@@ -2,13 +2,14 @@
 id = "01M427WY4XBZ8F0E3BY3FFY4EN"
 title = "Optional git metadata on the helper: --with-git gives the run a .git that matches the work tree, for tests that inspect the repository"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T01:19:19Z"
-updated = "2026-10-04T02:18:25Z"
+updated = "2026-10-04T02:19:41Z"
 scope = ["crates/goway/src/sync.rs", "crates/goway/src/run.rs", "crates/goway/src/cli.rs", "crates/goway/tests/with_git.rs", "docs/usage.md", "docs/design.md", "crates/goway/src/gitmeta.rs", "crates/goway/src/lib.rs", "crates/goway/src/project.rs", "crates/goway/src/shard.rs"]
 
 [[acceptance]]

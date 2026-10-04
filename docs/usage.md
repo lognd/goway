@@ -119,6 +119,27 @@ Git for Windows' `usr\bin` on `PATH`. goway handles the second itself: when
 if the directory exists) to `PATH`, never prepends it, and says so in the
 run's notes on stderr.
 
+### A `.git` on the helper (`--with-git`)
+
+`goway run --with-git` (or `with_git = true` at the top of `goway.toml`)
+gives the helper's copy a `.git` so tests that ask git about the repository
+(`git status`, tracked paths, HEAD) behave as locally. goway builds it on
+this machine, in its state directory (`git-meta/<worktree id>`), as a
+one-commit shallow repository: HEAD's commit, tree and blobs (no history),
+the real branch name, and a copy of the real index, so `git status` there
+lists the same changes as here. It is rebuilt only when HEAD moves; its
+files then travel like any other file of the tree, so they are synced
+incrementally, verified like the rest and removed by gc with the copy. The
+same on Linux and Windows hosts (on Windows `core.filemode` is off).
+
+Never in it: remotes (and any URL with a token), credentials, hooks, user
+config, reflogs, stashes, other branches, history, and the committed
+content of secret-looking files (their blobs are left out of the pack). Of
+your git config only `core.autocrlf`, `core.eol` and `core.safecrlf` are
+copied. Staged content that is not in HEAD is not included, so
+`git diff --cached` there cannot show it (`git status` can). A repository
+with no commit yet is refused.
+
 ### Copy integrity
 
 The copy of your tree on a helper is checked end to end, against your own
@@ -720,7 +741,9 @@ is undone by `goway ssh setup HOST --undo`; see docs/ssh-setup.md.
 
 ## What is sent to the remote
 
-- The git-visible work tree (see Sync above), without `.git`.
+- The git-visible work tree (see Sync above), without `.git` unless you
+  ask for `--with-git` (one-commit shallow history and the index, never
+  remotes, credentials or hooks; see above).
 - Secret-looking files stay on your machine unless you allow them. The
   match ignores case and covers:
   - environment files (dot-env files, their `.env.*` variants, `*.env`
