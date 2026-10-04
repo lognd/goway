@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T02:05:45Z"
+digest = "0a003df023b7d3150e1860e3a1e155e7ee983cc75e4f5de719da1985c0e5acce"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID db871af4-0424-47bc-a18c-4bfc6a154b23 with nextest profile: default
+    Starting 2 tests across 45 binaries (558 tests skipped)
+        PASS [   0.006s] goway-setup::relay the_elevated_refresh_task_only_queries_running_distros_and_never_starts_wsl
+        PASS [   0.006s] goway-setup::hostsys an_elevated_system_never_starts_a_distro_that_is_not_running
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.010s] 2 tests run: 2 passed, 558 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(an_elevated_system_never_starts_a_distro_that_is_not_running) | test(the_elevated_refresh_task_only_queries_running_distros_and_never_starts_wsl)'"
+size = 697
+status = "measured"
+tests = ["the_elevated_refresh_task_only_queries_running_distros_and_never_starts_wsl", "an_elevated_system_never_starts_a_distro_that_is_not_running"]
+at = "2026-10-04T02:05:45Z"
+actor = "lognd"
+rev = 1
