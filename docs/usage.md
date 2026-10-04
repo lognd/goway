@@ -111,10 +111,13 @@ updated incrementally by goway itself. Measured on an ARM Windows laptop
 for a 4000-file, 1300-test workspace: clippy 281 s cold, nextest 213 s warm.
 
 Two differences from a CI checkout are worth knowing. The Windows copy has
-no `.git` (goway never sends it), so tests that open the repository fail
-there; and tests that run `sh` need Git for Windows' `usr\bin` on `PATH`,
-which CI images have and a plain user profile may not:
-`goway run --host win -- powershell -Command '$env:PATH += ";C:\Program Files\Git\usr\bin"; cargo nextest run --workspace; exit $LASTEXITCODE'`.
+no `.git` unless the run asks for one (`--with-git`, see below), so tests
+that open the repository fail there without it; and tests that run `sh` need
+Git for Windows' `usr\bin` on `PATH`. goway handles the second itself: when
+`sh` is not on the host's `PATH`, the run appends Git for Windows' `usr\bin`
+(found from `git.exe`'s location, then the standard install paths, and only
+if the directory exists) to `PATH`, never prepends it, and says so in the
+run's notes on stderr.
 
 ### Copy integrity
 
