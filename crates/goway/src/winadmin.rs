@@ -31,15 +31,53 @@ pub struct WinStep {
     pub command: String,
     /// The WSL distro the step touches, if any: it must already be running.
     pub wsl_distro: Option<String>,
+    /// For a `goway-setup` step, its arguments: the step then runs the protected, verified copy
+    /// by absolute path ([`SETUP_GUARD`]) and `command` is only the text shown to people.
+    pub setup_args: Option<Vec<String>>,
 }
 
+/// PowerShell that finds `goway-setup` in a protected location, verifies it and runs it by
+/// absolute path; defines `Invoke-GowaySetup`. Never a PATH lookup.
+const SETUP_GUARD: &str = include_str!("winadmin.ps1");
+
+/// The exit code of [`SETUP_GUARD`] when no protected `goway-setup` exists on the helper.
+pub const EXIT_NO_TRUSTED_SETUP: i32 = 4;
+
 impl WinStep {
-    /// A `goway-setup` invocation with `args`, run by name (it is on the helper's PATH).
+    /// A `goway-setup` invocation with `args`. It runs a copy that goway verified on the helper
+    /// (protected owner and ACLs, no links, an absolute path), never whatever the name
+    /// `goway-setup` resolves to; `command` is the same call as text for a person to type.
     pub fn setup(args: &[&str], why: &str) -> Self {
+        let shown: Vec<String> = args
+            .iter()
+            .map(|a| {
+                let plain = !a.is_empty()
+                    && a.bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b"-_.:/".contains(&b));
+                if plain {
+                    (*a).to_owned()
+                } else {
+                    transport::ps_quote(a)
+                }
+            })
+            .collect();
         Self {
             why: why.to_owned(),
-            command: transport::ps_call(&[&["goway-setup"], args].concat()),
+            command: format!("goway-setup {}", shown.join(" ")),
             wsl_distro: None,
+            setup_args: Some(args.iter().map(|a| (*a).to_owned()).collect()),
+        }
+    }
+
+    /// The PowerShell source that does the step: the guarded absolute-path call for a setup
+    /// step, else `command`.
+    pub fn run_source(&self) -> String {
+        match &self.setup_args {
+            Some(args) => {
+                let quoted: Vec<String> = args.iter().map(|a| transport::ps_quote(a)).collect();
+                format!("{SETUP_GUARD}\nInvoke-GowaySetup @({})", quoted.join(", "))
+            }
+            None => self.command.clone(),
         }
     }
 
@@ -50,7 +88,7 @@ impl WinStep {
         if let Some(distro) = &self.wsl_distro {
             source.push_str(&wsl_guard(distro));
         }
-        source.push_str(&self.command);
+        source.push_str(&self.run_source());
         source.push_str("; exit $LASTEXITCODE");
         source
     }
@@ -186,6 +224,9 @@ fn judge(out: &std::process::Output) -> Result<(), Failure> {
     match out.status.code() {
         Some(0) => Ok(()),
         Some(SSH_FAILED) => Err(Failure::Unavailable(stderr)),
+        // No protected goway-setup there: this route cannot do the step (the next one cannot
+        // either, but it says so itself), so the person gets the manual command.
+        Some(EXIT_NO_TRUSTED_SETUP) => Err(Failure::Unavailable(stderr)),
         // Including EXIT_WSL_NOT_RUNNING: the session ran, the step did not.
         _ => Err(Failure::StepFailed(stderr)),
     }
@@ -225,9 +266,10 @@ impl WinRunner for SshWinRunner<'_> {
                 "the helper has no WSL to start goway-setup from".to_owned(),
             ));
         };
+        // Encoded, so no quoting layer between WSL and PowerShell can reshape the script.
         let remote = format!(
-            "powershell.exe -NoProfile -Command {}",
-            ssh::shell_quote(&format!("{}; exit $LASTEXITCODE", step.command))
+            "powershell.exe -NoProfile -EncodedCommand {}",
+            transport::encoded_command(&format!("{}; exit $LASTEXITCODE", step.run_source()))
         );
         let out = self
             .wsl_command(wsl, &remote)
@@ -252,7 +294,14 @@ pub enum Local {
 /// The PowerShell that starts `step` in an elevated PowerShell (the UAC prompt), waits for it and
 /// exits with its exit code.
 pub fn local_source(step: &WinStep) -> String {
-    let inner = format!("{}; exit $LASTEXITCODE", step.command);
+    let inner = format!("{}; exit $LASTEXITCODE", step.run_source());
+    if step.setup_args.is_some() {
+        // The guarded script is several lines: hand it over encoded.
+        return format!(
+            "$p = Start-Process powershell -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile','-EncodedCommand','{}'; exit $p.ExitCode",
+            transport::encoded_command(&inner)
+        );
+    }
     format!(
         "$p = Start-Process powershell -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile','-Command',{}; exit $p.ExitCode",
         transport::ps_quote(&inner)
@@ -436,6 +485,7 @@ mod tests {
             why: "adds a feature".to_owned(),
             command: "Add-WindowsCapability -Online -Name 'X'".to_owned(),
             wsl_distro: None,
+            setup_args: None,
         };
         let src = local_source(&step);
         assert!(
@@ -453,14 +503,91 @@ mod tests {
 
     // frob:tests crates/goway/src/winadmin.rs::WinStep
     #[test]
-    fn a_setup_step_quotes_its_arguments_for_powershell_and_keeps_the_exit_code() {
+    fn a_setup_step_shows_a_typable_command_and_runs_the_guarded_absolute_path_call() {
         let s = step();
-        assert!(
-            s.command.starts_with("& 'goway-setup' 'install'"),
-            "{}",
-            s.command
+        assert_eq!(
+            s.command,
+            "goway-setup install --host --native --authorized-key 'ssh-ed25519 AAAA k'"
         );
-        assert!(s.command.contains("'ssh-ed25519 AAAA k'"), "{}", s.command);
-        assert!(s.admin_source().ends_with("; exit $LASTEXITCODE"));
+        let src = s.admin_source();
+        assert!(src.ends_with("; exit $LASTEXITCODE"), "{src}");
+        // The arguments are single-quoted literals in one array.
+        assert!(
+            src.contains(
+                "Invoke-GowaySetup @('install', '--host', '--native', '--authorized-key', 'ssh-ed25519 AAAA k')"
+            ),
+            "{src}"
+        );
+    }
+
+    // frob:tests crates/goway/src/winadmin.rs::WinStep
+    #[test]
+    fn an_administrator_setup_step_has_no_bare_command_word_and_verifies_before_running() {
+        let src = step().admin_source();
+        // No `& 'goway-setup'`, no bare `goway-setup` call, no name lookup at all.
+        for lookup in [
+            "& 'goway-setup'",
+            "Get-Command",
+            "Get-Alias",
+            "where.exe",
+            "$env:PATH",
+        ] {
+            assert!(!src.contains(lookup), "{lookup} in {src}");
+        }
+        for line in src.lines() {
+            let line = line.trim();
+            assert!(
+                !line.starts_with("goway-setup") && !line.starts_with("& goway-setup"),
+                "bare call: {line}"
+            );
+        }
+        // The only thing it runs is a verified absolute path, found in fixed protected places.
+        assert!(src.contains("& $setup @SetupArgs"), "{src}");
+        assert!(
+            src.contains("Test-GowayProtectedPath") && src.contains("GetOwner"),
+            "{src}"
+        );
+        assert!(
+            src.contains("$env:ProgramFiles") && src.contains("$env:ProgramData"),
+            "{src}"
+        );
+        let find = src.find("Find-GowaySetup").unwrap();
+        let run = src.find("& $setup").unwrap();
+        assert!(find < run, "the lookup comes first: {src}");
+        assert!(
+            src.contains(&format!("exit {EXIT_NO_TRUSTED_SETUP}")),
+            "{src}"
+        );
+        // Quotes in arguments cannot leave their literal (typographic ones included).
+        let tricky = WinStep::setup(&["install", "it\u{2019}s"], "x").admin_source();
+        assert!(tricky.contains("'it\u{2019}\u{2019}s'"), "{tricky}");
+    }
+
+    // frob:tests crates/goway/src/winadmin.rs::SshWinRunner
+    #[test]
+    fn a_missing_protected_setup_is_a_route_that_cannot_do_the_step_not_a_failed_step() {
+        let out = |code: i32| std::process::Output {
+            status: exit_status(code),
+            stdout: Vec::new(),
+            stderr: b"goway-setup was not found".to_vec(),
+        };
+        assert!(matches!(
+            judge(&out(EXIT_NO_TRUSTED_SETUP)),
+            Err(Failure::Unavailable(_))
+        ));
+        assert!(matches!(judge(&out(1)), Err(Failure::StepFailed(_))));
+        assert!(judge(&out(0)).is_ok());
+    }
+
+    #[cfg(unix)]
+    fn exit_status(code: i32) -> std::process::ExitStatus {
+        use std::os::unix::process::ExitStatusExt as _;
+        std::process::ExitStatus::from_raw(code << 8)
+    }
+
+    #[cfg(windows)]
+    fn exit_status(code: i32) -> std::process::ExitStatus {
+        use std::os::windows::process::ExitStatusExt as _;
+        std::process::ExitStatus::from_raw(code.cast_unsigned())
     }
 }

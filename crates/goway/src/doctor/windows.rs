@@ -475,6 +475,7 @@ pub fn apply(steps: &[Step], admin: bool, confirm: &Confirm, runner: &dyn Runner
                 why: step.fix.why.clone(),
                 command: step.fix.command.clone(),
                 wsl_distro: None,
+                setup_args: None,
             };
             tracing::info!(check = %step.check, "running an administrator step");
             match runner.admin(&win) {

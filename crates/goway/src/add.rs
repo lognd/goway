@@ -103,6 +103,7 @@ fn ssh_client_step() -> WinStep {
         why: "adds the OpenSSH client Windows feature, which needs administrator rights".to_owned(),
         command: "Add-WindowsCapability -Online -Name 'OpenSSH.Client~~~~0.0.1.0'".to_owned(),
         wsl_distro: None,
+        setup_args: None,
     }
 }
 

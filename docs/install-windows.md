@@ -382,6 +382,25 @@ into goway. Set it up once, whichever you prefer:
 3. Otherwise goway stops and prints the exact command to run in an
    administrator PowerShell, and `goway add` can be repeated afterwards.
 
+**Which `goway-setup` the administrator step runs.** Never "whatever the name
+`goway-setup` finds on PATH": on an administrator token that would run a
+program any process of the Windows user could have planted first (the
+per-user `WindowsApps` folder leads a default PATH and is writable by the
+user). The step script ignores PATH, PATHEXT and the current directory and
+looks only in fixed protected places: `%ProgramFiles%\goway\goway-setup.exe`
+and `%ProgramData%\goway\<profile>\bin\goway-setup.exe` (the copy a host
+install keeps in its administrator-only directory). It runs a copy by its
+absolute path only when the file and each directory above it (up to the first
+one under `%ProgramFiles%` or `%ProgramData%`) is owned by SYSTEM,
+Administrators or TrustedInstaller, is not a link, and grants nobody else
+write, append, delete, permission or owner rights. Otherwise it exits with a
+message and goway falls through to route 3. So the first `--rsudo` on a helper
+whose only goway-setup is the one you downloaded (a per-user location) is
+refused on purpose: run the printed command yourself, in an administrator
+PowerShell, from the installer you chose; later steps use the protected copy.
+Tested with a model of the ACL lookup under a real PowerShell:
+`crates/goway/tests/winadmin_setup.rs`.
+
 An administrator session must never start WSL: WSL started from an
 elevated token lends that token to every WSL user through interop. goway's
 steps that touch a distro first run `wsl --list --running` (with

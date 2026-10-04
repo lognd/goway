@@ -36,8 +36,9 @@ if [ "$user" = admin ]; then
   # key the goway-setup command names.
   blob=${1##* }
   text=$(printf %s "$blob" | base64 -d | iconv -f UTF-16LE -t UTF-8)
-  case "$text" in *"'goway-setup' 'install' '--host' '--native' '--authorized-key'"*) ;; *) echo "unexpected step: $text" >&2; exit 9 ;; esac
-  key=$(printf %s "$text" | sed -n "s/.*'--authorized-key' '\([^']*\)'.*/\1/p")
+  case "$text" in *"Invoke-GowaySetup @('install', '--host', '--native', '--authorized-key', '"*) ;; *) echo "unexpected step: $text" >&2; exit 9 ;; esac
+  case "$text" in *Test-GowayProtectedPath*) ;; *) echo "step does not verify goway-setup: $text" >&2; exit 9 ;; esac
+  key=$(printf %s "$text" | sed -n "s/.*'--authorized-key', '\([^']*\)'.*/\1/p")
   mkdir -p "$HOME/.ssh"; echo "$key" >>"$HOME/.ssh/authorized_keys"
   : >"$HOME/../admin-step-ran"
   exit 0

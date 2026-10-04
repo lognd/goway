@@ -6,32 +6,13 @@
 
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::OnceLock;
 
 use base64::Engine as _;
 use goway::transport::{encoded_command, ps_call, ps_quote};
 use proptest::prelude::*;
 
-fn pwsh() -> Option<&'static PathBuf> {
-    static PS: OnceLock<Option<PathBuf>> = OnceLock::new();
-    PS.get_or_init(|| {
-        let mut candidates = Vec::new();
-        if let Some(p) = std::env::var_os("GOWAY_PWSH") {
-            candidates.push(PathBuf::from(p));
-        }
-        candidates.push(PathBuf::from("pwsh"));
-        if cfg!(windows) {
-            candidates.push(PathBuf::from("powershell"));
-        }
-        candidates.into_iter().find(|c| {
-            Command::new(c)
-                .args(["-NoProfile", "-Command", "exit 0"])
-                .output()
-                .is_ok_and(|o| o.status.success())
-        })
-    })
-    .as_ref()
-}
+mod pwsh;
+use pwsh::pwsh;
 
 /// Send every string through `& 'Show' <quoted>` and back as UTF-8 bytes; also report whether
 /// any injected statement ran (`$global:hit`).
