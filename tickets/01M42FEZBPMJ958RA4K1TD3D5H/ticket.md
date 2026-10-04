@@ -8,7 +8,7 @@ points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T03:31:30Z"
-updated = "2026-10-04T03:40:34Z"
+updated = "2026-10-04T03:40:56Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/tests/remote_ps1.rs", "crates/goway/src/error.rs"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given an interop host, when a remote call fails, then the error does not say 'ssh to' (it names the transport that failed)"
-bound = false
+bound = true
 +++
