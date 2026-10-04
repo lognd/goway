@@ -5,6 +5,8 @@
 
 mod common;
 
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 /// Like the real ssh client: it is a separate process that stays alive when
@@ -26,13 +28,13 @@ sh -c "$1"
 const BOUND: Duration = Duration::from_secs(20);
 
 fn alive(pid: u32) -> bool {
-    std::process::Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
+    // A zombie waiting for its reaper is gone for every purpose here.
+    std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|s| {
+        s.rsplit(')')
+            .next()
+            .is_some_and(|r| !r.trim_start().starts_with('Z'))
+    })
 }
-
 // frob:tests crates/goway/src/run.rs::stream
 #[test]
 fn a_sigkilled_client_stops_its_job_within_the_bound_and_frees_the_work_dir() {
@@ -59,4 +61,147 @@ fn a_sigkilled_client_stops_its_job_within_the_bound_and_frees_the_work_dir() {
     common::wait_for("the run's work dir to be cleaned", || {
         w.work_dirs().is_empty()
     });
+}
+
+/// Pids recorded in `file`, one per line.
+fn pids(file: &Path) -> Vec<u32> {
+    std::fs::read_to_string(file)
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|l| l.trim().parse().ok())
+        .collect()
+}
+
+/// Shell that starts three background processes of a job: one in the job's group, one in its
+/// own session (setsid) and a shell loop, each recording its pid in `file`.
+fn stragglers(file: &Path) -> String {
+    let f = file.display();
+    format!(
+        "sh -c 'echo $$ >> {f}; exec sleep 120' & \
+         setsid sh -c 'echo $$ >> {f}; exec sleep 121' & \
+         sh -c 'echo $$ >> {f}; while :; do sleep 1; done' & true"
+    )
+}
+
+/// Every build-slot lock under the world's remote root can be taken at once.
+fn slot_locks_free(w: &common::World) -> bool {
+    let out = std::process::Command::new("find")
+        .arg(&w.remote)
+        .args(["-name", "target-*.lock"])
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&out.stdout).lines().all(|f| {
+        std::process::Command::new("flock")
+            .args(["-n", f, "true"])
+            .status()
+            .is_ok_and(|s| s.success())
+    })
+}
+
+/// A `systemd-run` that always fails, so the helper has no scope (the fallback path).
+fn without_scope(w: &common::World) {
+    let fake = w.bin.join("systemd-run");
+    std::fs::write(&fake, "#!/bin/sh\nexit 1\n").unwrap();
+    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+/// Whether this machine can run a transient user scope (the scope path under test).
+fn has_scopes() -> bool {
+    std::process::Command::new("systemd-run")
+        .args(["--user", "--scope", "--quiet", "--collect", "true"])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+/// Kill the client of a held run that has stragglers; every one must end, and the slot lock free.
+fn sigkilled_client_leaves_nothing(w: &common::World) {
+    let file = w.root.join("stragglers.pids");
+    let mut held = w.hold(&[], &format!("{} sleep 0.2", stragglers(&file)));
+    held.wait_started();
+    common::wait_for("the stragglers to start", || pids(&file).len() >= 3);
+    let all = pids(&file);
+    let killed_at = Instant::now();
+    held.kill_client();
+    common::wait_for("every process of the job to end", || {
+        all.iter().all(|p| !alive(*p))
+    });
+    assert!(killed_at.elapsed() < BOUND, "{:?}", killed_at.elapsed());
+    common::wait_for("the run's work dir to be cleaned", || {
+        w.work_dirs().is_empty()
+    });
+    common::wait_for("the slot lock to be free", || slot_locks_free(w));
+    for p in all {
+        let _ = std::process::Command::new("kill")
+            .args(["-KILL", &p.to_string()])
+            .status();
+    }
+}
+
+/// A job whose leader exits while its background processes run on: after the run, none remain.
+fn finished_run_leaves_nothing(w: &common::World) {
+    let file = w.root.join("left.pids");
+    let f = file.display();
+    let script = format!(
+        "{}; while [ $(wc -l < {f}) -lt 3 ]; do sleep 0.1; done",
+        stragglers(&file)
+    );
+    let out = w
+        .goway(&["run", "--", "sh", "-c", &script])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .unwrap();
+    assert!(out.success());
+    let all = pids(&file);
+    assert_eq!(all.len(), 3);
+    common::wait_for("no process of the finished run to remain", || {
+        all.iter().all(|p| !alive(*p))
+    });
+    common::wait_for("the slot lock to be free", || slot_locks_free(w));
+    for p in all {
+        let _ = std::process::Command::new("kill")
+            .args(["-KILL", &p.to_string()])
+            .status();
+    }
+}
+
+// frob:ticket 01M44F3BBCMAXQNP7H2SZFHCRG
+// frob:tests crates/goway/src/run.rs::stream
+#[test]
+fn a_sigkilled_client_leaves_no_process_of_its_job_without_a_scope() {
+    let w = common::world_with_ssh(SURVIVING_SSH);
+    without_scope(&w);
+    sigkilled_client_leaves_nothing(&w);
+}
+
+// frob:ticket 01M44F3BBCMAXQNP7H2SZFHCRG
+// frob:tests crates/goway/src/run.rs::stream
+#[test]
+fn a_sigkilled_client_leaves_no_process_of_its_job_in_its_scope() {
+    if !has_scopes() {
+        return;
+    }
+    let w = common::world_with_ssh(SURVIVING_SSH);
+    sigkilled_client_leaves_nothing(&w);
+}
+
+// frob:ticket 01M44F3BBCMAXQNP7H2SZFHCRG
+// frob:tests crates/goway/src/run.rs::stream
+#[test]
+fn a_finished_run_leaves_no_background_process_without_a_scope() {
+    let w = common::world();
+    without_scope(&w);
+    finished_run_leaves_nothing(&w);
+}
+
+// frob:ticket 01M44F3BBCMAXQNP7H2SZFHCRG
+// frob:tests crates/goway/src/run.rs::stream
+#[test]
+fn a_finished_run_leaves_no_background_process_in_its_scope() {
+    if !has_scopes() {
+        return;
+    }
+    let w = common::world();
+    finished_run_leaves_nothing(&w);
 }

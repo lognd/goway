@@ -643,6 +643,89 @@ stop_group() {
   kill -KILL -- "-$pid" 2>/dev/null || true
 }
 
+# run_pids RUN_ID: the pids of every process that carries the run's GOWAY_RUN_ID in its
+# environment, one per line, however it regrouped (setsid, double fork), except this shell
+# and the run's own shell. Linux only; nothing elsewhere.
+run_pids() {
+  local f me=$$ self=${BASHPID:-$$} p
+  [ -d /proc/self ] || return 0
+  # shellcheck disable=SC2231 # the glob is the point
+  grep -l -a -z -x "GOWAY_RUN_ID=$1" /proc/[0-9]*/environ 2>/dev/null | while IFS= read -r f; do
+    p=${f#/proc/}
+    p=${p%/environ}
+    [ "$p" = "$me" ] || [ "$p" = "$self" ] || printf '%s\n' "$p"
+  done || true
+}
+
+# kill_run RUN_ID: stop every process tagged with the run (run_pids), the backstop for a
+# job that left its process group and its scope. SIGTERM, a short grace, then SIGKILL.
+kill_run() {
+  local pids n
+  pids=$(run_pids "$1" || true)
+  [ -n "$pids" ] || return 0
+  # shellcheck disable=SC2086 # the list is words by construction
+  kill -TERM $pids 2>/dev/null || true
+  for n in 1 2 3 4 5 6 7 8 9 10; do
+    pids=$(run_pids "$1" || true)
+    [ -n "$pids" ] || return 0
+    sleep 0.2
+  done
+  # shellcheck disable=SC2086
+  kill -KILL $pids 2>/dev/null || true
+}
+
+# scope_procs CGROUP_DIR: whether the cgroup still has a process.
+scope_procs() {
+  [ -n "$(cat "$1/cgroup.procs" 2>/dev/null || true)" ]
+}
+
+# stop_scope UNIT CGROUP: stop a job's whole systemd scope: `systemctl --user stop` (SIGTERM
+# to every process in the cgroup, SIGKILL after the scope's TimeoutStopSec), and if that did
+# not empty the cgroup (no user bus, a wedged manager) kill the cgroup itself: cgroup.kill,
+# else SIGKILL to each pid in cgroup.procs. CGROUP is the cgroup v2 directory ("" if unknown).
+# Bounded; never fails.
+stop_scope() {
+  local unit=$1 cg=$2 p n
+  bounded_for 15 systemctl --user stop "$unit" >/dev/null 2>&1 || true
+  [ -n "$cg" ] && [ -d "$cg" ] || return 0
+  for n in 1 2 3 4 5; do
+    scope_procs "$cg" || return 0
+    sleep 0.2
+  done
+  if [ -w "$cg/cgroup.kill" ]; then
+    printf '1' >"$cg/cgroup.kill" 2>/dev/null || true
+  else
+    for p in $(cat "$cg/cgroup.procs" 2>/dev/null || true); do kill -KILL "$p" 2>/dev/null || true; done
+  fi
+}
+
+# stop_job WORK PID RUN_ID: end everything a run's job started, however it regrouped:
+# its whole scope when it has one (WORK/scope names the unit, WORK/cgroup its directory),
+# then its process group PID (the session leader, "" if unknown), then every process still
+# tagged with the run (kill_run). Bounded; never fails.
+stop_job() {
+  local work=$1 pid=$2 run=$3 unit cg
+  unit=$(cat "$work/scope" 2>/dev/null || true)
+  cg=$(cat "$work/cgroup" 2>/dev/null || true)
+  if [ -n "$unit" ]; then stop_scope "$unit" "$cg"; fi
+  if [ -n "$pid" ]; then stop_group "$pid"; fi
+  kill_run "$run"
+}
+
+# reap_job WORK PID RUN_ID: after the job's own command ended, stop whatever it left behind
+# (a background loop outlives its leader, keeps the run's slot lock through its inherited
+# fd, and burns the helper's CPU). Cheap when nothing is left.
+reap_job() {
+  local work=$1 pid=$2 run=$3 cg
+  cg=$(cat "$work/cgroup" 2>/dev/null || true)
+  if { [ -n "$cg" ] && [ -d "$cg" ] && scope_procs "$cg"; } ||
+    { [ -n "$pid" ] && kill -0 -- "-$pid" 2>/dev/null; } || [ -n "$(run_pids "$run" || true)" ]; then
+    printf 'goway-remote: the job of run %s left processes behind; stopping them\n' "$run" >&2
+    stop_job "$work" "$pid" "$run"
+  fi
+  return 0
+}
+
 # scope_argv WORK CMD...: leave CMD (argv, NUL separated) and a loader that execs it in WORK.
 # systemd-run expands `$` and `%` in the arguments it is given (`$$` becomes `$`), so the
 # user's command never goes through its command line.
@@ -686,6 +769,7 @@ mem_sample() {
   local pid=$1 dir=$2 cg v="" old
   cg=$(mem_cgroup "$pid" || true)
   if [ -n "$cg" ] && [ -r "$cg/memory.peak" ]; then
+    [ -e "$dir/cgroup" ] || printf '%s' "$cg" >"$dir/cgroup" 2>/dev/null || true
     v=$(cat "$cg/memory.peak" 2>/dev/null || true)
     if awk '/^oom_kill / && $2 > 0 {f=1} END {exit !f}' "$cg/memory.events" 2>/dev/null; then : >"$dir/oom"; fi
   else
@@ -715,7 +799,7 @@ job_scope() {
   SCOPE=()
   [ "$IS_DARWIN" != 1 ] && [ -e /sys/fs/cgroup/cgroup.controllers ] && command -v systemd-run >/dev/null 2>&1 || return 0
   if bounded_for 3 systemd-run --user --scope --quiet --collect --unit="goway-probe-$1" true >/dev/null 2>&1; then
-    SCOPE=(systemd-run --user --scope --quiet --collect --unit="goway-$1")
+    SCOPE=(systemd-run --user --scope --quiet --collect -p TimeoutStopSec=5 --unit="goway-$1")
   fi
   return 0
 }
@@ -736,7 +820,8 @@ watchdog() {
     if [ -n "$memdir" ]; then mem_sample "$pid" "$memdir"; fi
     sleep 0.5
   done
-  if kill -0 "$pid" 2>/dev/null; then stop_group "$pid"; fi
+  # The leader may be gone while its background processes run on: stop the whole job.
+  if ! kill -0 "$session" 2>/dev/null && [ -n "$memdir" ]; then stop_job "$memdir" "$pid" "${memdir##*/}"; fi
 }
 
 # How long (seconds) lifeline waits for the client's next heartbeat byte. Long on
@@ -776,7 +861,7 @@ lifeline() {
   case "$pid" in "" | *[!0-9]*) pid="" ;; esac
   if [ -n "$pid" ]; then
     printf 'goway-remote: client of run %s is gone (%s); stopping its job\n' "$2" "$why" >&2
-    stop_group "$pid"
+    stop_job "$work" "$pid" "$2"
     return 0
   fi
   runner=$(cat "$work/runner" 2>/dev/null || true)
@@ -1516,12 +1601,16 @@ run() {
   else
     if [ ${#SCOPE[@]} -gt 0 ]; then
       scope_argv "$work" ${nicer[@]+"${nicer[@]}"} "$@"
+      printf 'goway-%s.scope' "$run_id" >"$work/scope"
       setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "${SCOPE[@]}" bash "$work/scope-exec.sh" "$work/argv" || rc=$?
     else
       setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
     fi
   fi
+  # The watchdog's own children (its sleep) carry the run's tag: end them with it.
+  pkill -P "$wd" 2>/dev/null || true
   kill "$wd" 2>/dev/null || true
+  reap_job "$work" "$(cat "$work/pid" 2>/dev/null || true)" "$run_id"
   : >"$work/done"
   cd "$root"
   memory_report "$root" "$repo_id" "$work" "$rc"
