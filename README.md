@@ -51,11 +51,47 @@ hardware.
 | macOS Intel | Works: release binaries and one command. CI-built only; untested by the maintainer (no such machine) | Not yet: in progress (~FKHDK2A). Untested by the maintainer (no such machine) |
 | FreeBSD | Not supported: no release binary. Untested by the maintainer (no such machine) | Not supported. Untested by the maintainer (no such machine) |
 
-**Downloads:** every version's ready-made files (`goway-setup.exe`,
-the Linux programs, `install.sh` and the checksums) are on the
-[Releases page](https://github.com/lognd/goway/releases). The newest
-one is always at
-[releases/latest](https://github.com/lognd/goway/releases/latest).
+**Downloads.** Every version's ready-made files are on the
+[Releases page](https://github.com/lognd/goway/releases). These links
+always fetch the newest release (from v0.1.0):
+
+| Your computer | Download |
+|---|---|
+| Windows, most PCs (x64) | [goway-setup.exe](https://github.com/lognd/goway/releases/latest/download/goway-setup.exe) |
+| Windows on ARM (for example Snapdragon laptops) | [goway-setup-arm64.exe](https://github.com/lognd/goway/releases/latest/download/goway-setup-arm64.exe) |
+| Linux or WSL, most PCs (x86_64) | [goway-x86_64-unknown-linux-musl.tar.gz](https://github.com/lognd/goway/releases/latest/download/goway-x86_64-unknown-linux-musl.tar.gz) |
+| Linux or WSL on ARM (aarch64, Raspberry Pi 4 and newer) | [goway-aarch64-unknown-linux-musl.tar.gz](https://github.com/lognd/goway/releases/latest/download/goway-aarch64-unknown-linux-musl.tar.gz) |
+| Mac with Apple Silicon (M1 and newer) | [goway-aarch64-apple-darwin.tar.gz](https://github.com/lognd/goway/releases/latest/download/goway-aarch64-apple-darwin.tar.gz) |
+| Mac with Intel | [goway-x86_64-apple-darwin.tar.gz](https://github.com/lognd/goway/releases/latest/download/goway-x86_64-apple-darwin.tar.gz) |
+| The installer script (Linux, WSL, macOS) | [install.sh](https://github.com/lognd/goway/releases/latest/download/install.sh) |
+| Checksums of all of the above | [SHA256SUMS](https://github.com/lognd/goway/releases/latest/download/SHA256SUMS) |
+
+Not sure which one? On Windows, Settings > System > About shows
+"System type" (x64 or ARM64). On Linux or a Mac, `uname -m` prints
+`x86_64` or `aarch64`/`arm64`. The one-line installers below pick the
+right file for you.
+
+<details><summary>How to check that a download is genuine</summary>
+
+Each release publishes `SHA256SUMS`, the fingerprint of every file. The
+one-line installer checks it for you; to check a file you downloaded by
+hand, put it next to `SHA256SUMS` and run:
+
+    # Linux or WSL
+    sha256sum --check --ignore-missing SHA256SUMS
+    # macOS
+    shasum -a 256 --check --ignore-missing SHA256SUMS
+    # Windows PowerShell: compare this with the line for the file in SHA256SUMS
+    (Get-FileHash .\goway-setup.exe -Algorithm SHA256).Hash
+
+Every file also carries a signed record of the GitHub build that made it
+(a build provenance attestation). With the GitHub CLI:
+
+    gh attestation verify goway-setup.exe --repo lognd/goway
+
+A mismatch means the file is not the one the release published: delete
+it and download again.
+</details>
 
 On your main laptop, one command installs goway:
 
@@ -65,7 +101,7 @@ curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | 
 ```
 
 ```powershell
-# Windows without WSL (download goway-setup.exe from the Releases page first)
+# Windows without WSL (download goway-setup.exe from the table above first)
 .\goway-setup.exe install
 ```
 

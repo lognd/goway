@@ -185,3 +185,45 @@ fn releases_trigger_on_goway_v_tags_and_check_the_tag_against_the_cargo_version(
         );
     }
 }
+
+#[test]
+fn every_readme_download_link_names_a_file_the_release_publishes() {
+    let readme = read("README.md");
+    let release = read(".github/workflows/release.yml");
+    let prefix = "https://github.com/lognd/goway/releases/latest/download/";
+    let linked: Vec<&str> = readme
+        .match_indices(prefix)
+        .map(|(i, _)| {
+            let rest = &readme[i + prefix.len()..];
+            let end = rest
+                .find(|c: char| c == ')' || c == ' ' || c == '\n' || c == '|')
+                .unwrap_or(rest.len());
+            &rest[..end]
+        })
+        .collect();
+    assert!(
+        linked.len() >= 8,
+        "expected the download table, found {linked:?}"
+    );
+    // The four archives are named goway-<target>.tar.gz from the build matrix.
+    let targets: Vec<&str> = release
+        .lines()
+        .filter_map(|l| l.trim().strip_prefix("target: "))
+        .collect();
+    for file in linked {
+        let published = match file {
+            "install.sh" | "SHA256SUMS" => {
+                release.contains(&format!("dist/{file}")) || release.contains(&format!("> {file}"))
+            }
+            f if f.starts_with("goway-setup") => release.contains(&format!("asset: {f}")),
+            f => f
+                .strip_prefix("goway-")
+                .and_then(|t| t.strip_suffix(".tar.gz"))
+                .is_some_and(|t| targets.contains(&t) && !t.contains("-gnu")),
+        };
+        assert!(
+            published,
+            "README links {file}, which the release does not publish"
+        );
+    }
+}
