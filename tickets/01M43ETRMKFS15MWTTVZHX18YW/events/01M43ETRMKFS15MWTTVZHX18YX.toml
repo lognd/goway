@@ -1,0 +1,12 @@
+kind = "create"
+title = "An unpinned cross-OS run whose translation is in doubt re-picks a host of the laptop's OS instead of stopping"
+type = "story"
+category = "todo"
+priority = "medium"
+points = 2
+parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
+scope = ["crates/goway/src/run.rs", "crates/goway/src/pool.rs", "crates/goway/tests/translate.rs"]
+acceptance = ["Given an --any-os (or cross_os) run that lands on another OS where translation is in doubt, when goway finds out, then it re-picks among hosts of the laptop's OS (excluding the doubtful host) and runs there with one note, instead of exiting 125; the doubtful host's synced work dir is removed; a pinned run still stops as specified"]
+at = "2026-10-04T12:39:42Z"
+actor = "lognd"
+rev = 1

@@ -1,0 +1,12 @@
+kind = "create"
+title = "macOS CI: scratch_fs tests assume a case-sensitive file system"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 1
+scope = ["crates/goway/tests/scratch_fs.rs"]
+acceptance = ["Given a case-insensitive temp file system, When the scratch_fs tests run, Then they pass on macOS and Linux"]
+body = "The case-clash test runs a receive that must succeed without the assume hook, and the doctor test expects root_case_insensitive=0; APFS is case-insensitive so the product (correctly) refuses and reports 1. Fix the test to ask the temp dir what it is."
+at = "2026-10-04T12:40:55Z"
+actor = "lognd"
+rev = 1
