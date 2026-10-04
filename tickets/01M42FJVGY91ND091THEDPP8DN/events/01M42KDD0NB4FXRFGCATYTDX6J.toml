@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T04:40:33Z"
+digest = "3833d4fa84fe40eec4faaa639dbd131470a2fd23e692ebc156d78e1f0d2c028e"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8291b8c6-7d91-493f-8c52-cbb29d6ac07e with nextest profile: default
+    Starting 2 tests across 57 binaries (663 tests skipped)
+        PASS [   0.035s] goway pool::tests::each_os_takes_the_best_host_of_every_os
+        PASS [  13.532s] goway::cross_os each_os_runs_once_per_reachable_os_with_prefixes_and_a_summary
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  13.558s] 2 tests run: 2 passed, 663 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/each_os_runs_once_per_reachable_os|each_os_takes_the_best_host_of_every_os/)'"
+size = 658
+status = "measured"
+tests = ["pool::tests::each_os_takes_the_best_host_of_every_os", "each_os_runs_once_per_reachable_os_with_prefixes_and_a_summary"]
+at = "2026-10-04T04:40:33Z"
+actor = "lognd"
+rev = 1
