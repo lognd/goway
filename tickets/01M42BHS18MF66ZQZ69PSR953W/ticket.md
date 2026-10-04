@@ -8,10 +8,10 @@ points = 3
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T02:23:08Z"
-updated = "2026-10-04T02:57:59Z"
+updated = "2026-10-04T02:59:39Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/inhibit.rs", "docs/usage.md"]
 
 [[acceptance]]
 text = "Given a laptop helper that would suspend on idle, when a goway job runs there, then the job holds a sleep inhibitor for exactly its lifetime (systemd-inhibit --what=sleep:idle where available, caffeinate on macOS), released however the run ends and never failing the job when the host has none (the Windows SetThreadExecutionState part is on the remote.ps1 parity ticket)"
-bound = false
+bound = true
 +++

@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T02:59:39Z"
+digest = "697aaa02da7ad72a2006011f761a225f00a09367e656258282d1b664e0fbe7f2"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 46.44s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 930658fd-ad5f-4b94-bd96-10beb25863a0 with nextest profile: default
+    Starting 3 tests across 1 binary (48 binaries skipped)
+        PASS [   4.682s] goway::inhibit a_host_whose_inhibitor_does_not_work_still_runs_the_job
+        PASS [   4.686s] goway::inhibit a_job_holds_the_inhibitor_exactly_while_it_runs
+        PASS [   4.723s] goway::inhibit the_inhibitor_is_released_when_the_job_fails_and_the_exit_code_is_the_jobs
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   4.726s] 3 tests run: 3 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(inhibit)'"
+size = 951
+status = "measured"
+tests = ["a_host_whose_inhibitor_does_not_work_still_runs_the_job", "a_job_holds_the_inhibitor_exactly_while_it_runs", "the_inhibitor_is_released_when_the_job_fails_and_the_exit_code_is_the_jobs"]
+at = "2026-10-04T02:59:39Z"
+actor = "lognd"
+rev = 1
