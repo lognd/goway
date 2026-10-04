@@ -1516,6 +1516,8 @@ probe() {
   if [ "$want_static" = 1 ]; then static_facts; fi
   printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(machine)" "$(uname -n)" "$(cores)"
   printf 'os=%s\n' "$(uname -s | tr '[:upper:]' '[:lower:]')"
+  # The host's wall clock in whole seconds; goway computes the clock offset from it.
+  printf 'epoch=%s\n' "$(date +%s)"
   if [ "$IS_DARWIN" = 1 ]; then
     # "{ 1.23 1.45 1.67 }"
     read -r _ l1 l5 l15 _ < <(sysctl -n vm.loadavg)
@@ -1860,6 +1862,7 @@ doctor() {
   # Names only: a proxy URL may carry credentials, so values never leave the host.
   printf 'proxy_vars=%s\n' "$({ env | sed -n 's/=.*//p' | grep -iE '^(https?|all|no)_proxy$' | sort -u | paste -sd, - ; } 2>/dev/null || true)"
   printf 'kernel=%s\n' "$(uname -s)"
+  printf 'epoch=%s\n' "$(date +%s)"
   if [ "$IS_DARWIN" = 1 ]; then
     # Which tools still resolve to the BSD versions (no --version, or not GNU).
     v=""
