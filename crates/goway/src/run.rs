@@ -218,6 +218,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     if let Some(r) = &rule {
         renderer.note(r.describe());
     }
+    let with_git = args.with_git || project::wants_git(&repo.root)?;
     let mut state = State::load(&env.paths.state_file())?;
     let (host, found, probe) = pool::choose(
         &config,
@@ -271,7 +272,15 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         } else {
             format!("{}-a{}", new_run_id(), verify.attempt)
         };
-        let synced = sync_snapshot(env, &config, &repo, &found, &run_id, args.keep)?;
+        let synced = sync_snapshot(
+            env,
+            &config,
+            &repo,
+            &found,
+            &run_id,
+            args.keep,
+            with_git.then_some(host.os),
+        )?;
         renderer.note(format_args!(
             "synced {} files ({} sent, {} bytes, {} deleted)",
             synced.files, synced.sent, synced.bytes, synced.deleted
@@ -313,6 +322,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
             run_id: &run_id,
             repo_root: &repo.root,
             manifest: &synced.manifest,
+            git_overlay: synced.git_overlay.as_deref(),
         };
         let done = std::sync::atomic::AtomicBool::new(false);
         let (streamed, gate_report) = std::thread::scope(|s| {
@@ -447,7 +457,8 @@ pub struct RemoteReport {
     pub attempts: Vec<AttemptRecord>,
 }
 
-/// Sync the work tree to `found` and snapshot it as work dir `run_id`.
+/// Sync the work tree to `found` and snapshot it as work dir `run_id`; with
+/// `git` (the helper's OS) the copy also gets a `.git` (`--with-git`).
 pub(crate) fn sync_snapshot(
     env: &Env<'_>,
     config: &Config,
@@ -455,19 +466,25 @@ pub(crate) fn sync_snapshot(
     found: &Found,
     run_id: &str,
     keep: bool,
+    git: Option<crate::config::Os>,
 ) -> Result<sync::Stats> {
     let transport = SshTransport::of(found, env.settings);
+    let secrets = sync::Secrets::from_config(&config.defaults);
+    let overlay = git
+        .map(|os| crate::gitmeta::prepare(repo, &secrets, os, &env.paths.state_dir))
+        .transpose()?;
     let snapshot = sync::Snapshot {
         run_id: run_id.to_owned(),
         meta_b64: label_b64(repo, "work"),
         keep,
     };
-    sync::sync(
+    sync::sync_with(
         &transport,
         &config.defaults.remote_root,
         repo,
-        &sync::Secrets::from_config(&config.defaults),
+        &secrets,
         Some(&snapshot),
+        overlay.as_ref(),
     )
 }
 
@@ -542,6 +559,8 @@ pub(crate) struct Gate<'a> {
     pub run_id: &'a str,
     /// The local work tree.
     pub repo_root: &'a Path,
+    /// Where `.git/...` files of a `--with-git` copy are read from.
+    pub git_overlay: Option<&'a Path>,
     /// The files this sync was made from.
     pub manifest: &'a sync::Manifest,
 }
@@ -622,7 +641,12 @@ impl Gate<'_> {
                     return report;
                 }
                 Ok(claims) => {
-                    let c = sync::compare_claims(self.repo_root, self.manifest, &claims);
+                    let c = sync::compare_claims_with(
+                        self.repo_root,
+                        self.git_overlay,
+                        self.manifest,
+                        &claims,
+                    );
                     tracing::info!(
                         phase,
                         checked = c.checked,

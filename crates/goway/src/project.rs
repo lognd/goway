@@ -36,6 +36,9 @@ struct RawFile {
     rule: Vec<RawRule>,
     #[serde(default)]
     toolchain: RawToolchain,
+    /// Top-level `with_git = true`: every run gets a `.git` (see `--with-git`).
+    #[serde(default)]
+    with_git: bool,
 }
 
 /// `[toolchain]`: `tools = [...]` plus `tool = "version"` pins.
@@ -75,6 +78,17 @@ pub struct Rules {
     pub rules: Vec<Rule>,
     /// `[toolchain]`: the tools doctor checks and the versions it pins.
     pub toolchain: crate::doctor::Toolchain,
+    /// `with_git = true`: every run of this project gets a `.git`.
+    pub with_git: bool,
+}
+
+/// Whether the project's `goway.toml` asks for `with_git`.
+///
+/// # Errors
+///
+/// [`Rules::load`]'s errors.
+pub fn wants_git(root: &Path) -> Result<bool> {
+    Ok(Rules::load(root)?.is_some_and(|r| r.with_git))
 }
 
 /// Which rule applied to a run, for the note and the report.
@@ -179,7 +193,11 @@ impl Rules {
             versions: raw.toolchain.versions,
             tools: raw.toolchain.tools,
         };
-        Ok(Self { rules, toolchain })
+        Ok(Self {
+            rules,
+            toolchain,
+            with_git: raw.with_git,
+        })
     }
 
     /// Read `goway.toml` in `root`; `None` when there is none.
