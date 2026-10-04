@@ -2,7 +2,8 @@
 id = "01M42BHRJCBSSQZ6GWNQGP7M3S"
 title = "Shell startup files that print text or a non-bash login shell must not corrupt goway's protocol"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
