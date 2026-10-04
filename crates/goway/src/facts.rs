@@ -69,6 +69,21 @@ pub struct StaticFacts {
     pub wsl: bool,
     /// Video adapters Windows lists (WSL hosts only).
     pub windows_gpus: Vec<String>,
+    /// How WSL interop behaves on this host (WSL hosts only; `None` when not probed).
+    #[serde(default)]
+    pub interop: Option<Interop>,
+}
+
+/// Whether and with which Windows token WSL interop runs Windows programs from a WSL host.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Interop {
+    /// Windows programs cannot run from the distro (interop disabled): safe.
+    Off,
+    /// Windows programs run with a filtered, non-administrator token: safe.
+    Limited,
+    /// Windows programs run as a Windows administrator: every WSL user is one.
+    Elevated,
 }
 
 /// A cached [`StaticFacts`] and when it was probed (Unix seconds).
@@ -205,6 +220,12 @@ pub fn parse_static(map: &BTreeMap<String, String>) -> Option<StaticFacts> {
         docker: flag("docker"),
         wsl: flag("wsl"),
         windows_gpus,
+        interop: match map.get("interop").map(String::as_str) {
+            Some("off") => Some(Interop::Off),
+            Some("limited") => Some(Interop::Limited),
+            Some("elevated") => Some(Interop::Elevated),
+            _ => None,
+        },
     })
 }
 
@@ -264,6 +285,18 @@ pub fn gpu_invisible_to_wsl(hw: &StaticFacts) -> Option<&str> {
     })
 }
 
+/// The security warning for a WSL host whose interop runs Windows programs as administrator.
+pub fn elevated_interop_warning(hw: &StaticFacts) -> Option<&'static str> {
+    (hw.wsl && hw.interop == Some(Interop::Elevated)).then_some(ELEVATED_INTEROP_WARNING)
+}
+
+/// What an elevated WSL interop means and how to fix it (shared by doctor and status).
+pub const ELEVATED_INTEROP_WARNING: &str = "WSL interop on this host runs Windows programs as a Windows administrator \
+     (WSL was started by an elevated process, or by a boot task of an administrator account): \
+     anyone who can log in to this WSL can act as a Windows administrator. Fix on Windows: run \
+     `wsl --shutdown` from a normal, non-admin terminal and let the logon keepalive task restart \
+     it limited, or disable interop with `[interop] enabled=false` in the distro's /etc/wsl.conf";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -316,6 +349,19 @@ mod tests {
         assert!(stale(None, 1000));
         assert!(!stale(Some(&c), 1000 + STATIC_MAX_AGE - 1));
         assert!(stale(Some(&c), 1000 + STATIC_MAX_AGE));
+    }
+
+    // frob:tests crates/goway/src/facts.rs::elevated_interop_warning
+    #[test]
+    fn interop_is_parsed_and_only_elevated_warns() {
+        let hw = |v: &str| parse_static(&kv(&format!("static=1\nwsl=1\ninterop={v}\n"))).unwrap();
+        assert_eq!(hw("elevated").interop, Some(Interop::Elevated));
+        assert!(elevated_interop_warning(&hw("elevated")).is_some());
+        assert_eq!(hw("off").interop, Some(Interop::Off));
+        assert!(elevated_interop_warning(&hw("off")).is_none());
+        assert!(elevated_interop_warning(&hw("limited")).is_none());
+        assert_eq!(hw("junk").interop, None);
+        assert!(elevated_interop_warning(&StaticFacts::default()).is_none());
     }
 
     // frob:tests crates/goway/src/facts.rs::gpu_invisible_to_wsl

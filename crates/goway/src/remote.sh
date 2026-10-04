@@ -1027,7 +1027,15 @@ run() {
 # Run "$@" for at most 10 seconds when timeout exists (a hung driver tool
 # must never hang a probe).
 bounded() {
-  if command -v timeout >/dev/null 2>&1; then timeout 10 "$@"; else "$@"; fi
+  bounded_for 10 "$@"
+}
+
+# bounded_for SECONDS cmd...: like bounded with its own limit. A Windows program that WSL
+# interop cannot run (interop disabled) hangs for about 10 seconds, so those calls use 3.
+bounded_for() {
+  local secs=$1
+  shift
+  if command -v timeout >/dev/null 2>&1; then timeout "$secs" "$@"; else "$@"; fi
 }
 
 # static_facts: facts that change rarely (GPUs, CPU features, KVM, Docker,
@@ -1036,7 +1044,7 @@ bounded() {
 # anything but the vendor query tools, docker info and powershell.exe (WSL
 # only, to list the video adapters Windows has).
 static_facts() {
-  local n=0 pat cuda="" flags="" f kvm=0 docker=0 wsl=0 win=""
+  local n=0 pat cuda="" flags="" f kvm=0 docker=0 wsl=0 win="" interop="" adm=""
   printf 'static=1\n'
   if command -v nvidia-smi >/dev/null 2>&1; then
     cuda=$(bounded nvidia-smi 2>/dev/null | grep -o 'CUDA Version: [0-9.]*' | head -1 | cut -d' ' -f3 || true)
@@ -1073,11 +1081,22 @@ static_facts() {
   printf 'docker=%s\n' "$docker"
   if grep -qi microsoft /proc/version 2>/dev/null; then
     wsl=1
+    # interop: whether Windows programs run from this distro, and with which token. They run
+    # with the token of whatever started WSL, so "elevated" means every WSL user is a Windows
+    # administrator. A program that neither answers nor fails within 3s means interop is off.
+    interop=off
     if command -v powershell.exe >/dev/null 2>&1; then
-      win=$(bounded powershell.exe -NoProfile -NonInteractive -Command '(Get-CimInstance Win32_VideoController).Name -join ";"' 2>/dev/null | tr -d '\r' | head -1 || true)
+      adm=$(bounded_for 3 powershell.exe -NoProfile -NonInteractive -Command '([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)' 2>/dev/null | tr -d '\r' | head -1 || true)
+      case "$adm" in
+        True) interop=elevated ;;
+        False) interop=limited ;;
+      esac
+      if [ "$interop" != off ]; then
+        win=$(bounded_for 3 powershell.exe -NoProfile -NonInteractive -Command '(Get-CimInstance Win32_VideoController).Name -join ";"' 2>/dev/null | tr -d '\r' | head -1 || true)
+      fi
     fi
   fi
-  printf 'wsl=%s\nwinvideo=%s\n' "$wsl" "$win"
+  printf 'wsl=%s\nwinvideo=%s\ninterop=%s\n' "$wsl" "$win" "$interop"
 }
 
 # machine: this host's CPU architecture, spelled as Linux does (arm64 is aarch64).

@@ -240,6 +240,14 @@ pub fn relay_task_create(
     ))
 }
 
+/// Script printing `True` when the invoking account is in Administrators. The token's group list
+/// is read (not `IsInRole`), so a UAC-filtered administrator, whose group is deny-only, counts.
+pub fn admin_account() -> String {
+    strict(
+        "[bool]([System.Security.Principal.WindowsIdentity]::GetCurrent().Groups | Where-Object { $_.Value -eq 'S-1-5-32-544' })",
+    )
+}
+
 /// Script printing the Windows build number.
 pub fn windows_build() -> String {
     strict("(Get-CimInstance Win32_OperatingSystem).BuildNumber")

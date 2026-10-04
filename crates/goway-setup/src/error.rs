@@ -81,6 +81,11 @@ pub enum SetupError {
         /// The distro.
         distro: String,
     },
+    /// Boot-mode keepalive for an administrator account would leave WSL interop elevated.
+    #[error(
+        "--keepalive boot refused: this account is an administrator, and a task that starts WSL at boot (S4U logon) gets the full administrator token whatever its run level, so every user of the distro could act as a Windows administrator through WSL interop. Use the default logon keepalive, disable interop first (`[interop] enabled=false` in /etc/wsl.conf of the distro), or pass --allow-elevated-wsl to accept the risk"
+    )]
+    ElevatedWslRefused,
     /// State an elevated process would act on sits where a non-administrator could have written it.
     #[error("refusing to trust {path}: {reason}")]
     UntrustedState {

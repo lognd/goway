@@ -105,6 +105,11 @@ pub enum Command {
         /// Host: when the keepalive task starts the distro.
         #[arg(long, value_enum, default_value_t)]
         keepalive: Keepalive,
+        /// Host: allow `--keepalive boot` on an administrator account although WSL interop stays
+        /// on: a boot task gets the full administrator token, so every user of the distro could
+        /// then act as a Windows administrator through interop.
+        #[arg(long)]
+        allow_elevated_wsl: bool,
         /// Host: how other computers reach the WSL sshd. `auto` uses mirrored networking when
         /// this Windows supports it (11 22H2+) and `.wslconfig` does not say nat, otherwise a
         /// Windows port relay (netsh portproxy) that a scheduled task keeps pointed at WSL.
@@ -206,6 +211,7 @@ struct InstallRequest {
     port: u16,
     distro: String,
     keepalive: Keepalive,
+    allow_elevated_wsl: bool,
     network: NetworkChoice,
     harden: bool,
     allow_from: Vec<String>,
@@ -249,6 +255,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             port,
             distro,
             keepalive,
+            allow_elevated_wsl,
             network,
             harden: _,
             no_harden,
@@ -270,6 +277,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
                 port: resolve_port(*native, *port)?,
                 distro: distro.clone(),
                 keepalive: *keepalive,
+                allow_elevated_wsl: *allow_elevated_wsl,
                 network: *network,
                 harden: !*no_harden,
                 allow_from: allow_from.clone(),
@@ -586,6 +594,9 @@ fn install_child_args(profile: &str, req: &InstallRequest) -> Vec<String> {
             args.extend(["--authorized-key".to_owned(), key.clone()]);
         }
     }
+    if req.allow_elevated_wsl {
+        args.push("--allow-elevated-wsl".to_owned());
+    }
     if !req.harden {
         args.push("--no-harden".to_owned());
     }
@@ -663,6 +674,7 @@ fn dry_run_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
         let facts = sys.probe(&home)?;
         let network = host::resolve_network(req.network, &facts)?;
         let params = host_params(req, network)?;
+        host::check_boot_keepalive(req.keepalive, &facts, req.allow_elevated_wsl)?;
         r.notice(&format!("network mode: {}", network.as_str()));
         host::check_relay_port(network, params.port, &facts.portproxy)?;
         let plan = host_plan(layout, &params, &facts);
@@ -705,6 +717,7 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
     let facts = sys.probe(&home)?;
     let network = host::resolve_network(req.network, &facts)?;
     host::check_relay_port(network, req.port, &facts.portproxy)?;
+    host::check_boot_keepalive(req.keepalive, &facts, req.allow_elevated_wsl)?;
     let params = host_params(req, network)?;
     let plan = host_plan(layout, &params, &facts);
     app::save_settings(
@@ -736,6 +749,9 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
     r.host_installed(layout, &params.distro, params.port, journal.entries.len());
     if network == NetworkMode::Nat {
         r.notice(&host::nat_notice(params.port));
+    }
+    if params.keepalive == Keepalive::Boot && !facts.interop_disabled {
+        r.notice(host::BOOT_KEEPALIVE_NOTICE);
     }
     exposure_warnings(r, layout, &params, &facts, &sys);
     if req.activate {

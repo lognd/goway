@@ -829,3 +829,60 @@ fn a_windows_path_that_is_a_symlink_is_refused_by_the_host_system() {
     assert_eq!(std::fs::read_to_string(&secret).unwrap(), "secret\n");
     assert!(sys.read_file(&link).is_err());
 }
+
+// frob:tests crates/goway-setup/src/hostsys.rs::never_start_wsl
+// frob:tests crates/goway-setup/src/hostsys.rs::distro_running
+#[test]
+fn an_elevated_system_never_starts_a_distro_that_is_not_running() {
+    // Nothing running: the guard asks only `--list --running` and refuses; no command enters the distro.
+    let fake = Fake::new(vec![("--list --running", 0, "\u{feff}Debian\r\n")]);
+    let guarded = sys(&fake).never_start_wsl(true);
+    let err = guarded.distro_reachable().unwrap_err();
+    assert!(
+        matches!(&err, SystemError::InvalidState(m) if m.contains("never starts WSL")),
+        "{err}"
+    );
+    assert!(
+        fake.log
+            .borrow()
+            .iter()
+            .all(|i| i.args.first().map(String::as_str) == Some("--list")),
+        "{:?}",
+        fake.log.borrow()
+    );
+    // Running (any case): the command goes through.
+    let fake = Fake::new(vec![
+        ("--list --running", 0, "Debian\r\nubuntu\r\n"),
+        ("--exec true", 0, ""),
+    ]);
+    assert!(sys(&fake).never_start_wsl(true).distro_reachable().unwrap());
+    // An unguarded (non-elevated) system starts the distro as before, with no list query.
+    let fake = Fake::new(vec![("--exec true", 0, "")]);
+    assert!(sys(&fake).distro_reachable().unwrap());
+    assert_eq!(fake.log.borrow().len(), 1);
+}
+
+// frob:tests crates/goway-setup/src/hostsys.rs::parse_interop_disabled
+// frob:tests crates/goway-setup/src/hostsys.rs::ini_value
+#[test]
+fn wsl_conf_interop_setting_is_read_from_its_own_section() {
+    use goway_setup::hostsys::parse_interop_disabled;
+    assert!(parse_interop_disabled(
+        "[boot]\nsystemd=true\n[Interop]\nEnabled = False\nappendWindowsPath=false\n"
+    ));
+    assert!(!parse_interop_disabled("[interop]\nenabled=true\n"));
+    assert!(!parse_interop_disabled("[boot]\nenabled=false\n"));
+    assert!(!parse_interop_disabled(""));
+}
+
+// frob:tests crates/goway-setup/src/hostsys.rs::admin_account
+// frob:tests crates/goway-setup/src/ps.rs::admin_account
+#[test]
+fn the_administrator_probe_reads_the_token_groups_and_defaults_to_no() {
+    let fake = Fake::new(vec![("EncodedCommand", 0, "True\r\n")]);
+    assert!(sys(&fake).admin_account());
+    assert!(ps::admin_account().contains("S-1-5-32-544"));
+    assert!(!ps::admin_account().contains("IsInRole"));
+    let fake = Fake::new(vec![("EncodedCommand", 0, "False\r\n")]);
+    assert!(!sys(&fake).admin_account());
+}

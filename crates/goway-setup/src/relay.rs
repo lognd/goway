@@ -283,6 +283,9 @@ pub fn refresh_script(profile: &str, distro: &str, port: u16) -> String {
          $adapters = @(\n\
          {ADAPTER_QUERY}\
          )\n\
+         # Never start WSL from this elevated task: interop would inherit the administrator token.\n\
+         $running = ((& $wsl --list --running --quiet | Out-String) -replace [char]0, '') -split '\\s+'\n\
+         if ($running -notcontains $distro) {{ exit 0 }}\n\
          $ip = $null\n\
          foreach ($token in ((& $wsl -d $distro --exec hostname -I | Out-String) -split '\\s+')) {{\n\
          \x20   if ($token -match $quad -and $token -match $private) {{\n\

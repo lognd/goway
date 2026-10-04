@@ -62,6 +62,20 @@ fall into one of these areas:
   administrator rights and reads its state only from an
   administrator-only directory. Any way for a non-administrator to
   influence what it does is in scope, and is treated as high severity.
+- **WSL interop and elevation.** WSL interop runs Windows programs
+  (`powershell.exe`) with the token of whatever started WSL. If an
+  elevated process started it, every user who can log in to the distro,
+  including over ssh, acts as a Windows administrator. goway's elevated
+  code never starts WSL (it only asks `wsl.exe --list --running` and
+  refuses to act on a distro that is not running), the NAT relay refresh
+  task does the same, and an administrator ssh session on the Windows
+  side must not start WSL either. A boot-time keepalive (an S4U task) of
+  an administrator account gets the full token whatever its run level,
+  so `goway-setup install --host --keepalive boot` refuses for such an
+  account unless interop is already disabled in the distro or
+  `--allow-elevated-wsl` is given. `goway doctor` and `goway status`
+  probe every WSL helper and warn when interop is elevated. A way to get
+  goway to start WSL elevated is in scope and high severity.
 - **Copy integrity.** goway verifies the helper's copy of your tree by
   SHA-256 before every run and again when a command fails (see
   [docs/usage.md](docs/usage.md)). These checks guard against goway's own

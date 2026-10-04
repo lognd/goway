@@ -467,6 +467,24 @@ fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
         None => {}
     }
     if let Some(hw) = crate::facts::parse_static(facts) {
+        match hw.interop {
+            Some(crate::facts::Interop::Elevated) if hw.wsl => push(
+                "wsl interop",
+                Level::Warn,
+                format!("SECURITY: {}", crate::facts::ELEVATED_INTEROP_WARNING),
+                None,
+            ),
+            Some(crate::facts::Interop::Off) if hw.wsl => {
+                push("wsl interop", Level::Ok, "disabled (safe)".to_owned(), None);
+            }
+            Some(crate::facts::Interop::Limited) if hw.wsl => push(
+                "wsl interop",
+                Level::Ok,
+                "runs Windows programs without administrator rights".to_owned(),
+                None,
+            ),
+            _ => {}
+        }
         if let Some(name) = crate::facts::gpu_invisible_to_wsl(&hw) {
             push(
                 "gpu",
@@ -1133,6 +1151,24 @@ mod tests {
                 .0
                 .contains("reload sshd")
         );
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::host_checks
+    #[test]
+    fn doctor_warns_when_wsl_interop_is_elevated_and_reports_off_as_safe() {
+        let level = |interop: &str| {
+            let mut f = facts(&[]);
+            f.insert("static".to_owned(), "1".to_owned());
+            f.insert("wsl".to_owned(), "1".to_owned());
+            f.insert("interop".to_owned(), interop.to_owned());
+            assess(&f).into_iter().find(|c| c.name == "wsl interop")
+        };
+        let bad = level("elevated").unwrap();
+        assert_eq!(bad.level, Level::Warn);
+        assert!(bad.detail.contains("SECURITY") && bad.detail.contains("wsl --shutdown"));
+        assert_eq!(level("off").unwrap().level, Level::Ok);
+        assert_eq!(level("limited").unwrap().level, Level::Ok);
+        assert!(level("bogus").is_none());
     }
 
     // frob:tests crates/goway/src/doctor.rs::host_checks

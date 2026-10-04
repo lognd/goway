@@ -76,7 +76,7 @@ replaced, so `uninstall` replays the journal backwards and restores the machine.
 <details><summary>Details</summary>
 
     goway-setup install [--client] [--host] [--native [--authorized-key KEY]] [--profile NAME] [--dry-run]
-                        [--port N] [--distro NAME] [--keepalive logon|boot] [--no-harden]
+                        [--port N] [--distro NAME] [--keepalive logon|boot [--allow-elevated-wsl]] [--no-harden]
                         [--allow-from CIDR]... [--allow-wide] [--no-activate] [--no-elevate] [--yes]
     goway-setup uninstall [--client] [--host] [--profile NAME] [--no-activate] [--no-elevate]
     goway-setup status [--profile NAME]
@@ -301,6 +301,35 @@ in a test profile (`--profile goway-test`), and compare what `uninstall` leaves 
   not covered until added to `SCRUB_PREFIXES` or `SCRUB_NAMES` in `crates/goway-setup/src/relay.rs`.
   Treat the helper's Windows account as you treat any administrator account. The alternative that would
   remove the question, a small signed helper program instead of a script, is not built.
+
+## WSL interop and elevation
+
+WSL interop lets any process in the distro run Windows programs (`powershell.exe`, `cmd.exe`). They run
+with the token of **whatever started WSL**, not of the user inside the distro; over ssh into WSL interop
+works too (it falls back to `/run/WSL/1_interop`). If WSL was started by an elevated process, everyone
+who can log in to the distro is a Windows administrator. Measured on real helpers: WSL started by the
+logon task (Interactive, filtered token) has non-elevated interop; WSL started by a boot task with an
+`S4U` logon and run level `Limited` has **elevated** interop for an administrator account, because UAC
+filtering applies only to interactive logons, and it stays elevated across `wsl --shutdown` and a restart
+through that task.
+
+What goway does about it:
+
+* **Elevated goway code never starts WSL.** The elevated install and uninstall ask
+  `wsl.exe --list --running` first and stop with "start it from a normal terminal" when the distro is
+  not running; the NAT relay refresh task (highest privileges) exits quietly when the distro is not
+  running instead of calling `wsl.exe -d` on it. WSL is started by the Limited keepalive task or by you.
+* **`--keepalive boot` on an administrator account is refused**, unless the distro's `/etc/wsl.conf`
+  already has `[interop] enabled=false`, or you pass `--allow-elevated-wsl` (the install then prints
+  the risk). goway refuses rather than editing `wsl.conf` itself: disabling interop also removes
+  `powershell.exe` from the distro (goway's own interop transport on a laptop needs it) and takes effect
+  only after a WSL restart that goway never does unasked. The default logon keepalive stays the
+  recommended mode.
+* **`goway doctor` and `goway status` warn** (`wsl interop`, SECURITY) when a WSL helper's interop runs as
+  administrator, and report disabled interop as safe. The probe gives `powershell.exe` 3 seconds, because
+  with interop disabled it neither runs nor fails for about 10 seconds. Fix: from a normal, non-admin
+  terminal run `wsl --shutdown`; the logon keepalive restarts it limited. Do not start WSL from an
+  administrator ssh session (or an elevated terminal) on the Windows side.
 
 ## Security of the elevated host steps
 
