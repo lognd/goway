@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T00:05:14Z"
+digest = "034f5d7f6cfb1c8ec55776cd71b092a703d07dcf9fba00b88cfea41ca2812faf"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 52.44s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID de5cf401-8177-4e4f-8c3d-26f536fe8dcb with nextest profile: default
+    Starting 1 test across 41 binaries (476 tests skipped)
+        PASS [   0.035s] goway::publishing every_readme_download_link_names_a_file_the_release_publishes
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.040s] 1 test run: 1 passed, 476 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(every_readme_download_link_names_a_file_the_release_publishes)'"
+size = 758
+status = "measured"
+tests = ["every_readme_download_link_names_a_file_the_release_publishes"]
+at = "2026-10-04T00:05:14Z"
+actor = "lognd"
+rev = 1
