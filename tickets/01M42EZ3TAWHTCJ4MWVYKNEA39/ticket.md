@@ -2,7 +2,8 @@
 id = "01M42EZ3TAWHTCJ4MWVYKNEA39"
 title = "The pool only picks hosts of the laptop's OS unless the run pins a host or asks for another OS"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
