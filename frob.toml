@@ -65,8 +65,9 @@ intangible_share = 0.2
 in_progress_per_identity = 1
 # Most tickets in progress in the repository at once; 0 is off. Raised from the
 # default 2 to 4 because agents run their builds and tests on the helpers
-# through `goway run`, so this laptop is not the builder.
-in_progress = 4
+# through `goway run`, so this laptop is not the builder. Raised to 6 for five
+# agent lanes plus the coordinator.
+in_progress = 6
 
 [release]
 # When true, a CI result that cannot be read (no checks, `gh` missing or unauthenticated, no network, non-GitHub remote) blocks the release like a red one; false reports it as Unresolved only. Unknown is never treated as green.
