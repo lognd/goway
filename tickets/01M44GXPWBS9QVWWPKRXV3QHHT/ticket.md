@@ -24,7 +24,7 @@ bound = true
 
 [[acceptance]]
 text = "Given the docs, When a reader looks up what goway changes on a machine, Then one page lists every change kind, how to list the journal and how to undo"
-bound = false
+bound = true
 +++
 
 Owner rule: every change to a machine goes through goway-journal so it can be listed and undone; enforce it in the codebase, not by review. Audit every mutation site in goway and goway-setup (files, registry, scheduled tasks, firewall, portproxy, services, packages, units, wsl.conf/.wslconfig, ssh keys/authorized_keys/config, the user's goway config, doctor --fix actions, loginctl linger, wsl --shutdown/restarts, starting tasks) and route each through the journal. Actions that cannot be inverted (start a task, restart WSL) get a recorded, non-invertible entry kind so the journal is still complete. Excluded by design: goway's own run state (slot trees, caches, footprints, locks, run scopes), which gc owns; document that boundary. Enforcement: a structural test (and clippy disallowed-methods where it fits) that fails when a mutating command or script verb (Register-ScheduledTask, schtasks /create|/delete|/run, netsh, New-NetFirewallRule, Set-ItemProperty, reg add, apt/apt-get/dnf install|remove, systemctl enable|disable|mask, loginctl enable-linger, wsl --shutdown|--terminate, std::fs writes outside the System impl) appears outside the journal-backed modules, with a reviewed allowlist.
