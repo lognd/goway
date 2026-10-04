@@ -7,12 +7,12 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T13:15:50Z"
-updated = "2026-10-04T13:15:56Z"
+updated = "2026-10-04T13:20:20Z"
 scope = ["crates/goway/src/remote.sh", "docs/usage.md"]
 
 [[acceptance]]
 text = "Given a macOS helper, When a job runs, Then its sampled peak resident memory is recorded like on Linux"
-bound = false
+bound = true
 +++
 
 mem_sample skips sampling on Darwin; mem_footprint tests fail on macOS CI (no mempeak record). The job is a session and process-group leader, so ps pgid works on BSD. Found while working D6024D0.
