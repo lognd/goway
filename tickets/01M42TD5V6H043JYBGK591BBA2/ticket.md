@@ -2,7 +2,8 @@
 id = "01M42TD5V6H043JYBGK591BBA2"
 title = "Wire the measured clock offset into pool probe_one"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
