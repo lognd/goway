@@ -2,13 +2,13 @@
 id = "01M4244944C4E8RTVK8VAJPQC3"
 title = "Clock safety: measure helper clock offset, never let a clock jump expose a starting run to gc, keep builds warm when the laptop clock runs ahead"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T00:13:26Z"
-updated = "2026-10-04T06:06:25Z"
+updated = "2026-10-04T06:06:26Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/clock.rs", "docs/design.md", "docs/troubleshooting.md"]
 
 [[acceptance]]
