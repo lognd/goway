@@ -83,6 +83,22 @@ A line on stderr says where the job ran:
 `--report FILE` writes the same as JSON (host, address, arch, hostname,
 command, exit code, duration, run id, repository) for evidence records.
 
+### Rust on a Windows host
+
+A host with `os = "windows"` (OpenSSH, or `transport = "interop"` for the
+Windows side of this machine) runs commands natively on Windows with the
+same `goway run -- cargo nextest run --workspace`. The toolchain is the one
+rustup has as the host's default (`x86_64-pc-windows-msvc` on an Intel
+machine, `aarch64-pc-windows-msvc` on an ARM one); goway never picks or
+installs a target, and the `--report` file records what ran: `host`, `os`
+(`windows`) and `arch` as the machine reports it. Every repository gets its
+own cargo target directory under goway's directory on the Windows side
+(`cache\<repository id>\target-<slot>`, `CARGO_TARGET_DIR` unless you set
+it), kept between runs, so the second run of a build or test is warm and
+only changed crates recompile. Idle caches expire like on any other host
+(`cache_ttl`), and `goway gc` removes them on demand. The command's exit
+code is goway's exit code.
+
 ### Copy integrity
 
 The copy of your tree on a helper is checked end to end, against your own

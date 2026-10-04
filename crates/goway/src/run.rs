@@ -949,4 +949,90 @@ mod tests {
         assert_eq!(exit_code_of(status("exit 7")), 7);
         assert_eq!(exit_code_of(status("kill -INT $$")), 130);
     }
+
+    // frob:tests crates/goway/src/run.rs::run_invocation_with
+    // frob:tests crates/goway/src/run.rs::sync_snapshot
+    #[test]
+    fn a_windows_host_reuses_one_target_dir_per_repository_so_the_second_run_is_warm() {
+        use crate::sync::pwsh_support::{PwshTransport, pwsh};
+        use crate::sync::{Secrets, Snapshot, Transport as _};
+        let Some(ps) = pwsh() else { return };
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("remote.ps1");
+        std::fs::write(&script, crate::remote::SCRIPT_PS).unwrap();
+        let transport = PwshTransport {
+            ps: ps.clone(),
+            script,
+        };
+        let proj = dir.path().join("proj");
+        std::fs::create_dir(&proj).unwrap();
+        crate::repo::git(&proj, &["init", "-q", "-b", "main"]).unwrap();
+        std::fs::write(proj.join("Cargo.toml"), "[package]\nname = \"p\"\n").unwrap();
+        let repo = Repo::discover(&proj).unwrap();
+        let mut config = Config::default();
+        config.defaults.remote_root = dir.path().join("root").to_string_lossy().into_owned();
+        let root = config.defaults.remote_root.clone();
+        let check = "$t = $env:CARGO_TARGET_DIR; Write-Output $t; \
+             if (Test-Path (Join-Path $t 'warm')) { Write-Output warm } \
+             else { New-Item -ItemType Directory -Force $t | Out-Null; Set-Content (Join-Path $t 'warm') 1; Write-Output cold }";
+        let command = vec![
+            ps.to_string_lossy().into_owned(),
+            "-NoProfile".to_owned(),
+            "-Command".to_owned(),
+            check.to_owned(),
+        ];
+        let mut seen = Vec::new();
+        for run_id in ["r1", "r2"] {
+            let snapshot = Snapshot {
+                run_id: run_id.to_owned(),
+                meta_b64: label_b64(&repo, "work"),
+                keep: false,
+            };
+            crate::sync::sync(
+                &transport,
+                &root,
+                &repo,
+                &Secrets::default(),
+                Some(&snapshot),
+            )
+            .unwrap();
+            let call = run_invocation_with(&config, "normal", &repo, run_id, false, &[], &command);
+            let out = transport.output(&call).unwrap();
+            let lines: Vec<String> = String::from_utf8_lossy(&out)
+                .lines()
+                .map(|l| l.trim().to_owned())
+                .collect();
+            seen.push(lines);
+        }
+        assert_eq!(seen[0][0], seen[1][0], "the same target dir both times");
+        assert!(seen[0][0].contains(&repo.id), "{}", seen[0][0]);
+        assert_eq!(seen[0][1], "cold");
+        assert_eq!(
+            seen[1][1], "warm",
+            "the second run finds the first run's build"
+        );
+    }
+
+    // frob:tests crates/goway/src/run.rs::Report
+    #[test]
+    fn the_report_names_host_os_arch_and_the_commands_exit_code() {
+        let report = Report {
+            host: "winbox".to_owned(),
+            address: "192.0.2.7".to_owned(),
+            os: crate::transport::Kind::WindowsSsh.os().as_str().to_owned(),
+            arch: "aarch64".to_owned(),
+            hostname: "WINBOX".to_owned(),
+            command: vec!["cargo".to_owned(), "nextest".to_owned()],
+            exit_code: 101,
+            duration_secs: 1.5,
+            run_id: "r1".to_owned(),
+            repo: "p".to_owned(),
+            matched: Vec::new(),
+            rule: None,
+        };
+        let json: serde_json::Value = serde_json::to_value(&report).unwrap();
+        assert_eq!(json["os"], "windows");
+        assert_eq!(json["arch"], "aarch64");
+        assert_eq!(json["exit_code"], 101);
+    }
 }
