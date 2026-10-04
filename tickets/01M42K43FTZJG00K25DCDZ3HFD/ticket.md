@@ -2,13 +2,13 @@
 id = "01M42K43FTZJG00K25DCDZ3HFD"
 title = "doctor quiet-output test must not assume bash passes on macOS"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T04:35:28Z"
-updated = "2026-10-04T04:35:28Z"
+updated = "2026-10-04T04:37:41Z"
 scope = ["crates/goway/tests/doctor_project.rs"]
 
 [[acceptance]]
