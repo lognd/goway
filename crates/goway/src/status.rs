@@ -58,6 +58,20 @@ fn pool_cell(facts: &crate::facts::Facts, pool_os: &str) -> String {
     }
 }
 
+/// One warning per reached host whose clock is over 2 s off, with the fix.
+// frob:ticket TGZTRVF
+pub fn clock_warnings(probed: &[Probed<'_>]) -> Vec<String> {
+    probed
+        .iter()
+        .filter_map(|p| {
+            let (found, probe) = p.result.as_ref().ok()?;
+            let windows = probe.facts.os.as_deref() == Some("windows")
+                || found.kind != crate::transport::Kind::Unix;
+            crate::facts::clock::warning(&p.host.name, probe.facts.clock_offset_ms?, windows)
+        })
+        .collect()
+}
+
 /// The status table rows (header first); pure so it can be tested.
 pub fn rows(
     probed: &[Probed<'_>],
@@ -187,6 +201,9 @@ pub fn status(
         crate::needs::laptop_os(),
         config.defaults.owner_idle,
     ));
+    for line in clock_warnings(&results) {
+        renderer.warn(line);
+    }
     for p in &results {
         match &p.result {
             Err(e) => renderer.warn(format_args!("{}: {e}", p.host.name)),
@@ -208,6 +225,55 @@ pub fn status(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // frob:tests crates/goway/src/status.rs::clock_warnings
+    #[test]
+    fn status_warns_only_for_clocks_over_two_seconds_off() {
+        use crate::config::HostConfig;
+        use crate::resolve::{Found, Source};
+        use crate::ssh::Target;
+        let host = |n: &str| HostConfig {
+            name: n.to_owned(),
+            ..HostConfig::default()
+        };
+        let (a, b, c) = (host("helios"), host("orion"), host("vega"));
+        let ok = |h: &'static HostConfig, ms: Option<i64>| {
+            let found = Found {
+                kind: crate::transport::Kind::Unix,
+                target: Target {
+                    name: "h".to_owned(),
+                    address: "192.0.2.1".to_owned(),
+                    port: 22,
+                    user: None,
+                    identity: None,
+                },
+                source: Source::Cached,
+                output: String::new(),
+            };
+            let mut probe = crate::pool::parse_probe(
+                "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\njobs=0\n",
+            )
+            .unwrap();
+            probe.facts.clock_offset_ms = ms;
+            Probed {
+                host: h,
+                result: Ok((found, probe)),
+            }
+        };
+        let leak = |h: HostConfig| -> &'static HostConfig { Box::leak(Box::new(h)) };
+        let probed = [
+            ok(leak(a), Some(5_000)),
+            ok(leak(b), Some(1_500)),
+            ok(leak(c), None),
+        ];
+        let lines = clock_warnings(&probed);
+        assert_eq!(lines.len(), 1);
+        assert!(
+            lines[0].starts_with("helios: clock is 5.0 s ahead"),
+            "{lines:?}"
+        );
+        assert!(lines[0].contains("hwclock -s"));
+    }
 
     // frob:tests crates/goway/src/status.rs::rows
     #[test]
