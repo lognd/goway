@@ -2,13 +2,13 @@
 id = "01M43JAQ5BAK00HD28RAN2R646"
 title = "Disk-budget eviction and gc remove a live run's work dir under a wave; --report is not written for a failed run"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T13:40:51Z"
-updated = "2026-10-04T13:40:51Z"
+updated = "2026-10-04T15:05:45Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/tests/evict_live.rs", "docs/design.md"]
 
 [[acceptance]]
