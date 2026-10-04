@@ -7,7 +7,7 @@ priority = "high"
 points = 3
 reporter = "lognd"
 created = "2026-10-04T22:33:22Z"
-updated = "2026-10-04T23:16:56Z"
+updated = "2026-10-04T23:17:21Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/doctor/wsl_down.rs", "crates/goway/tests/doctor_wsl_down.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a keepalive task with only a boot trigger, When goway doctor runs, Then it warns that a WSL shutdown leaves the helper offline and points at the fix"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given an address that does not answer at all, When goway doctor runs, Then it says the machine is unreachable (not that WSL is stopped)"
