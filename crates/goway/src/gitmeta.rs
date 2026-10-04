@@ -113,7 +113,7 @@ fn build_pack(root: &Path, dir: &Path, secrets: &Secrets) -> Result<()> {
         std::fs::remove_dir_all(&pack_dir).map_err(|e| Error::io("remove", &pack_dir, e))?;
     }
     std::fs::create_dir_all(&pack_dir).map_err(|e| Error::io("create", &pack_dir, e))?;
-    let listed = Command::new("git")
+    let listed = repo::git_command()
         .arg("-C")
         .arg(root)
         .args(["rev-list", "--objects", "--max-count=1", "HEAD"])
@@ -146,13 +146,13 @@ fn build_pack(root: &Path, dir: &Path, secrets: &Secrets) -> Result<()> {
     let list = dir.join("objects.list");
     let pack = dir.join("head.pack");
     std::fs::write(&list, &wanted).map_err(|e| Error::io("write", &list, e))?;
-    let mut pack_objects = Command::new("git");
+    let mut pack_objects = repo::git_command();
     pack_objects
         .arg("-C")
         .arg(root)
         .args(["pack-objects", "--stdout", "-q"]);
     run_files(pack_objects, &list, Some(&pack), "pack-objects")?;
-    let mut index_pack = Command::new("git");
+    let mut index_pack = repo::git_command();
     index_pack
         .env("GIT_DIR", &gitdir)
         .args(["index-pack", "--stdin"]);
@@ -223,7 +223,7 @@ pub fn prepare(repo: &Repo, secrets: &Secrets, host_os: Os, state_dir: &Path) ->
             std::fs::remove_dir_all(&gitdir).map_err(|e| Error::io("remove", &gitdir, e))?;
         }
         std::fs::create_dir_all(&dir).map_err(|e| Error::io("create", &dir, e))?;
-        let init = Command::new("git")
+        let init = repo::git_command()
             .arg("init")
             .arg("-q")
             .arg("--template=")

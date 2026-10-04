@@ -381,6 +381,17 @@ better than a false positive (running a guessed program).
 - The same table answers "is this command cross-platform?" for the cross-OS
   hint, so there is one source of truth.
 
+### No repository code on the laptop
+
+`goway run` and `goway doctor` never execute a program a repository selects
+on the client. Requirements are read from manifests with parsers (never
+`cargo metadata`, `go list`, `mvn`, `gradle`); the only laptop-side tool
+probe is `--version` in goway's state directory (`ecotools::bounded_output`
+has no directory argument, so a project root cannot be passed); and every
+git call goes through `repo::git_command`, which forces `core.fsmonitor=false`
+and `core.hooksPath` to the null device. Test:
+`tests/repo_code_never_runs.rs` (audit 3, H1).
+
 ### Clocks
 
 goway stores and compares only epoch seconds (UTC), so time zones never

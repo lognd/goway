@@ -964,24 +964,27 @@ through real TOML and JSON parsers. `CMakeLists.txt` has no declarative
 form, so it is read as text (bounded) and its findings are labelled
 approximate.
 
-#### Asking each ecosystem's own tool
+#### Reading each ecosystem's own files
 
-Where an ecosystem has a tool that answers, doctor asks it instead of
-reading text:
+goway never runs anything a repository selects on your laptop. A cloned
+repository can steer `cargo`, `rustc` and `go` (a `rust-toolchain.toml` with a
+`path`, `.cargo/config.toml`, `go.work`), so doctor reads the declared
+requirements from the files with real parsers instead of asking those tools:
 
-| Ecosystem | Asked | Falls back to |
-| --- | --- | --- |
-| Rust | `cargo metadata --no-deps --offline` for the greatest `rust-version` (checked as `rustc`) | the root `Cargo.toml`, parsed as TOML, labelled approximate |
-| Go | `go list -m -json` (offline, no toolchain download) for the `go` version | the `go` line of `go.mod`, labelled approximate |
-| .NET | `global.json` parsed as JSON; the SDK itself is checked on each host | |
-| Java | the `pom.xml` or Gradle files, read as text | always labelled approximate |
+| Ecosystem | Read from |
+| --- | --- |
+| Rust | the greatest `rust-version` in the root `Cargo.toml`, `[workspace.package]` and the `[workspace] members` (plain paths and `*`/`?` globs, minus `exclude`), parsed as TOML |
+| Go | the `go` line of `go.mod` |
+| .NET | `global.json` parsed as JSON; the SDK itself is checked on each host |
+| Java | the `pom.xml` or Gradle files, read as text, labelled approximate |
 
-When a tool is missing on this laptop, the result is labelled
-`approximate` and says to install that tool first for an exact answer.
-doctor never runs `mvn` or `gradle` for this: both execute the project's own
-plugins and build scripts, which a diagnostic must not do on your laptop. Every
-tool doctor does run is started without a shell, with a time limit and a cap on
-its output, and `cargo` is told not to install a toolchain.
+The one thing run on this laptop is a tool's `--version` (the "laptop" column
+of the versions table), started without a shell, in goway's state directory
+and never in your work tree, with a time limit, a cap on its output and
+`RUSTUP_AUTO_INSTALL=0`. doctor never runs `mvn` or `gradle`: both execute the
+project's own plugins and build scripts. The git commands goway runs on your
+work tree switch off `core.fsmonitor` and `core.hooksPath`, so the repository's
+own git config cannot start a program either.
 
 #### CMake projects: what CMake itself says
 

@@ -1,0 +1,7 @@
+kind = "transition"
+from = "todo"
+to = "in-progress"
+reason = "lease: lognd in goway-wt/G2SFE3P; scope: .github/workflows/release.yml, docs/release.md, crates/goway/tests/publishing.rs; ttl 7200s"
+at = "2026-10-04T21:23:33Z"
+actor = "lognd"
+rev = 1

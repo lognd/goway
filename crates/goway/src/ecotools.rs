@@ -275,27 +275,35 @@ fn drain<R: std::io::Read + Send + 'static>(stream: R) -> std::thread::JoinHandl
     })
 }
 
-/// Run `program args` (no shell) in `dir` with `envs` added, for at most
+/// A directory outside every repository to run laptop-side probes in: goway's
+/// own state directory (created when missing), so a toolchain shim that reads
+/// `rust-toolchain.toml` from the current directory never sees a project's.
+fn neutral_dir() -> Option<PathBuf> {
+    let dir = crate::paths::Paths::from_env().state_dir;
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir)
+}
+
+/// Run `program args` (no shell) with `envs` added, for at most
 /// [`TOOL_TIMEOUT`], reading at most [`MAX_OUTPUT`] bytes per stream. `None`
-/// when it is missing, fails, or is too slow (then it is killed).
-pub fn bounded_output(
-    program: &str,
-    args: &[&str],
-    dir: Option<&Path>,
-    envs: &[(&str, &str)],
-) -> Option<Printed> {
+/// when it is missing, fails, or is too slow (then it is killed). The working
+/// directory is always [`neutral_dir`], never a project: nothing a repository
+/// selects (a `rust-toolchain.toml` `path`, a `.tool-versions`, a local
+/// `PATH` entry) may start a program on the laptop, and the signature has no
+/// way to ask for it. `RUSTUP_AUTO_INSTALL=0` keeps rustup from downloading a
+/// toolchain for a question.
+pub fn bounded_output(program: &str, args: &[&str], envs: &[(&str, &str)]) -> Option<Printed> {
     use crate::spawn::CommandExt as _;
     use std::process::{Command, Stdio};
     let mut command = Command::new(program);
     command
         .args(args)
+        .env("RUSTUP_AUTO_INSTALL", "0")
         .envs(envs.iter().copied())
+        .current_dir(neutral_dir()?)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    if let Some(dir) = dir {
-        command.current_dir(dir);
-    }
     let mut child = command.spawn_locked().ok()?;
     let out = drain(child.stdout.take()?);
     let err = drain(child.stderr.take()?);
@@ -343,101 +351,143 @@ fn newest(versions: impl IntoIterator<Item = Vec<u64>>) -> Option<Vec<u64>> {
     versions.into_iter().max()
 }
 
-/// The Rust version a project declares: the greatest `rust-version` among
-/// the packages `cargo metadata --no-deps --offline` lists. When cargo is
-/// missing, the root `Cargo.toml` is parsed instead and the answer says to
-/// install cargo first (members' versions are not seen).
-pub fn rust_min(root: &Path) -> Option<Detected> {
-    rust_min_with(root, "cargo")
+/// The most `members` entries read from one workspace.
+const MAX_MEMBERS: usize = 512;
+
+/// A `Cargo.toml` as a table: at most [`MAX_CONFIG`] bytes, parsed with the
+/// TOML parser (never by running cargo).
+fn read_manifest(path: &Path) -> Option<toml::Table> {
+    let meta = std::fs::metadata(path).ok()?;
+    if !meta.is_file() || meta.len() > MAX_CONFIG {
+        return None;
+    }
+    toml::from_str(&std::fs::read_to_string(path).ok()?).ok()
 }
 
-/// [`rust_min`] with the cargo program named (so the fallback is testable).
-pub fn rust_min_with(root: &Path, cargo: &str) -> Option<Detected> {
-    let printed = bounded_output(
-        cargo,
-        &[
-            "metadata",
-            "--no-deps",
-            "--offline",
-            "--format-version",
-            "1",
-        ],
-        Some(root),
-        // Never let rustup install a toolchain on the laptop for a question.
-        &[("RUSTUP_AUTO_INSTALL", "0")],
-    );
-    if let Some(p) = printed
-        && let Ok(v) = serde_json::from_str::<serde_json::Value>(&p.stdout)
-    {
-        let min = newest(
-            v.get("packages")?
-                .as_array()?
-                .iter()
-                .filter_map(|pk| dotted(pk.get("rust_version")?.as_str()?)),
-        )?;
-        return Some(Detected {
-            min,
-            why: "cargo metadata rust-version".to_owned(),
-            approximate: false,
-        });
+/// Whether `name` matches the cargo member glob component `pattern` (`*` and
+/// `?` only).
+fn wild(pattern: &[u8], name: &[u8]) -> bool {
+    match (pattern.split_first(), name.split_first()) {
+        (None, None) => true,
+        (Some((b'*', rest)), _) => {
+            wild(rest, name) || name.split_first().is_some_and(|(_, n)| wild(pattern, n))
+        }
+        (Some((b'?', rest)), Some((_, n))) => wild(rest, n),
+        (Some((p, rest)), Some((c, n))) => p == c && wild(rest, n),
+        _ => false,
     }
-    let text = std::fs::read_to_string(root.join("Cargo.toml")).ok()?;
-    let table: toml::Table = toml::from_str(&text).ok()?;
-    let version = table
-        .get("package")
-        .and_then(|p| p.get("rust-version"))
-        .or_else(|| {
-            table
-                .get("workspace")
-                .and_then(|w| w.get("package"))
-                .and_then(|p| p.get("rust-version"))
-        })?
-        .as_str()?;
+}
+
+/// The directories a workspace `members` pattern names, below `root`. Plain
+/// relative paths only: an absolute path or a `..` component names nothing,
+/// so a manifest cannot make goway read outside its own tree.
+fn member_dirs(root: &Path, pattern: &str) -> Vec<PathBuf> {
+    let mut dirs = vec![root.to_path_buf()];
+    for part in pattern.split('/').filter(|p| !p.is_empty() && *p != ".") {
+        if part == ".." || part.contains(['\\', ':']) {
+            return Vec::new();
+        }
+        let mut next = Vec::new();
+        for dir in &dirs {
+            if part.contains(['*', '?']) {
+                let Ok(entries) = std::fs::read_dir(dir) else {
+                    continue;
+                };
+                for e in entries.flatten() {
+                    let hit = e
+                        .file_name()
+                        .to_str()
+                        .is_some_and(|n| wild(part.as_bytes(), n.as_bytes()));
+                    if hit && e.file_type().is_ok_and(|t| t.is_dir()) {
+                        next.push(e.path());
+                    }
+                }
+            } else {
+                next.push(dir.join(part));
+            }
+            next.truncate(MAX_MEMBERS);
+        }
+        dirs = next;
+    }
+    dirs
+}
+
+/// A package's `rust-version`: its own string, or the workspace's when it
+/// says `rust-version.workspace = true`.
+fn package_rust_version(table: &toml::Table, inherited: Option<&str>) -> Option<Vec<u64>> {
+    let v = table.get("package")?.get("rust-version")?;
+    match v.as_str() {
+        Some(s) => dotted(s),
+        None if v.get("workspace").and_then(toml::Value::as_bool) == Some(true) => {
+            dotted(inherited?)
+        }
+        None => None,
+    }
+}
+
+/// The Rust version a project declares: the greatest `rust-version` among
+/// the root manifest's package, `[workspace.package]`, and the `[workspace]
+/// members` (plain paths and `*`/`?` globs, minus `exclude`). Read with the
+/// TOML parser only: goway never runs `cargo` or `rustc` for this, because
+/// the rustup shim honors a repository's `rust-toolchain.toml` `path` and
+/// would start a program the repository chose.
+pub fn rust_min(root: &Path) -> Option<Detected> {
+    let top = read_manifest(&root.join("Cargo.toml"))?;
+    let workspace = top.get("workspace").and_then(toml::Value::as_table);
+    let inherited = workspace
+        .and_then(|w| w.get("package")?.get("rust-version")?.as_str())
+        .map(str::to_owned);
+    let mut versions: Vec<Vec<u64>> = inherited.as_deref().and_then(dotted).into_iter().collect();
+    versions.extend(package_rust_version(&top, inherited.as_deref()));
+    if let Some(w) = workspace {
+        let list = |key: &str| -> Vec<&str> {
+            w.get(key)
+                .and_then(toml::Value::as_array)
+                .map(|a| a.iter().filter_map(toml::Value::as_str).collect())
+                .unwrap_or_default()
+        };
+        let excluded: BTreeSet<PathBuf> = list("exclude")
+            .into_iter()
+            .flat_map(|p| member_dirs(root, p))
+            .collect();
+        let mut seen = 0usize;
+        for pattern in list("members") {
+            for dir in member_dirs(root, pattern) {
+                seen += 1;
+                if seen > MAX_MEMBERS {
+                    tracing::warn!(
+                        "workspace lists more than {MAX_MEMBERS} members; the rest are not read"
+                    );
+                    break;
+                }
+                if excluded.contains(&dir) || dir == root {
+                    continue;
+                }
+                if let Some(t) = read_manifest(&dir.join("Cargo.toml")) {
+                    versions.extend(package_rust_version(&t, inherited.as_deref()));
+                }
+            }
+        }
+    }
     Some(Detected {
-        min: dotted(version)?,
-        why: "Cargo.toml rust-version (approximate: members not read; install cargo first for the exact answer)"
-            .to_owned(),
-        approximate: true,
+        min: newest(versions)?,
+        why: "Cargo.toml rust-version (workspace members included; cargo is not run)".to_owned(),
+        approximate: false,
     })
 }
 
-/// The Go version `go.mod` requires, from `go list -m -json` (offline, no
-/// toolchain download); without go, from the `go` line of `go.mod`, labelled
-/// approximate with the advice to install go first.
-pub fn go_min(root: &Path, go_mod: &str) -> Option<Detected> {
-    go_min_with(root, go_mod, "go")
-}
-
-/// [`go_min`] with the go program named (so the fallback is testable).
-pub fn go_min_with(root: &Path, go_mod: &str, go: &str) -> Option<Detected> {
-    let printed = bounded_output(
-        go,
-        &["list", "-m", "-json"],
-        Some(root),
-        &[
-            ("GOFLAGS", "-mod=readonly"),
-            ("GOPROXY", "off"),
-            ("GOTOOLCHAIN", "local"),
-        ],
-    );
-    if let Some(p) = printed
-        && let Ok(v) = serde_json::from_str::<serde_json::Value>(&p.stdout)
-        && let Some(min) = v.get("GoVersion").and_then(|g| g.as_str()).and_then(dotted)
-    {
-        return Some(Detected {
-            min,
-            why: "go list -m -json".to_owned(),
-            approximate: false,
-        });
-    }
+/// The Go version `go.mod` requires: its `go` line. goway does not run `go`
+/// for this (the `go` command honors repository-chosen settings); the text is
+/// the same answer `go list -m` would give for the minimum version.
+pub fn go_min(_root: &Path, go_mod: &str) -> Option<Detected> {
     let min = go_mod
         .lines()
         .filter_map(|l| l.trim().strip_prefix("go "))
         .find_map(dotted)?;
     Some(Detected {
         min,
-        why: "go.mod text (approximate: install go first for the exact answer)".to_owned(),
-        approximate: true,
+        why: "go.mod go line (go is not run)".to_owned(),
+        approximate: false,
     })
 }
 
@@ -603,32 +653,53 @@ mod tests {
     }
 
     #[test]
-    fn rust_version_comes_from_cargo_metadata_and_falls_back_to_the_toml_with_a_label() {
+    fn rust_version_is_read_from_the_manifests_without_running_cargo() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("Cargo.toml"),
-            "[package]\nname = \"fx\"\nversion = \"0.0.0\"\nedition = \"2021\"\nrust-version = \"1.70\"\n",
-        )
-        .unwrap();
-        std::fs::create_dir(dir.path().join("src")).unwrap();
-        std::fs::write(dir.path().join("src/lib.rs"), "").unwrap();
-        let missing = rust_min_with(dir.path(), "goway-no-such-cargo").unwrap();
-        assert_eq!(missing.min, [1, 70]);
-        assert!(missing.approximate && missing.why.contains("install cargo first"));
-        if let Some(real) = rust_min(dir.path())
-            && !real.approximate
-        {
-            assert_eq!(real.min, [1, 70]);
-            assert_eq!(real.why, "cargo metadata rust-version");
-        }
+        let write = |rel: &str, text: &str| {
+            let p = dir.path().join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, text).unwrap();
+        };
+        write(
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"crates/*\", \"tool\", \"../escape\"]\nexclude = [\"crates/old\"]\n[workspace.package]\nrust-version = \"1.70\"\n",
+        );
+        write(
+            "crates/a/Cargo.toml",
+            "[package]\nname = \"a\"\nrust-version = \"1.75.1\"\n",
+        );
+        write(
+            "crates/b/Cargo.toml",
+            "[package]\nname = \"b\"\nrust-version.workspace = true\n",
+        );
+        write(
+            "crates/old/Cargo.toml",
+            "[package]\nname = \"o\"\nrust-version = \"1.99\"\n",
+        );
+        write(
+            "tool/Cargo.toml",
+            "[package]\nname = \"t\"\nrust-version = \"1.72\"\n",
+        );
+        let got = rust_min(dir.path()).unwrap();
+        assert_eq!(got.min, [1, 75, 1]);
+        assert!(!got.approximate && got.why.contains("cargo is not run"));
+        std::fs::remove_file(dir.path().join("crates/a/Cargo.toml")).unwrap();
+        assert_eq!(rust_min(dir.path()).unwrap().min, [1, 72]);
+        assert!(rust_min(&dir.path().join("missing")).is_none());
     }
 
     #[test]
-    fn go_version_falls_back_to_the_go_line_labelled_approximate() {
-        let dir = tempfile::tempdir().unwrap();
-        let got = go_min_with(dir.path(), "module x\n\ngo 1.22.1\n", "goway-no-such-go").unwrap();
+    fn globs_match_only_star_and_question_mark() {
+        assert!(wild(b"*", b"abc") && wild(b"a?c", b"abc") && wild(b"a*c", b"ac"));
+        assert!(!wild(b"a?c", b"ac") && !wild(b"abc", b"abd"));
+    }
+
+    #[test]
+    fn go_version_is_read_from_the_go_line_without_running_go() {
+        let got = go_min(Path::new("."), "module x\n\ngo 1.22.1\n").unwrap();
         assert_eq!(got.min, [1, 22, 1]);
-        assert!(got.approximate && got.why.contains("install go first"));
+        assert!(got.why.contains("go is not run"));
+        assert!(go_min(Path::new("."), "module x\n").is_none());
     }
 
     #[test]
@@ -668,9 +739,20 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_failing_or_missing_tool_yields_nothing_and_both_streams_are_read() {
-        assert!(bounded_output("goway-no-such-tool", &[], None, &[]).is_none());
-        assert!(bounded_output("false", &[], None, &[]).is_none());
-        let ok = bounded_output("sh", &["-c", "echo hi; echo err >&2"], None, &[]).unwrap();
+        assert!(bounded_output("goway-no-such-tool", &[], &[]).is_none());
+        assert!(bounded_output("false", &[], &[]).is_none());
+        let ok = bounded_output("sh", &["-c", "echo hi; echo err >&2"], &[]).unwrap();
         assert_eq!((ok.stdout.trim(), ok.stderr.trim()), ("hi", "err"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn probes_run_outside_the_current_directory_with_rustup_auto_install_off() {
+        let here = std::env::current_dir().unwrap();
+        let ok = bounded_output("sh", &["-c", "pwd; echo $RUSTUP_AUTO_INSTALL"], &[]).unwrap();
+        let mut lines = ok.stdout.lines();
+        let cwd = std::fs::canonicalize(lines.next().unwrap()).unwrap();
+        assert_ne!(cwd, std::fs::canonicalize(here).unwrap());
+        assert_eq!(lines.next(), Some("0"));
     }
 }

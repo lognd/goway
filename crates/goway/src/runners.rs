@@ -80,7 +80,7 @@ pub struct Project {
 impl Project {
     /// Read the file list and `package.json` of the repository at `root`.
     pub fn load(root: &Path) -> Result<Self> {
-        let out = std::process::Command::new("git")
+        let out = crate::repo::git_command()
             .arg("-C")
             .arg(root)
             .args(["ls-files", "-co", "--exclude-standard", "-z"])
