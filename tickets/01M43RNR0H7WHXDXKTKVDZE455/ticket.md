@@ -7,12 +7,12 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T15:31:44Z"
-updated = "2026-10-04T15:31:46Z"
+updated = "2026-10-04T15:41:57Z"
 scope = [".config/nextest.toml", ".github/workflows/ci.yml", "scripts/ci-ps-watch.sh", "docs/macos.md"]
 
 [[acceptance]]
 text = "Given a test that hangs, When nextest runs it, Then it is terminated after its slow-timeout instead of running for hours"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given any CI job, When it runs, Then it has a timeout-minutes limit"
