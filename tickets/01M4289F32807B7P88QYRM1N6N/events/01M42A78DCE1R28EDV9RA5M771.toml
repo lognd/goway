@@ -1,0 +1,11 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T01:59:55Z"
+digest = "4ff2f2c758feefad2a68e66924ea5a83d04c98fa1bb78b3b9dbde2e41299be79"
+provider = "file"
+ref = "crates/goway/tests/remote_ps1.rs"
+size = 49742
+status = "measured"
+at = "2026-10-04T01:59:55Z"
+actor = "lognd"
+rev = 1
