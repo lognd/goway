@@ -80,7 +80,8 @@ jobs:
           GOWAY_PWSH: powershell
         run: cargo test -p goway --test remote_ps1 --locked
   macos:
-    # The client and the install scripts on macOS (bash 3.2, BSD userland).
+    # The client, the install scripts and goway's remote script on macOS
+    # (bash 3.2, BSD userland; the remote script runs on Homebrew's GNU tools).
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v7
@@ -89,4 +90,6 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
-      - run: cargo nextest run -p goway --lib --test install_scripts --locked
+      - name: GNU tools the remote script needs (what goway doctor --fix installs)
+        run: brew install coreutils findutils gnu-sed gnu-tar grep util-linux flock
+      - run: cargo nextest run -p goway --locked --no-fail-fast
