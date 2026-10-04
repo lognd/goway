@@ -2,7 +2,8 @@
 id = "01M44DCY5N2R7KWCPZ9169R3Q0"
 title = "Audit3 M2 and L1: one PowerShell quoter that handles curly quotes, and printed admin commands without expansion"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
