@@ -22,6 +22,21 @@ fn fake_df(w: &common::World, avail: u64, size: u64) {
     )
     .unwrap();
     std::fs::set_permissions(&df, std::fs::Permissions::from_mode(0o755)).unwrap();
+    // On macOS remote.sh puts Homebrew's GNU tools ahead of any PATH entry, so the fake is also
+    // a shell function, which wins over every PATH lookup (bash reads BASH_ENV at start-up).
+    std::fs::write(
+        w.bin.join("fake-df.sh"),
+        format!("df() {{ '{}' \"$@\"; }}\n", df.display()),
+    )
+    .unwrap();
+}
+
+/// `goway <args>` in the world, with the fake `df` (when `fake_df` made one) in front of any PATH.
+fn goway_run(w: &common::World, args: &[&str]) -> std::process::Output {
+    w.goway(args)
+        .env("BASH_ENV", w.bin.join("fake-df.sh"))
+        .output()
+        .unwrap()
 }
 
 fn footprint_files(root: &Path) -> Vec<std::path::PathBuf> {
@@ -43,6 +58,7 @@ fn probe(w: &common::World, extra: &[&str]) -> String {
         .arg(&w.remote)
         .args(extra)
         .env("HOME", &home)
+        .env("BASH_ENV", w.bin.join("fake-df.sh"))
         .env(
             "PATH",
             format!(
@@ -61,13 +77,16 @@ fn probe(w: &common::World, extra: &[&str]) -> String {
 #[test]
 fn a_run_records_the_peak_footprint_and_the_probe_reports_it() {
     let w = common::world();
-    let out = w.run(&[
-        "run",
-        "--",
-        "sh",
-        "-c",
-        "mkdir -p \"$CARGO_TARGET_DIR\" && truncate -s 3M \"$CARGO_TARGET_DIR/big\"",
-    ]);
+    let out = goway_run(
+        &w,
+        &[
+            "run",
+            "--",
+            "sh",
+            "-c",
+            "mkdir -p \"$CARGO_TARGET_DIR\" && truncate -s 3M \"$CARGO_TARGET_DIR/big\"",
+        ],
+    );
     assert!(out.status.success(), "{out:?}");
     common::wait_for("the footprint record", || {
         recorded(&w.remote).is_some_and(|b| b >= 3 * MIB)
@@ -83,7 +102,7 @@ fn a_run_records_the_peak_footprint_and_the_probe_reports_it() {
     assert!(!text.contains("disk_used="), "{text}");
     // A smaller later run never lowers the peak.
     let peak = recorded(&w.remote).unwrap();
-    let out = w.run(&["run", "--", "true"]);
+    let out = goway_run(&w, &["run", "--", "true"]);
     assert!(out.status.success(), "{out:?}");
     assert!(recorded(&w.remote).unwrap() >= peak);
 }
@@ -92,13 +111,16 @@ fn a_run_records_the_peak_footprint_and_the_probe_reports_it() {
 #[test]
 fn a_tight_disk_makes_the_probe_report_what_goway_holds() {
     let w = common::world();
-    let out = w.run(&[
-        "run",
-        "--",
-        "sh",
-        "-c",
-        "mkdir -p \"$CARGO_TARGET_DIR\" && truncate -s 3M \"$CARGO_TARGET_DIR/big\"",
-    ]);
+    let out = goway_run(
+        &w,
+        &[
+            "run",
+            "--",
+            "sh",
+            "-c",
+            "mkdir -p \"$CARGO_TARGET_DIR\" && truncate -s 3M \"$CARGO_TARGET_DIR/big\"",
+        ],
+    );
     assert!(out.status.success(), "{out:?}");
     common::wait_for("the footprint record", || recorded(&w.remote).is_some());
     fake_df(&w, 100 * MIB, 10 * GIB);
@@ -112,7 +134,7 @@ fn a_tight_disk_makes_the_probe_report_what_goway_holds() {
 fn a_failure_on_a_nearly_full_disk_is_explained_in_plain_words() {
     let w = common::world();
     fake_df(&w, 100 * MIB, 10 * GIB);
-    let out = w.run(&["run", "--", "sh", "-c", "exit 3"]);
+    let out = goway_run(&w, &["run", "--", "sh", "-c", "exit 3"]);
     let err = String::from_utf8_lossy(&out.stderr).into_owned();
     assert_eq!(out.status.code(), Some(3), "{err}");
     assert!(err.contains("this host ran out of disk"), "{err}");
@@ -120,7 +142,7 @@ fn a_failure_on_a_nearly_full_disk_is_explained_in_plain_words() {
     assert!(err.contains("--needs disk>="), "{err}");
     // With room, a failure is just the command's own.
     let w2 = common::world();
-    let out = w2.run(&["run", "--", "sh", "-c", "exit 3"]);
+    let out = goway_run(&w2, &["run", "--", "sh", "-c", "exit 3"]);
     let err = String::from_utf8_lossy(&out.stderr).into_owned();
     assert!(!err.contains("ran out of disk"), "{err}");
 }
@@ -130,13 +152,16 @@ fn a_failure_on_a_nearly_full_disk_is_explained_in_plain_words() {
 fn a_run_short_of_room_evicts_idle_caches_first_and_says_so() {
     let w = common::world();
     // A first run records a footprint, then an idle cache of another repository exists.
-    let out = w.run(&[
-        "run",
-        "--",
-        "sh",
-        "-c",
-        "mkdir -p \"$CARGO_TARGET_DIR\" && truncate -s 3M \"$CARGO_TARGET_DIR/big\"",
-    ]);
+    let out = goway_run(
+        &w,
+        &[
+            "run",
+            "--",
+            "sh",
+            "-c",
+            "mkdir -p \"$CARGO_TARGET_DIR\" && truncate -s 3M \"$CARGO_TARGET_DIR/big\"",
+        ],
+    );
     assert!(out.status.success(), "{out:?}");
     common::wait_for("the footprint record", || recorded(&w.remote).is_some());
     let idle = w.remote.join("cache/idle");
@@ -150,7 +175,7 @@ fn a_run_short_of_room_evicts_idle_caches_first_and_says_so() {
     std::fs::write(idle.join("target-0.lock"), "").unwrap();
     fake_df(&w, 100 * MIB, 10 * GIB);
     // Pinned, so the scheduler does not hold the host back: the run itself makes room.
-    let out = w.run(&["run", "--host", "local", "--", "true"]);
+    let out = goway_run(&w, &["run", "--host", "local", "--", "true"]);
     let err = String::from_utf8_lossy(&out.stderr).into_owned();
     assert!(out.status.success(), "{err}");
     assert!(err.contains("the disk budget freed"), "{err}");
@@ -162,18 +187,21 @@ fn a_run_short_of_room_evicts_idle_caches_first_and_says_so() {
 #[test]
 fn making_room_never_evicts_the_runs_own_seed() {
     let w = common::world();
-    let out = w.run(&[
-        "run",
-        "--",
-        "sh",
-        "-c",
-        "mkdir -p \"$CARGO_TARGET_DIR\" && truncate -s 3M \"$CARGO_TARGET_DIR/big\"",
-    ]);
+    let out = goway_run(
+        &w,
+        &[
+            "run",
+            "--",
+            "sh",
+            "-c",
+            "mkdir -p \"$CARGO_TARGET_DIR\" && truncate -s 3M \"$CARGO_TARGET_DIR/big\"",
+        ],
+    );
     assert!(out.status.success(), "{out:?}");
     common::wait_for("the footprint record", || recorded(&w.remote).is_some());
     // The seed of this repository and worktree is the only thing that could be evicted.
     fake_df(&w, 100 * MIB, 10 * GIB);
-    let out = w.run(&["run", "--host", "local", "--", "true"]);
+    let out = goway_run(&w, &["run", "--host", "local", "--", "true"]);
     let err = String::from_utf8_lossy(&out.stderr).into_owned();
     assert!(out.status.success(), "{err}");
     let seeds: Vec<_> = std::fs::read_dir(w.remote.join("seed"))
