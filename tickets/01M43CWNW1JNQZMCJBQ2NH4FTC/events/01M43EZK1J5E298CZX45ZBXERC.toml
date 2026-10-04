@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T12:42:21Z"
+digest = "2f3d7153f43a05126380010b838923121931692cd000b7d3f54aea7028b2cf82"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 38.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 7523c5ee-7561-4625-b74e-c3f9cd198d3c with nextest profile: default
+    Starting 3 tests across 69 binaries (805 tests skipped)
+        PASS [   0.009s] goway footprint::tests::memory_is_judged_by_total_first_then_by_what_is_available
+        PASS [   0.009s] goway pool::tests::a_host_too_small_or_too_busy_for_the_repositorys_memory_peak_is_held_back
+        PASS [  12.991s] goway::mem_footprint a_run_records_its_peak_memory_and_the_probe_reports_it
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  12.997s] 3 tests run: 3 passed, 805 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_host_too_small_or_too_busy_for_the_repositorys_memory_peak_is_held_back) | test(memory_is_judged_by_total_first_then_by_what_is_available) | test(a_run_records_its_peak_memory_and_the_probe_reports_it)'"
+size = 981
+status = "measured"
+tests = ["footprint::tests::memory_is_judged_by_total_first_then_by_what_is_available", "pool::tests::a_host_too_small_or_too_busy_for_the_repositorys_memory_peak_is_held_back", "a_run_records_its_peak_memory_and_the_probe_reports_it"]
+at = "2026-10-04T12:42:21Z"
+actor = "lognd"
+rev = 1
