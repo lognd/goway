@@ -2,7 +2,8 @@
 id = "01M42JWP68RKW7CBKYRV74NAYA"
 title = "Raise the in-progress cap to 6: five lanes plus the coordinator"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
