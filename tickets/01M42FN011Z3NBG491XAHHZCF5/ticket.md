@@ -2,7 +2,8 @@
 id = "01M42FN011Z3NBG491XAHHZCF5"
 title = 'Portable command translation: the program name or path is translated per OS (python3 to py -3, ./gradlew to gradlew.bat, ./build/x to build\x.exe), shown and recorded'
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
