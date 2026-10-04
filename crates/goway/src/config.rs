@@ -285,10 +285,10 @@ impl HostConfig {
         Ok(())
     }
 
-    /// Most goway jobs at once on this host: `max_jobs`, else half its
-    /// cores (at least 1), so helpers shared by many agents are not swamped.
+    /// Most goway jobs at once on this host: `max_jobs`, else every core (at
+    /// least 1); jobs run niced, so a full helper still yields to its owner.
     pub fn job_limit(&self, cores: u32) -> u32 {
-        self.max_jobs.unwrap_or_else(|| (cores / 2).max(1))
+        self.max_jobs.unwrap_or_else(|| cores.max(1))
     }
 
     /// The ssh `HostKeyAlias` that pins this host's key.
@@ -880,10 +880,10 @@ user = "user"
 
     // frob:tests crates/goway/src/config.rs::job_limit
     #[test]
-    fn job_limit_defaults_to_half_the_cores_and_honours_max_jobs() {
+    fn job_limit_defaults_to_all_the_cores_and_honours_max_jobs() {
         let mut host: HostConfig = toml::from_str("name = \"h\"").unwrap();
-        assert_eq!(host.job_limit(16), 8);
-        assert_eq!(host.job_limit(3), 1);
+        assert_eq!(host.job_limit(16), 16);
+        assert_eq!(host.job_limit(3), 3);
         assert_eq!(host.job_limit(0), 1);
         host.max_jobs = Some(5);
         assert_eq!(host.job_limit(16), 5);
