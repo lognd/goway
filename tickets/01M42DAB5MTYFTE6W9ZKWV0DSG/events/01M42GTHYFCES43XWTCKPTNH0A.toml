@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T03:55:18Z"
+digest = "2bfce1a64336777e0a704e77013b0bf745c8d3e682f5d3afbefa766994fea721"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 85a5b20d-f0cc-45db-8a47-97fe2a2c742c with nextest profile: default
+    Starting 3 tests across 52 binaries (623 tests skipped)
+        PASS [   0.010s] goway::doctor_output the_plan_lists_each_fix_once_and_hardening_apart_without_harden
+        PASS [   0.011s] goway::doctor_output with_harden_the_hardening_is_still_its_own_list
+        PASS [   0.035s] goway::doctor_project harden_needs_rsudo_and_explain_is_not_a_fix
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.042s] 3 tests run: 3 passed, 623 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(with_harden_the_hardening_is_still_its_own_list) | test(the_plan_lists_each_fix_once_and_hardening_apart_without_harden) | test(harden_needs_rsudo_and_explain_is_not_a_fix)'"
+size = 765
+status = "measured"
+tests = ["the_plan_lists_each_fix_once_and_hardening_apart_without_harden", "with_harden_the_hardening_is_still_its_own_list", "harden_needs_rsudo_and_explain_is_not_a_fix"]
+at = "2026-10-04T03:55:18Z"
+actor = "lognd"
+rev = 1
