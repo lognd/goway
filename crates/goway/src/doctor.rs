@@ -1070,6 +1070,61 @@ mod tests {
         f
     }
 
+    // frob:tests crates/goway/src/doctor.rs::assess_project
+    #[test]
+    fn a_cargo_config_naming_clang_and_mold_makes_doctor_check_and_plan_both() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join(".cargo")).unwrap();
+        std::fs::write(
+            dir.path().join(".cargo/config.toml"),
+            "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\nrustflags = [\"-C\", \"link-arg=-fuse-ld=mold\"]\n",
+        )
+        .unwrap();
+        let needs = projneeds::Needs {
+            linking: crate::ecotools::cargo_linking(dir.path(), None, &|_| None),
+            ..Default::default()
+        };
+        assert!(needs.probe_names().contains(&"clang".to_owned()));
+        assert!(needs.probe_names().contains(&"mold".to_owned()));
+        // A helper with gcc only: no clang, no mold.
+        let mut f = facts(&[]);
+        f.insert("want.clang".to_owned(), String::new());
+        f.insert("want.mold".to_owned(), String::new());
+        let checks = assess_project(&f, &needs);
+        let fixes: Vec<String> = ["clang", "mold"]
+            .iter()
+            .map(|name| {
+                let c = checks.iter().find(|c| c.name == *name).unwrap();
+                assert_eq!(c.level, Level::Fail, "{name}");
+                assert!(
+                    c.detail
+                        .contains("--env CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=cc")
+                );
+                let fix = c.fix.clone().unwrap();
+                assert!(fix.root);
+                fix.command
+            })
+            .collect();
+        assert_eq!(
+            fixes,
+            [
+                "apt-get update && apt-get install -y clang",
+                "apt-get update && apt-get install -y mold"
+            ]
+        );
+        // One sudo session runs both, and both are recorded for uninstall by
+        // check name only (system packages are listed, never removed).
+        assert!(projneeds::is_package_check("clang") && projneeds::is_package_check("mold"));
+        // A helper that has them is fine.
+        f.insert("want.clang".to_owned(), "clang version 18.1.3".to_owned());
+        f.insert("want.mold".to_owned(), "mold 2.30.0".to_owned());
+        assert!(
+            assess_project(&f, &needs)
+                .iter()
+                .all(|c| c.level == Level::Ok)
+        );
+    }
+
     // frob:tests crates/goway/src/doctor.rs::darwin_checks
     #[test]
     fn a_mac_missing_gnu_tools_gets_a_per_user_brew_fix() {

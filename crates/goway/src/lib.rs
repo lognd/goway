@@ -6,6 +6,7 @@ pub mod cli;
 pub mod config;
 pub mod detect;
 pub mod doctor;
+pub mod ecotools;
 pub mod error;
 pub mod facts;
 pub mod gc;
