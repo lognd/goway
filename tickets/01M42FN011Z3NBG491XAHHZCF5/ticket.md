@@ -8,7 +8,7 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T03:34:48Z"
-updated = "2026-10-04T12:20:00Z"
+updated = "2026-10-04T12:20:01Z"
 scope = ["crates/goway/src/translate.rs", "crates/goway/src/runners.rs", "crates/goway/src/project.rs", "crates/goway/src/run.rs", "crates/goway/src/remote.ps1", "crates/goway/src/remote.sh", "crates/goway/tests/translate.rs", "docs/config.md", "docs/design.md", "crates/goway/src/shard.rs", "crates/goway/src/lib.rs"]
 
 [[links]]
@@ -37,7 +37,7 @@ bound = true
 
 [[acceptance]]
 text = "Given program resolution on a host, when a candidate is looked up, then only PATH directories are searched (never the current directory and never any path inside the synced work tree), so a repository cannot ship its own python.exe or gradlew.bat look-alike that a bare name resolves to; the resolved absolute path is what runs and what the report records"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given the translation table, when maintained, then it is one declarative table (program, per-OS ordered candidates) with a small reviewed set of entries each covered by per-OS tests; new tools go in goway.toml [translate], whose targets may only be bare program names resolved the same safe way or paths inside the work tree, documented as having the repository's own trust level"
