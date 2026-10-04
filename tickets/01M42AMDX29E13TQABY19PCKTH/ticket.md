@@ -2,7 +2,8 @@
 id = "01M42AMDX29E13TQABY19PCKTH"
 title = "rsudo and lsudo elevate Windows-side steps through an admin OpenSSH session or UAC, never with a stored password"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
