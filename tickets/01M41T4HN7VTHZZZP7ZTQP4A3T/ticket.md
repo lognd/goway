@@ -8,8 +8,8 @@ points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T21:18:48Z"
-updated = "2026-10-04T06:12:50Z"
-scope = ["crates/goway/src/doctor.rs", "docs/usage.md", "crates/goway/src/doctor/windows.rs", "crates/goway/src/cli.rs", "crates/goway/src/uninstall.rs", "crates/goway/src/doctor/output.rs"]
+updated = "2026-10-04T06:13:17Z"
+scope = ["crates/goway/src/doctor.rs", "docs/usage.md", "crates/goway/src/doctor/windows.rs", "crates/goway/src/cli.rs", "crates/goway/src/uninstall.rs", "crates/goway/src/doctor/output.rs", "crates/goway/src/add.rs"]
 
 [[links]]
 kind = "blocked-by"
