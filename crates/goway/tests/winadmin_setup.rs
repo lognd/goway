@@ -16,7 +16,7 @@ mod pwsh;
 /// Replaces `Get-Acl`: every path is owned by Administrators and writable only by them, except
 /// where `MOCK_OWNER` names a different owner for paths containing `MOCK_MATCH`, or
 /// `MOCK_WRITABLE` gives Users write access to paths containing `MOCK_MATCH`.
-const MOCK_ACL: &str = r#"
+const MOCK_ACL: &str = r"
 function Get-Acl {
     param([string]$LiteralPath)
     $hit = $env:MOCK_MATCH -and $LiteralPath.Contains($env:MOCK_MATCH)
@@ -42,7 +42,7 @@ function Get-Acl {
     }
     return $o
 }
-"#;
+";
 
 fn script(path: &Path, body: &str) {
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
