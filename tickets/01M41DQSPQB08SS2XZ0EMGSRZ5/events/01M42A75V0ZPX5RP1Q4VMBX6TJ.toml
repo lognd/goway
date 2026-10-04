@@ -1,0 +1,6 @@
+kind = "comment"
+subtype = "note"
+body = "Exercised live on 2026-10-03 on a real helper (Windows 11, WSL mirrored) through ssh into WSL and WSL interop: goway-setup install --host --profile goway-test --port 2299 --no-activate --yes showed the UAC prompt on the helper's desktop; the owner accepted it; 20 changes installed. uninstall --host showed a second prompt; accepted; every change restored. Windows snapshot (1258 lines, taken from an admin session) and WSL snapshot (82 lines) identical before and after; port 2222 never affected. Found: elevate.rs decides 'interactive desktop' from SESSIONNAME, which interop processes lack, so the first attempt was refused although session 1 could prompt; worked around with SESSIONNAME=Console via WSLENV; real fix filed as ~AD8JP8D."
+at = "2026-10-04T01:59:52Z"
+actor = "lognd"
+rev = 1

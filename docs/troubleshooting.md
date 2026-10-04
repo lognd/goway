@@ -47,6 +47,90 @@ helper you can also see it in its WSL terminal with
 `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
 </details>
 
+<details><summary>The helper's shell prints text, or is not bash</summary>
+
+sshd runs every goway call through the account's login shell, which
+reads its startup files first. A `.bashrc` (or `.profile`, `config.fish`,
+`.cshrc`) that prints a greeting, a `fortune` or an `echo` for
+non-interactive sessions would otherwise land in goway's protocol.
+goway is built for that:
+
+- The command line the login shell sees is plain text (`bash -c` with a
+  base64 payload), so fish, csh, tcsh and others run bash with the script
+  and your command unchanged. Quotes, backslashes and `!` in your command
+  are never parsed by the login shell.
+- goway's output starts with a marker line; everything a startup file
+  printed before it is dropped, for `goway run` and for every internal
+  call. (Text printed on stderr is shown as is.)
+
+Dropping the noise is a workaround, not a fix: it costs nothing, but the
+text is still produced on every call. Guard it so it only runs for a
+person, at the top of the helper's `~/.bashrc`:
+
+    case $- in *i*) ;; *) return ;; esac
+
+or print only on a terminal: `[ -t 1 ] && echo ...`. If a startup file
+makes goway's output differ from what you expect, `goway -v` logs how many
+bytes of startup text it ignored for each call.
+</details>
+
+<details><summary>goway add says Permission denied</summary>
+
+On a terminal `goway add` first asks "Do you know the password of USER
+on NAME? [Y/n]". Answer `n` (or pass `--no-password`) when the account
+has no password or you are not sure: goway goes straight to the by-hand
+path below. Otherwise it logs in once with that password to install its
+key. ssh asks for the password itself, under the name you typed (goway
+never sees, stores or sends a password other than through ssh's own
+prompt), and asks exactly once (`NumberOfPasswordPrompts=1`, password
+methods only, no agent keys), so a wrong or empty password is one failed
+attempt, never several toward a fail2ban limit. goway then says "That
+password did not work on NAME", names the most likely cause and
+continues with "Let's do it the other way". `--yes` skips the question
+and goes on to the password; without a terminal there is no question.
+"Permission denied (publickey,password)" means the helper refused the
+login. Check the causes on the helper, in this order (`USER` is the
+Linux account you pass with `--user`):
+
+1. **No password is set for the account.** Common with automatic login
+   on a native Linux install. `passwd -S USER` shows `NP`. sshd never
+   accepts an empty password, however it is typed. Either set one
+   (`sudo passwd USER`) or add goway's key by hand (below).
+2. **A mistyped password.** Try again, or use the by-hand path.
+3. **Password login is switched off** (or a second factor is
+   required): `sudo sshd -T | grep -i passwordauthentication` says `no`.
+   Use the by-hand path.
+4. **The wrong user.** Pass the helper's own Linux account:
+   `goway add NAME --user USER`.
+5. **A lockout or a ban after failed attempts:** `faillock --user USER`
+   (clear it with `faillock --user USER --reset`) and
+   `sudo fail2ban-client status sshd` (unban with
+   `sudo fail2ban-client set sshd unbanip ADDRESS`).
+6. **AllowUsers or AllowGroups** leaves the account out:
+   `sudo sshd -T | grep -iE 'allowusers|allowgroups'`.
+
+**Adding the key by hand.** goway does this itself when the password
+login is refused, or from the start with `goway add NAME --no-password`.
+It prints three commands with goway's public key already filled in
+(only the `.pub` text is ever printed, never a private key). Run them in
+a terminal on the helper:
+
+```bash
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo 'no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 AAAA... goway@laptop goway:1' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+The line carries the same restrictions as the one the password path
+installs. In a terminal goway then says "Then press Enter here (Ctrl-C to
+stop)", checks key login with the pinned host key and goes
+on with the normal setup. Without a terminal it stops with exit code 125
+after printing the commands; run them on the helper and repeat the same
+`goway add` command. `goway ssh setup NAME --undo` cannot remove a line
+you added by hand: delete the line tagged `goway:` from
+`~/.ssh/authorized_keys` yourself.
+</details>
+
 <details><summary>"... is not in one" (not a git project)</summary>
 
 goway runs a command from inside a project folder that git tracks. Use
@@ -67,6 +151,31 @@ Some fixes need administrator rights on the helper, such as installing
 the C compiler that Rust uses. Run `goway doctor NAME --fix --rsudo`,
 or `goway add NAME --rsudo`. goway lists the changes with their reasons
 and asks once. sudo on the helper then asks for its Linux password.
+</details>
+
+<details><summary>doctor says "wsl size": WSL has much less than the laptop</summary>
+
+WSL starts with half the laptop's RAM and often less swap than a big
+build wants. `goway doctor NAME` compares what WSL got with what the
+laptop has and prints the command, for example
+`goway-setup.exe tune --memory 12GB --swap 6GB --processors 14`. The
+suggestion leaves Windows at least 4 GiB or 25% of the RAM. Run it in a
+normal (non-administrator) terminal on the helper's Windows side. It
+edits `.wslconfig` through a journal, refuses while goway jobs run (unless
+`--yes`), and asks before `wsl --shutdown`, which stops everything in
+WSL. `goway-setup uninstall --host` puts the old values back. See
+docs/install-windows.md ("Giving WSL more of the machine").
+</details>
+
+<details><summary>doctor says the GPU is invisible to WSL, or CUDA is missing</summary>
+
+If Windows lists an NVIDIA or AMD GPU that WSL does not see, install the
+current Windows driver with WSL support, never a Linux GPU driver inside
+WSL, then run `wsl --shutdown` from a normal terminal and check
+`nvidia-smi` in WSL. If the GPU is visible but `nvcc` is missing,
+`goway doctor NAME --fix --rsudo` installs NVIDIA's `cuda-toolkit` for
+WSL-Ubuntu (x86_64, apt; no driver) and records it, so `goway uninstall`
+removes it again.
 </details>
 
 <details><summary>"kept N secret-looking file(s) on this machine"</summary>

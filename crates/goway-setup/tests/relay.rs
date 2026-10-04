@@ -1071,3 +1071,17 @@ fn the_elevated_refresh_starts_without_runtime_injection_variables() {
         assert!(!is_scrubbed(kept), "{kept}");
     }
 }
+
+// frob:tests crates/goway-setup/src/relay.rs::refresh_script
+#[test]
+fn the_elevated_refresh_task_only_queries_running_distros_and_never_starts_wsl() {
+    let script = refresh_script("goway-test", "Ubuntu", PORT);
+    let list = script
+        .find("--list --running")
+        .expect("lists running distros");
+    let enter = script.find("-d $distro").expect("enters the distro");
+    assert!(list < enter, "the running check comes first");
+    assert!(script.contains("-notcontains $distro) { exit 0 }"));
+    // Every wsl.exe call is either that query or inside the distro after it.
+    assert_eq!(script.matches("& $wsl").count(), 2);
+}

@@ -270,12 +270,62 @@ fn key_blob(line: &str) -> String {
 }
 
 /// `goway ssh setup` (or `--undo`).
-#[allow(clippy::too_many_lines)] // one linear walk-through, easier to audit in one place
 pub fn setup(
     paths: &Paths,
     renderer: Renderer,
     args: &SshSetupArgs,
     lookup: &dyn Lookup,
+) -> Result<u8> {
+    setup_with(paths, renderer, args, lookup, false)
+}
+
+/// Removes goway's temporary prompt `known_hosts` copy when setup ends, however it ends.
+struct RemoveOnDrop(PathBuf);
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// The login name shown to the user: the configured one, else this account's own.
+fn account_name(target: &Target) -> String {
+    target
+        .user
+        .clone()
+        .or_else(|| std::env::var("USER").ok().filter(|u| !u.is_empty()))
+        .or_else(|| std::env::var("USERNAME").ok().filter(|u| !u.is_empty()))
+        .unwrap_or_else(|| "your account".to_owned())
+}
+
+/// Whether to try a password login: on a terminal goway first explains what it is about to do
+/// and asks whether the user knows the password (goway cannot tell a blank password from a
+/// wrong one, so it asks up front); `assume_yes` and scripts skip the question.
+fn knows_password(renderer: Renderer, name: &str, user: &str, assume_yes: bool) -> bool {
+    if assume_yes || !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+        return true;
+    }
+    renderer.note(format_args!(
+        "To let this laptop log in to {name} without a password from now on, goway puts a key on {name} once."
+    ));
+    renderer.note(format_args!(
+        "(If {user} has no password, or you are not sure, answer n: goway shows three lines to paste on {name} instead.)"
+    ));
+    let answer = crate::render::ask(&format!(
+        "Do you know the password of {user} on {name}? [Y/n] "
+    ));
+    // No answer (end of input) is the safe side: no password attempt.
+    answer.is_some_and(|a| !matches!(a.trim(), "n" | "N" | "no" | "No" | "NO"))
+}
+
+/// Run the ssh setup; `assume_yes` skips the password question for callers that already confirmed (`goway add --yes`).
+#[allow(clippy::too_many_lines)] // one linear walk-through, easier to audit in one place
+pub fn setup_with(
+    paths: &Paths,
+    renderer: Renderer,
+    args: &SshSetupArgs,
+    lookup: &dyn Lookup,
+    assume_yes: bool,
 ) -> Result<u8> {
     if args.undo {
         return undo(paths, renderer, &args.host);
@@ -399,18 +449,112 @@ pub fn setup(
         (key, Some(private.to_string_lossy().into_owned()))
     };
 
-    // 2. One password login: check the machine, then authorize the key.
-    renderer.note(format_args!(
-        "logging in to {name} with a password once (ssh will ask) to authorize the key"
-    ));
+    // A native Windows host takes its key from `goway-setup`, run there once
+    // (administrator): no password login, no shell script.
+    if host.os == config::Os::Windows {
+        let key_target = Target {
+            identity: identity.as_ref().map(PathBuf::from),
+            ..target.clone()
+        };
+        HandInstall {
+            renderer,
+            name,
+            public_key: &public_key,
+            target: &key_target,
+            settings: &settings,
+            windows: true,
+        }
+        .run(&account_name(&target))?;
+        return finish_setup(
+            paths,
+            renderer,
+            &Finish {
+                name,
+                record_file: &record_file,
+                target: &target,
+                settings: &settings,
+                identity,
+                local,
+                remote: Journal::generate(),
+                configured: configured.is_some(),
+                host: &host,
+                scratch: &scratch,
+            },
+        );
+    }
+
+    // 2. One password login (or the key added by hand): check the machine,
+    // then authorize the key.
+    let facts_script = "uname -s; uname -n; printf '%s\\n' \"$HOME\"; cat ~/.ssh/authorized_keys 2>/dev/null || true";
+    let key_target = Target {
+        identity: identity.as_ref().map(PathBuf::from),
+        ..target.clone()
+    };
+    let by_hand = HandInstall {
+        renderer,
+        name,
+        public_key: &public_key,
+        target: &key_target,
+        settings: &settings,
+        windows: false,
+    };
+    let user = account_name(&target);
+    let try_password = !args.no_password && knows_password(renderer, name, &user, assume_yes);
     let mut remote_sys = RemoteSystem {
         target: target.clone(),
         settings: settings.clone(),
-        password: true,
+        password: try_password,
+        prompt: None,
     };
-    let facts = remote_sys
-        .output("uname -s; uname -n; printf '%s\\n' \"$HOME\"; cat ~/.ssh/authorized_keys 2>/dev/null || true")
-        .map_err(|e| sys_err(name, e))?;
+    let prompt_hosts = RemoveOnDrop(
+        paths
+            .state_dir
+            .join(format!("known_hosts.prompt.{}", std::process::id())),
+    );
+    if try_password {
+        // ssh names the host in its prompt after the key alias; show what the user typed.
+        remote_sys.prompt =
+            ssh::PasswordPrompt::create(name, &settings.known_hosts, &prompt_hosts.0)
+                .map_err(|e| tracing::warn!(error = %e, "no custom password prompt"))
+                .ok();
+        renderer.note(format_args!(
+            "ssh now asks for {user}'s password on {name} (typing is hidden; goway never sees or stores it)."
+        ));
+    } else {
+        if args.no_password {
+            renderer.note(format_args!(
+                "--no-password: not asking for a password; the key is added by hand"
+            ));
+        } else {
+            renderer.note(format_args!(
+                "No password: goway will show you what to paste on {name} instead."
+            ));
+        }
+        by_hand.run(&user)?;
+        remote_sys.target = key_target.clone();
+    }
+    let first = remote_sys.output(facts_script);
+    let facts = match first {
+        Err(e)
+            if remote_sys.password
+                && ssh::classify_failure(&e.to_string()) == Failure::AuthRefused =>
+        {
+            tracing::warn!(host = name, error = %e, "password login refused; key to be added by hand");
+            renderer.warn(format_args!("That password did not work on {name}."));
+            renderer.note(format_args!(
+                "Most likely {user} has no password set (common with automatic login) or {name} only allows key logins; \
+                 other causes are in docs/troubleshooting.md, \"goway add says Permission denied\"."
+            ));
+            renderer.headline(format_args!("Let's do it the other way:"));
+            by_hand.run(&user)?;
+            remote_sys.password = false;
+            remote_sys.target = key_target.clone();
+            remote_sys
+                .output(facts_script)
+                .map_err(|e| sys_err(name, e))?
+        }
+        other => other.map_err(|e| sys_err(name, e))?,
+    };
     let mut lines = facts.lines();
     let (os, hostname, home) = (
         lines.next().unwrap_or_default(),
@@ -454,17 +598,66 @@ pub fn setup(
         }
     };
 
+    finish_setup(
+        paths,
+        renderer,
+        &Finish {
+            name,
+            record_file: &record_file,
+            target: &target,
+            settings: &settings,
+            identity,
+            local,
+            remote,
+            configured: configured.is_some(),
+            host: &host,
+            scratch: &scratch,
+        },
+    )
+}
+
+/// What the end of a setup needs: verify key-only login, record the
+/// config changes, write the record `--undo` reads.
+struct Finish<'a> {
+    name: &'a str,
+    record_file: &'a Path,
+    target: &'a Target,
+    settings: &'a ssh::Settings,
+    identity: Option<String>,
+    local: Journal,
+    remote: Journal,
+    configured: bool,
+    host: &'a HostConfig,
+    scratch: &'a Path,
+}
+
+/// Steps 3 and 4 of a setup: check that key-only login works, store the
+/// identity and pool membership, and write the undo record.
+fn finish_setup(paths: &Paths, renderer: Renderer, f: &Finish<'_>) -> Result<u8> {
+    let Finish {
+        name,
+        record_file,
+        target,
+        settings,
+        identity,
+        local,
+        remote,
+        configured,
+        host,
+        scratch,
+    } = f;
+    let (name, configured) = (*name, *configured);
     // 3. Verify key-only login.
     let check_target = Target {
         identity: identity.as_ref().map(PathBuf::from),
-        ..target.clone()
+        ..(*target).clone()
     };
     // A fresh connection: the password login's multiplexed master must not
     // make the key-only check pass.
     let verified = SshProber {
         settings: ssh::Settings {
             control_dir: None,
-            ..settings.clone()
+            ..(*settings).clone()
         },
     }
     .probe(&check_target, KeyPolicy::Strict, "true")
@@ -477,24 +670,24 @@ pub fn setup(
         port: target.port,
         user: target.user.clone(),
         identity: identity.clone(),
-        local,
-        remote,
+        local: local.clone(),
+        remote: remote.clone(),
         identity_set: false,
         host_added: false,
     };
-    if configured.is_none() {
-        let mut stored = host.clone();
-        stored.identity.clone_from(&identity);
+    if !configured {
+        let mut stored = (*host).clone();
+        stored.identity.clone_from(identity);
         // Pin the key confirmed above: no second trust-on-first-use round.
-        hosts::register(paths, &stored, &target.address, target.port, &scratch)?;
+        hosts::register(paths, &stored, &target.address, target.port, scratch)?;
         record.host_added = true;
     } else if identity.is_some() {
         config::set_host_identity(&paths.config_file(), name, identity.as_deref())?;
         record.identity_set = true;
     }
-    let _ = std::fs::remove_file(&scratch);
+    let _ = std::fs::remove_file(scratch);
     let text = serde_json::to_string_pretty(&record).map_err(|e| sys_err(name, e))?;
-    config::write_atomic(&record_file, text.as_bytes())?;
+    config::write_atomic(record_file, text.as_bytes())?;
     if verified {
         renderer.ok(format_args!(
             "key login to {name} works; undo with `goway ssh setup {name} --undo`"
@@ -505,6 +698,115 @@ pub fn setup(
             "the key is authorized but key login still fails; check `goway doctor {name}` (undo with --undo)"
         ));
         Ok(1)
+    }
+}
+
+/// Installing goway's key on the helper by hand, for a helper whose password login is refused or
+/// unusable (no password set, password login off, a second factor).
+struct HandInstall<'a> {
+    renderer: Renderer,
+    name: &'a str,
+    public_key: &'a str,
+    /// The target with goway's own key as identity, so a key-only login offers it.
+    target: &'a Target,
+    settings: &'a ssh::Settings,
+    /// A native Windows host: one `goway-setup` command instead of shell lines.
+    windows: bool,
+}
+
+/// The command to run in an administrator PowerShell on a native Windows
+/// host so it authorizes `public_key` (goway-setup records it for its own
+/// uninstall).
+pub fn native_setup_command(public_key: &str) -> String {
+    let key: String = public_key
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .replace('"', "");
+    format!("goway-setup install --host --native --authorized-key \"{key}\"")
+}
+
+/// How many times the user may press Enter before goway gives up waiting for the key.
+const HAND_ATTEMPTS: u32 = 3;
+
+impl HandInstall<'_> {
+    /// The commands to run on the helper: the key line is the same restricted one the password
+    /// path installs, from the `.pub` text only.
+    fn commands(&self) -> Vec<String> {
+        if self.windows {
+            return vec![native_setup_command(self.public_key)];
+        }
+        let line = format!("{KEY_OPTIONS} {} goway:{}", self.public_key, local_marker());
+        vec![
+            "mkdir -p ~/.ssh && chmod 700 ~/.ssh".to_owned(),
+            format!("echo {} >> ~/.ssh/authorized_keys", ssh::shell_quote(&line)),
+            "chmod 600 ~/.ssh/authorized_keys".to_owned(),
+        ]
+    }
+
+    /// Whether key-only login with the pinned host key works now (a fresh connection).
+    fn key_works(&self) -> bool {
+        SshProber {
+            settings: ssh::Settings {
+                control_dir: None,
+                ..self.settings.clone()
+            },
+        }
+        .probe(self.target, KeyPolicy::Strict, "true")
+        .is_ok()
+    }
+
+    /// Print the commands and wait until key login works: with a terminal the user presses
+    /// Enter after running them; without one goway stops with the next step.
+    fn run(&self, user: &str) -> Result<()> {
+        let name = self.name;
+        if self.key_works() {
+            self.renderer
+                .ok(format_args!("goway's key already works on {name}"));
+            return Ok(());
+        }
+        if self.windows {
+            self.renderer.headline(format_args!(
+                "On {name}, open PowerShell as Administrator and run this (goway-setup is the installer you used for {name}):"
+            ));
+        } else {
+            self.renderer.headline(format_args!(
+                "On {name}, open a terminal and paste these three lines:"
+            ));
+        }
+        // Blank lines around the block and nothing else on its lines, so it copies cleanly.
+        self.renderer.line("");
+        for command in self.commands() {
+            self.renderer.line(&command);
+        }
+        self.renderer.line("");
+        for attempt in 1..=HAND_ATTEMPTS {
+            let Some(_) = crate::render::ask("Then press Enter here (Ctrl-C to stop). ") else {
+                self.renderer.next(format_args!(
+                    "run the {} above on {name}, then rerun the same `goway add {name}` command",
+                    if self.windows { "command" } else { "lines" }
+                ));
+                return Err(setup_err(
+                    name,
+                    "goway's key is not installed there yet, and there is no terminal to wait on",
+                ));
+            };
+            if self.key_works() {
+                self.renderer
+                    .ok(format_args!("Key works. {name} is ready."));
+                tracing::info!(host = name, attempt, "key added by hand works");
+                return Ok(());
+            }
+            self.renderer.warn(format_args!(
+                "The key still does not work on {name}. goway tried logging in as {user} with the key above. \
+                 Check that the three lines were pasted whole (a typo in the pasted line is the usual cause) and that you ran them as {user} on {name}."
+            ));
+        }
+        Err(setup_err(
+            name,
+            "key login still fails after the key was added by hand; check `~/.ssh` is 700 and `authorized_keys` is 600 and owned by that user",
+        ))
     }
 }
 
@@ -539,6 +841,7 @@ pub(crate) fn undo(paths: &Paths, renderer: Renderer, name: &str) -> Result<u8> 
         // The tagged line goes first in reverse order; later steps may
         // need a password on clients without ssh multiplexing.
         password: true,
+        prompt: None,
     };
     let report = revert(&mut record.remote, &mut remote_sys).map_err(|e| sys_err(name, e))?;
     tracing::info!(?report, "remote changes reverted");
@@ -626,6 +929,18 @@ mod tests {
         let junk = dir.path().join("junk.pub");
         std::fs::write(&junk, "hello").unwrap();
         assert!(read_public_key("h", &junk).is_err());
+    }
+
+    // frob:tests crates/goway/src/sshsetup.rs::native_setup_command
+    #[test]
+    fn a_native_windows_host_gets_one_goway_setup_command_with_the_key_line() {
+        let cmd = native_setup_command("ssh-ed25519 AAAAC3Nza placeholder@laptop\n");
+        assert_eq!(
+            cmd,
+            "goway-setup install --host --native --authorized-key \"ssh-ed25519 AAAAC3Nza placeholder@laptop\""
+        );
+        // A quote in a comment can never break out of the argument.
+        assert!(!native_setup_command("ssh-ed25519 AAAA a\"b").contains("a\"b"));
     }
 
     #[test]

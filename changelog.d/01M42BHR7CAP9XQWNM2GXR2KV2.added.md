@@ -1,0 +1,1 @@
+goway add explains Permission denied (no password set, password off, wrong user, ban, AllowUsers), prints goway's key and the commands to add it by hand, and takes --no-password; documented in the troubleshooting guide.

@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T02:24:53Z"
+digest = "f73ba32381872ef15d46d81438d145b30e6a59b8b8dd7eb2f482cc1287693c23"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID f67d9a1a-90b0-48de-a14d-43d5e26c6d7f with nextest profile: default
+    Starting 4 tests across 47 binaries (567 tests skipped)
+        PASS [   0.004s] goway-setup::tune sizes_and_processor_counts_are_validated_before_anything_is_written
+        PASS [   0.005s] goway-setup::hostsys goway_jobs_are_counted_in_a_running_distro_and_a_stopped_one_has_none
+        PASS [   0.005s] goway-setup::tune the_tune_command_parses_and_a_dry_run_changes_nothing
+        PASS [   0.007s] goway-setup::tune tuning_twice_then_reverting_restores_the_exact_original_file
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.009s] 4 tests run: 4 passed, 567 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(tuning_twice_then_reverting_restores_the_exact_original_file) | test(the_tune_command_parses_and_a_dry_run_changes_nothing) | test(goway_jobs_are_counted_in_a_running_distro_and_a_stopped_one_has_none) | test(sizes_and_processor_counts_are_validated_before_anything_is_written)'"
+size = 898
+status = "measured"
+tests = ["goway_jobs_are_counted_in_a_running_distro_and_a_stopped_one_has_none", "sizes_and_processor_counts_are_validated_before_anything_is_written", "the_tune_command_parses_and_a_dry_run_changes_nothing", "tuning_twice_then_reverting_restores_the_exact_original_file"]
+at = "2026-10-04T02:24:53Z"
+actor = "lognd"
+rev = 1

@@ -218,6 +218,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     if let Some(r) = &rule {
         renderer.note(r.describe());
     }
+    let with_git = args.with_git || project::wants_git(&repo.root)?;
     let mut state = State::load(&env.paths.state_file())?;
     let (host, found, probe) = pool::choose(
         &config,
@@ -271,7 +272,15 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         } else {
             format!("{}-a{}", new_run_id(), verify.attempt)
         };
-        let synced = sync_snapshot(env, &config, &repo, &found, &run_id, args.keep)?;
+        let synced = sync_snapshot(
+            env,
+            &config,
+            &repo,
+            &found,
+            &run_id,
+            args.keep,
+            with_git.then_some(host.os),
+        )?;
         renderer.note(format_args!(
             "synced {} files ({} sent, {} bytes, {} deleted)",
             synced.files, synced.sent, synced.bytes, synced.deleted
@@ -313,6 +322,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
             run_id: &run_id,
             repo_root: &repo.root,
             manifest: &synced.manifest,
+            git_overlay: synced.git_overlay.as_deref(),
         };
         let done = std::sync::atomic::AtomicBool::new(false);
         let (streamed, gate_report) = std::thread::scope(|s| {
@@ -447,7 +457,8 @@ pub struct RemoteReport {
     pub attempts: Vec<AttemptRecord>,
 }
 
-/// Sync the work tree to `found` and snapshot it as work dir `run_id`.
+/// Sync the work tree to `found` and snapshot it as work dir `run_id`; with
+/// `git` (the helper's OS) the copy also gets a `.git` (`--with-git`).
 pub(crate) fn sync_snapshot(
     env: &Env<'_>,
     config: &Config,
@@ -455,19 +466,25 @@ pub(crate) fn sync_snapshot(
     found: &Found,
     run_id: &str,
     keep: bool,
+    git: Option<crate::config::Os>,
 ) -> Result<sync::Stats> {
     let transport = SshTransport::of(found, env.settings);
+    let secrets = sync::Secrets::from_config(&config.defaults);
+    let overlay = git
+        .map(|os| crate::gitmeta::prepare(repo, &secrets, os, &env.paths.state_dir))
+        .transpose()?;
     let snapshot = sync::Snapshot {
         run_id: run_id.to_owned(),
         meta_b64: label_b64(repo, "work"),
         keep,
     };
-    sync::sync(
+    sync::sync_with(
         &transport,
         &config.defaults.remote_root,
         repo,
-        &sync::Secrets::from_config(&config.defaults),
+        &secrets,
         Some(&snapshot),
+        overlay.as_ref(),
     )
 }
 
@@ -542,6 +559,8 @@ pub(crate) struct Gate<'a> {
     pub run_id: &'a str,
     /// The local work tree.
     pub repo_root: &'a Path,
+    /// Where `.git/...` files of a `--with-git` copy are read from.
+    pub git_overlay: Option<&'a Path>,
     /// The files this sync was made from.
     pub manifest: &'a sync::Manifest,
 }
@@ -622,7 +641,12 @@ impl Gate<'_> {
                     return report;
                 }
                 Ok(claims) => {
-                    let c = sync::compare_claims(self.repo_root, self.manifest, &claims);
+                    let c = sync::compare_claims_with(
+                        self.repo_root,
+                        self.git_overlay,
+                        self.manifest,
+                        &claims,
+                    );
                     tracing::info!(
                         phase,
                         checked = c.checked,
@@ -843,6 +867,17 @@ pub(crate) fn interrupt_flag() -> std::sync::Arc<std::sync::atomic::AtomicBool> 
     flag
 }
 
+/// Copy `reader` to our stdout byte for byte until EOF.
+fn copy_raw(mut reader: impl std::io::Read) {
+    let mut buf = [0u8; 8192];
+    loop {
+        match reader.read(&mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => crate::render::passthrough(false, &buf[..n]),
+        }
+    }
+}
+
 /// Run `cmd` on the found host with stdio passed through; returns the exit
 /// code and whether the user interrupted. A stream that is a terminal goes
 /// through the control-sequence filter unless `mode` is raw; any other
@@ -869,21 +904,28 @@ fn stream(
             Stdio::inherit()
         }
     };
-    tracing::debug!(filter_out, filter_err, "remote output handling");
+    // A Unix helper's stdout starts with the frame mark; whatever its shell
+    // startup files printed before it is dropped, so stdout is always read.
+    let framed = found.kind == crate::transport::Kind::Unix;
+    tracing::debug!(filter_out, filter_err, framed, "remote output handling");
     let ssh_err = |e: std::io::Error| Error::Ssh {
         host: found.target.name.clone(),
         message: format!("cannot run ssh: {e}"),
     };
     let mut child = command
         .stdin(Stdio::inherit())
-        .stdout(piped(filter_out))
+        .stdout(piped(filter_out || framed))
         .stderr(piped(filter_err))
         .spawn()
         .map_err(ssh_err)?;
     let (out, err) = (child.stdout.take(), child.stderr.take());
     let status = std::thread::scope(|s| {
         if let Some(out) = out {
-            s.spawn(move || termfilter::relay(out, false));
+            s.spawn(move || match (framed, filter_out) {
+                (true, true) => termfilter::relay(crate::remote::Framed::new(out), false),
+                (true, false) => copy_raw(crate::remote::Framed::new(out)),
+                (false, _) => termfilter::relay(out, false),
+            });
         }
         if let Some(err) = err {
             s.spawn(move || termfilter::relay(err, true));

@@ -160,8 +160,18 @@ pub fn status(
     }
     renderer.table(&rows(&results, config.local_in_pool()));
     for p in &results {
-        if let Err(e) = &p.result {
-            renderer.warn(format_args!("{}: {e}", p.host.name));
+        match &p.result {
+            Err(e) => renderer.warn(format_args!("{}: {e}", p.host.name)),
+            Ok((_, probe)) => {
+                if let Some(w) = probe
+                    .facts
+                    .hw
+                    .as_ref()
+                    .and_then(crate::facts::elevated_interop_warning)
+                {
+                    renderer.warn(format_args!("{}: SECURITY: {w}", p.host.name));
+                }
+            }
         }
     }
     Ok(0)

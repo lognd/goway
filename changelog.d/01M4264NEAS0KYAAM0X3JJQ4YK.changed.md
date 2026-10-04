@@ -1,0 +1,1 @@
+Windows helpers run a whole run on three PowerShell starts instead of about eight (one session per host, a gc only when something is due, no WMI on the hot path): a warm run's overhead fell from about 8.5 s to under 4 s on a busy machine.

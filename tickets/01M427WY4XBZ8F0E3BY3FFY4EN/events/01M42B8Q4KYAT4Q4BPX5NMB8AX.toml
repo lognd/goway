@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T02:18:11Z"
+digest = "c35311afc1e229364374c9f0a4fb6fabe8f5930cf5cfdd353a165935130bdc27"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 0df8bfb7-8693-4e51-9b98-8868f8a1520d with nextest profile: default
+    Starting 1 test across 46 binaries (565 tests skipped)
+        PASS [   0.981s] goway::with_git head_index_and_status_match_the_laptops
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.984s] 1 test run: 1 passed, 565 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "head_index_and_status_match"
+size = 549
+status = "measured"
+tests = ["head_index_and_status_match_the_laptops"]
+at = "2026-10-04T02:18:11Z"
+actor = "lognd"
+rev = 1

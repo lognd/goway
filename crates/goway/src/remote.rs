@@ -78,18 +78,123 @@ pub fn ps_install() -> String {
          $ms = New-Object IO.MemoryStream; [Console]::OpenStandardInput().CopyTo($ms); \
          $t = \"$p.$PID.tmp\"; [IO.File]::WriteAllBytes($t, $ms.ToArray()); \
          if ([IO.File]::Exists($p)) {{ [IO.File]::Delete($p) }}; [IO.File]::Move($t, $p); \
-         foreach ($f in [IO.Directory]::GetFiles($d, 'remote-*.ps1')) {{ \
-         if ($f -ne $p -and [IO.File]::GetLastWriteTimeUtc($f) -lt [DateTime]::UtcNow.AddDays(-1)) {{ \
+         foreach ($f in @([IO.Directory]::GetFiles($d, 'remote-*.ps1')) + @([IO.Directory]::GetFiles($d, 'remote-*.native.dll'))) {{ \
+         if ($f -ne $p -and [IO.Path]::GetFileNameWithoutExtension($f).Replace('.native', '') -ne [IO.Path]::GetFileNameWithoutExtension($p) \
+         -and [IO.File]::GetLastWriteTimeUtc($f) -lt [DateTime]::UtcNow.AddDays(-1)) {{ \
          try {{ [IO.File]::Delete($f) }} catch {{ }} }} }}; exit 0",
         ps_locate()
     )
 }
 
-/// The remote command line running `verb` with `args`.
+/// The line a Unix helper's stdout starts with once the remote script runs:
+/// everything before it is startup-file noise (a `.bashrc` that echoes, a
+/// login shell's greeting) and is not goway's protocol. Starts with a
+/// control character no startup file prints by accident.
+pub const FRAME_MARK: &[u8] = b"\x01goway-frame\n";
+
+/// Split `stdout` of a Unix helper call at [`FRAME_MARK`]: the noise before
+/// it and the protocol output after it. Output without the mark (a Windows
+/// helper, which has no startup files in the way) is all payload.
+pub fn split_frame(stdout: Vec<u8>) -> (Vec<u8>, Vec<u8>) {
+    let Some(at) = stdout
+        .windows(FRAME_MARK.len())
+        .position(|w| w == FRAME_MARK)
+    else {
+        return (Vec::new(), stdout);
+    };
+    let noise = stdout[..at].to_vec();
+    let mut payload = stdout;
+    payload.drain(..at + FRAME_MARK.len());
+    (noise, payload)
+}
+
+/// Most startup-file noise [`Framed`] holds while looking for the mark; a
+/// stream with more than this before any mark is passed through unchanged.
+const MAX_NOISE: usize = 1 << 20;
+
+/// A reader over the stdout of a streamed Unix helper call that drops the
+/// startup-file noise before [`FRAME_MARK`] and then passes the rest through.
+#[derive(Debug)]
+pub struct Framed<R> {
+    inner: R,
+    held: Vec<u8>,
+    seeking: bool,
+}
+
+impl<R: std::io::Read> Framed<R> {
+    /// Frame `inner`.
+    pub fn new(inner: R) -> Self {
+        Self {
+            inner,
+            held: Vec::new(),
+            seeking: true,
+        }
+    }
+
+    /// Read until the mark is found (dropping what came before it), or give up.
+    fn seek(&mut self) -> std::io::Result<()> {
+        let mut chunk = [0u8; 8192];
+        while self.seeking {
+            let n = self.inner.read(&mut chunk)?;
+            self.held.extend_from_slice(&chunk[..n]);
+            let found = self
+                .held
+                .windows(FRAME_MARK.len())
+                .position(|w| w == FRAME_MARK);
+            if let Some(at) = found {
+                if at > 0 {
+                    tracing::warn!(
+                        bytes = at,
+                        "the helper's shell startup files print text; goway ignored it"
+                    );
+                }
+                self.held.drain(..at + FRAME_MARK.len());
+                self.seeking = false;
+            } else if n == 0 || self.held.len() > MAX_NOISE {
+                tracing::debug!("no frame mark in the helper's output; passing it through");
+                self.seeking = false;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<R: std::io::Read> std::io::Read for Framed<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.seeking {
+            self.seek()?;
+        }
+        if self.held.is_empty() {
+            return self.inner.read(buf);
+        }
+        let n = buf.len().min(self.held.len());
+        buf[..n].copy_from_slice(&self.held[..n]);
+        self.held.drain(..n);
+        Ok(n)
+    }
+}
+
+/// The most the remote command line may be: a single argument is capped at
+/// 128 KiB by Linux, and the encoded script is the bulk of the line.
+pub const MAX_LINE: usize = 120_000;
+
+/// The remote command line running `verb` with `args`, safe for any login
+/// shell. The login shell only ever sees `bash -c '<fixed text>' goway`:
+/// no quote, backslash, `!` or newline of the script or its arguments
+/// reaches fish, csh or any other shell's parser. The script, with the
+/// verb and its arguments set as positional parameters, travels as base64
+/// and bash decodes and evaluates it; the first thing it prints is
+/// [`FRAME_MARK`].
 pub fn invocation(verb: &str, args: &[&str]) -> String {
-    let mut words = vec!["bash", "-c", SCRIPT, "goway", verb];
+    use base64::Engine as _;
+    let mut words = vec![verb];
     words.extend_from_slice(args);
-    shell_join(&words)
+    let payload = format!(
+        "printf '\\001goway-frame\\n'\nset -- {}\n{SCRIPT}",
+        shell_join(&words)
+    );
+    let b64 = base64::engine::general_purpose::STANDARD.encode(payload);
+    format!("bash -c 'eval \"$(printf %s {b64} | base64 -d)\"' goway")
 }
 
 /// One call of a remote verb, before it is turned into the language of the
@@ -141,13 +246,75 @@ mod tests {
             .args(["-c", &invocation("ping", &[])])
             .output()
             .unwrap();
-        assert_eq!(String::from_utf8_lossy(&out.stdout), "goway-remote ok\n");
+        let (noise, payload) = split_frame(out.stdout);
+        assert!(noise.is_empty());
+        assert_eq!(String::from_utf8_lossy(&payload), "goway-remote ok\n");
         let out = std::process::Command::new("sh")
             .args(["-c", &invocation("nope", &["it's"])])
             .output()
             .unwrap();
         assert_eq!(out.status.code(), Some(125));
         assert!(String::from_utf8_lossy(&out.stderr).contains("unknown verb"));
+    }
+
+    // frob:tests crates/goway/src/remote.rs::split_frame
+    #[test]
+    fn the_frame_mark_splits_noise_from_the_payload() {
+        let mut wire = b"Welcome back!\n".to_vec();
+        wire.extend_from_slice(FRAME_MARK);
+        wire.extend_from_slice(b"payload\n");
+        let (noise, payload) = split_frame(wire);
+        assert_eq!(noise, b"Welcome back!\n");
+        assert_eq!(payload, b"payload\n");
+        // No mark (a Windows helper): everything is payload.
+        let (noise, payload) = split_frame(b"plain\n".to_vec());
+        assert!(noise.is_empty());
+        assert_eq!(payload, b"plain\n");
+    }
+
+    // frob:tests crates/goway/src/remote.rs::Framed
+    #[test]
+    fn a_framed_reader_drops_noise_even_when_the_mark_is_split_across_reads() {
+        use std::io::Read as _;
+        // A reader that hands out one byte at a time splits the mark everywhere.
+        struct Drip(std::io::Cursor<Vec<u8>>);
+        impl std::io::Read for Drip {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                let n = 1.min(buf.len());
+                self.0.read(&mut buf[..n])
+            }
+        }
+        let mut wire = b"motd line\nanother\n".to_vec();
+        wire.extend_from_slice(FRAME_MARK);
+        wire.extend_from_slice(b"job output\n");
+        let mut got = String::new();
+        Framed::new(Drip(std::io::Cursor::new(wire)))
+            .read_to_string(&mut got)
+            .unwrap();
+        assert_eq!(got, "job output\n");
+        // Without a mark the stream is passed through unchanged.
+        let mut got = String::new();
+        Framed::new(&b"no mark here"[..])
+            .read_to_string(&mut got)
+            .unwrap();
+        assert_eq!(got, "no mark here");
+    }
+
+    // frob:tests crates/goway/src/remote.rs::invocation
+    #[test]
+    fn the_command_line_is_plain_text_any_login_shell_parses_and_fits() {
+        // A script and arguments full of quotes, backslashes, bangs and
+        // newlines reach the login shell only as base64.
+        let line = invocation("run", &["it's", "a\\b", "!x", "two\nlines"]);
+        assert!(line.starts_with("bash -c 'eval \"$(printf %s "), "{line}");
+        assert!(line.ends_with(" | base64 -d)\"' goway"), "{line}");
+        assert!(!line.contains('\n') && !line.contains('\\') && !line.contains('!'));
+        assert_eq!(line.matches('\'').count(), 2, "one quoted word only");
+        assert!(
+            line.len() < MAX_LINE,
+            "the encoded script is {} bytes; the limit is {MAX_LINE}",
+            line.len()
+        );
     }
 
     // frob:tests crates/goway/src/remote.rs::Call

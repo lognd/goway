@@ -173,6 +173,7 @@ pub struct HostParams {
 }
 
 /// What probing the machine found; it decides which optional steps the plan contains.
+#[allow(clippy::struct_excessive_bools)] // one bool per probed fact
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostFacts {
     /// Whether the Hyper-V firewall cmdlets exist (Windows 11 22H2 or later).
@@ -187,6 +188,10 @@ pub struct HostFacts {
     pub wslconfig_network: Option<String>,
     /// The machine's current portproxy rules.
     pub portproxy: Vec<PortProxyRule>,
+    /// The invoking account is a member of Administrators (also with a filtered token).
+    pub admin_account: bool,
+    /// The distro's `/etc/wsl.conf` already sets `[interop] enabled=false`.
+    pub interop_disabled: bool,
 }
 
 impl HostFacts {
@@ -199,8 +204,39 @@ impl HostFacts {
             windows_build: Some(MIRRORED_MIN_BUILD + 10),
             wslconfig_network: None,
             portproxy: Vec::new(),
+            admin_account: false,
+            interop_disabled: false,
         }
     }
+}
+
+/// Shown after a boot-mode install that left WSL interop enabled.
+pub const BOOT_KEEPALIVE_NOTICE: &str = "boot keepalive: Windows gives an S4U task of an administrator the full administrator token whatever its run level, so WSL started by it runs interop as administrator. Anyone who can log in to the distro can then act as a Windows administrator (`goway doctor` checks this). Disable interop in the distro's /etc/wsl.conf ([interop] enabled=false) or use the default logon keepalive";
+
+/// Refuse boot-mode keepalive on an administrator account whose distro still has WSL interop.
+///
+/// An S4U logon (the only way to start WSL before anyone logs in) gets the full administrator
+/// token whatever the task's run level, and WSL interop runs Windows programs with the token of
+/// whatever started WSL. Refusing (rather than silently editing `/etc/wsl.conf`) keeps the
+/// decision with the owner: disabling interop also removes `powershell.exe` from the distro and
+/// only takes effect after a WSL restart, which goway never does unasked. A distro whose
+/// `wsl.conf` already disables interop is safe, so boot mode is allowed there.
+pub fn check_boot_keepalive(
+    keepalive: Keepalive,
+    facts: &HostFacts,
+    allow_elevated_wsl: bool,
+) -> Result<(), crate::error::SetupError> {
+    if keepalive != Keepalive::Boot || !facts.admin_account || facts.interop_disabled {
+        return Ok(());
+    }
+    if allow_elevated_wsl {
+        tracing::warn!(
+            "boot keepalive on an administrator account: WSL interop will be elevated (--allow-elevated-wsl)"
+        );
+        return Ok(());
+    }
+    tracing::error!("boot keepalive refused: administrator account with WSL interop enabled");
+    Err(crate::error::SetupError::ElevatedWslRefused)
 }
 
 /// Settings persisted next to the host journal so uninstall can reach the same distro.
@@ -761,7 +797,11 @@ pub fn restart_need(journal: &Journal) -> RestartNeed {
     let mut need = RestartNeed::default();
     for e in journal.entries.iter().filter(|e| changed(e)) {
         match &e.change {
-            Change::SetIniKey { key, .. } if key == "networkingMode" => need.shutdown = true,
+            Change::SetIniKey { path, .. }
+                if path.to_str().is_some_and(|p| p.ends_with(".wslconfig")) =>
+            {
+                need.shutdown = true;
+            }
             c @ Change::SetIniKey { .. } if is_wsl_conf(c) => need.terminate = true,
             _ => {}
         }

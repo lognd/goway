@@ -1,0 +1,1 @@
+goway doctor compares what WSL got with the laptop's RAM, swap and processors, and goway-setup tune changes them through a journaled .wslconfig that uninstall restores; doctor also offers NVIDIA's CUDA toolkit for WSL.

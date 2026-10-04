@@ -136,8 +136,9 @@ pub fn add(
             user: args.user.clone(),
             key: args.key.clone(),
             fingerprint: args.fingerprint.clone(),
+            no_password: args.no_password,
         };
-        let code = sshsetup::setup(paths, renderer, &setup, lookup)?;
+        let code = sshsetup::setup_with(paths, renderer, &setup, lookup, args.yes)?;
         if code != 0 {
             return Ok(code);
         }

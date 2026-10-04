@@ -119,6 +119,27 @@ Git for Windows' `usr\bin` on `PATH`. goway handles the second itself: when
 if the directory exists) to `PATH`, never prepends it, and says so in the
 run's notes on stderr.
 
+### A `.git` on the helper (`--with-git`)
+
+`goway run --with-git` (or `with_git = true` at the top of `goway.toml`)
+gives the helper's copy a `.git` so tests that ask git about the repository
+(`git status`, tracked paths, HEAD) behave as locally. goway builds it on
+this machine, in its state directory (`git-meta/<worktree id>`), as a
+one-commit shallow repository: HEAD's commit, tree and blobs (no history),
+the real branch name, and a copy of the real index, so `git status` there
+lists the same changes as here. It is rebuilt only when HEAD moves; its
+files then travel like any other file of the tree, so they are synced
+incrementally, verified like the rest and removed by gc with the copy. The
+same on Linux and Windows hosts (on Windows `core.filemode` is off).
+
+Never in it: remotes (and any URL with a token), credentials, hooks, user
+config, reflogs, stashes, other branches, history, and the committed
+content of secret-looking files (their blobs are left out of the pack). Of
+your git config only `core.autocrlf`, `core.eol` and `core.safecrlf` are
+copied. Staged content that is not in HEAD is not included, so
+`git diff --cached` there cannot show it (`git status` can). A repository
+with no commit yet is refused.
+
 ### Copy integrity
 
 The copy of your tree on a helper is checked end to end, against your own
@@ -470,6 +491,16 @@ ssh session goes away, whether from Ctrl-C, a closed laptop lid or Wi-Fi
 loss, the watchdog sends the job's process group TERM, then KILL after 5
 seconds, and the work dir is cleaned up.
 
+### A helper stays awake while a job runs
+
+A laptop helper that suspends on idle would drop the job mid-run. So the
+job runs under a sleep inhibitor held for exactly its lifetime:
+`systemd-inhibit --what=sleep:idle` on Linux (when logind accepts it; a
+WSL without systemd just goes without), `caffeinate -i -m -s` on macOS.
+The inhibitor is the job's outermost wrapper, so it is released however
+the job ends: exit, signal, or the watchdog's kill after a lost
+connection. It does not hold off a closed lid or an empty battery.
+
 ### Terminal output
 
 The command runs somewhere else and may be untrusted, so what it prints
@@ -678,6 +709,34 @@ through real TOML and JSON parsers. `CMakeLists.txt` has no declarative
 form, so it is read as text (bounded) and its findings are labelled
 approximate.
 
+#### The linker cargo will use
+
+A Rust project may name a linker or a linker backend in cargo's own
+configuration, for example `linker = "clang"` with
+`rustflags = ["-C", "link-arg=-fuse-ld=mold"]` under
+`[target.x86_64-unknown-linux-gnu]`. doctor reads every `.cargo/config.toml`
+cargo would read (the project directory and each parent, then
+`$CARGO_HOME`), with cargo's precedence, plus `CARGO_TARGET_<TRIPLE>_LINKER`,
+`CARGO_TARGET_<TRIPLE>_RUSTFLAGS` and `RUSTFLAGS` from your environment. For
+each host's own target triple it then checks the linker program and the
+backend (`mold`, `lld` as `ld.lld`) on that host, and a missing one is an
+error whose fix is the system package (`goway doctor --fix --rsudo`, shown
+in full and confirmed, installed by apt, dnf or pacman and recorded by check
+name only; packages are listed by `goway uninstall`, never removed).
+
+The error also names a one-run override, which goway never applies by
+itself:
+
+```sh
+goway run --env CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=cc \
+          --env "RUSTFLAGS=-C link-arg=-fuse-ld=lld" -- cargo nextest run
+```
+
+A non-empty `RUSTFLAGS` replaces the configured rustflags, and Rust's
+bundled lld needs nothing installed. Two things that do not work:
+cargo-nextest's inner `cargo test` ignores `--config`, and an empty
+`CARGO_TARGET_*_RUSTFLAGS` does not override config rustflags.
+
 `goway.toml` can pin or add tools; these are checked like detected ones
 and win over a detected version:
 
@@ -720,7 +779,9 @@ is undone by `goway ssh setup HOST --undo`; see docs/ssh-setup.md.
 
 ## What is sent to the remote
 
-- The git-visible work tree (see Sync above), without `.git`.
+- The git-visible work tree (see Sync above), without `.git` unless you
+  ask for `--with-git` (one-commit shallow history and the index, never
+  remotes, credentials or hooks; see above).
 - Secret-looking files stay on your machine unless you allow them. The
   match ignores case and covers:
   - environment files (dot-env files, their `.env.*` variants, `*.env`

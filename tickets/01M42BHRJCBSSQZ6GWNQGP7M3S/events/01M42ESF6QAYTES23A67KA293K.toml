@@ -1,0 +1,32 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T03:19:46Z"
+digest = "8b89b4541a14ff4d35828e4d440d1e23b34cae85deb0c75e46e88fb2f515480f"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 26.03s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d170dec1-2206-4ef8-828b-e6ae14e6d14d with nextest profile: default
+    Starting 7 tests across 51 binaries (598 tests skipped)
+        PASS [   0.013s] goway remote::tests::the_command_line_is_plain_text_any_login_shell_parses_and_fits
+        PASS [   0.012s] goway remote::tests::the_frame_mark_splits_noise_from_the_payload
+        PASS [   0.026s] goway remote::tests::a_framed_reader_drops_noise_even_when_the_mark_is_split_across_reads
+        PASS [   0.042s] goway remote::tests::a_call_renders_for_both_languages
+        PASS [   0.103s] goway remote::tests::invocation_runs_locally_through_a_shell
+        PASS [   2.093s] goway::shell_noise a_noisy_startup_file_and_a_fish_like_login_shell_leave_the_run_output_exact
+        PASS [   2.136s] goway::shell_noise the_exit_code_of_the_command_survives_a_noisy_helper
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   2.144s] 7 tests run: 7 passed, 598 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(shell_noise) | test(/remote::tests/)'"
+size = 1353
+status = "measured"
+tests = ["remote::tests::the_command_line_is_plain_text_any_login_shell_parses_and_fits", "remote::tests::the_frame_mark_splits_noise_from_the_payload", "remote::tests::a_framed_reader_drops_noise_even_when_the_mark_is_split_across_reads", "remote::tests::a_call_renders_for_both_languages", "remote::tests::invocation_runs_locally_through_a_shell", "a_noisy_startup_file_and_a_fish_like_login_shell_leave_the_run_output_exact", "the_exit_code_of_the_command_survives_a_noisy_helper"]
+at = "2026-10-04T03:19:46Z"
+actor = "lognd"
+rev = 1

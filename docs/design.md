@@ -272,6 +272,51 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
    5. Every step records its prior state; `goway ssh setup --undo HOST`
       removes exactly the lines and settings it added.
 
+### Windows run overhead (one PowerShell per host, not per call)
+
+Starting `powershell.exe` costs 0.3 s or more, so a warm run that made one
+start per helper call (probe, manifest, receive, env, the copy verification
+gate, the run, a detached gc) spent about 8 s on overhead. Measured with
+`goway run --host winlocal -- cmd /c exit 0` on an unchanged one-file
+repository, on the owner's ARM laptop through WSL interop while the machine
+was busy (load average 20-30 on 12 cores), all runs sorted:
+
+| build | runs (s) |
+| --- | --- |
+| before | 8.4 8.5 8.5 8.7 8.9 9.6 |
+| after | 2.8 2.9 3.0 3.2 3.3 3.9 4.0 4.2 |
+
+What changed, in order of weight:
+
+1. `remote.ps1 session` serves manifest, hashes, deletions, changes,
+   receive, envfile, argsfile, verify-wait and verify-verdict from one
+   process (crates/goway/src/session.rs: length-prefixed frames, the same
+   verbs and exit codes). A warm run is now three starts: probe, session,
+   run. Anything that goes wrong with a session (it does not start, breaks,
+   an input over 32 MiB) falls back to one process per call;
+   `GOWAY_NO_SESSION=1` turns it off.
+2. The detached gc is only started when an entry is old enough for the
+   shortest TTL (it used to start a PowerShell on every run).
+3. No WMI on the hot path: memory, CPU load and the parent process come
+   from kernel32/ntdll calls (`Get-CimInstance` costs a second or so per
+   query under Windows PowerShell).
+4. The native helper is compiled once per script version into a DLL beside
+   the script (Windows PowerShell), then loaded in about a tenth of the
+   time.
+5. The copy-verification handshake polls every 25 ms instead of 100 ms.
+
+### `--with-git` (crates/goway/src/gitmeta.rs)
+
+The `.git` of a helper copy is an overlay: built on the laptop under the
+state dir (init with an empty template, a pack of HEAD's one commit made
+with `rev-list --objects -1` + `pack-objects` + `index-pack`, `shallow`,
+HEAD, one ref file, a whitelisted config, the real index) and added to the
+sync's file list as ordinary `.git/...` entries whose bytes are read from
+the overlay (`write_tar_with`, `compare_claims_with`). Because they are
+ordinary seed files, `remote.sh` and `remote.ps1` need no change and the
+copy-integrity check covers them. Blobs of paths the secret rules keep local
+are filtered out of the pack list.
+
 ## 3. Where each part is documented
 
 User-facing behaviour is described in docs/usage.md (run, status, gc,

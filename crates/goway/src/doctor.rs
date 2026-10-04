@@ -374,6 +374,60 @@ fn system_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     out
 }
 
+/// NVIDIA's CUDA toolkit for WSL-Ubuntu (apt on `x86_64` only); the Windows driver stays the only
+/// driver, so the repository's `cuda-toolkit` package (no driver) is installed, never `cuda`.
+fn cuda_fix(facts: &BTreeMap<String, String>) -> Option<Fix> {
+    if tool(facts, "apt-get").is_none() || facts.get("arch").is_none_or(|a| a != "x86_64") {
+        return None;
+    }
+    Some(Fix {
+        command: format!(
+            "cd \"$(mktemp -d)\" && curl -fsSLO {CUDA_KEYRING_URL} && dpkg -i cuda-keyring_1.1-1_all.deb && apt-get update && apt-get install -y cuda-toolkit"
+        ),
+        root: true,
+        why: "installs NVIDIA's CUDA toolkit for WSL (no Linux GPU driver: the Windows driver serves WSL); system packages need root".to_owned(),
+    })
+}
+
+/// NVIDIA's apt keyring package for WSL-Ubuntu on `x86_64`.
+const CUDA_KEYRING_URL: &str = "https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/cuda-keyring_1.1-1_all.deb";
+
+/// What WSL got of the laptop's RAM, swap and processors, and the command that changes it.
+fn push_wsl_hardware(
+    facts: &BTreeMap<String, String>,
+    hw: &crate::facts::StaticFacts,
+    push: &mut impl FnMut(&str, Level, String, Option<Fix>),
+) {
+    let (Some(win_ram), Some(win_cores)) = (hw.windows_ram, hw.windows_cores) else {
+        tracing::debug!("no Windows hardware facts (interop off): skipping the WSL size check");
+        return;
+    };
+    let ram = facts.get("mem_total").and_then(|v| v.parse::<u64>().ok());
+    let cores = facts.get("cores").and_then(|v| v.parse::<u32>().ok());
+    let short = crate::facts::shortfalls(ram, hw.swap_total, cores, win_ram, win_cores);
+    if short.is_empty() {
+        push(
+            "wsl size",
+            Level::Ok,
+            "WSL has a fair share of the laptop's RAM, swap and processors".to_owned(),
+            None,
+        );
+        return;
+    }
+    let command = crate::facts::suggest(win_ram, win_cores).command();
+    push(
+        "wsl size",
+        Level::Warn,
+        format!(
+            "WSL gets much less than the laptop has ({}). Windows keeps at least 4 GiB or 25% of the RAM. \
+             Run on the helper's Windows side (journaled; `goway-setup uninstall --host` restores the old values): `{command}`; \
+             it asks before `wsl --shutdown` and refuses while goway jobs run",
+            short.join("; ")
+        ),
+        None,
+    );
+}
+
 /// The Rust toolchain.
 fn toolchain_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     let mut out = Vec::new();
@@ -467,6 +521,27 @@ fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
         None => {}
     }
     if let Some(hw) = crate::facts::parse_static(facts) {
+        match hw.interop {
+            Some(crate::facts::Interop::Elevated) if hw.wsl => push(
+                "wsl interop",
+                Level::Warn,
+                format!("SECURITY: {}", crate::facts::ELEVATED_INTEROP_WARNING),
+                None,
+            ),
+            Some(crate::facts::Interop::Off) if hw.wsl => {
+                push("wsl interop", Level::Ok, "disabled (safe)".to_owned(), None);
+            }
+            Some(crate::facts::Interop::Limited) if hw.wsl => push(
+                "wsl interop",
+                Level::Ok,
+                "runs Windows programs without administrator rights".to_owned(),
+                None,
+            ),
+            _ => {}
+        }
+        if hw.wsl {
+            push_wsl_hardware(facts, &hw, &mut push);
+        }
         if let Some(name) = crate::facts::gpu_invisible_to_wsl(&hw) {
             push(
                 "gpu",
@@ -484,6 +559,18 @@ fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
         } else {
             let list: Vec<String> = hw.gpus.iter().map(crate::facts::Gpu::summary).collect();
             push("gpu", Level::Ok, list.join(", "), None);
+            if hw.wsl && hw.gpus.iter().any(|g| g.vendor == "nvidia") {
+                push(
+                    "cuda toolkit",
+                    if hw.nvcc { Level::Ok } else { Level::Warn },
+                    if hw.nvcc {
+                        "nvcc found".to_owned()
+                    } else {
+                        "the GPU is visible but the CUDA toolkit (nvcc) is not installed".to_owned()
+                    },
+                    (!hw.nvcc).then(|| cuda_fix(facts)).flatten(),
+                );
+            }
         }
     }
     match facts.get("password_auth").map(String::as_str) {
@@ -512,18 +599,50 @@ pub trait FixRunner {
 /// What `apply_fixes` did.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Applied {
-    /// Fixes that ran and succeeded.
+    /// User-level fixes that ran and succeeded (commands).
     pub done: Vec<String>,
-    /// Fixes that ran and failed.
+    /// User-level fixes that ran and failed (commands).
     pub failed: Vec<String>,
     /// Root fixes not run because `--sudo` was not given.
     pub need_sudo: Vec<Fix>,
+    /// The root fixes that went into the one sudo session, as (check, fix).
+    /// The session reports each step itself; whether a step worked is judged
+    /// by checking again afterwards, never inferred from the session's status.
+    pub root_ran: Vec<(String, Fix)>,
+}
+
+/// The one root script for several fixes: each runs as its own step with its
+/// own result line, a failing step never stops the others, and `apt-get
+/// update` runs once for the whole session instead of once per package.
+fn root_script(steps: &[(String, Fix)]) -> String {
+    use std::fmt::Write as _;
+    const UPDATE: &str = "apt-get update && ";
+    let mut script = String::from("set +e\nfailed=0\n");
+    if steps.iter().any(|(_, f)| f.command.starts_with(UPDATE)) {
+        script.push_str(
+            "echo '==> apt-get update'\napt-get update || echo 'goway: apt-get update failed; going on with the package lists the host has'\n",
+        );
+    }
+    for (name, fix) in steps {
+        let command = fix.command.strip_prefix(UPDATE).unwrap_or(&fix.command);
+        let label = format!("'{}'", name.replace('\'', ""));
+        let _ = write!(
+            script,
+            "echo\necho '==>' {label}\nrc=0\n(\n{command}\n) || rc=$?\nif [ $rc -ne 0 ]; then echo \"goway: step failed (exit $rc):\" {label}; failed=$((failed+1)); else echo 'goway: step ok:' {label}; fi\n"
+        );
+    }
+    let _ = writeln!(
+        script,
+        "if [ $failed -ne 0 ]; then echo \"goway: $failed of {} steps failed; the others ran\"; exit 1; fi",
+        steps.len()
+    );
+    script
 }
 
 /// Run the fixes `--fix` allows: user fixes always; root fixes only with
 /// `sudo` and only after `confirm` approves the whole list, and then all
-/// together in ONE sudo session (one password, typed into sudo itself).
-/// Each distinct command runs once.
+/// together in ONE sudo session (one password, typed into sudo itself), each
+/// as its own step. Each distinct command runs once.
 pub fn apply_fixes(
     checks: &[Check],
     sudo: bool,
@@ -532,16 +651,16 @@ pub fn apply_fixes(
 ) -> Applied {
     let mut applied = Applied::default();
     let mut seen = std::collections::BTreeSet::new();
-    let mut root = Vec::new();
+    let mut root: Vec<(String, Fix)> = Vec::new();
     let mut user = Vec::new();
-    for fix in checks
+    for (name, fix) in checks
         .iter()
         .filter(|c| c.level != Level::Ok)
-        .filter_map(|c| c.fix.as_ref())
+        .filter_map(|c| c.fix.as_ref().map(|f| (&c.name, f)))
     {
         if seen.insert(fix.command.clone()) {
             if fix.root {
-                root.push(fix.clone());
+                root.push((name.clone(), fix.clone()));
             } else {
                 user.push(fix.clone());
             }
@@ -549,25 +668,16 @@ pub fn apply_fixes(
     }
     // Root fixes first: they provide what user fixes need (curl, cc).
     if !root.is_empty() {
-        if sudo && confirm(&root) {
-            let script = format!(
-                "set -e\n{}",
-                root.iter()
-                    .map(|f| f.command.as_str())
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            );
+        let fixes: Vec<Fix> = root.iter().map(|(_, f)| f.clone()).collect();
+        if sudo && confirm(&fixes) {
             tracing::info!(fixes = root.len(), "running root fixes in one sudo session");
-            let ok = runner.run(&script, true);
-            for f in &root {
-                if ok {
-                    applied.done.push(f.command.clone());
-                } else {
-                    applied.failed.push(f.command.clone());
-                }
+            let ok = runner.run(&root_script(&root), true);
+            if !ok {
+                tracing::warn!("the root session reported failing steps");
             }
+            applied.root_ran = root;
         } else {
-            applied.need_sudo = root;
+            applied.need_sudo = fixes;
         }
     }
     for fix in user {
@@ -730,6 +840,11 @@ pub fn undo_of(check: &str) -> Option<(String, bool)> {
             false,
         )),
         "sshd password login" => Some((format!("rm -f {SSHD_DROPIN} && {RELOAD_SSHD}"), true)),
+        // The toolkit and NVIDIA's keyring; the Windows GPU driver is not ours to touch.
+        "cuda toolkit" => Some((
+            "apt-get remove -y cuda-toolkit cuda-keyring && apt-get autoremove -y".to_owned(),
+            true,
+        )),
         other => projneeds::undo_of(other),
     }
 }
@@ -798,6 +913,18 @@ pub(crate) fn confirm_root(renderer: Renderer, host: &str, fixes: &[Fix], yes: b
     }
 }
 
+/// The checks of `root_ran` that `after` (a re-check) shows fixed, and the
+/// ones it does not: each fix gets its own verdict, never the session's.
+type Judged<'a> = Vec<&'a (String, Fix)>;
+
+fn judge_root<'a>(root_ran: &'a [(String, Fix)], after: &[Check]) -> (Judged<'a>, Judged<'a>) {
+    root_ran.iter().partition(|(name, _)| {
+        after
+            .iter()
+            .any(|c| c.name == *name && c.level == Level::Ok)
+    })
+}
+
 fn show_applied(renderer: Renderer, host: &HostConfig, applied: &Applied) {
     for c in &applied.done {
         renderer.ok(format_args!("{}: fixed: {c}", host.name));
@@ -836,6 +963,7 @@ fn project_needs() -> Result<projneeds::Needs> {
 }
 
 /// `goway doctor`.
+#[allow(clippy::too_many_lines)] // one pass over the hosts; the output redesign splits it
 pub fn doctor(
     paths: &Paths,
     renderer: Renderer,
@@ -915,14 +1043,12 @@ pub fn doctor(
             let confirm = |fixes: &[Fix]| confirm_root(renderer, &host.name, fixes, args.yes);
             let applied = apply_fixes(&checks, args.rsudo, &confirm, &runner);
             show_applied(renderer, host, &applied);
-            if let Err(e) = record_installed(paths, &host.name, &facts, &checks, &applied.done) {
-                renderer.warn(format_args!(
-                    "cannot record what was installed on {}: {e}",
-                    host.name
-                ));
-            }
-            if !applied.done.is_empty() || !applied.failed.is_empty() {
-                // Re-check after fixing.
+            let mut fixed: Vec<String> = applied.done.clone();
+            if !applied.done.is_empty()
+                || !applied.failed.is_empty()
+                || !applied.root_ran.is_empty()
+            {
+                // Re-check after fixing; each root fix is judged by it.
                 let mut local = state.clone();
                 let after = resolve::resolve(
                     &config,
@@ -934,6 +1060,30 @@ pub fn doctor(
                     &cmd,
                 )
                 .map(|f| assess_project(&parse_facts(&f.output), &needs));
+                if let Ok(after) = &after {
+                    let (ok, bad) = judge_root(&applied.root_ran, after);
+                    for (name, fix) in &ok {
+                        renderer.ok(format_args!("{}: fixed: {name}", host.name));
+                        fixed.push(fix.command.clone());
+                    }
+                    for (name, _) in &bad {
+                        renderer.warn(format_args!(
+                            "{}: not fixed: {name} (the output above says why)",
+                            host.name
+                        ));
+                    }
+                } else if !applied.root_ran.is_empty() {
+                    renderer.warn(format_args!(
+                        "{}: cannot re-check, so the root fixes are not recorded",
+                        host.name
+                    ));
+                }
+                if let Err(e) = record_installed(paths, &host.name, &facts, &checks, &fixed) {
+                    renderer.warn(format_args!(
+                        "cannot record what was installed on {}: {e}",
+                        host.name
+                    ));
+                }
                 checks = after.unwrap_or(checks);
                 renderer.note(format_args!("{}: after fixes:", host.name));
                 report(renderer, host, &found, &facts, &checks);
@@ -976,6 +1126,61 @@ mod tests {
         f.insert("disk_free".to_owned(), (500u64 << 30).to_string());
         f.insert("password_auth".to_owned(), "no".to_owned());
         f
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::assess_project
+    #[test]
+    fn a_cargo_config_naming_clang_and_mold_makes_doctor_check_and_plan_both() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join(".cargo")).unwrap();
+        std::fs::write(
+            dir.path().join(".cargo/config.toml"),
+            "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\nrustflags = [\"-C\", \"link-arg=-fuse-ld=mold\"]\n",
+        )
+        .unwrap();
+        let needs = projneeds::Needs {
+            linking: crate::ecotools::cargo_linking(dir.path(), None, &|_| None),
+            ..Default::default()
+        };
+        assert!(needs.probe_names().contains(&"clang".to_owned()));
+        assert!(needs.probe_names().contains(&"mold".to_owned()));
+        // A helper with gcc only: no clang, no mold.
+        let mut f = facts(&[]);
+        f.insert("want.clang".to_owned(), String::new());
+        f.insert("want.mold".to_owned(), String::new());
+        let checks = assess_project(&f, &needs);
+        let fixes: Vec<String> = ["clang", "mold"]
+            .iter()
+            .map(|name| {
+                let c = checks.iter().find(|c| c.name == *name).unwrap();
+                assert_eq!(c.level, Level::Fail, "{name}");
+                assert!(
+                    c.detail
+                        .contains("--env CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=cc")
+                );
+                let fix = c.fix.clone().unwrap();
+                assert!(fix.root);
+                fix.command
+            })
+            .collect();
+        assert_eq!(
+            fixes,
+            [
+                "apt-get update && apt-get install -y clang",
+                "apt-get update && apt-get install -y mold"
+            ]
+        );
+        // One sudo session runs both, and both are recorded for uninstall by
+        // check name only (system packages are listed, never removed).
+        assert!(projneeds::is_package_check("clang"));
+        // A helper that has them is fine.
+        f.insert("want.clang".to_owned(), "clang version 18.1.3".to_owned());
+        f.insert("want.mold".to_owned(), "mold 2.30.0".to_owned());
+        assert!(
+            assess_project(&f, &needs)
+                .iter()
+                .all(|c| c.level == Level::Ok)
+        );
     }
 
     // frob:tests crates/goway/src/doctor.rs::darwin_checks
@@ -1135,6 +1340,87 @@ mod tests {
         );
     }
 
+    // frob:tests crates/goway/src/doctor.rs::push_wsl_hardware
+    // frob:tests crates/goway/src/doctor.rs::host_checks
+    #[test]
+    fn doctor_compares_what_wsl_got_with_the_laptop_and_names_the_tune_command() {
+        let g = 1u64 << 30;
+        let run = |wsl_ram: u64| {
+            let mut f = facts(&[]);
+            f.insert("static".to_owned(), "1".to_owned());
+            f.insert("wsl".to_owned(), "1".to_owned());
+            f.insert("winhw".to_owned(), format!("{};16", 16 * g));
+            f.insert("swap_total".to_owned(), (6 * g).to_string());
+            f.insert("mem_total".to_owned(), wsl_ram.to_string());
+            f.insert("cores".to_owned(), "16".to_owned());
+            assess(&f)
+                .into_iter()
+                .find(|c| c.name == "wsl size")
+                .unwrap()
+        };
+        let low = run(g * 36 / 10);
+        assert_eq!(low.level, Level::Warn);
+        assert!(
+            low.detail
+                .contains("goway-setup.exe tune --memory 12GB --swap 6GB --processors 14")
+                && low.detail.contains("4 GiB or 25%"),
+            "{}",
+            low.detail
+        );
+        assert_eq!(run(10 * g).level, Level::Ok);
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::cuda_fix
+    // frob:tests crates/goway/src/doctor.rs::undo_of
+    #[test]
+    fn a_visible_nvidia_gpu_without_cuda_gets_the_wsl_toolkit_fix_and_an_undo() {
+        let run = |nvcc: &str, apt: bool| {
+            let mut f = facts(if apt { &[] } else { &["apt-get"] });
+            f.insert("static".to_owned(), "1".to_owned());
+            f.insert("wsl".to_owned(), "1".to_owned());
+            f.insert(
+                "gpu.0".to_owned(),
+                "nvidia|RTX 3060|12288|555.42|12.5".to_owned(),
+            );
+            f.insert("nvcc".to_owned(), nvcc.to_owned());
+            assess(&f)
+                .into_iter()
+                .find(|c| c.name == "cuda toolkit")
+                .unwrap()
+        };
+        let c = run("0", true);
+        assert_eq!(c.level, Level::Warn);
+        let fix = c.fix.unwrap();
+        assert!(fix.root && fix.command.contains("wsl-ubuntu/x86_64/cuda-keyring"));
+        assert!(
+            fix.command.contains("install -y cuda-toolkit"),
+            "never the driver package"
+        );
+        assert!(!fix.command.contains("cuda-drivers") && !fix.command.contains("install -y cuda "));
+        let (undo, root) = undo_of("cuda toolkit").unwrap();
+        assert!(root && undo.contains("remove -y cuda-toolkit"));
+        assert!(run("0", false).fix.is_none(), "no apt, no automatic fix");
+        assert_eq!(run("1", true).level, Level::Ok);
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::host_checks
+    #[test]
+    fn doctor_warns_when_wsl_interop_is_elevated_and_reports_off_as_safe() {
+        let level = |interop: &str| {
+            let mut f = facts(&[]);
+            f.insert("static".to_owned(), "1".to_owned());
+            f.insert("wsl".to_owned(), "1".to_owned());
+            f.insert("interop".to_owned(), interop.to_owned());
+            assess(&f).into_iter().find(|c| c.name == "wsl interop")
+        };
+        let bad = level("elevated").unwrap();
+        assert_eq!(bad.level, Level::Warn);
+        assert!(bad.detail.contains("SECURITY") && bad.detail.contains("wsl --shutdown"));
+        assert_eq!(level("off").unwrap().level, Level::Ok);
+        assert_eq!(level("limited").unwrap().level, Level::Ok);
+        assert!(level("bogus").is_none());
+    }
+
     // frob:tests crates/goway/src/doctor.rs::host_checks
     #[test]
     fn doctor_flags_a_gpu_invisible_to_wsl() {
@@ -1195,6 +1481,120 @@ mod tests {
         assert!(pw.fix.as_ref().unwrap().root);
     }
 
+    // frob:tests crates/goway/src/doctor.rs::apply_fixes
+    #[test]
+    fn each_root_fix_is_its_own_step_with_its_own_result_and_one_apt_update() {
+        let mut f = facts(&["curl"]);
+        f.insert("want.clang".to_owned(), String::new());
+        f.insert("want.mold".to_owned(), String::new());
+        let steps = vec![
+            (
+                "clang".to_owned(),
+                Fix {
+                    command: "apt-get update && apt-get install -y clang".to_owned(),
+                    root: true,
+                    why: String::new(),
+                },
+            ),
+            (
+                "mold".to_owned(),
+                Fix {
+                    command: "apt-get update && apt-get install -y mold".to_owned(),
+                    root: true,
+                    why: String::new(),
+                },
+            ),
+        ];
+        let script = root_script(&steps);
+        assert_eq!(script.matches("apt-get update ||").count(), 1, "{script}");
+        assert!(script.contains("apt-get install -y clang"), "{script}");
+        assert!(script.contains("apt-get install -y mold"), "{script}");
+        assert!(
+            script.contains("step failed (exit $rc):\" 'mold'"),
+            "{script}"
+        );
+        assert!(
+            script.starts_with("set +e"),
+            "a failing step never stops the rest"
+        );
+        // Run it for real with apt-get faked: mold has no package.
+        #[cfg(unix)]
+        {
+            let dir = tempfile::tempdir().unwrap();
+            let apt = dir.path().join("apt-get");
+            std::fs::write(
+                &apt,
+                "#!/bin/sh\n[ \"$1\" = update ] && exit 0\ncase \"$*\" in *mold*) echo 'E: Unable to locate package mold' >&2; exit 100;; esac\necho installed \"$*\"\n",
+            )
+            .unwrap();
+            std::fs::set_permissions(&apt, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+                .unwrap();
+            let out = std::process::Command::new("bash")
+                .arg("-c")
+                .arg(&script)
+                .env("PATH", format!("{}:/usr/bin:/bin", dir.path().display()))
+                .output()
+                .unwrap();
+            let text = String::from_utf8_lossy(&out.stdout);
+            assert!(text.contains("step ok: clang"), "{text}");
+            assert!(text.contains("step failed (exit 100): mold"), "{text}");
+            assert!(!text.contains("step failed (exit 100): clang"), "{text}");
+            assert!(text.contains("1 of 2 steps failed"), "{text}");
+        }
+    }
+
+    // frob:tests crates/goway/src/doctor/projneeds.rs::fix_for
+    #[test]
+    fn mold_is_a_package_where_one_exists_and_a_pinned_user_install_where_not() {
+        let want = |os: Option<&str>| {
+            let mut f = facts(&[]);
+            f.insert("want.mold".to_owned(), String::new());
+            if let Some(os) = os {
+                f.insert("os".to_owned(), os.to_owned());
+            }
+            let needs = projneeds::Needs {
+                linking: vec![crate::ecotools::CargoLinking {
+                    triple: "x86_64-unknown-linux-gnu".to_owned(),
+                    linker: None,
+                    backend: Some("mold".to_owned()),
+                    source: "test".to_owned(),
+                }],
+                ..Default::default()
+            };
+            assess_project(&f, &needs)
+                .into_iter()
+                .find(|c| c.name == "mold")
+                .and_then(|c| c.fix)
+                .unwrap()
+        };
+        for old in ["Ubuntu 20.04.6 LTS", "Debian GNU/Linux 11 (bullseye)"] {
+            let fix = want(Some(old));
+            assert!(!fix.root, "{old}: {}", fix.command);
+            assert!(
+                fix.command
+                    .contains("6ff270c9bf07d2bec5c98aa324eb7c4daf6a1a4d815c05ff1708049616047855")
+            );
+            assert!(fix.command.contains("ld.mold"), "{}", fix.command);
+        }
+        for new in [
+            "Ubuntu 22.04.4 LTS",
+            "Ubuntu 24.04 LTS",
+            "Debian GNU/Linux 12 (bookworm)",
+        ] {
+            let fix = want(Some(new));
+            assert!(
+                fix.root && fix.command.contains("apt-get install -y mold"),
+                "{new}"
+            );
+        }
+        assert!(
+            want(None).root,
+            "an unknown distribution is asked for the package"
+        );
+        assert!(!projneeds::is_package_check("mold"));
+        assert!(projneeds::undo_of("mold").is_some());
+    }
+
     struct Recorder(RefCell<Vec<(String, bool)>>);
     impl FixRunner for Recorder {
         fn run(&self, command: &str, sudo: bool) -> bool {
@@ -1238,8 +1638,18 @@ mod tests {
         let calls = rec.0.borrow();
         let sudo_calls: Vec<&(String, bool)> = calls.iter().filter(|(_, s)| *s).collect();
         assert_eq!(sudo_calls.len(), 1, "one sudo session for all root fixes");
-        assert!(sudo_calls[0].0.starts_with("set -e"));
-        assert_eq!(applied.done.len(), 3);
+        let script = &sudo_calls[0].0;
+        assert_eq!(
+            script.matches("apt-get update ||").count(),
+            1,
+            "one update for the whole session: {script}"
+        );
+        assert!(!script.contains("apt-get update &&"), "{script}");
+        assert!(
+            script.contains("step failed (exit $rc):\" 'cc (linker)'"),
+            "{script}"
+        );
+        assert_eq!(applied.root_ran.len(), 3);
     }
 
     #[test]

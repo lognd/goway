@@ -17,6 +17,7 @@ use base64::Engine as _;
 use crate::error::{Error, Result};
 use crate::remote::{self, Call};
 use crate::repo::{self, Repo};
+use crate::session;
 use crate::ssh::{self, KeyPolicy, Target};
 use crate::transport::{self, Kind as HostKind};
 
@@ -520,6 +521,15 @@ pub fn diff(local: &[LocalFile], remote: &BTreeMap<String, RemoteEntry>) -> Plan
     plan
 }
 
+/// Where `rel` is read from: `.git/...` paths come from the `--with-git`
+/// overlay when there is one, everything else from the work tree.
+fn base_for<'a>(root: &'a Path, overlay: Option<&'a Path>, rel: &str) -> &'a Path {
+    match overlay {
+        Some(o) if rel.starts_with(".git/") => o,
+        _ => root,
+    }
+}
+
 /// Write the selected files as a tar stream, preserving mtime and exec bit.
 ///
 /// Mtimes are whole seconds, so two same-size edits within one second look
@@ -533,9 +543,21 @@ pub fn write_tar<W: std::io::Write>(
     racy_from: u64,
     out: W,
 ) -> Result<W> {
+    write_tar_with(root, None, files, racy_from, out)
+}
+
+/// [`write_tar`] with the `.git/...` files read from `overlay` (`--with-git`).
+pub fn write_tar_with<W: std::io::Write>(
+    root: &Path,
+    overlay: Option<&Path>,
+    files: &[&LocalFile],
+    racy_from: u64,
+    out: W,
+) -> Result<W> {
     let mut builder = tar::Builder::new(out);
     builder.mode(tar::HeaderMode::Deterministic);
     for f in files {
+        let root = base_for(root, overlay, &f.path);
         let mut header = tar::Header::new_gnu();
         header.set_mtime(if f.mtime >= racy_from {
             f.mtime.saturating_sub(1)
@@ -605,6 +627,8 @@ pub struct Stats {
     pub behind_links: Vec<String>,
     /// The files this sync was made from (for the copy-integrity check).
     pub manifest: Manifest,
+    /// Where the `.git/...` files of a `--with-git` sync are read from.
+    pub git_overlay: Option<PathBuf>,
 }
 
 /// The local file set a sync was made from, as it was then.
@@ -726,6 +750,9 @@ pub struct Captured {
     pub stderr: Vec<u8>,
     /// Stdout had more than `stdout_cap` bytes (the rest was discarded).
     pub stdout_overflow: bool,
+    /// What the helper's login shell printed before goway's protocol began
+    /// (see [`remote::FRAME_MARK`]); not part of `stdout`.
+    pub noise: Vec<u8>,
 }
 
 /// Read at most `cap` bytes of `reader`, then discard the rest so the child
@@ -762,11 +789,19 @@ pub fn capture(
             "helper stdout exceeded the cap and was cut"
         );
     }
+    let (noise, stdout) = remote::split_frame(stdout);
+    if !noise.is_empty() {
+        tracing::warn!(
+            bytes = noise.len(),
+            "the helper's shell startup files print text; goway ignored it"
+        );
+    }
     Ok(Captured {
         status,
         stdout,
         stderr,
         stdout_overflow,
+        noise,
     })
 }
 
@@ -775,8 +810,129 @@ fn stderr_text(c: &Captured) -> String {
     String::from_utf8_lossy(&c.stderr).trim().to_owned()
 }
 
+/// Log how long a helper call took (each Windows call starts a PowerShell).
+fn timed<T>(call: &Call, f: impl FnOnce() -> T) -> T {
+    let started = std::time::Instant::now();
+    let r = f();
+    tracing::debug!(verb = %call.verb, elapsed = ?started.elapsed(), "helper call");
+    r
+}
+
+/// The verbs a Windows helper's session serves (the rest, `run` above all,
+/// keep their own process).
+const SESSION_VERBS: [&str; 9] = [
+    "manifest",
+    "hashes",
+    "deletions",
+    "changes",
+    "receive",
+    "envfile",
+    "argsfile",
+    "verify-wait",
+    "verify-verdict",
+];
+
+/// A writer that keeps at most [`session::MAX_INPUT`] bytes and notes when
+/// it was asked for more.
+struct Capped<'a> {
+    buf: &'a mut Vec<u8>,
+    over: &'a mut bool,
+}
+
+impl std::io::Write for Capped<'_> {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        if self.buf.len() + data.len() > session::MAX_INPUT {
+            *self.over = true;
+            return Err(std::io::Error::other("input too large for a session"));
+        }
+        self.buf.extend_from_slice(data);
+        Ok(data.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 impl Transport for SshTransport<'_> {
     fn output(&self, call: &Call) -> Result<Vec<u8>> {
+        timed(call, || {
+            self.in_session(call, b"")
+                .unwrap_or_else(|| self.output_inner(call))
+        })
+    }
+
+    fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
+        timed(call, || {
+            self.in_session(call, input)
+                .unwrap_or_else(|| self.exchange_inner(call, input))
+        })
+    }
+
+    fn feed(
+        &self,
+        call: &Call,
+        feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
+    ) -> Result<()> {
+        timed(call, || {
+            if self.session_applies(call) {
+                let (mut buf, mut over) = (Vec::new(), false);
+                let result = feed(&mut Capped {
+                    buf: &mut buf,
+                    over: &mut over,
+                });
+                if !over {
+                    result?;
+                    if let Some(done) = self.in_session(call, &buf) {
+                        return done.map(drop);
+                    }
+                }
+            }
+            self.feed_inner(call, feed)
+        })
+    }
+}
+
+impl SshTransport<'_> {
+    /// Whether `call` may use this host's session.
+    fn session_applies(&self, call: &Call) -> bool {
+        self.kind != HostKind::Unix && SESSION_VERBS.contains(&call.verb.as_str())
+    }
+
+    /// Run `call` through the host's session: `None` when there is none to
+    /// use (the caller then starts a process for the call).
+    fn in_session(&self, call: &Call, input: &[u8]) -> Option<Result<Vec<u8>>> {
+        if !self.session_applies(call) {
+            return None;
+        }
+        let key = format!("{:?}/{}", self.kind, self.target.name);
+        let mut words = vec![call.verb.as_str()];
+        words.extend(call.args.iter().map(String::as_str));
+        let reply = session::call(&key, || self.start_session(), &words, input)?;
+        Some(if reply.code == 0 {
+            Ok(reply.stdout)
+        } else {
+            Err(self.fail(String::from_utf8_lossy(&reply.stderr).trim().to_owned()))
+        })
+    }
+
+    /// Start the host's session, installing the remote script first when
+    /// this version is not there yet.
+    fn start_session(&self) -> std::result::Result<session::Session, String> {
+        let spawn = || {
+            self.command(&Call::new("session", &[] as &[&str]))
+                .map_err(|e| e.to_string())
+                .and_then(session::Session::start)
+        };
+        match spawn() {
+            Err(e) if e.contains(remote::NOT_INSTALLED_MARK) => {
+                self.install_script().map_err(|e| e.to_string())?;
+                spawn()
+            }
+            other => other,
+        }
+    }
+
+    fn output_inner(&self, call: &Call) -> Result<Vec<u8>> {
         self.with_script(|| {
             let child = self
                 .command(call)?
@@ -799,7 +955,7 @@ impl Transport for SshTransport<'_> {
         })
     }
 
-    fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
+    fn exchange_inner(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
         self.with_script(|| {
             exchange_child(self.command(call)?, input).map_err(|e| match e {
                 Error::Ssh { message, .. } => self.fail(message),
@@ -808,7 +964,7 @@ impl Transport for SshTransport<'_> {
         })
     }
 
-    fn feed(
+    fn feed_inner(
         &self,
         call: &Call,
         feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
@@ -996,6 +1152,16 @@ pub struct Comparison {
 /// manifest). A local file that changed since the sync (size or mtime) is
 /// skipped: the helper has the older, correct copy.
 pub fn compare_claims(root: &Path, files: &Manifest, claims: &[(String, Claim)]) -> Comparison {
+    compare_claims_with(root, None, files, claims)
+}
+
+/// [`compare_claims`] with the `.git/...` files read from `overlay` (`--with-git`).
+pub fn compare_claims_with(
+    root: &Path,
+    overlay: Option<&Path>,
+    files: &Manifest,
+    claims: &[(String, Claim)],
+) -> Comparison {
     let by_path: BTreeMap<&str, &LocalFile> =
         files.0.iter().map(|f| (f.path.as_str(), f)).collect();
     let mut out = Comparison::default();
@@ -1008,7 +1174,7 @@ pub fn compare_claims(root: &Path, files: &Manifest, claims: &[(String, Claim)])
             });
             continue;
         };
-        let full = root.join(path);
+        let full = base_for(root, overlay, path).join(path);
         let meta = std::fs::symlink_metadata(&full).ok();
         let mtime = meta
             .as_ref()
@@ -1112,9 +1278,21 @@ pub fn sync(
     secrets: &Secrets,
     snapshot: Option<&Snapshot>,
 ) -> Result<Stats> {
+    sync_with(transport, remote_root, repo, secrets, snapshot, None)
+}
+
+/// [`sync`] that also sends the `--with-git` overlay's `.git/...` files.
+pub fn sync_with(
+    transport: &dyn Transport,
+    remote_root: &str,
+    repo: &Repo,
+    secrets: &Secrets,
+    snapshot: Option<&Snapshot>,
+    git: Option<&crate::gitmeta::Overlay>,
+) -> Result<Stats> {
     let mut attempt = 1;
     loop {
-        match sync_once(transport, remote_root, repo, secrets, snapshot) {
+        match sync_once(transport, remote_root, repo, secrets, snapshot, git) {
             Err(Error::Ssh { message, .. })
                 if message.contains("seed changed") && attempt < SYNC_ATTEMPTS =>
             {
@@ -1126,19 +1304,26 @@ pub fn sync(
     }
 }
 
+#[allow(clippy::too_many_lines)] // one sequence: plan, send, receive
 fn sync_once(
     transport: &dyn Transport,
     remote_root: &str,
     repo: &Repo,
     secrets: &Secrets,
     snapshot: Option<&Snapshot>,
+    git: Option<&crate::gitmeta::Overlay>,
 ) -> Result<Stats> {
     let started = std::time::Instant::now();
     // Taken before the files are read: a file modified at or after this
     // second may still be modified again within the same second.
     let racy_from = crate::state::now_secs().saturating_sub(1);
     let set = file_set(&repo.root, secrets)?;
-    let local = set.files;
+    let overlay = git.map(|g| g.root.as_path());
+    let mut local = set.files;
+    if let Some(g) = git {
+        local.extend(g.files.iter().cloned());
+        local.sort_by(|a, b| a.path.cmp(&b.path));
+    }
     let seed = repo.seed_key();
     let manifest = transport.output(&Call::new("manifest", &[remote_root, &seed]))?;
     let generation = manifest_generation(&manifest);
@@ -1152,7 +1337,8 @@ fn sync_once(
         for &i in &plan.verify {
             let f = &local[i];
             let same = remote_hashes.get(&f.path).is_some_and(|h| {
-                file_sha256(&repo.root.join(&f.path)).as_deref() == Some(h.as_str())
+                file_sha256(&base_for(&repo.root, overlay, &f.path).join(&f.path)).as_deref()
+                    == Some(h.as_str())
             });
             if same {
                 unchanged += 1;
@@ -1175,6 +1361,7 @@ fn sync_once(
         kept_local: set.kept_local,
         behind_links: set.behind_links,
         manifest: Manifest(local.clone()),
+        git_overlay: git.map(|g| g.root.clone()),
     };
     tracing::info!(?stats, remote_files = remote_entries.len(), "sync plan");
     // Deletions are bound to this attempt: a list stored by an attempt
@@ -1229,7 +1416,7 @@ fn sync_once(
         ],
     );
     transport.feed(&cmd, &mut |w| {
-        write_tar(&repo.root, &to_send, racy_from, w).map(|_| ())
+        write_tar_with(&repo.root, overlay, &to_send, racy_from, w).map(|_| ())
     })?;
     tracing::info!(?stats, elapsed = ?started.elapsed(), "synced");
     Ok(stats)
@@ -1772,7 +1959,7 @@ mod tests {
                 "{}",
                 String::from_utf8_lossy(&out.stderr)
             );
-            Ok(out.stdout)
+            Ok(remote::split_frame(out.stdout).1)
         }
         fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
             let mut c = std::process::Command::new("sh");

@@ -1,5 +1,5 @@
 # goway remote side. Sent inline with every ssh call and run as
-#   bash -c "<this script>" goway VERB ARGS...
+#   bash -c 'eval "$(printf %s <base64 of: set -- VERB ARGS; this script> | base64 -d)"' goway
 # so the remote needs nothing installed beyond bash, GNU findutils, tar,
 # coreutils and util-linux (flock); on macOS the same GNU tools from Homebrew. Every directory goway owns carries a
 # meta.json label and a lock file that is flock-held while in use.
@@ -478,13 +478,28 @@ verify_gate() {
   return 1
 }
 
+# remove_work DIR: best-effort removal of a finished run's work dir. It never
+# fails and never changes the command's exit code: something may still write
+# there (a job's detached child, a concurrent gc), so it retries a few times
+# and otherwise leaves the directory for gc, which collects any unlocked work
+# dir past its orphan age.
+remove_work() {
+  local n
+  for n in 1 2 3 4 5; do
+    if rm -rf "$1" 2>/dev/null; then return 0; fi
+    sleep 0.2
+  done
+  printf 'goway: note: could not remove the work dir of this run; gc will collect it\n' >&2
+  return 0
+}
+
 # verify_failed PHASE: goway judged the copy bad (or never answered): wipe the
 # slot and the seed, say so, and stop. Uses run's variables (dynamic scope).
 verify_failed() {
   printf 'goway-remote: the copy of the tree on this host did not verify (phase %s); slot %s is discarded\n' \
     "$1" "$slot" >&2
   slot_wipe "$slot" "$cache" "$(cat "$work/seed" 2>/dev/null || true)" "$root"
-  rm -rf "$work"
+  remove_work "$work"
   exit 125
 }
 
@@ -692,6 +707,25 @@ sniff_binary() {
   else
     printf 'none'
   fi
+}
+
+# keep_awake: set AWAKE to the words that wrap a job in a sleep inhibitor,
+# empty when the host has none that works. The inhibitor is held by the
+# wrapper process, so it lasts exactly as long as the job and is released
+# however the job ends (exit, signal, the watchdog's kill of the group).
+# Linux asks logind (probed once with `true`: a WSL without systemd, or a
+# session logind refuses, simply gets none); macOS uses caffeinate.
+keep_awake() {
+  AWAKE=()
+  case "$(uname -s 2>/dev/null)" in
+    Darwin)
+      if command -v caffeinate >/dev/null 2>&1; then AWAKE=(caffeinate -i -m -s); fi ;;
+    Linux)
+      if command -v systemd-inhibit >/dev/null 2>&1 &&
+        bounded systemd-inhibit --what=sleep:idle --who=goway --why="goway job" --mode=block true >/dev/null 2>&1; then
+        AWAKE=(systemd-inhibit --what=sleep:idle --who=goway --why="goway job" --mode=block)
+      fi ;;
+  esac
 }
 
 # launch_job CMD...: start the job as run does (own session, pid recorded
@@ -991,6 +1025,9 @@ run() {
     if command -v nice >/dev/null 2>&1; then nicer+=(nice -n 10); fi
     if command -v ionice >/dev/null 2>&1; then nicer+=(ionice -c 3); fi
   fi
+  # Outermost, so the inhibitor wraps the niceness wrappers and the job.
+  keep_awake
+  nicer=(${AWAKE[@]+"${AWAKE[@]}"} ${nicer[@]+"${nicer[@]}"})
   if [ -n "$detect" ]; then
     JOB_PID="$work/pid"
     JOB_NICER=(${nicer[@]+"${nicer[@]}"})
@@ -1011,7 +1048,7 @@ run() {
     verify_gate "$work" 2 "$rundir" "$work/after.reg" "$work/after.lnk" || verify_failed 2
   fi
   if [ "$keep" = 1 ]; then cp -a --reflink=auto "$rundir" "$work/tree"; fi
-  if [ "$keep" != 1 ]; then rm -rf "$work"; fi
+  if [ "$keep" != 1 ]; then remove_work "$work"; fi
   # Cheap automatic gc of expired entries, detached so it never delays
   # the exit (and never holds the ssh session open).
   if [ -n "$ttls" ]; then
@@ -1027,7 +1064,15 @@ run() {
 # Run "$@" for at most 10 seconds when timeout exists (a hung driver tool
 # must never hang a probe).
 bounded() {
-  if command -v timeout >/dev/null 2>&1; then timeout 10 "$@"; else "$@"; fi
+  bounded_for 10 "$@"
+}
+
+# bounded_for SECONDS cmd...: like bounded with its own limit. A Windows program that WSL
+# interop cannot run (interop disabled) hangs for about 10 seconds, so those calls use 3.
+bounded_for() {
+  local secs=$1
+  shift
+  if command -v timeout >/dev/null 2>&1; then timeout "$secs" "$@"; else "$@"; fi
 }
 
 # static_facts: facts that change rarely (GPUs, CPU features, KVM, Docker,
@@ -1036,7 +1081,7 @@ bounded() {
 # anything but the vendor query tools, docker info and powershell.exe (WSL
 # only, to list the video adapters Windows has).
 static_facts() {
-  local n=0 pat cuda="" flags="" f kvm=0 docker=0 wsl=0 win=""
+  local n=0 pat cuda="" flags="" f kvm=0 docker=0 wsl=0 win="" interop="" adm="" winhw="" nvcc=0 swap=""
   printf 'static=1\n'
   if command -v nvidia-smi >/dev/null 2>&1; then
     cuda=$(bounded nvidia-smi 2>/dev/null | grep -o 'CUDA Version: [0-9.]*' | head -1 | cut -d' ' -f3 || true)
@@ -1073,11 +1118,30 @@ static_facts() {
   printf 'docker=%s\n' "$docker"
   if grep -qi microsoft /proc/version 2>/dev/null; then
     wsl=1
+    # interop: whether Windows programs run from this distro, and with which token. They run
+    # with the token of whatever started WSL, so "elevated" means every WSL user is a Windows
+    # administrator. A program that neither answers nor fails within 3s means interop is off.
+    interop=off
     if command -v powershell.exe >/dev/null 2>&1; then
-      win=$(bounded powershell.exe -NoProfile -NonInteractive -Command '(Get-CimInstance Win32_VideoController).Name -join ";"' 2>/dev/null | tr -d '\r' | head -1 || true)
+      adm=$(bounded_for 3 powershell.exe -NoProfile -NonInteractive -Command '([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)' 2>/dev/null | tr -d '\r' | head -1 || true)
+      case "$adm" in
+        True) interop=elevated ;;
+        False) interop=limited ;;
+      esac
+      if [ "$interop" != off ]; then
+        win=$(bounded_for 3 powershell.exe -NoProfile -NonInteractive -Command '(Get-CimInstance Win32_VideoController).Name -join ";"' 2>/dev/null | tr -d '\r' | head -1 || true)
+        # What the whole laptop has, to compare with what WSL got: "<RAM bytes>;<logical cores>".
+        winhw=$(bounded_for 3 powershell.exe -NoProfile -NonInteractive -Command '$c = Get-CimInstance Win32_ComputerSystem; "$($c.TotalPhysicalMemory);$($c.NumberOfLogicalProcessors)"' 2>/dev/null | tr -d '\r' | head -1 || true)
+      fi
     fi
   fi
-  printf 'wsl=%s\nwinvideo=%s\n' "$wsl" "$win"
+  printf 'wsl=%s\nwinvideo=%s\ninterop=%s\nwinhw=%s\n' "$wsl" "$win" "$interop" "$winhw"
+  if [ "$IS_DARWIN" != 1 ]; then
+    swap=$(awk '/^SwapTotal:/ {printf "%.0f", $2*1024}' /proc/meminfo 2>/dev/null || true)
+    printf 'swap_total=%s\n' "$swap"
+    if command -v nvcc >/dev/null 2>&1 || [ -x /usr/local/cuda/bin/nvcc ]; then nvcc=1; fi
+    printf 'nvcc=%s\n' "$nvcc"
+  fi
 }
 
 # machine: this host's CPU architecture, spelled as Linux does (arm64 is aarch64).
@@ -1195,10 +1259,17 @@ gc_entry() {
   fd=20
   for l in ${locks[@]+"${locks[@]}"}; do
     [ -e "$l" ] || continue
-    # Append, never truncate: opening for write would refresh a slot lock's
-    # mtime, which is the slot's last-use stamp (evict_slot).
-    eval "exec $fd>>\"\$l\""
-    if ! flock -n "$fd"; then action=busy; fi
+    # Open read-only: opening for write would refresh a slot lock's mtime
+    # (the slot's last-use stamp, evict_slot) and, worse, would re-create a
+    # lock file a finishing run has just removed, leaving a stray file that
+    # makes the run's own rm -rf fail with "Directory not empty". A lock that
+    # vanished since the check above belongs to an entry being removed: busy.
+    if eval "exec $fd<\"\$l\"" 2>/dev/null; then
+      if ! flock -n "$fd"; then action=busy; fi
+    else
+      action=busy
+      continue
+    fi
     fd=$((fd + 1))
   done
   age=$(age_of "$dir" "$now")

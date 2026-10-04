@@ -201,6 +201,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
     if let Some(r) = &rule {
         renderer.note(r.describe());
     }
+    let with_git = args.with_git || project::wants_git(&repo.root)?;
     let project = runners::project_for(&args.command, &args.env, &repo.root)?;
     let mut state = State::load(&env.paths.state_file())?;
     // Plan every shard first, so a command that cannot be split is refused before any host is touched.
@@ -325,6 +326,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                             format!("{first_run_id}-a{}", verify.attempt)
                         };
                         let mut manifest = None;
+                        let mut git_overlay = None;
                         let mut child = if found.is_local() {
                             // This machine: nothing to sync; the command runs in the current directory.
                             _slot =
@@ -346,8 +348,16 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                                     Error::Usage(format!("cannot run `{}`: {e}", command[0]))
                                 })?
                         } else {
-                            let synced =
-                                run::sync_snapshot(env, config, repo, found, &run_id, args.keep)?;
+                            let synced = run::sync_snapshot(
+                                env,
+                                config,
+                                repo,
+                                found,
+                                &run_id,
+                                args.keep,
+                                with_git.then_some(host.os),
+                            )?;
+                            git_overlay = synced.git_overlay;
                             manifest = Some(synced.manifest);
                             run::send_env(env, config, found, &run_id, &run::encode_env(&pairs)?)?;
                             let mut extra = run::gpu_words(selection, config, host);
@@ -390,6 +400,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                             remote_root: config.defaults.remote_root.as_str(),
                             run_id: &run_id,
                             repo_root: &repo.root,
+                            git_overlay: git_overlay.as_deref(),
                             manifest,
                         });
                         let done = std::sync::atomic::AtomicBool::new(false);
@@ -401,7 +412,20 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                             let mut pumps = Vec::new();
                             if let Some(out) = out {
                                 let p = prefix.clone();
-                                pumps.push(s.spawn(move || pump(out, false, &p, filter_out)));
+                                let framed =
+                                    !found.is_local() && found.kind == crate::transport::Kind::Unix;
+                                pumps.push(s.spawn(move || {
+                                    if framed {
+                                        pump(
+                                            crate::remote::Framed::new(out),
+                                            false,
+                                            &p,
+                                            filter_out,
+                                        );
+                                    } else {
+                                        pump(out, false, &p, filter_out);
+                                    }
+                                }));
                             }
                             if let Some(err) = err {
                                 let p = prefix.clone();

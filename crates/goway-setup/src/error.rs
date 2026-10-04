@@ -81,6 +81,22 @@ pub enum SetupError {
         /// The distro.
         distro: String,
     },
+    /// A `tune` value is not acceptable to `.wslconfig`.
+    #[error("tune: {0}")]
+    BadTuneValue(String),
+    /// Applying a `tune` change failed; what it had changed was reverted.
+    #[error("tune failed and was rolled back: {0}")]
+    TuneFailed(String),
+    /// goway jobs are running in the distro, and a WSL restart would kill them.
+    #[error(
+        "{0} goway job(s) are running in the distro; restarting WSL would kill them. Wait for them, or pass --yes to change .wslconfig anyway (the restart then stays yours to run)"
+    )]
+    TuneJobsRunning(u32),
+    /// Boot-mode keepalive for an administrator account would leave WSL interop elevated.
+    #[error(
+        "--keepalive boot refused: this account is an administrator, and a task that starts WSL at boot (S4U logon) gets the full administrator token whatever its run level, so every user of the distro could act as a Windows administrator through WSL interop. Use the default logon keepalive, disable interop first (`[interop] enabled=false` in /etc/wsl.conf of the distro), or pass --allow-elevated-wsl to accept the risk"
+    )]
+    ElevatedWslRefused,
     /// State an elevated process would act on sits where a non-administrator could have written it.
     #[error("refusing to trust {path}: {reason}")]
     UntrustedState {

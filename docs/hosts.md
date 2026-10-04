@@ -103,6 +103,22 @@ A `[[host]]` has an `os` (`linux`, the default, or `windows`) and a
   network listener, and nothing of the WSL environment is handed to
   Windows. Set it by hand in the config; it only works inside WSL.
 
+**Registering a Windows machine over OpenSSH.** Put the host in the config
+with `os = "windows"` (and its address, port 22), then run
+`goway add NAME`. goway never logs in with a password to a Windows host:
+it picks or creates its key as for any host, prints one command and waits
+for you to press Enter after running it on that machine, in PowerShell as
+Administrator (the installer it names is the one that set the machine up
+with `goway-setup install --host --native`):
+
+    goway-setup install --host --native --authorized-key "ssh-ed25519 AAAA... goway@laptop"
+
+`goway-setup` authorizes the key (administrator accounts use
+`administrators_authorized_keys`, others the profile's `authorized_keys`),
+records it for its own uninstall, and goway then checks that key-only login
+works, stores the identity and writes the undo record. `goway ssh setup NAME
+--undo` removes goway's side; `goway-setup uninstall` removes the key there.
+
 The Windows side of the protocol is `remote.ps1` (see docs/design.md
 2a): the same verbs as on Linux, installed once per version under
 `%LOCALAPPDATA%\goway` on the host. Not supported on Windows hosts:

@@ -751,3 +751,27 @@ fn a_distro_name_may_not_look_like_a_wsl_option() {
         assert!(host::validate_distro(ok).is_ok(), "{ok}");
     }
 }
+
+// frob:tests crates/goway-setup/src/host.rs::check_boot_keepalive
+#[test]
+fn boot_keepalive_on_an_administrator_needs_interop_off_or_an_explicit_flag() {
+    use goway_setup::error::SetupError;
+    use goway_setup::host::{HostFacts, Keepalive, check_boot_keepalive};
+    let admin = HostFacts {
+        admin_account: true,
+        ..HostFacts::assumed()
+    };
+    assert!(matches!(
+        check_boot_keepalive(Keepalive::Boot, &admin, false),
+        Err(SetupError::ElevatedWslRefused)
+    ));
+    assert!(check_boot_keepalive(Keepalive::Boot, &admin, true).is_ok());
+    assert!(check_boot_keepalive(Keepalive::Logon, &admin, false).is_ok());
+    let off = HostFacts {
+        interop_disabled: true,
+        ..admin.clone()
+    };
+    assert!(check_boot_keepalive(Keepalive::Boot, &off, false).is_ok());
+    let user = HostFacts::assumed();
+    assert!(check_boot_keepalive(Keepalive::Boot, &user, false).is_ok());
+}

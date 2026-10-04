@@ -1,0 +1,1 @@
+goway add now asks on a terminal whether you know the helper's password before trying one, names the helper you typed in ssh's prompt, allows one password attempt, and then walks you through pasting the key by hand.

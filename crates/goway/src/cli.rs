@@ -96,6 +96,11 @@ pub struct RunArgs {
     /// Keep the remote work directory after the run.
     #[arg(long)]
     pub keep: bool,
+    /// Give the helper's copy a `.git` (HEAD, index) matching this work
+    /// tree, for tests that ask git about the repository; also
+    /// `with_git = true` in goway.toml. No remotes, credentials or hooks.
+    #[arg(long)]
+    pub with_git: bool,
     /// Write host, arch, address and exit code as JSON to this file.
     #[arg(long, env = "GOWAY_REPORT")]
     pub report: Option<PathBuf>,
@@ -221,6 +226,9 @@ pub struct AddArgs {
     /// Do not ask before the --rsudo / --lsudo changes.
     #[arg(long, short = 'y')]
     pub yes: bool,
+    /// Do not try a password: print goway's key and the commands to add it by hand on the helper.
+    #[arg(long)]
+    pub no_password: bool,
 }
 
 /// `goway host` verbs.
@@ -297,6 +305,9 @@ pub struct SshSetupArgs {
     /// without it goway asks you to confirm the key before any password.
     #[arg(long, value_name = "SHA256:...", conflicts_with = "undo")]
     pub fingerprint: Option<String>,
+    /// Do not try a password: print goway's key and the commands to add it by hand on the host.
+    #[arg(long, conflicts_with = "undo")]
+    pub no_password: bool,
 }
 
 /// `goway config` verbs.

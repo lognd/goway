@@ -41,19 +41,34 @@ function Write-Err([string]$Text) {
   $script:Stderr.Write($b, 0, $b.Length)
   $script:Stderr.Flush()
 }
+# In a session (one process serving many verbs) a verb must not end the
+# process: Exit-Verb throws a marker the session loop turns into the verb's
+# exit code; as a one-shot it is a plain exit.
+$script:InSession = $false
+function Exit-Verb([int]$Code) {
+  if ($script:InSession) { throw "goway-exit:$Code" }
+  exit $Code
+}
 function Die([string]$Message) {
   Write-Err "goway-remote: $Message`n"
-  exit 125
+  Exit-Verb 125
 }
 trap {
   Write-Err ("goway-remote: failed at line {0}: {1}`n" -f $_.InvocationInfo.ScriptLineNumber, $_.Exception.Message)
-  exit 125
+  Exit-Verb 125
 }
 
 # ---- stdin ------------------------------------------------------------
 
+# The verb's standard input: the request's input in a session.
+$script:SessionIn = $null
+function Get-Stdin {
+  if ($script:InSession) { return $script:SessionIn }
+  return [Console]::OpenStandardInput()
+}
+
 function Read-StdinBytes {
-  $in = [Console]::OpenStandardInput()
+  $in = Get-Stdin
   $ms = New-Object System.IO.MemoryStream
   $in.CopyTo($ms)
   return ,$ms.ToArray()
@@ -197,9 +212,7 @@ function Test-Id([string]$Id, [string]$What) {
 # ---- native helper (compiled on first use) ----------------------------
 
 $script:NativeLoaded = $false
-function Load-Native {
-  if ($script:NativeLoaded) { return }
-  Add-Type -TypeDefinition @'
+$script:NativeSource = @'
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -215,6 +228,49 @@ public static class GowayNative {
   static extern bool IsProcessorFeaturePresent(uint feature);
 
   public static bool IsWindows { get { return Environment.OSVersion.Platform == PlatformID.Win32NT; } }
+
+  // Memory, CPU load and the parent process without WMI (Get-CimInstance
+  // costs a second or so per query under Windows PowerShell).
+  [StructLayout(LayoutKind.Sequential)]
+  struct MemStatus {
+    public uint Length; public uint Load; public ulong Total; public ulong Avail;
+    public ulong PageTotal; public ulong PageAvail; public ulong VirtTotal; public ulong VirtAvail; public ulong Ext;
+  }
+  [DllImport("kernel32.dll")] static extern bool GlobalMemoryStatusEx(ref MemStatus m);
+  [DllImport("kernel32.dll")] static extern bool GetSystemTimes(out long idle, out long kernel, out long user);
+
+  [StructLayout(LayoutKind.Sequential)]
+  struct ProcBasic {
+    public IntPtr Exit; public IntPtr PebBase; public IntPtr Affinity; public IntPtr Priority;
+    public IntPtr UniquePid; public IntPtr ParentPid;
+  }
+  [DllImport("ntdll.dll")] static extern int NtQueryInformationProcess(IntPtr h, int cls, ref ProcBasic info, int len, out int ret);
+
+  public static long[] Mem() {
+    MemStatus m = new MemStatus();
+    m.Length = (uint)Marshal.SizeOf(typeof(MemStatus));
+    if (!GlobalMemoryStatusEx(ref m)) return null;
+    return new long[] { (long)m.Total, (long)m.Avail };
+  }
+
+  // Percent of CPU time busy over a short sample, or -1.
+  public static double Load(int ms) {
+    long i1, k1, u1, i2, k2, u2;
+    if (!GetSystemTimes(out i1, out k1, out u1)) return -1;
+    Thread.Sleep(ms);
+    if (!GetSystemTimes(out i2, out k2, out u2)) return -1;
+    double total = (k2 - k1) + (u2 - u1);
+    if (total <= 0) return -1;
+    return 100.0 * (total - (i2 - i1)) / total;
+  }
+
+  // The parent process id of this process, or 0.
+  public static int ParentPid() {
+    ProcBasic pbi = new ProcBasic();
+    int ret;
+    if (NtQueryInformationProcess(Process.GetCurrentProcess().Handle, 0, ref pbi, Marshal.SizeOf(typeof(ProcBasic)), out ret) != 0) return 0;
+    return (int)pbi.ParentPid.ToInt64();
+  }
 
   // Hard-link every file of src into dst (directories created as needed).
   public static int LinkTree(string src, string dst) {
@@ -340,6 +396,27 @@ public static class GowayNative {
   }
 }
 '@
+
+# Compile the helper once per script version into a DLL next to the script
+# and load that afterwards (Windows PowerShell only; about a tenth of a
+# second against a quarter for compiling every time). Any trouble falls back
+# to compiling in memory.
+function Load-Native {
+  if ($script:NativeLoaded) { return }
+  if ($script:Ver -lt 6 -and $script:SelfPath) {
+    $dll = [IO.Path]::Combine([IO.Path]::GetDirectoryName($script:SelfPath), [IO.Path]::GetFileNameWithoutExtension($script:SelfPath) + '.native.dll')
+    if (-not [IO.File]::Exists($dll)) {
+      $tmp = "$dll.$PID.tmp"
+      try {
+        Add-Type -TypeDefinition $script:NativeSource -OutputAssembly $tmp
+        if ([IO.File]::Exists($dll)) { [IO.File]::Delete($tmp) } else { [IO.File]::Move($tmp, $dll) }
+      } catch { try { [IO.File]::Delete($tmp) } catch { } }
+    }
+    if ([IO.File]::Exists($dll)) {
+      try { Add-Type -Path $dll; $script:NativeLoaded = $true; return } catch { try { [IO.File]::Delete($dll) } catch { } }
+    }
+  }
+  Add-Type -TypeDefinition $script:NativeSource
   $script:NativeLoaded = $true
 }
 
@@ -668,14 +745,14 @@ function Verb-receive([string[]]$A) {
   $gen = Get-Gen $seed
   $attempt = if ($A.Length -gt 7) { $A[7] } else { '' }
   if ($attempt -and $attempt -notmatch '^[A-Za-z0-9-]+$') { Die 'receive: bad attempt id' }
-  $stdin = [Console]::OpenStandardInput()
+  $stdin = Get-Stdin
   if ($gen -ne $A[3]) {
     foreach ($f in [IO.Directory]::EnumerateFiles($seed, 'deletions.*')) { [IO.File]::Delete($f) }
     foreach ($f in [IO.Directory]::EnumerateFiles($seed, 'changes.*')) { [IO.File]::Delete($f) }
     Write-Err ('goway-remote: seed changed (have "{0}", expected "{1}")' -f $gen, $A[3])
     Write-Err "`n"
     $stdin.CopyTo([IO.Stream]::Null)
-    exit 75
+    Exit-Verb 75
   }
   $tree = P $seed @('tree')
   if (-not [IO.Directory]::Exists($tree)) {
@@ -770,10 +847,13 @@ function Resolve-Program([string]$Name) {
   return $null
 }
 
-# Run a program to completion with $Stdin on its standard input; returns
+# Run a program to completion with an empty standard input; returns
 # @(exit code, stdout bytes). $Env adds environment variables. Standard
-# error is discarded.
-function Invoke-Native([string]$Exe, [string[]]$Words, [byte[]]$Stdin, [hashtable]$Env) {
+# error is discarded. There is deliberately no way to feed it input: under
+# Windows PowerShell 5.1 the redirected stdin is a StreamWriter in the
+# console code page, and with code page 65001 it sends a UTF-8 BOM first
+# (what made git read "\uFEFFout" as a path on CI).
+function Invoke-Native([string]$Exe, [string[]]$Words, [hashtable]$Env) {
   $psi = New-Object Diagnostics.ProcessStartInfo
   $psi.FileName = $Exe
   $psi.Arguments = Join-WinArgs $Words
@@ -784,7 +864,6 @@ function Invoke-Native([string]$Exe, [string[]]$Words, [byte[]]$Stdin, [hashtabl
   if ($Env) { foreach ($k in $Env.Keys) { $psi.EnvironmentVariables[$k] = [string]$Env[$k] } }
   $p = [Diagnostics.Process]::Start($psi)
   $errTask = $p.StandardError.BaseStream.CopyToAsync([IO.Stream]::Null)
-  if ($Stdin -and $Stdin.Length) { $p.StandardInput.BaseStream.Write($Stdin, 0, $Stdin.Length) }
   $p.StandardInput.Close()
   $ms = New-Object IO.MemoryStream
   $p.StandardOutput.BaseStream.CopyTo($ms)
@@ -796,7 +875,7 @@ function Invoke-Native([string]$Exe, [string[]]$Words, [byte[]]$Stdin, [hashtabl
 # The first line of `$Exe $Words` (a tool's version), or '' on failure.
 function Tool-Version([string]$Exe, [string[]]$Words) {
   try {
-    $r = Invoke-Native $Exe $Words $null $null
+    $r = Invoke-Native $Exe $Words $null
     if ($r[0] -ne 0) { return '' }
     $t = $script:Utf8.GetString($r[1]).Trim()
     $nl = $t.IndexOf("`n")
@@ -816,7 +895,7 @@ function Get-Arch {
       default { return [string]$env:PROCESSOR_ARCHITECTURE }
     }
   }
-  $r = Invoke-Native (Resolve-Program 'uname') @('-m') $null $null
+  $r = Invoke-Native (Resolve-Program 'uname') @('-m') $null
   return $script:Utf8.GetString($r[1]).Trim()
 }
 
@@ -825,6 +904,11 @@ function Get-OsName { if ($script:IsWin) { return 'windows' } else { return 'lin
 function Get-Mem {
   # @(total bytes, available bytes) or $null
   if ($script:IsWin) {
+    try {
+      Load-Native
+      $m = [GowayNative]::Mem()
+      if ($m) { return @($m[0], $m[1]) }
+    } catch { }
     $o = Get-CimInstance Win32_OperatingSystem
     return @(([long]$o.TotalVisibleMemorySize * 1024), ([long]$o.FreePhysicalMemory * 1024))
   }
@@ -839,9 +923,13 @@ function Get-Mem {
 function Get-Load {
   $cores = [Environment]::ProcessorCount
   if ($script:IsWin) {
-    $pct = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average
-    if ($null -eq $pct) { $pct = 0 }
-    $l = ('{0:0.00}' -f ($cores * $pct / 100.0))
+    $pct = -1.0
+    try { Load-Native; $pct = [GowayNative]::Load(60) } catch { }
+    if ($pct -lt 0) {
+      $pct = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average
+      if ($null -eq $pct) { $pct = 0 }
+    }
+    $l = ($cores * $pct / 100.0).ToString('0.00', [Globalization.CultureInfo]::InvariantCulture)
     return @($l, $l, $l)
   }
   $f = (Read-TextOrEmpty '/proc/loadavg').Split(' ')
@@ -854,7 +942,7 @@ function GPU-Query([string]$Query) {
   $exe = Resolve-Program 'nvidia-smi'
   if (-not $exe) { return @() }
   try {
-    $r = Invoke-Native $exe @("--query-gpu=$Query", '--format=csv,noheader,nounits') $null $null
+    $r = Invoke-Native $exe @("--query-gpu=$Query", '--format=csv,noheader,nounits') $null
     if ($r[0] -ne 0) { return @() }
     return @($script:Utf8.GetString($r[1]).Split("`n") | ForEach-Object { $_.Trim("`r") } | Where-Object { $_ })
   } catch { return @() }
@@ -868,7 +956,7 @@ function Static-Facts {
   if ($exe) {
     $cuda = ''
     try {
-      $r = Invoke-Native $exe @() $null $null
+      $r = Invoke-Native $exe @() $null
       if ($script:Utf8.GetString($r[1]) -match 'CUDA Version: ([0-9.]+)') { $cuda = $Matches[1] }
     } catch { }
     foreach ($line in (GPU-Query 'name,memory.total,driver_version')) {
@@ -902,7 +990,7 @@ function Static-Facts {
   [void]$sb.Append("kvm=$kvm`n")
   $docker = 0
   $d = Resolve-Program 'docker'
-  if ($d) { try { if ((Invoke-Native $d @('info') $null $null)[0] -eq 0) { $docker = 1 } } catch { } }
+  if ($d) { try { if ((Invoke-Native $d @('info') $null)[0] -eq 0) { $docker = 1 } } catch { } }
   [void]$sb.Append("docker=$docker`n")
   $win = ''
   if ($script:IsWin) {
@@ -1301,12 +1389,25 @@ function Get-GitIgnored([string]$Farm, [string[]]$Paths, [string]$Scratch) {
   $git = Resolve-Program 'git'
   if (-not $git -or $Paths.Count -eq 0) { return @() }
   $gitdir = [IO.Path]::Combine($Scratch, 'git')
-  $null = Invoke-Native $git @('init', '-q', '--bare', $gitdir) $null $null
-  $ms = New-Object IO.MemoryStream
-  foreach ($p in $Paths) { $b = $script:Utf8.GetBytes($p); $ms.Write($b, 0, $b.Length); $ms.WriteByte(0) }
+  $null = Invoke-Native $git @('init', '-q', '--bare', $gitdir) $null
   $null_ = if ($script:IsWin) { 'NUL' } else { '/dev/null' }
-  $r = Invoke-Native $git @('-c', "core.excludesFile=$null_", 'check-ignore', '--no-index', '-z', '--stdin') $ms.ToArray() @{ GIT_DIR = $gitdir; GIT_WORK_TREE = $Farm }
-  return [string[]](Split-Nul $r[1])
+  $out = New-Object System.Collections.Generic.List[string]
+  # The paths go as arguments, in batches under the command line limit.
+  $i = 0
+  while ($i -lt $Paths.Count) {
+    $batch = New-Object System.Collections.Generic.List[string]
+    $len = 0
+    while ($i -lt $Paths.Count -and ($batch.Count -eq 0 -or $len + $Paths[$i].Length + 3 -lt 16000)) {
+      $batch.Add($Paths[$i]); $len += $Paths[$i].Length + 3; $i++
+    }
+    $words = @('-c', "core.excludesFile=$null_", '-c', 'core.quotepath=false', 'check-ignore', '--no-index', '--') + $batch.ToArray()
+    $r = Invoke-Native $git $words @{ GIT_DIR = $gitdir; GIT_WORK_TREE = $Farm }
+    foreach ($line in $script:Utf8.GetString($r[1]).Split("`n")) {
+      $line = $line.TrimEnd("`r")
+      if ($line) { $out.Add($line) }
+    }
+  }
+  return [string[]]$out.ToArray()
 }
 
 # Update $Slot in place so it holds exactly the files of $Farm (the run's
@@ -1490,12 +1591,12 @@ function Verify-Gate([string]$Work, [int]$Phase, [string]$Dir, [string[]]$Paths,
   [IO.File]::WriteAllBytes($tmp, $ms.ToArray())
   [IO.File]::Move($tmp, (P $Work @("verify.$Phase")))
   $verdict = P $Work @("verdict.$Phase")
-  for ($i = 0; $i -lt 1200; $i++) {
+  for ($i = 0; $i -lt 4800; $i++) {
     if ([IO.File]::Exists($verdict)) {
       return ((Read-TextOrEmpty $verdict).Trim() -eq 'ok')
     }
-    if (-not (Test-ParentAlive)) { return $false }
-    Start-Sleep -Milliseconds 100
+    if (($i % 8) -eq 7 -and -not (Test-ParentAlive)) { return $false }
+    Start-Sleep -Milliseconds 25
   }
   return $false
 }
@@ -1512,7 +1613,7 @@ function Verb-verify-wait([string[]]$A) {
     $window = [math]::Min([int]$A[3], 55)
   }
   $seen = 0
-  for ($i = 0; $i -lt $window * 10; $i++) {
+  for ($i = 0; $i -lt $window * 40; $i++) {
     $v = P $work @("verify.$($A[2])")
     if ([IO.File]::Exists($v)) {
       Write-Out "ready`n"
@@ -1524,12 +1625,12 @@ function Verb-verify-wait([string[]]$A) {
       $fs = Get-Lock $lock $true 0
       if ($fs) {
         $fs.Dispose(); $seen++
-        if ($seen -ge 3) { Write-Out "ended`n"; return }
+        if ($seen -ge 12) { Write-Out "ended`n"; return }
       } else { $seen = 0 }
     } elseif (-not [IO.Directory]::Exists($work)) {
       Write-Out "ended`n"; return
     }
-    Start-Sleep -Milliseconds 100
+    Start-Sleep -Milliseconds 25
   }
   Write-Out "pending`n"
 }
@@ -1555,11 +1656,12 @@ function Get-ParentPid {
     try { return [int](Get-Process -Id $PID).Parent.Id } catch { }
   }
   if ($script:IsWin) {
+    try { Load-Native; $pp = [GowayNative]::ParentPid(); if ($pp -gt 0) { return $pp } } catch { }
     try { return [int](Get-CimInstance Win32_Process -Filter "ProcessId=$PID").ParentProcessId } catch { return 0 }
   }
   $ps = Resolve-Program 'ps'
   if ($ps) {
-    $r = Invoke-Native $ps @('-o', 'ppid=', '-p', "$PID") $null $null
+    $r = Invoke-Native $ps @('-o', 'ppid=', '-p', "$PID") $null
     $t = $script:Utf8.GetString($r[1]).Trim()
     if ($t -match '^\d+$') { return [int]$t }
   }
@@ -1812,6 +1914,27 @@ function Get-Stamps([string]$Tree) {
   return ,$d
 }
 
+# Whether any work, seed or cache entry is old enough (by the shortest TTL)
+# for gc to want it; a run starts the detached gc only then, instead of a
+# PowerShell per run that finds nothing.
+function Test-GcDue([string]$Root, [string]$Ttls) {
+  $t = $Ttls.Split(':')
+  if ($t.Length -lt 3) { return $false }
+  $min = [long]([Linq.Enumerable]::Min([long[]]@([long]$t[0], [long]$t[1], [long]$t[2])))
+  $now = Unix-Secs
+  $dirs = New-Object System.Collections.Generic.List[string]
+  foreach ($kind in @('work', 'cache')) {
+    $d = P (Get-Root $Root) @($kind)
+    if ([IO.Directory]::Exists($d)) { foreach ($e in [IO.Directory]::EnumerateDirectories($d)) { $dirs.Add($e) } }
+  }
+  $seed = P (Get-Root $Root) @('seed')
+  if ([IO.Directory]::Exists($seed)) {
+    foreach ($r in [IO.Directory]::EnumerateDirectories($seed)) { foreach ($e in [IO.Directory]::EnumerateDirectories($r)) { $dirs.Add($e) } }
+  }
+  foreach ($e in $dirs) { if ((Age-Of $e $now) -ge $min) { return $true } }
+  return $false
+}
+
 # A cheap automatic gc of expired entries, detached: it never delays the
 # exit and never holds the ssh session's pipes open.
 function Start-AutoGc([string]$RootArg, [string]$Ttls) {
@@ -2009,7 +2132,7 @@ function Verb-run([string[]]$A) {
   Unlock-Key 'work'
   if ($keep -ne '1') { try { Remove-Tree $work } catch { } }
   # Cheap automatic gc of expired entries, detached.
-  if ($ttls) { Start-AutoGc $rootArg $ttls }
+  if ($ttls -and (Test-GcDue $rootArg $ttls)) { Start-AutoGc $rootArg $ttls }
   exit $rc
 }
 
@@ -2024,6 +2147,92 @@ function Fail-Verify([int]$Phase, [int]$Slot, [string]$Cache, [string]$SeedKey, 
   exit 125
 }
 
+# ---- session ---------------------------------------------------------------
+
+# Run one verb (not run, which owns this process's standard handles).
+function Invoke-Verb([string]$Verb, [string[]]$Rest) {
+  switch ($Verb) {
+    'ping' { Write-Out "goway-remote ok`n" }
+    'manifest' { Verb-manifest $Rest }
+    'hashes' { Verb-hashes $Rest }
+    'deletions' { Verb-deletions $Rest }
+    'changes' { Verb-changes $Rest }
+    'receive' { Verb-receive $Rest }
+    'envfile' { Verb-envfile $Rest }
+    'argsfile' { Verb-argsfile $Rest }
+    'probe' { Verb-probe $Rest }
+    'gc' { Verb-gc $Rest }
+    'auto-gc' { Verb-auto-gc $Rest }
+    'doctor' { Verb-doctor $Rest }
+    'purge' { Verb-purge $Rest }
+    'verify-wait' { Verb-verify-wait $Rest }
+    'verify-verdict' { Verb-verify-verdict $Rest }
+    default { Die "unknown verb: $Verb" }
+  }
+}
+
+function Read-Frame([IO.Stream]$S, [int]$Count) {
+  $buf = New-Object byte[] $Count
+  $got = 0
+  while ($got -lt $Count) {
+    $n = $S.Read($buf, $got, $Count - $got)
+    if ($n -le 0) { return $null }
+    $got += $n
+  }
+  return ,$buf
+}
+
+function Write-Be32([IO.Stream]$S, [int]$V) {
+  $b = [BitConverter]::GetBytes([int][Net.IPAddress]::HostToNetworkOrder($V))
+  $S.Write($b, 0, 4)
+}
+
+# session: serve many verbs in this one process, saving a PowerShell start
+# per call. Frames on stdin: 4-byte big-endian ARGS length and INPUT length,
+# the NUL-terminated ARGS (verb first), the INPUT bytes. Answer: 4-byte
+# exit code, OUT length, ERR length, OUT, ERR. The first line printed is
+# "goway-session1". Ends at end of input.
+function Verb-session([string[]]$A) {
+  $script:InSession = $true
+  $in = [Console]::OpenStandardInput()
+  $realOut = $script:Stdout; $realErr = $script:Stderr
+  Write-Out "goway-session1`n"
+  while ($true) {
+    $head = Read-Frame $in 8
+    if ($null -eq $head) { break }
+    $argsLen = [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($head, 0))
+    $inLen = [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($head, 4))
+    $argBytes = if ($argsLen -gt 0) { Read-Frame $in $argsLen } else { ,(New-Object byte[] 0) }
+    $inBytes = if ($inLen -gt 0) { Read-Frame $in $inLen } else { ,(New-Object byte[] 0) }
+    if ($null -eq $argBytes -or $null -eq $inBytes) { break }
+    [string[]]$words = [string[]](Split-Nul $argBytes)
+    $out = New-Object IO.MemoryStream; $err = New-Object IO.MemoryStream
+    $script:Stdout = $out; $script:Stderr = $err
+    $script:SessionIn = New-Object IO.MemoryStream (, $inBytes)
+    $code = 0
+    try {
+      if ($words.Count -eq 0 -or $words[0] -eq 'session' -or $words[0] -eq 'run') { Die 'session: verb not allowed' }
+      [string[]]$rest = @()
+      if ($words.Count -gt 1) { $rest = [string[]]@($words[1..($words.Count - 1)]) }
+      Invoke-Verb $words[0] $rest
+    } catch {
+      $m = [string]$_
+      if ($m -match '^goway-exit:(\d+)$') { $code = [int]$Matches[1] }
+      else {
+        Write-Err ("goway-remote: failed: {0}`n" -f $_.Exception.Message)
+        $code = 125
+      }
+    } finally {
+      foreach ($k in @($script:Held.Keys)) { Unlock-Key $k }
+    }
+    $script:Stdout = $realOut; $script:Stderr = $realErr
+    $ob = $out.ToArray(); $eb = $err.ToArray()
+    Write-Be32 $realOut $code; Write-Be32 $realOut $ob.Length; Write-Be32 $realOut $eb.Length
+    $realOut.Write($ob, 0, $ob.Length); $realOut.Write($eb, 0, $eb.Length)
+    $realOut.Flush()
+  }
+}
+
 # ---- main ----------------------------------------------------------------------
 
 if ($args.Count -lt 1) { Die 'no verb' }
@@ -2031,22 +2240,8 @@ $verb = [string]$args[0]
 [string[]]$rest = @()
 if ($args.Count -gt 1) { $rest = @($args[1..($args.Count - 1)] | ForEach-Object { [string]$_ }) }
 switch ($verb) {
-  'ping' { Write-Out "goway-remote ok`n" }
-  'manifest' { Verb-manifest $rest }
-  'hashes' { Verb-hashes $rest }
-  'deletions' { Verb-deletions $rest }
-  'changes' { Verb-changes $rest }
-  'receive' { Verb-receive $rest }
-  'envfile' { Verb-envfile $rest }
-  'argsfile' { Verb-argsfile $rest }
   'run' { Verb-run $rest }
-  'probe' { Verb-probe $rest }
-  'gc' { Verb-gc $rest }
-  'auto-gc' { Verb-auto-gc $rest }
-  'doctor' { Verb-doctor $rest }
-  'purge' { Verb-purge $rest }
-  'verify-wait' { Verb-verify-wait $rest }
-  'verify-verdict' { Verb-verify-verdict $rest }
-  default { Die "unknown verb: $verb" }
+  'session' { Verb-session $rest }
+  default { Invoke-Verb $verb $rest }
 }
 exit 0

@@ -45,6 +45,17 @@ chmods, and it can be undone.
    pool if it was new (pinning exactly the key you confirmed in step 1),
    and save the record.
 
+## When the password login does not work
+
+If the helper refuses the password (no password set, password login
+off, a second factor), goway prints its public key line and the exact
+commands to add it by hand, waits for Enter, and continues once key
+login works. `--no-password` (on `goway add` and `goway ssh setup`)
+does this from the start; on a terminal goway also asks "Do you know the
+password of USER on NAME? [Y/n]" first, and `n` does the same. ssh gets
+one password attempt only. See "goway add says Permission denied" in
+[troubleshooting.md](troubleshooting.md).
+
 ## Undo
 
 Every change is a journal entry with its prior state (the same journal

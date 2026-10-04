@@ -180,13 +180,18 @@ pub enum Activation {
 pub struct HostSystem<R: Runner = ProcessRunner> {
     local: LocalSystem,
     runner: R,
-    distro: String,
+    pub(crate) distro: String,
+    /// Never start the distro: it is only touched while `wsl.exe --list --running` shows it
+    /// (set for an elevated process, whose token WSL interop would otherwise inherit).
+    never_start: bool,
 }
 
 impl HostSystem<ProcessRunner> {
-    /// A system acting on `distro` through real processes.
+    /// A system acting on `distro` through real processes; an elevated process never starts the
+    /// distro (see [`HostSystem::never_start_wsl`]).
     pub fn new(distro: &str) -> Self {
         Self::with_runner(distro, ProcessRunner)
+            .never_start_wsl(cfg!(windows) && crate::elevate::is_elevated())
     }
 }
 
@@ -235,7 +240,44 @@ impl<R: Runner> HostSystem<R> {
             local: LocalSystem,
             runner,
             distro: distro.to_owned(),
+            never_start: false,
         }
+    }
+
+    /// Whether to refuse every distro command while the distro is not running, so goway never
+    /// starts WSL itself: WSL interop runs Windows programs with the token of whatever started
+    /// WSL, and an elevated goway would hand administrator rights to every WSL user.
+    #[must_use]
+    pub fn never_start_wsl(mut self, on: bool) -> Self {
+        self.never_start = on;
+        self
+    }
+
+    /// Whether `wsl.exe --list --running` shows the distro (never starts it).
+    pub fn distro_running(&self) -> SysResult<bool> {
+        let inv = Invocation {
+            program: tool_path(Tool::Wsl),
+            args: ["--list", "--running", "--quiet"]
+                .map(str::to_owned)
+                .to_vec(),
+            stdin: None,
+        };
+        let out = self.run("list running WSL distros", &inv)?;
+        Ok(parse_distro_list(&out.text())
+            .iter()
+            .any(|d| d.eq_ignore_ascii_case(&self.distro)))
+    }
+
+    /// Fail unless the distro may be touched: always when not guarded, else only while running.
+    fn ensure_startable(&self) -> SysResult<()> {
+        if !self.never_start || self.distro_running()? {
+            return Ok(());
+        }
+        tracing::error!(distro = %self.distro, "refusing to start WSL from an elevated process");
+        Err(SystemError::InvalidState(format!(
+            "WSL distro {0} is not running, and goway never starts WSL from an elevated process (WSL interop would run Windows programs as administrator for every user of the distro). Start it from a normal, non-administrator terminal (`wsl -d {0} --exec true`), then run this again",
+            self.distro
+        )))
     }
 
     fn run(&self, what: &str, inv: &Invocation) -> SysResult<Output> {
@@ -259,6 +301,7 @@ impl<R: Runner> HostSystem<R> {
 
     /// Run `argv` as root inside the distro and return its output whatever the exit code.
     fn wsl_raw(&self, argv: &[&str], stdin: Option<&[u8]>) -> SysResult<Output> {
+        self.ensure_startable()?;
         self.run(
             &format!("wsl {}", argv.join(" ")),
             &self.wsl_invocation(argv, false, stdin),
@@ -277,6 +320,7 @@ impl<R: Runner> HostSystem<R> {
 
     /// Run `argv` inside the distro as the distro's default user (no `-u root`).
     fn wsl_user(&self, argv: &[&str]) -> SysResult<Output> {
+        self.ensure_startable()?;
         self.run(
             &format!("wsl (user) {}", argv.join(" ")),
             &self.wsl_invocation(argv, true, None),
@@ -443,6 +487,43 @@ impl<R: Runner> HostSystem<R> {
         }
     }
 
+    /// Whether the invoking account belongs to Administrators (also with a UAC-filtered token);
+    /// `false` when it cannot be told.
+    pub fn admin_account(&self) -> bool {
+        match self.powershell("query administrator membership", &ps::admin_account()) {
+            Ok(out) => out.text().eq_ignore_ascii_case("true"),
+            Err(e) => {
+                tracing::warn!(error = %e, "could not tell whether the account is an administrator");
+                false
+            }
+        }
+    }
+
+    /// How many goway jobs hold a work-directory lock in the distro (0 when it is not running:
+    /// nothing runs there, and asking must not start it). `root` is goway's remote root, relative
+    /// to the default user's home.
+    pub fn goway_jobs_running(&self, root: &str) -> SysResult<u32> {
+        if !self.distro_running()? {
+            return Ok(0);
+        }
+        let out = self.wsl_user(&[
+            "sh",
+            "-c",
+            "n=0; for l in \"$HOME\"/\"$1\"/work/*/lock; do [ -e \"$l\" ] || continue; flock -n \"$l\" true || n=$((n + 1)); done; echo $n",
+            "goway-jobs",
+            root,
+        ])?;
+        out.text()
+            .parse()
+            .map_err(|_| cmd_error("count goway jobs", &out))
+    }
+
+    /// Whether the distro's `/etc/wsl.conf` sets `[interop] enabled=false`.
+    pub fn interop_disabled(&self) -> SysResult<bool> {
+        let out = self.wsl_raw(&["cat", crate::host::WSL_CONF], None)?;
+        Ok(out.success() && parse_interop_disabled(&out.text()))
+    }
+
     /// `networkingMode` in the user's `.wslconfig` under `home`, if the file sets one.
     pub fn wslconfig_network(&self, home: &Path) -> SysResult<Option<String>> {
         let text = self.local.read_file(&home.join(".wslconfig"))?;
@@ -519,6 +600,8 @@ impl<R: Runner> HostSystem<R> {
             windows_build: self.windows_build(),
             wslconfig_network: self.wslconfig_network(home)?,
             portproxy: self.portproxy_rules()?,
+            admin_account: self.admin_account(),
+            interop_disabled: self.interop_disabled()?,
         };
         tracing::info!(?facts, "probed host");
         Ok(facts)
@@ -659,22 +742,32 @@ pub fn probe_wsl(runner: &impl Runner, wsl_exe: bool) -> WslProbe {
     probe
 }
 
-/// The `networkingMode` value in `[wsl2]` of `.wslconfig` text (key and section names are not
-/// case sensitive to WSL); `None` when the file does not set it.
-pub fn parse_networking_mode(text: &str) -> Option<String> {
-    let mut in_wsl2 = false;
+/// The last value of `key` in `[section]` of INI text (section and key names are not case
+/// sensitive to WSL); `None` when the file does not set it.
+pub fn ini_value(text: &str, section: &str, key: &str) -> Option<String> {
+    let mut in_section = false;
     let mut found = None;
     for line in text.lines().map(str::trim) {
         if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
-            in_wsl2 = name.trim().eq_ignore_ascii_case("wsl2");
-        } else if in_wsl2
-            && let Some((key, value)) = line.split_once('=')
-            && key.trim().eq_ignore_ascii_case("networkingMode")
+            in_section = name.trim().eq_ignore_ascii_case(section);
+        } else if in_section
+            && let Some((k, value)) = line.split_once('=')
+            && k.trim().eq_ignore_ascii_case(key)
         {
             found = Some(value.trim().to_owned());
         }
     }
     found
+}
+
+/// The `networkingMode` value in `[wsl2]` of `.wslconfig` text; `None` when the file does not set it.
+pub fn parse_networking_mode(text: &str) -> Option<String> {
+    ini_value(text, "wsl2", "networkingMode")
+}
+
+/// Whether `wsl.conf` text sets `[interop] enabled=false`.
+pub fn parse_interop_disabled(text: &str) -> bool {
+    ini_value(text, "interop", "enabled").is_some_and(|v| v.eq_ignore_ascii_case("false"))
 }
 
 /// Ports from `sshd -T` output (`port 2222` lines).

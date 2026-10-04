@@ -21,6 +21,7 @@ pub mod render;
 pub mod safefile;
 pub mod stage;
 pub mod sysapi;
+pub mod tune;
 pub mod windows;
 
 /// The goway.exe embedded at build time (empty when built without `GOWAY_PAYLOAD`).

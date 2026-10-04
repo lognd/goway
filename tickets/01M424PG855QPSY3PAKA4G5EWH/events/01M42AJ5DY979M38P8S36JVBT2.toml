@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-04T02:05:52Z"
+digest = "34fe4a2d238510de864b431286a09a722dbdb894161b9c012325f4a2b1eb80cd"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID fda11fc4-ff2a-4286-a9db-f69ea7a50012 with nextest profile: default
+    Starting 1 test across 45 binaries (559 tests skipped)
+        PASS [   0.030s] goway-setup::host_plan boot_keepalive_on_an_administrator_needs_interop_off_or_an_explicit_flag
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.034s] 1 test run: 1 passed, 559 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(boot_keepalive_on_an_administrator_needs_interop_off_or_an_explicit_flag)'"
+size = 589
+status = "measured"
+tests = ["boot_keepalive_on_an_administrator_needs_interop_off_or_an_explicit_flag"]
+at = "2026-10-04T02:05:52Z"
+actor = "lognd"
+rev = 1

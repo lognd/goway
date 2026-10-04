@@ -92,6 +92,11 @@ pub fn args(target: &Target, settings: &Settings, policy: KeyPolicy) -> Vec<OsSt
     };
     let mut opts = vec![
         "BatchMode=yes".to_owned(),
+        // Key login only, never a password prompt: a failed attempt counts
+        // toward fail2ban and sshguard limits (`allow_password` relaxes this
+        // for the one deliberate password login of `goway add`).
+        "PreferredAuthentications=publickey".to_owned(),
+        "NumberOfPasswordPrompts=0".to_owned(),
         format!("HostKeyAlias={}", key_alias(&target.name)),
         format!("StrictHostKeyChecking={strict}"),
         format!("UserKnownHostsFile={}", option_value(&settings.known_hosts)),
@@ -205,18 +210,68 @@ pub fn command(target: &Target, settings: &Settings, policy: KeyPolicy, remote: 
     cmd
 }
 
-/// Let `cmd` (built by [`command`]) ask for a password: `BatchMode=no`.
-pub fn allow_password(cmd: &mut Command) {
-    let args: Vec<OsString> = cmd
-        .get_args()
-        .map(|a| {
-            if a == "BatchMode=yes" {
-                OsString::from("BatchMode=no")
-            } else {
-                OsString::from(a)
+/// How ssh names the host in its password prompt: ssh shows the `HostKeyAlias`,
+/// so the prompt would read `user@goway-NAME` unless the alias is swapped for
+/// the name the user typed, with a `known_hosts` copy keyed by that name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PasswordPrompt {
+    /// The name shown in ssh's prompt (what the user typed).
+    pub shown: String,
+    /// A `known_hosts` file whose entries are keyed by `shown`.
+    pub known_hosts: PathBuf,
+}
+
+impl PasswordPrompt {
+    /// Copy the pinned entries of `name` from `source` to `dest` keyed by the plain name.
+    ///
+    /// # Errors
+    ///
+    /// The I/O error when `dest` cannot be written; a missing `source` gives an empty file.
+    pub fn create(name: &str, source: &Path, dest: &Path) -> std::io::Result<Self> {
+        let alias = key_alias(name);
+        let text = std::fs::read_to_string(source).unwrap_or_default();
+        let mut out = String::new();
+        for line in text.lines() {
+            if let Some(rest) = line.strip_prefix(&format!("{alias} ")) {
+                out.push_str(name);
+                out.push(' ');
+                out.push_str(rest);
+                out.push('\n');
             }
+        }
+        std::fs::write(dest, out)?;
+        Ok(Self {
+            shown: name.to_owned(),
+            known_hosts: dest.to_owned(),
         })
-        .collect();
+    }
+}
+
+/// Let `cmd` (built by [`command`]) ask for a password exactly once:
+/// `BatchMode=no`, password methods only (no agent keys are offered), one
+/// prompt, so a wrong password is one failed attempt and never a ban. With
+/// `prompt`, the host is shown under the name the user typed.
+pub fn allow_password(cmd: &mut Command, prompt: Option<&PasswordPrompt>) {
+    let args: Vec<OsString> =
+        cmd.get_args()
+            .map(|a| {
+                let text = a.to_string_lossy();
+                match (&*text, prompt) {
+                    ("BatchMode=yes", _) => OsString::from("BatchMode=no"),
+                    ("PreferredAuthentications=publickey", _) => {
+                        OsString::from("PreferredAuthentications=password,keyboard-interactive")
+                    }
+                    ("NumberOfPasswordPrompts=0", _) => OsString::from("NumberOfPasswordPrompts=1"),
+                    (t, Some(p)) if t.starts_with("HostKeyAlias=") => {
+                        OsString::from(format!("HostKeyAlias={}", p.shown))
+                    }
+                    (t, Some(p)) if t.starts_with("UserKnownHostsFile=") => OsString::from(
+                        format!("UserKnownHostsFile={}", option_value(&p.known_hosts)),
+                    ),
+                    _ => OsString::from(a),
+                }
+            })
+            .collect();
     let mut rebuilt = Command::new(cmd.get_program());
     rebuilt.args(args);
     scrub_env(&mut rebuilt);
@@ -560,5 +615,61 @@ mod tests {
         for (text, want) in cases {
             assert_eq!(classify_failure(text), want, "{text}");
         }
+    }
+
+    // frob:tests crates/goway/src/ssh.rs::allow_password
+    #[test]
+    fn a_password_login_asks_once_under_the_name_the_user_typed() {
+        let build = || {
+            let mut cmd = Command::new("ssh");
+            cmd.args(args(&target(), &settings(), KeyPolicy::Strict));
+            cmd
+        };
+        let shown = |cmd: &Command| -> Vec<String> {
+            cmd.get_args()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect()
+        };
+        let keys_only = shown(&build());
+        assert!(keys_only.contains(&"NumberOfPasswordPrompts=0".to_owned()));
+        assert!(keys_only.contains(&"PreferredAuthentications=publickey".to_owned()));
+
+        let mut cmd = build();
+        let prompt = PasswordPrompt {
+            shown: "helios".to_owned(),
+            known_hosts: PathBuf::from("/tmp/prompt hosts"),
+        };
+        allow_password(&mut cmd, Some(&prompt));
+        let args = shown(&cmd);
+        for want in [
+            "BatchMode=no",
+            "NumberOfPasswordPrompts=1",
+            "PreferredAuthentications=password,keyboard-interactive",
+            "HostKeyAlias=helios",
+        ] {
+            assert!(args.contains(&want.to_owned()), "{want} in {args:?}");
+        }
+        assert!(!args.iter().any(|a| a.contains("goway-helios")), "{args:?}");
+        assert!(
+            args.iter()
+                .any(|a| a.starts_with("UserKnownHostsFile=") && a.contains("prompt hosts"))
+        );
+    }
+
+    // frob:tests crates/goway/src/ssh.rs::PasswordPrompt
+    #[test]
+    fn the_prompt_known_hosts_keeps_only_this_hosts_entries_under_its_plain_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let (src, dst) = (dir.path().join("kh"), dir.path().join("prompt"));
+        std::fs::write(
+            &src,
+            "goway-helios ssh-ed25519 AAAA\ngoway-other ssh-ed25519 BBBB\n",
+        )
+        .unwrap();
+        PasswordPrompt::create("helios", &src, &dst).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&dst).unwrap(),
+            "helios ssh-ed25519 AAAA\n"
+        );
     }
 }

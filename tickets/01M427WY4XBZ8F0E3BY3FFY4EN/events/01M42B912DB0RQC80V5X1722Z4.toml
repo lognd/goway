@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T02:18:21Z"
+digest = "13effc54041550309d31deef77e854aeee86404d9447e13711041ac4da4db999"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 0215d934-c256-40ab-8b9e-c8ce9ea338d9 with nextest profile: default
+    Starting 1 test across 46 binaries (565 tests skipped)
+        PASS [   1.229s] goway::with_git committed_secret_looking_files_are_not_in_the_helpers_objects
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.233s] 1 test run: 1 passed, 565 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "committed_secret_looking"
+size = 571
+status = "measured"
+tests = ["committed_secret_looking_files_are_not_in_the_helpers_objects"]
+at = "2026-10-04T02:18:21Z"
+actor = "lognd"
+rev = 1
