@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T17:35:19Z"
+digest = "7bce772121b2e8d1f6f20d4abd432a96ff0a0c4dc95d48dca6c7abf70bcacac0"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 212f3207-6f7c-483b-8af1-2190ac195051 with nextest profile: default
+    Starting 2 tests across 72 binaries (825 tests skipped)
+        PASS [   0.005s] goway status::tests::recorded_peaks_are_listed_per_host
+        PASS [  13.885s] goway::mem_footprint an_inflated_peak_ages_out_after_a_few_runs_and_gc_forgets_it
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  13.888s] 2 tests run: 2 passed, 825 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(recorded_peaks_are_listed_per_host) | test(an_inflated_peak_ages_out_after_a_few_runs_and_gc_forgets_it)'"
+size = 658
+status = "measured"
+tests = ["status::tests::recorded_peaks_are_listed_per_host", "an_inflated_peak_ages_out_after_a_few_runs_and_gc_forgets_it"]
+at = "2026-10-04T17:35:19Z"
+actor = "lognd"
+rev = 1
