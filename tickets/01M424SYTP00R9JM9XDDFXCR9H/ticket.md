@@ -2,7 +2,8 @@
 id = "01M424SYTP00R9JM9XDDFXCR9H"
 title = "A remote job outlives a client that vanished without a hangup; GPU-slot tests leak busy pollers when they fail"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
