@@ -2,13 +2,13 @@
 id = "01M43CN2BHDHCJ18X175WD6GZ8"
 title = "Local job slot race: a slot file created but not yet locked is counted as free and deleted"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T12:01:39Z"
-updated = "2026-10-04T12:01:39Z"
+updated = "2026-10-04T12:01:46Z"
 scope = ["crates/goway/src/local.rs"]
 
 [[acceptance]]
