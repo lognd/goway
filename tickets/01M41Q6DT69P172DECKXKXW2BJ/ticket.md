@@ -2,7 +2,8 @@
 id = "01M41Q6DT69P172DECKXKXW2BJ"
 title = "frob-v2 runs its Windows tests and clippy through goway before a push"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
