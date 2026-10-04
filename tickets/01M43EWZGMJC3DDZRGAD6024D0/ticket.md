@@ -7,7 +7,7 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T12:40:55Z"
-updated = "2026-10-04T15:29:28Z"
+updated = "2026-10-04T15:29:47Z"
 scope = ["crates/goway/tests/scratch_fs.rs"]
 
 [[acceptance]]
