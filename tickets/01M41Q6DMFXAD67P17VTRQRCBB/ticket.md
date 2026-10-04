@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given goway doctor on a Windows host, when it runs, then it checks powershell.exe or ssh, rustup with the msvc target, cargo-nextest and free space on the system drive, and prints exact fix commands"
-bound = false
+bound = true
 +++
