@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T00:25:16Z"
-updated = "2026-10-04T00:35:43Z"
+updated = "2026-10-04T00:36:21Z"
 scope = ["crates/goway/tests/gpu_slots.rs", "crates/goway/tests/common/mod.rs"]
 
 [[acceptance]]
