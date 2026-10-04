@@ -359,8 +359,12 @@ fn windows_lookup(name: &str) -> Vec<IpAddr> {
     {
         return Vec::new();
     }
+    // No `-Type A`: Windows' mDNS client answers a typed A query for Windows
+    // hosts but reports "DNS name does not exist" for Linux hosts advertised by
+    // avahi, while the untyped query returns their addresses. IPv4 answers are
+    // kept below (`windows_answer_ips`).
     let script = format!(
-        "Resolve-DnsName -Name '{name}' -Type A -ErrorAction SilentlyContinue | \
+        "Resolve-DnsName -Name '{name}' -ErrorAction SilentlyContinue | \
          ForEach-Object {{ $_.IPAddress }}"
     );
     let started = Instant::now();
@@ -393,9 +397,19 @@ fn windows_lookup(name: &str) -> Vec<IpAddr> {
     if let Some(mut out) = child.stdout.take() {
         let _ = std::io::Read::read_to_string(&mut out, &mut text);
     }
-    let ips = parse_ips(&text);
+    let ips = windows_answer_ips(&text);
     tracing::debug!(name, ?ips, elapsed = ?started.elapsed(), "windows lookup");
     ips
+}
+
+/// The usable addresses in a Windows lookup's output: IPv4 only, because the
+/// untyped query also returns IPv6 link-local addresses, which need a scope
+/// id that ssh cannot get from a bare address.
+pub fn windows_answer_ips(text: &str) -> Vec<IpAddr> {
+    parse_ips(text)
+        .into_iter()
+        .filter(IpAddr::is_ipv4)
+        .collect()
 }
 
 /// Parse one IP per line, ignoring anything else (CRLF tolerant).
@@ -445,6 +459,18 @@ impl Prober for SshProber {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn windows_answers_keep_ipv4_and_drop_ipv6_link_local() {
+        // What Windows prints for a Linux host advertised by avahi (untyped query).
+        let text = "fe80::b7be:b341:2796:db1e\r\n192.0.2.44\r\n";
+        assert_eq!(
+            windows_answer_ips(text),
+            vec!["192.0.2.44".parse::<IpAddr>().unwrap()]
+        );
+        assert!(windows_answer_ips("").is_empty());
+        assert!(windows_answer_ips("fe80::1\r\n").is_empty());
+    }
     use std::cell::RefCell;
     use std::collections::BTreeMap;
 
