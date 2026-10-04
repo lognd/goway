@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T23:16:53Z"
+digest = "26dd97cfc2dbde8232e2591b39ea050d0e966a36177925ba71bfde7f71541469"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 05s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 18997716-4bac-4ee0-a245-7a5b5becd77a with nextest profile: default
+    Starting 1 test across 76 binaries (848 tests skipped)
+        PASS [   0.010s] goway::doctor_wsl_down a_stopped_distro_is_named_with_the_command_that_starts_the_keepalive
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.016s] 1 test run: 1 passed, 848 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_stopped_distro_is_named_with_the_command_that_starts_the_keepalive)'"
+size = 770
+status = "measured"
+tests = ["a_stopped_distro_is_named_with_the_command_that_starts_the_keepalive"]
+at = "2026-10-04T23:16:56Z"
+actor = "lognd"
+rev = 1
