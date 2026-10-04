@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T02:05:46Z"
+digest = "b66d0ebfbe3bd3c2266980b48117f9df8ed1df4866775015c273b6386431591c"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 928b0082-353b-4017-b2af-52700d6fddd3 with nextest profile: default
+    Starting 2 tests across 45 binaries (558 tests skipped)
+        PASS [   0.010s] goway facts::tests::interop_is_parsed_and_only_elevated_warns
+        PASS [   0.010s] goway doctor::tests::doctor_warns_when_wsl_interop_is_elevated_and_reports_off_as_safe
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.013s] 2 tests run: 2 passed, 558 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(doctor_warns_when_wsl_interop_is_elevated_and_reports_off_as_safe) | test(interop_is_parsed_and_only_elevated_warns)'"
+size = 669
+status = "measured"
+tests = ["facts::tests::interop_is_parsed_and_only_elevated_warns", "doctor::tests::doctor_warns_when_wsl_interop_is_elevated_and_reports_off_as_safe"]
+at = "2026-10-04T02:05:46Z"
+actor = "lognd"
+rev = 1
