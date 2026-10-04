@@ -2,11 +2,11 @@
 id = "01M424MWHF90WA5AGEX5JN7ZPF"
 title = "doctor reads CMake's own interfaces: File API replies and a json-v1 configure trace, with system libraries mapped to packages"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 reporter = "lognd"
 created = "2026-10-04T00:22:30Z"
-updated = "2026-10-04T04:17:27Z"
+updated = "2026-10-04T04:17:28Z"
 scope = ["crates/goway/src/cmakeapi.rs", "crates/goway/src/remote.sh", "crates/goway/tests/cmake_api.rs", "crates/goway/tests/fixtures/cxxshard/CMakeLists.txt", "docs/doctor.md"]
 
 [[acceptance]]
