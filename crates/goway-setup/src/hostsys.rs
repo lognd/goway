@@ -1024,6 +1024,7 @@ impl<R: Runner> System for HostSystem<R> {
                         name,
                         &s,
                         &absolute_tool(Tool::Conhost)?,
+                        &absolute_tool(Tool::Cmd)?,
                         &absolute_tool(Tool::PowerShell)?,
                     );
                     return self.powershell("register relay task", &script).map(drop);

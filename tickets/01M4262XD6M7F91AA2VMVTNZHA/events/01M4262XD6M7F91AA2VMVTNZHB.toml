@@ -1,0 +1,13 @@
+kind = "create"
+title = "remote.ps1 parity with remote.sh: disk budget LRU eviction, budget probe word, heartbeat, clock safety, best-effort cleanup"
+type = "story"
+category = "todo"
+priority = "medium"
+points = 8
+parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
+scope = ["crates/goway/src/remote.ps1", "docs/hosts.md", "crates/goway/src/pool.rs"]
+acceptance = ["Given the run ttls argument cache:orphan:kept:max_disk:min_free:cache_size and the probe word budget:MAX:MIN_FREE, when remote.ps1 runs them, then it evicts least recently used entries to the budget like remote.sh and probe reports disk_max and disk_min_free", "Given remote.sh's best-effort work dir cleanup, heartbeat watchdog, clock offset, liveness-not-age gc protection and future-mtime clamping, when remote.ps1 runs the same cases, then it behaves the same"]
+body = "Coordinator note: remote.sh changed (~0ZXHQZJ, ~7JEJJBC, ~WXVMJKT, ~VAJPQC3). remote.ps1 today tolerates the extra ttls fields and the budget word (ignores them); no eviction yet. Found while working ~YGM627C."
+at = "2026-10-04T00:47:38Z"
+actor = "lognd"
+rev = 1

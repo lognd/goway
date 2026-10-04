@@ -17,6 +17,48 @@ pub const LISTEN_ADDRESS: &str = "0.0.0.0";
 pub const REFRESH_MINUTES: u32 = 5;
 /// File name of the refresh script inside the administrator-only directory.
 pub const SCRIPT_NAME: &str = "relay-refresh.ps1";
+/// Environment variable name prefixes that load code into a .NET process at start (profilers,
+/// runtime knobs, startup hooks). The elevated refresh runs without any of them.
+pub const SCRUB_PREFIXES: [&str; 4] = ["COR_", "CORECLR_", "COMPlus_", "DOTNET_"];
+/// Exact environment variable names the elevated refresh also runs without: where PowerShell
+/// looks for modules, its execution-policy override and lockdown switch, and compatibility shims.
+pub const SCRUB_NAMES: [&str; 4] = [
+    "PSModulePath",
+    "PSExecutionPolicyPreference",
+    "__PSLockdownPolicy",
+    "__COMPAT_LAYER",
+];
+
+/// Whether the launch stub removes the environment variable `name` (names are not case
+/// sensitive on Windows).
+pub fn is_scrubbed(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    SCRUB_PREFIXES
+        .iter()
+        .any(|p| lower.starts_with(&p.to_ascii_lowercase()))
+        || SCRUB_NAMES.iter().any(|n| n.eq_ignore_ascii_case(name))
+}
+
+/// The conhost arguments that run the refresh script without anything a same-account process
+/// could have injected through its environment.
+///
+/// The elevated task runs as the user, in the user's environment, and the .NET runtime inside
+/// PowerShell reads `COR_PROFILER` and friends before any script line runs, so the script cannot
+/// protect itself. A native `cmd.exe` (not .NET, so it ignores those variables, and started with
+/// `/D` so the user's `AutoRun` registry command is skipped) first deletes every variable of
+/// [`SCRUB_PREFIXES`] and [`SCRUB_NAMES`] from its own environment, then starts PowerShell, which
+/// inherits the cleaned one. All three programs are given by absolute path.
+pub fn scrubbed_arguments(cmd_exe: &str, powershell_exe: &str, script: &str) -> String {
+    let words = SCRUB_PREFIXES
+        .iter()
+        .chain(SCRUB_NAMES.iter())
+        .copied()
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!(
+        "--headless \"{cmd_exe}\" /D /S /C \"(for %p in ({words}) do @for /f \"delims==\" %v in ('set %p 2^>nul') do @set \"%v=\") & \"{powershell_exe}\" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{script}\"\""
+    )
+}
 
 /// One row of `netsh interface portproxy show v4tov4`.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1235,8 +1235,72 @@ fn sync_once(
     Ok(stats)
 }
 
+/// Test support: drive `remote.ps1` under whatever PowerShell the machine has.
+#[cfg(test)]
+pub(crate) mod pwsh_support {
+    use super::*;
+
+    /// The PowerShell the Windows-host tests drive: `GOWAY_PWSH`, else `pwsh`
+    /// (Windows CI has `powershell`); without one those tests pass trivially.
+    pub(crate) fn pwsh() -> Option<PathBuf> {
+        let mut candidates: Vec<PathBuf> = std::env::var_os("GOWAY_PWSH")
+            .map(PathBuf::from)
+            .into_iter()
+            .collect();
+        candidates.push(PathBuf::from("pwsh"));
+        if cfg!(windows) {
+            candidates.push(PathBuf::from("powershell"));
+        }
+        candidates.into_iter().find(|c| {
+            std::process::Command::new(c)
+                .args(["-NoProfile", "-Command", "exit 0"])
+                .output()
+                .is_ok_and(|o| o.status.success())
+        })
+    }
+
+    /// Runs `remote.ps1` (the Windows side) under PowerShell, calling the
+    /// script file directly the way an installed copy would be called.
+    pub(crate) struct PwshTransport {
+        pub(crate) ps: PathBuf,
+        pub(crate) script: PathBuf,
+    }
+
+    impl PwshTransport {
+        fn command(&self, call: &Call) -> std::process::Command {
+            let mut words = vec![
+                self.script.to_string_lossy().into_owned(),
+                call.verb.clone(),
+            ];
+            words.extend(call.args.iter().cloned());
+            let source = format!("{}; exit $LASTEXITCODE", transport::ps_call(&words));
+            let mut c = std::process::Command::new(&self.ps);
+            c.args(transport::POWERSHELL_FLAGS)
+                .arg(transport::encoded_command(&source));
+            c
+        }
+    }
+
+    impl Transport for PwshTransport {
+        fn output(&self, call: &Call) -> Result<Vec<u8>> {
+            exchange_child(self.command(call), b"")
+        }
+        fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
+            exchange_child(self.command(call), input)
+        }
+        fn feed(
+            &self,
+            call: &Call,
+            feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
+        ) -> Result<()> {
+            feed_child(self.command(call), feed)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::pwsh_support::{PwshTransport, pwsh};
     use super::*;
     use crate::repo::git;
 
@@ -2195,63 +2259,6 @@ mod tests {
             tree.join("b").is_file(),
             "the stale deletion list was applied"
         );
-    }
-
-    /// The PowerShell the Windows-host tests drive: `GOWAY_PWSH`, else `pwsh`
-    /// (Windows CI has `powershell`); without one those tests pass trivially.
-    fn pwsh() -> Option<PathBuf> {
-        let mut candidates: Vec<PathBuf> = std::env::var_os("GOWAY_PWSH")
-            .map(PathBuf::from)
-            .into_iter()
-            .collect();
-        candidates.push(PathBuf::from("pwsh"));
-        if cfg!(windows) {
-            candidates.push(PathBuf::from("powershell"));
-        }
-        candidates.into_iter().find(|c| {
-            std::process::Command::new(c)
-                .args(["-NoProfile", "-Command", "exit 0"])
-                .output()
-                .is_ok_and(|o| o.status.success())
-        })
-    }
-
-    /// Runs `remote.ps1` (the Windows side) under PowerShell, calling the
-    /// script file directly the way an installed copy would be called.
-    struct PwshTransport {
-        ps: PathBuf,
-        script: PathBuf,
-    }
-
-    impl PwshTransport {
-        fn command(&self, call: &Call) -> std::process::Command {
-            let mut words = vec![
-                self.script.to_string_lossy().into_owned(),
-                call.verb.clone(),
-            ];
-            words.extend(call.args.iter().cloned());
-            let source = format!("{}; exit $LASTEXITCODE", transport::ps_call(&words));
-            let mut c = std::process::Command::new(&self.ps);
-            c.args(transport::POWERSHELL_FLAGS)
-                .arg(transport::encoded_command(&source));
-            c
-        }
-    }
-
-    impl Transport for PwshTransport {
-        fn output(&self, call: &Call) -> Result<Vec<u8>> {
-            exchange_child(self.command(call), b"")
-        }
-        fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
-            exchange_child(self.command(call), input)
-        }
-        fn feed(
-            &self,
-            call: &Call,
-            feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
-        ) -> Result<()> {
-            feed_child(self.command(call), feed)
-        }
     }
 
     // frob:tests crates/goway/src/sync.rs::sync

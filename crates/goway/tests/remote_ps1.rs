@@ -729,7 +729,9 @@ fn same_size_edit_within_the_same_second_reaches_the_slot() {
 
 /// Build A in a slot, then run B whose changed source has an older mtime
 /// than A's output: the build must still see B's source.
-const STAMP_BUILD: &str = "if (-not (Test-Path out) -or ((Get-Item src.txt).LastWriteTimeUtc -gt (Get-Item out).LastWriteTimeUtc)) { Copy-Item src.txt out; 'rebuilt' }; Get-Content out";
+// The output is written fresh (Copy-Item would carry the source mtime over,
+// which makes the warm check depend on timestamp precision, not on goway).
+const STAMP_BUILD: &str = "if (-not (Test-Path out) -or ((Get-Item src.txt).LastWriteTimeUtc -gt (Get-Item out).LastWriteTimeUtc)) { Get-Content src.txt | Set-Content out; 'rebuilt' }; Get-Content out";
 
 #[test]
 fn changed_files_are_stamped_newer_than_the_slots_outputs() {
