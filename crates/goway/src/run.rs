@@ -349,7 +349,16 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         let done = std::sync::atomic::AtomicBool::new(false);
         let (streamed, gate_report) = std::thread::scope(|s| {
             let watcher = s.spawn(|| gate.drive(&done));
-            let streamed = stream(&found, env.settings, &cmd, args.output);
+            let streamed = stream(
+                &found,
+                env.settings,
+                &cmd,
+                args.output,
+                &Lifeline {
+                    remote_root,
+                    run_id: &run_id,
+                },
+            );
             done.store(true, std::sync::atomic::Ordering::SeqCst);
             (
                 streamed,
@@ -900,6 +909,85 @@ fn copy_raw(mut reader: impl std::io::Read) {
     }
 }
 
+/// Which run the client keeps alive while it streams.
+struct Lifeline<'a> {
+    remote_root: &'a str,
+    run_id: &'a str,
+}
+
+/// Seconds between the bytes the client sends on a run's lifeline.
+const HEARTBEAT_SECS: u64 = 5;
+
+/// A second, quiet ssh call that tells the helper this client is alive: a
+/// byte on its stdin every [`HEARTBEAT_SECS`]. When goway dies, even by
+/// SIGKILL, the pipe's write end closes and the helper stops the job; when
+/// the machine sleeps or the network drops, the bytes stop and it stops the
+/// job after its timeout. Only for Unix helpers (the Windows helper script
+/// has no lifeline verb). Never fails the run: without it the run is only as
+/// protected as before.
+struct Beat {
+    child: std::process::Child,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    writer: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Beat {
+    fn start(found: &Found, settings: &ssh::Settings, life: &Lifeline<'_>) -> Option<Self> {
+        if found.kind != crate::transport::Kind::Unix {
+            return None;
+        }
+        let call = Call::new("lifeline", &[life.remote_root, life.run_id]);
+        let mut command = match SshTransport::of(found, settings).command(&call) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(error = %e, "no lifeline for this run");
+                return None;
+            }
+        };
+        let mut child = command
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| tracing::warn!(error = %e, "cannot start the run's lifeline"))
+            .ok()?;
+        let mut pipe = child.stdin.take()?;
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = stop.clone();
+        let writer = std::thread::spawn(move || {
+            use std::io::Write as _;
+            while !flag.load(std::sync::atomic::Ordering::SeqCst) {
+                if pipe.write_all(b".").and_then(|()| pipe.flush()).is_err() {
+                    return;
+                }
+                for _ in 0..HEARTBEAT_SECS * 10 {
+                    if flag.load(std::sync::atomic::Ordering::SeqCst) {
+                        return;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+            }
+        });
+        Some(Self {
+            child,
+            stop,
+            writer: Some(writer),
+        })
+    }
+}
+
+impl Drop for Beat {
+    /// The run is over: stop beating and close the lifeline.
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        if let Some(w) = self.writer.take() {
+            let _ = w.join();
+        }
+    }
+}
+
 /// Run `cmd` on the found host with stdio passed through; returns the exit
 /// code and whether the user interrupted. A stream that is a terminal goes
 /// through the control-sequence filter unless `mode` is raw; any other
@@ -909,8 +997,11 @@ fn stream(
     settings: &ssh::Settings,
     cmd: &Call,
     mode: OutputMode,
+    life: &Lifeline<'_>,
 ) -> Result<(u8, bool)> {
     let interrupted = interrupt_flag();
+    // Before the command starts, so a client that dies at once is covered.
+    let _beat = Beat::start(found, settings, life);
     let mut command = SshTransport::of(found, settings).command(cmd)?;
     if std::io::IsTerminal::is_terminal(&std::io::stderr()) {
         command.env("CARGO_TERM_COLOR", "always");

@@ -210,6 +210,15 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       itself fails (the docker convention).
    5. Ctrl-C: goway sends a remote kill to the job's process group, and a
       watchdog in the remote script kills the group if the ssh session dies.
+      A client that vanishes without the connection closing (SIGKILL, a
+      sleeping laptop, a dropped network) is covered by a lifeline: a second
+      quiet ssh call (`lifeline ROOT RUN_ID`, Unix helpers only) on which the
+      client writes a byte every 5 seconds. End of its stdin (the client's
+      end of the pipe closes when it dies) stops the job at once; no byte for
+      30 seconds stops it too; a run still preparing is stopped through its
+      own shell. Stopping is SIGTERM, up to 5 seconds, then SIGKILL, so it is
+      bounded by 35 seconds at the worst. A run that finished (`done` marker)
+      is never touched, so a reused pid cannot be hit.
    6. Provenance for frob: a header line on stderr naming host, arch and
       address, and `--report FILE` writes the same as JSON.
 5. Pool (`pool`)

@@ -544,9 +544,23 @@ verify_verdict() {
   mv "$work/verdict.$3.tmp" "$work/verdict.$3"
 }
 
+# stop_group PID: stop the process group PID (a job's session leader):
+# SIGTERM, up to 5 seconds for the group to empty, then SIGKILL for whatever
+# is left. Bounded; never fails.
+stop_group() {
+  local pid=$1 n
+  kill -TERM -- "-$pid" 2>/dev/null || true
+  for n in $(seq 1 25); do
+    kill -0 -- "-$pid" 2>/dev/null || return 0
+    sleep 0.2
+  done
+  kill -KILL -- "-$pid" 2>/dev/null || true
+}
+
 # Kill the job's process group when the ssh session that started it dies
 # (sshd does not signal commands without a pty, it orphans them). The job
 # writes its pid (= its process group, it is a session leader) to PIDFILE.
+# A client that vanished without the connection closing is lifeline's job.
 watchdog() {
   local session=$1 pidfile=$2 pid=""
   trap '' HUP PIPE
@@ -558,11 +572,39 @@ watchdog() {
   while kill -0 "$session" 2>/dev/null && kill -0 "$pid" 2>/dev/null; do
     sleep 1
   done
-  if kill -0 "$pid" 2>/dev/null; then
-    kill -TERM -- "-$pid" 2>/dev/null || true
-    sleep 5
-    kill -KILL -- "-$pid" 2>/dev/null || true
+  if kill -0 "$pid" 2>/dev/null; then stop_group "$pid"; fi
+}
+
+# How long (seconds) lifeline waits for the client's next heartbeat byte.
+LIFELINE_TIMEOUT=30
+
+# lifeline ROOT RUN_ID: the run's lifeline. The client keeps this call open
+# and writes a byte to its stdin every few seconds. When stdin ends (the
+# client died, even by SIGKILL, so its end of the pipe closed) or no byte
+# arrives for LIFELINE_TIMEOUT seconds (laptop asleep, network gone), the
+# run is stopped: its job's process group when the job started (bounded by
+# stop_group), else the run's own shell. A run that already finished (its
+# work dir is gone or marked done) is left alone. Stops within
+# LIFELINE_TIMEOUT plus 5 seconds at the worst, at once on end of stdin.
+lifeline() {
+  local root work c="" pid runner
+  root=$(root_dir "$1"); work="$root/work/$2"
+  case "$2" in *[!A-Za-z0-9-]* | "") die "lifeline: bad run id" ;; esac
+  while IFS= read -r -n 1 -t "$LIFELINE_TIMEOUT" c; do
+    [ -d "$work" ] && [ ! -e "$work/done" ] || return 0
+  done
+  [ -d "$work" ] && [ ! -e "$work/done" ] || return 0
+  : >"$work/lost" 2>/dev/null || return 0
+  pid=$(cat "$work/pid" 2>/dev/null || true)
+  case "$pid" in "" | *[!0-9]*) pid="" ;; esac
+  if [ -n "$pid" ]; then
+    printf 'goway-remote: client of run %s is gone; stopping its job\n' "$2" >&2
+    stop_group "$pid"
+    return 0
   fi
+  runner=$(cat "$work/runner" 2>/dev/null || true)
+  case "$runner" in "" | *[!0-9]*) return 0 ;; esac
+  kill -TERM "$runner" 2>/dev/null || true
 }
 
 # envfile ROOT RUN_ID: store the run's --env values (NUL-separated on
@@ -1020,6 +1062,11 @@ run() {
   mkdir -p "$cache"
   exec 9>"$work/lock"
   flock -x 9
+  # The client's lifeline stops this shell with SIGTERM while it is still
+  # preparing (before the job exists): clean up and go.
+  printf '%s\n' "$$" >"$work/runner"
+  trap 'remove_work "$work"; exit 143' TERM
+  if [ -e "$work/lost" ]; then remove_work "$work"; exit 143; fi
   # What the last automatic disk-budget eviction freed (it ran detached).
   if [ -s "$root/evicted.log" ]; then
     cat "$root/evicted.log" >&2 2>/dev/null || true
@@ -1150,6 +1197,8 @@ run() {
   # it (a handler, not an ignore, so the job keeps default dispositions)
   # long enough for the watchdog to stop the job and for cleanup to run.
   trap 'hangup=1' HUP PIPE
+  trap - TERM
+  if [ -e "$work/lost" ]; then remove_work "$work"; exit 143; fi
   cd "$rundir"
   : >"$work/pid"
   # The watchdog must not inherit the lock fds, or a lingering `sleep`
@@ -1177,10 +1226,11 @@ run() {
     setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
   fi
   kill "$wd" 2>/dev/null || true
+  : >"$work/done"
   cd "$root"
   # A failed command: before blaming the code, goway compares every synced
   # file the command did not itself change with the laptop's.
-  if [ -n "$verify" ] && [ "$rc" -ne 0 ] && kill -0 "$PPID" 2>/dev/null; then
+  if [ -n "$verify" ] && [ "$rc" -ne 0 ] && [ ! -e "$work/lost" ] && kill -0 "$PPID" 2>/dev/null; then
     tree_stamps "$rundir" >"$work/stamps.after"
     comm -z -12 "$work/stamps.before" "$work/stamps.after" | sed -z "s/^\\([^$SOH]*$SOH\\)\\{2\\}//" |
       sort -z >"$work/untouched"
@@ -1755,6 +1805,7 @@ case "$verb" in
   gc) gc "$@" ;;
   doctor) doctor "$@" ;;
   purge) purge "$@" ;;
+  lifeline) lifeline "$@" ;;
   ping) printf 'goway-remote ok\n' ;;
   *) die "unknown verb: $verb" ;;
 esac
