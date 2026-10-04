@@ -207,6 +207,9 @@ pub struct Env<'a> {
 /// Only if the copy-verification thread panics, which is a bug.
 #[allow(clippy::too_many_lines)] // one sequence: choose, sync, run, report
 pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
+    if args.each_os {
+        return crate::shard::run_each_os(env, renderer, args);
+    }
     if let Some(count) = args.shard {
         return crate::shard::run_sharded(env, renderer, args, count);
     }
@@ -214,10 +217,24 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     let env_bytes = encode_env(&args.env)?;
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
-    let (selection, rule) =
-        project::selection_for(&repo.root, &args.command, &args.needs, &args.prefers)?;
+    let (selection, rule) = project::selection_for(
+        &repo.root,
+        &args.command,
+        &args.needs,
+        &args.prefers,
+        args.any_os,
+    )?;
     if let Some(r) = &rule {
         renderer.note(r.describe());
+    }
+    if args.host.is_none() {
+        project::warn_cross_os(
+            renderer,
+            &config,
+            &args.command,
+            &selection,
+            project::cross_os_setting(&repo.root)?,
+        );
     }
     let with_git = args.with_git || project::wants_git(&repo.root)?;
     let mut state = State::load(&env.paths.state_file())?;
