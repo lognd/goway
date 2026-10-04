@@ -2,11 +2,11 @@
 id = "01M424MYD4HA48XG5HEAWVVJCJ"
 title = "doctor asks each ecosystem's own tool for the project's needs: cargo metadata, go list, mvn help:effective-pom, Gradle, dotnet --list-sdks"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 reporter = "lognd"
 created = "2026-10-04T00:22:32Z"
-updated = "2026-10-04T01:51:54Z"
+updated = "2026-10-04T02:25:49Z"
 scope = ["crates/goway/src/ecotools.rs", "crates/goway/src/doctor.rs", "docs/usage.md"]
 
 [[acceptance]]
