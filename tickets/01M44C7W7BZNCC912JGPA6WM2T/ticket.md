@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T21:13:41Z"
-updated = "2026-10-04T21:28:56Z"
+updated = "2026-10-04T21:29:21Z"
 labels = ["security"]
 scope = ["crates/goway/src/ecotools.rs", "crates/goway/src/drift.rs", "crates/goway/src/repo.rs", "crates/goway/src/sync.rs", "crates/goway/src/gitmeta.rs", "crates/goway/src/runners.rs", "crates/goway/tests/repo_code_never_runs.rs", "docs/usage.md", "docs/design.md"]
 
