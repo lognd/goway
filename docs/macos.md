@@ -25,6 +25,6 @@ What differs from Linux:
 
 Known gaps (the macOS CI job skips these tests): framework shard detection
 (GoogleTest and Catch2 binaries), nested goway runs (`GOWAY_DEPTH`) and the
-copy-verification rerun path are not yet confirmed on macOS; the five
+copy-verification rerun path, and the slot cleanup of leftover directories are not yet confirmed on macOS; the five
 `sync.rs` protocol tests are still ignored there. Tests that assume Linux
 facts (`os=linux`, `nice`) are skipped. Report anything else you hit.
