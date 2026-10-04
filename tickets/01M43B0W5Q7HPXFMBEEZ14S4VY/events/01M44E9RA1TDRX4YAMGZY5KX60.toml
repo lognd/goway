@@ -1,0 +1,5 @@
+kind = "changelog-exempt"
+reason = "the user-visible fix is described by ~CEQNJYE and ~GDD7F0D changelog fragments"
+at = "2026-10-04T21:49:40Z"
+actor = "lognd"
+rev = 1

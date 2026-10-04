@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T11:33:08Z"
-updated = "2026-10-04T11:51:36Z"
+updated = "2026-10-04T21:49:40Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/sccache_tmpdir.rs", "docs/design.md"]
 
 [[acceptance]]
