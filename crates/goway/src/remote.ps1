@@ -1218,6 +1218,93 @@ function Verb-lifeline([string[]]$A) {
   if ($r) { try { $r.Kill() } catch { } }
 }
 
+# Whether $Path is a reparse point (a symlink, or the Windows Store's zero-byte app
+# execution alias): refused by its attributes, not by its name.
+function Test-Reparse([string]$Path) {
+  try { return ([IO.File]::GetAttributes($Path) -band [IO.FileAttributes]::ReparsePoint) -ne 0 } catch { return $true }
+}
+
+# The absolute path of the file $Name on a PATH directory, else $null. Only absolute
+# directories outside $Root (goway's own state, where the synced work tree lives) are
+# searched: never the current directory, never a relative entry, so a repository cannot
+# ship a look-alike. WindowsApps (the Store alias directory) and reparse points never count.
+function Find-OnPath([string]$Name, [string]$Root) {
+  $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+  $cmp = if ($script:IsWin) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+  foreach ($d in ([string]$env:PATH).Split([IO.Path]::PathSeparator)) {
+    if (-not $d -or -not [IO.Path]::IsPathRooted($d)) { continue }
+    try { $dir = [IO.Path]::GetFullPath($d).TrimEnd('\', '/') } catch { continue }
+    if (($dir + [IO.Path]::DirectorySeparatorChar).StartsWith($rootFull, $cmp)) { continue }
+    if ($script:IsWin -and ($dir -split '[\\/]') -contains 'WindowsApps') { continue }
+    $f = [IO.Path]::Combine($dir, $Name)
+    if (-not [IO.File]::Exists($f)) { continue }
+    if (Test-Reparse $f) { continue }
+    return $f
+  }
+  return $null
+}
+
+# Run $Exe $Words with no input, output discarded; true when it exits 0 within $Secs.
+function Test-Check([string]$Exe, [string[]]$Words, [int]$Secs) {
+  try {
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName = $Exe
+    $psi.Arguments = Join-WinArgs $Words
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardInput = $true; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
+    $p = [Diagnostics.Process]::Start($psi)
+    $o = $p.StandardOutput.BaseStream.CopyToAsync([IO.Stream]::Null)
+    $e = $p.StandardError.BaseStream.CopyToAsync([IO.Stream]::Null)
+    $p.StandardInput.Close()
+    if (-not $p.WaitForExit($Secs * 1000)) { try { Stop-Tree $p } catch { }; return $false }
+    return ($p.ExitCode -eq 0)
+  } catch { return $false }
+}
+
+# resolve ROOT RUN_ID: for portable command translation (the same contract as remote.sh).
+# stdin holds candidate lines `tier;kind;name;args;check`. Prints one line: `same`,
+# `ok;PROGRAM;ARGS` (a bare name resolves to an absolute PATH file; a work-tree file keeps
+# its path relative to the tree, as `.\x\y.exe`) or `none;WHY`. Any trouble is `none`.
+function Verb-resolve([string[]]$A) {
+  $root = Get-Root $A[0]; Test-Id $A[1] 'resolve'
+  $tree = P $root @('work', $A[1], 'tree')
+  $lines = @(([Text.Encoding]::UTF8.GetString((Read-StdinBytes)) -split "`n") | Where-Object { $_.Trim() } | Select-Object -First 16)
+  $cands = @()
+  foreach ($l in $lines) {
+    $f = $l.TrimEnd("`r").Split(';')
+    if ($f.Length -ne 5 -or $f[0] -notmatch '^\d+$') { continue }
+    $cands += [pscustomobject]@{ Tier = [int]$f[0]; Kind = $f[1]; Name = $f[2]; Args = $f[3]; Check = $f[4] }
+  }
+  foreach ($t in @($cands | ForEach-Object { $_.Tier } | Sort-Object -Unique)) {
+    $hits = @()
+    foreach ($c in @($cands | Where-Object { $_.Tier -eq $t })) {
+      $prog = $null
+      if ($c.Kind -eq 'tree') {
+        $rel = $c.Name
+        if ($rel -notmatch '^[A-Za-z0-9._+ /-]+$' -or ($rel -split '/') -contains '..' -or ($rel -split '/') -contains '.' -or $rel.StartsWith('/')) { continue }
+        $full = [IO.Path]::Combine($tree, (Native-Path $rel))
+        if (-not [IO.File]::Exists($full) -or (Test-Reparse $full)) { continue }
+        $prog = '.\' + $rel.Replace('/', '\')
+      } elseif ($c.Kind -eq 'bare' -or $c.Kind -eq 'same') {
+        if ($c.Name -notmatch '^[A-Za-z0-9._+-]+$') { continue }
+        $prog = Find-OnPath $c.Name $root
+        if (-not $prog) { continue }
+        if ($c.Check -and -not (Test-Check $prog ([string[]]$c.Check.Split(',')) 15)) { continue }
+      } else { continue }
+      $hits += [pscustomobject]@{ Kind = $c.Kind; Prog = $prog; Args = $c.Args }
+    }
+    if ($hits.Count -gt 1) { Write-Out "none;several candidates match`n"; return }
+    if ($hits.Count -eq 1) {
+      $h = $hits[0]
+      if ($h.Kind -eq 'same') { Write-Out "same`n"; return }
+      if ($h.Prog.Contains(';') -or $h.Prog.Contains(',')) { Write-Out "none;unsafe path`n"; return }
+      Write-Out ("ok;{0};{1}`n" -f $h.Prog, $h.Args)
+      return
+    }
+  }
+  Write-Out "none;nothing found`n"
+}
+
 # envfile ROOT RUN_ID: store the run's --env values (NUL-separated on stdin)
 # in its work dir.
 function Verb-envfile([string[]]$A) {
@@ -2470,6 +2557,7 @@ function Invoke-Verb([string]$Verb, [string[]]$Rest) {
     'doctor' { Verb-doctor $Rest }
     'purge' { Verb-purge $Rest }
     'lifeline' { Verb-lifeline $Rest }
+    'resolve' { Verb-resolve $Rest }
     'verify-wait' { Verb-verify-wait $Rest }
     'verify-verdict' { Verb-verify-verdict $Rest }
     default { Die "unknown verb: $Verb" }

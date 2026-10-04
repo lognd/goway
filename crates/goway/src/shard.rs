@@ -76,6 +76,9 @@ pub struct ShardReport {
     /// What the helper's test-binary detection did, when it was asked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detection: Option<Detection>,
+    /// What the host ran in place of argv[0], when the program was translated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translation: Option<crate::translate::Translation>,
     /// Seconds including sync.
     pub duration_secs: f64,
 }
@@ -256,9 +259,11 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
             &args.command,
             &selection,
             project::cross_os_setting(&repo.root)?,
+            &project::translate_overrides(&repo.root)?,
         );
     }
     let with_git = args.with_git || project::wants_git(&repo.root)?;
+    let overrides = project::translate_overrides(&repo.root)?;
     let project = runners::project_for(&args.command, &args.env, &repo.root)?;
     let mut state = State::load(&env.paths.state_file())?;
     // Plan every shard first, so a command that cannot be split is refused before any host is touched.
@@ -395,6 +400,7 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                 let capacities = &capacities;
                 let weights = &weights;
                 let repo = &repo;
+                let overrides = &overrides;
                 let interrupted = &interrupted;
                 let plan = &plans[i];
                 let distrusted = distrusted[i];
@@ -414,6 +420,7 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                     // Held until this shard ends (only a local shard takes one).
                     let mut _slot = None;
                     let mut verify = run::Verify::first(distrusted);
+                    let mut translation: Option<crate::translate::Translation> = None;
                     let mut attempts: Vec<run::AttemptRecord> = Vec::new();
                     let (code, detection) = loop {
                         let run_id = if verify.attempt == 1 {
@@ -456,6 +463,21 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                             git_overlay = synced.git_overlay;
                             manifest = Some(synced.manifest);
                             run::send_env(env, config, found, &run_id, &run::encode_env(&pairs)?)?;
+                            let (run_command, translated) = run::translated_command(
+                                env,
+                                found,
+                                probe,
+                                &config.defaults.remote_root,
+                                &run_id,
+                                &command,
+                                overrides,
+                            )?;
+                            if let Some(t) = &translated
+                                && translation.is_none()
+                            {
+                                renderer.note(format_args!("{}: {}", host.name, t.describe()));
+                            }
+                            translation = translated;
                             let mut extra = run::gpu_words(selection, config, host);
                             if plan.detect {
                                 extra.push(detect::request_word(index, count, &nonce));
@@ -468,7 +490,13 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                                 renderer.note(format_args!("{note}"));
                             }
                             let cmd = run::run_invocation_with(
-                                config, priority, repo, &run_id, args.keep, &extra, &command,
+                                config,
+                                priority,
+                                repo,
+                                &run_id,
+                                args.keep,
+                                &extra,
+                                &run_command,
                             );
                             crate::sync::SshTransport::of(found, env.settings)
                                 .command(&cmd)?
@@ -606,6 +634,7 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                         exit_code: code,
                         attempts,
                         detection,
+                        translation,
                         duration_secs: shard_started.elapsed().as_secs_f64(),
                     })
                 })

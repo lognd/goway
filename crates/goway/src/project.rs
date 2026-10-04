@@ -7,6 +7,11 @@
 //! prefers = ["cpu=avx2"]
 //! ```
 //!
+//! `[translate]` maps a program to its replacement per OS, for example
+//! `mytool = { windows = "mytool.cmd", linux = "mytool" }`; targets are bare program
+//! names (looked up on PATH directories only) or work-tree paths. The file is part of the
+//! repository, so these entries have the repository's own trust level.
+//!
 //! A top-level `cross_os = true` lets hosts of every OS take the project's runs
 //! (`false` keeps the laptop's OS and silences the cross-OS hint).
 //!
@@ -45,6 +50,18 @@ struct RawFile {
     /// Top-level `cross_os`: `true` lets every OS take runs, `false` silences the hint.
     #[serde(default)]
     cross_os: Option<bool>,
+    /// `[translate]`: per-program translations by OS (see [`crate::translate`]).
+    #[serde(default)]
+    translate: std::collections::BTreeMap<String, RawTranslate>,
+}
+
+/// One `[translate]` entry: the replacement program per OS.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawTranslate {
+    windows: Option<String>,
+    linux: Option<String>,
+    macos: Option<String>,
 }
 
 /// `[toolchain]`: `tools = [...]`, `rust_targets`, `packages`, plus `tool = "version"` pins.
@@ -105,6 +122,8 @@ pub struct Rules {
     /// `cross_os`: `Some(true)` allows every OS, `Some(false)` keeps the
     /// laptop's OS without the hint, `None` (unset) keeps it with the hint.
     pub cross_os: Option<bool>,
+    /// `[translate]`: the project's program translations.
+    pub translate: crate::translate::Overrides,
 }
 
 /// Whether the project's `goway.toml` asks for `with_git`.
@@ -114,6 +133,15 @@ pub struct Rules {
 /// [`Rules::load`]'s errors.
 pub fn wants_git(root: &Path) -> Result<bool> {
     Ok(Rules::load(root)?.is_some_and(|r| r.with_git))
+}
+
+/// The project's `[translate]` entries (none without a `goway.toml`).
+///
+/// # Errors
+///
+/// [`Rules::load`]'s errors.
+pub fn translate_overrides(root: &Path) -> Result<crate::translate::Overrides> {
+    Ok(Rules::load(root)?.map(|r| r.translate).unwrap_or_default())
 }
 
 /// The project's `cross_os` setting (`None` when unset or there is no `goway.toml`).
@@ -148,11 +176,17 @@ pub fn warn_cross_os(
     command: &[String],
     selection: &Selection,
     setting: Option<bool>,
+    overrides: &crate::translate::Overrides,
 ) {
     if selection.pool_os.is_none() || setting.is_some() {
         return;
     }
-    let Some(runner) = crate::runners::portable_runner(command) else {
+    // One source of truth: a runner goway knows, or a program the translation table covers.
+    let runner = crate::runners::portable_runner(command).or_else(|| {
+        crate::translate::is_translatable(command, overrides)
+            .then(|| command.first().map_or("command", String::as_str))
+    });
+    let Some(runner) = runner else {
         return;
     };
     let hosts = other_os_hosts(config, crate::needs::laptop_os());
@@ -275,6 +309,31 @@ impl Rules {
                 command: r.command,
             });
         }
+        let mut translate = crate::translate::Overrides::default();
+        for (program, entry) in raw.translate {
+            let bad = |why: String| Error::Config {
+                path: path.to_owned(),
+                message: format!("[translate] {program}: {why}"),
+            };
+            if !crate::translate::safe_key(&program) {
+                return Err(bad(
+                    "the program name must not hold spaces, `;` or `,`".to_owned()
+                ));
+            }
+            for (target, value) in [
+                (crate::translate::Target::Windows, entry.windows),
+                (crate::translate::Target::Linux, entry.linux),
+                (crate::translate::Target::Macos, entry.macos),
+            ] {
+                if let Some(v) = value {
+                    translate.set(
+                        &program,
+                        target,
+                        crate::translate::dest_of(&v).map_err(bad)?,
+                    );
+                }
+            }
+        }
         let toolchain = crate::doctor::Toolchain {
             versions: raw.toolchain.versions,
             tools: raw.toolchain.tools,
@@ -290,6 +349,7 @@ impl Rules {
             toolchain,
             with_git: raw.with_git,
             cross_os: raw.cross_os,
+            translate,
         })
     }
 

@@ -39,6 +39,7 @@ pub mod state;
 pub mod status;
 pub mod sync;
 pub mod termfilter;
+pub mod translate;
 pub mod transport;
 pub mod uninstall;
 pub mod winadmin;
