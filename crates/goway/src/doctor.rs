@@ -11,6 +11,7 @@
 use std::collections::BTreeMap;
 use std::process::Stdio;
 
+mod cmakecheck;
 pub mod output;
 mod projneeds;
 
@@ -24,6 +25,7 @@ use crate::pool;
 use crate::remote;
 use crate::render::Renderer;
 use crate::resolve::{self, Found, Lookup, Prober};
+use crate::run;
 use crate::ssh::{self, KeyPolicy};
 use crate::sshenv;
 use crate::state::State;
@@ -948,6 +950,47 @@ fn project_needs() -> Result<projneeds::Needs> {
     projneeds::analyse(&repo.root, &toolchain)
 }
 
+/// For a `CMake` project, add what `CMake` itself says it needs (its File API
+/// replies on every helper, and with `--configure` a traced configure there).
+fn add_cmake_checks(
+    env: &run::Env<'_>,
+    renderer: Renderer,
+    config: &Config,
+    configure: bool,
+    reports: &mut [output::HostReport],
+    reached: &mut [Probed<'_>],
+) {
+    let repo = crate::repo::Repo::discover(env.cwd)
+        .ok()
+        .filter(cmakecheck::is_cmake_project);
+    let Some(repo) = repo else {
+        if configure {
+            renderer
+                .note("--configure: this is not a CMake project (no CMakeLists.txt at its root)");
+        }
+        return;
+    };
+    let ask = cmakecheck::Ask {
+        env,
+        config,
+        repo: &repo,
+        configure,
+    };
+    for p in reached.iter_mut() {
+        if configure {
+            renderer.note(format_args!(
+                "configuring on {} (a snapshot, in goway's own scratch directory)",
+                p.host.name
+            ));
+        }
+        let extra = cmakecheck::host_checks(&ask, &p.found, &p.facts);
+        if !extra.is_empty() {
+            p.checks.extend(extra);
+            reports[p.index].outcome = output::Outcome::Checked(p.checks.clone());
+        }
+    }
+}
+
 /// What every host's fixes share.
 struct FixCtx<'a> {
     paths: &'a Paths,
@@ -1201,6 +1244,20 @@ pub fn doctor(
         tracing::warn!(error = %e, "cannot cache host addresses");
     }
     let (mut reports, mut reached, local_ssh) = collect(&config, &needs, results);
+    add_cmake_checks(
+        &run::Env {
+            paths,
+            lookup,
+            prober,
+            settings,
+            cwd: &std::env::current_dir().unwrap_or_default(),
+        },
+        renderer,
+        &config,
+        args.configure,
+        &mut reports,
+        &mut reached,
+    );
     for finding in &local_ssh {
         renderer.warn(format_args!("local ssh: {finding}"));
     }

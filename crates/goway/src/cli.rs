@@ -198,6 +198,11 @@ pub struct DoctorArgs {
     /// Explain one check in full: what was found, why, and the exact fix.
     #[arg(long, value_name = "CHECK", conflicts_with = "fix")]
     pub explain: Option<String>,
+    /// For a `CMake` project: also run one traced configure of it on each
+    /// helper (in goway's own labelled scratch directory there, removed
+    /// afterwards) to see every package it looks for. Never runs here.
+    #[arg(long, conflicts_with = "fix")]
+    pub configure: bool,
 }
 
 /// Arguments of `goway uninstall`.

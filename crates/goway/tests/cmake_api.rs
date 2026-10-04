@@ -1,7 +1,7 @@
-//! CMake's own interfaces on a helper, through the fake-ssh world: the File
+//! `CMake`'s own interfaces on a helper, through the fake-ssh world: the File
 //! API query every run leaves in a slot tree's build directories, the
 //! replies read back from there, and one traced configure in a labelled
-//! scratch directory. The real replies come from real CMake runs (see
+//! scratch directory. The real replies come from real `CMake` runs (see
 //! `tests/fixtures/cmake_api`); the configure tests run real `cmake` and are
 //! skipped where it is not installed.
 #![cfg(unix)]
@@ -242,4 +242,98 @@ fn a_find_package_of_a_library_the_host_lacks_fails_naming_the_package_and_its_i
     assert_eq!(gtest.presence, Presence::Missing, "{stderr}");
     assert_eq!(gtest.package.unwrap().apt, "libgtest-dev");
     assert!(w.work_dirs().is_empty());
+}
+
+fn doctor(w: &common::World, args: &[&str]) -> (String, String) {
+    let mut all = vec!["doctor"];
+    all.extend_from_slice(args);
+    let o = w.run(&all);
+    (
+        String::from_utf8_lossy(&o.stdout).into_owned(),
+        String::from_utf8_lossy(&o.stderr).into_owned(),
+    )
+}
+
+// frob:tests crates/goway/src/doctor/cmakecheck.rs::host_checks
+#[test]
+fn doctor_configure_names_the_missing_package_with_its_install_command_and_leaves_no_scratch_dir() {
+    if !cmake_installed() {
+        return;
+    }
+    let w = common::world();
+    copy_project("cmakefind", &w.repo);
+    let (out, err) = doctor(&w, &["--configure", "--all"]);
+    assert!(out.contains("cmake: GTest"), "{out}\n{err}");
+    if !out.contains("found (") {
+        // GoogleTest is not installed here, as on both real helpers.
+        assert!(out.contains("libgtest-dev"), "{out}");
+        assert!(out.contains("FAIL"), "{out}");
+    }
+    assert!(err.contains("configuring on"), "{err}");
+    assert!(
+        w.work_dirs().is_empty(),
+        "the snapshot's work dir is removed: {:?}",
+        w.work_dirs()
+    );
+}
+
+// frob:tests crates/goway/src/doctor/cmakecheck.rs::host_checks
+#[test]
+fn doctor_reads_the_replies_a_normal_configure_left_without_running_anything() {
+    let w = common::world();
+    copy_project("cmakeplain", &w.repo);
+    let fx =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cmake_api/cmakeplain/reply");
+    std::fs::create_dir(w.repo.join("fx")).unwrap();
+    for e in std::fs::read_dir(fx).unwrap() {
+        let e = e.unwrap();
+        std::fs::copy(e.path(), w.repo.join("fx").join(e.file_name())).unwrap();
+    }
+    let o = job(
+        &w,
+        &[],
+        "mkdir -p build/.cmake/api/v1/reply && cp fx/*.json build/.cmake/api/v1/reply/",
+    );
+    assert_eq!(o.status.code(), Some(0));
+    let (out, err) = doctor(&w, &["--all"]);
+    assert!(out.contains("CMake replies"), "{out}\n{err}");
+    assert!(out.contains("cmake 3.28.3"), "{out}");
+    assert!(
+        out.contains("cmake: Catch2"),
+        "an optional package CMake did not find: {out}"
+    );
+    assert!(out.contains("pkg-config"), "{out}");
+    assert!(!err.contains("configuring on"), "{err}");
+}
+
+// frob:tests crates/goway/src/doctor.rs::doctor
+#[test]
+fn configure_in_a_project_without_cmakelists_says_so_and_runs_nothing() {
+    let w = common::world();
+    let (_, err) = doctor(&w, &["--configure"]);
+    assert!(err.contains("not a CMake project"), "{err}");
+    assert!(w.work_dirs().is_empty());
+}
+
+// frob:tests crates/goway/src/cmakeapi.rs::configure_call
+#[test]
+fn a_scratch_dir_a_killed_configure_left_behind_is_an_ordinary_labelled_work_dir_gc_removes() {
+    let w = common::world();
+    let run_id = kept_run(&w, "cmakeplain");
+    // What a killed configure leaves: the snapshot's work dir and its scratch trees.
+    let work = w.remote.join("work").join(&run_id);
+    std::fs::create_dir_all(work.join("cfg-build")).unwrap();
+    assert!(
+        work.join("meta.json").is_file(),
+        "labelled with repository and worktree"
+    );
+    let old = std::process::Command::new("touch")
+        .args(["-d", "2000-01-01"])
+        .arg(work.join("meta.json"))
+        .arg(&work)
+        .status()
+        .unwrap();
+    assert!(old.success());
+    assert_eq!(job(&w, &[], "true").status.code(), Some(0));
+    common::wait_for("gc to remove the expired scratch", || !work.exists());
 }

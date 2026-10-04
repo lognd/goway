@@ -725,6 +725,7 @@ setup.
 goway doctor                 # every host: problems only
 goway doctor --all           # also the passing checks
 goway doctor --explain mold  # the long text for one check
+goway doctor --configure     # CMake project: also one traced configure on each helper
 goway doctor <YOUR-COMPUTER-NAME-HERE> --fix          # run the fixes that need no root
 goway doctor <YOUR-COMPUTER-NAME-HERE> --fix --rsudo  # also the administrator fixes
 goway doctor --fix --rsudo --harden                   # and the optional hardening
@@ -823,6 +824,16 @@ doctor never runs `mvn` or `gradle` for this: both execute the project's own
 plugins and build scripts, which a diagnostic must not do on your laptop. Every
 tool doctor does run is started without a shell, with a time limit and a cap on
 its output, and `cargo` is told not to install a toolchain.
+
+#### CMake projects: what CMake itself says
+
+For a project with a `CMakeLists.txt`, doctor asks CMake rather than reading the
+file as text, and only on helpers (never on this laptop, never in your work
+tree): see [cmake.md](cmake.md). `goway doctor` reads the File API replies the
+helpers' slot trees already hold; `goway doctor --configure` also runs one
+traced configure of a snapshot on each helper, in goway's own labelled scratch
+directory, and names every package a `find_package` could not find with the
+exact install command.
 
 #### The linker cargo will use
 

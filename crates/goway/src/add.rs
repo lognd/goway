@@ -212,6 +212,7 @@ pub fn add(
         all_hosts: false,
         all: false,
         explain: None,
+        configure: false,
     };
     let code = doctor::doctor(paths, renderer, &doctor_args, lookup, prober, settings)?;
     if code == 0 {
