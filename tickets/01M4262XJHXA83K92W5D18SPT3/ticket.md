@@ -2,13 +2,13 @@
 id = "01M4262XJHXA83K92W5D18SPT3"
 title = "goway add installs the key itself on a native Windows host (goway-setup --authorized-key)"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T00:47:38Z"
-updated = "2026-10-04T00:47:38Z"
+updated = "2026-10-04T03:04:41Z"
 scope = ["crates/goway/src/add.rs", "crates/goway/src/hosts.rs", "docs/hosts.md"]
 
 [[acceptance]]
