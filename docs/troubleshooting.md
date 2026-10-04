@@ -47,6 +47,21 @@ helper you can also see it in its WSL terminal with
 `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
 </details>
 
+<details><summary>"the host no longer answers: it is asleep, off, or off the network"</summary>
+
+The ssh connection dropped while your job ran and the helper did not
+answer right after. goway reports that with its own exit code 125, so it
+is never mistaken for a failure of your command (a command that itself
+exits 255 on a helper that still answers keeps that code).
+
+goway holds a sleep inhibitor on the helper for exactly as long as the
+job runs (`systemd-inhibit` on Linux, `caffeinate` on macOS), but that
+cannot stop a closed lid, an empty battery or Wi-Fi going away. Wake the
+helper (open the lid, plug it in) and run again; `goway status` shows
+when it answers. The job was stopped by the helper's watchdog, so nothing
+keeps running there.
+</details>
+
 <details><summary>The helper's shell prints text, or is not bash</summary>
 
 sshd runs every goway call through the account's login shell, which

@@ -941,7 +941,30 @@ fn stream(
     } else {
         exit_code_of(status)
     };
+    if code == 255 && !interrupted && !host_answers(found, settings) {
+        tracing::warn!(host = %found.target.name, "connection lost while the job ran");
+        return Err(Error::Ssh {
+            host: found.target.name.clone(),
+            message: "the connection dropped while the job ran and the host no longer \
+                      answers: it is asleep, off, or off the network (this is not a \
+                      failure of your command). goway keeps a running job's host awake, \
+                      but not through a closed lid or an empty battery. Wake it and run \
+                      again; `goway status` shows when it answers"
+                .to_owned(),
+        });
+    }
     Ok((code, interrupted))
+}
+
+/// Whether the host answers a trivial ssh command now (told apart from a
+/// command that itself exited 255 after a dropped connection looks alike).
+fn host_answers(found: &Found, settings: &ssh::Settings) -> bool {
+    ssh::command(&found.target, settings, ssh::KeyPolicy::Strict, "exit 0")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
 }
 
 #[cfg(test)]
