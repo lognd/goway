@@ -92,4 +92,10 @@ jobs:
           tool: cargo-nextest
       - name: GNU tools the remote script needs (what goway doctor --fix installs)
         run: brew install coreutils findutils gnu-sed gnu-tar grep util-linux flock
-      - run: cargo nextest run -p goway --locked --no-fail-fast
+      - name: Tests (the test scripts assume GNU userland tools first on PATH)
+        run: |
+          for d in coreutils findutils gnu-sed gnu-tar grep; do
+            PATH="/opt/homebrew/opt/$d/libexec/gnubin:$PATH"
+          done
+          export PATH
+          cargo nextest run -p goway --locked --no-fail-fast

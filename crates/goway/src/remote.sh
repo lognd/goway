@@ -15,6 +15,8 @@ FDDIR=/proc/self/fd
 if [ "$(uname -s)" = Darwin ]; then
   IS_DARWIN=1
   FDDIR=/dev/fd
+  # sysctl, vm_stat and perl live in system directories a caller's PATH may omit.
+  PATH="$PATH:/usr/sbin:/sbin:/usr/bin:/bin"
   for brew in /opt/homebrew /usr/local; do
     for d in "$brew"/opt/*/libexec/gnubin "$brew"/opt/util-linux/bin "$brew"/opt/util-linux/sbin "$brew"/opt/flock/bin "$brew/bin"; do
       [ -d "$d" ] && PATH="$d:$PATH"
@@ -1078,6 +1080,14 @@ static_facts() {
   printf 'wsl=%s\nwinvideo=%s\n' "$wsl" "$win"
 }
 
+# machine: this host's CPU architecture, spelled as Linux does (arm64 is aarch64).
+machine() {
+  case "$(uname -m)" in
+    arm64) printf 'aarch64\n' ;;
+    *) uname -m ;;
+  esac
+}
+
 # mem_darwin: mem_total and mem_avail (free + inactive + speculative pages) from sysctl and vm_stat.
 mem_darwin() {
   local total page free inactive spec
@@ -1105,7 +1115,7 @@ probe() {
   awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {if (t) printf "mem_total=%.0f\n", t*1024; if (a) printf "mem_avail=%.0f\n", a*1024}' /proc/meminfo 2>/dev/null || true
   fi
   if [ "$want_static" = 1 ]; then static_facts; fi
-  printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(uname -m)" "$(uname -n)" "$(nproc)"
+  printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(machine)" "$(uname -n)" "$(nproc)"
   printf 'os=%s\n' "$(uname -s | tr '[:upper:]' '[:lower:]')"
   if [ "$IS_DARWIN" = 1 ]; then
     # "{ 1.23 1.45 1.67 }"
@@ -1419,7 +1429,7 @@ doctor() {
   if [ "$IS_DARWIN" != 1 ]; then
     printf 'os=%s\n' "$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}")"
   fi
-  printf 'arch=%s\n' "$(uname -m)"
+  printf 'arch=%s\n' "$(machine)"
   printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
   # sshd's effective value when we may ask (root), else its first-match order:
   # drop-ins in lexical order, then the main file.
