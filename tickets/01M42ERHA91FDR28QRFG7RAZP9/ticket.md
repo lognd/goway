@@ -2,13 +2,14 @@
 id = "01M42ERHA91FDR28QRFG7RAZP9"
 title = "doctor warns about shell startup files that print text, naming the line to move"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:19:15Z"
-updated = "2026-10-04T04:37:12Z"
+updated = "2026-10-04T04:37:13Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/resolve.rs", "crates/goway/tests/shell_noise.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
