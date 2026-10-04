@@ -2,7 +2,8 @@
 id = "01M42BHSZZ5V4JD35QYMSXM5XE"
 title = "Password login off or 2FA on the helper: goway add explains how to install its key by hand"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
