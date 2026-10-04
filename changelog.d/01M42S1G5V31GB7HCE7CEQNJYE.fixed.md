@@ -1,0 +1,1 @@
+sccache is started from a stable, short directory with its socket moved to an owner-only runtime directory when paths are deep, so builds no longer fail with a stale server or a socket path that is too long.
