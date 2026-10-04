@@ -2,7 +2,8 @@
 id = "01M4244944C4E8RTVK8VAJPQC3"
 title = "Clock safety: measure helper clock offset, never let a clock jump expose a starting run to gc, keep builds warm when the laptop clock runs ahead"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
