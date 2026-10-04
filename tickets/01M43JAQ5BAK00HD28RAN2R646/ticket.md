@@ -8,12 +8,12 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T13:40:51Z"
-updated = "2026-10-04T15:05:45Z"
+updated = "2026-10-04T15:17:07Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/tests/evict_live.rs", "docs/design.md"]
 
 [[acceptance]]
 text = "Given a helper over its disk budget while several runs are live (found live on 2026-10-04 during a wave of 6 large Rust runs: a running job's work dir and TMPDIR disappeared mid-run, one job got SIGTERM (exit 143), another's tempdir creation failed with No such file or directory), when eviction or gc runs from any run, then no live run's work dir, slot tree or seed is removed: a live run holds its work-dir lock for its whole lifetime including while the job runs, eviction only takes entries whose lock it can take, and a test with concurrent runs under a tiny budget proves it"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway run --report FILE whose command fails, or whose job is killed, when goway exits, then FILE is written with the outcome (exit code, signal, host) and why"
