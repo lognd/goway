@@ -7,8 +7,8 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-04T01:50:55Z"
-updated = "2026-10-04T02:18:47Z"
-scope = ["docs/macos.md", ".github/workflows/ci.yml", "crates/goway/tests/weighted_shards.rs", "crates/goway/tests/shard_detect.rs", "crates/goway/tests/needs.rs", "crates/goway/tests/project_rules.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/install_methods.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/copy_integrity.rs", "crates/goway/tests/common/mod.rs"]
+updated = "2026-10-04T03:27:58Z"
+scope = ["docs/macos.md", ".github/workflows/ci.yml", "crates/goway/tests/weighted_shards.rs", "crates/goway/tests/shard_detect.rs", "crates/goway/tests/needs.rs", "crates/goway/tests/project_rules.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/install_methods.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/copy_integrity.rs", "crates/goway/tests/common/mod.rs", "crates/goway/src/spawn.rs", "crates/goway/src/lib.rs", "crates/goway/src/sync.rs", "crates/goway/src/run.rs", "crates/goway/src/ssh.rs", "crates/goway/src/resolve.rs", "crates/goway/src/local.rs", "crates/goway/src/remote.sh", "crates/goway/tests/spawn_race.rs", "crates/goway/src/shard.rs"]
 
 [[acceptance]]
 text = "Given the macOS CI job, when it runs, then none of the listed tests are skipped"

@@ -8,8 +8,8 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:58:00Z"
-updated = "2026-10-04T02:58:00Z"
-scope = ["crates/goway/src/run.rs", "crates/goway/tests/host_asleep.rs", "docs/usage.md"]
+updated = "2026-10-04T03:27:59Z"
+scope = ["crates/goway/src/run.rs", "crates/goway/tests/host_asleep.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
 text = "Given a job whose ssh connection drops and whose host then no longer answers, when goway returns, then it reports the host as asleep, off or off the network with exit 125 and not as a failure of the command, while a command that itself exits 255 on a host that still answers keeps its exit code"
