@@ -886,3 +886,23 @@ fn the_administrator_probe_reads_the_token_groups_and_defaults_to_no() {
     let fake = Fake::new(vec![("EncodedCommand", 0, "False\r\n")]);
     assert!(!sys(&fake).admin_account());
 }
+
+// frob:tests crates/goway-setup/src/hostsys.rs::goway_jobs_running
+#[test]
+fn goway_jobs_are_counted_in_a_running_distro_and_a_stopped_one_has_none() {
+    // Not running: zero, and nothing enters the distro.
+    let fake = Fake::new(vec![("--list --running", 0, "Debian\r\n")]);
+    assert_eq!(sys(&fake).goway_jobs_running(".cache/goway").unwrap(), 0);
+    assert!(fake.log.borrow().iter().all(|i| i.args[0] == "--list"));
+    // Running: the count the lock probe printed; the root is an argument, never part of the script.
+    let fake = Fake::new(vec![
+        ("--list --running", 0, "Ubuntu\r\n"),
+        ("goway-jobs", 0, "2\n"),
+    ]);
+    assert_eq!(sys(&fake).goway_jobs_running(".cache/goway").unwrap(), 2);
+    let log = fake.log.borrow();
+    let probe = log.last().unwrap();
+    assert!(probe.args.contains(&".cache/goway".to_owned()));
+    assert!(probe.args.iter().any(|a| a.contains("flock -n")));
+    assert!(!probe.args.iter().any(|a| a == "--user"));
+}

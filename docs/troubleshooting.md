@@ -69,6 +69,31 @@ or `goway add NAME --rsudo`. goway lists the changes with their reasons
 and asks once. sudo on the helper then asks for its Linux password.
 </details>
 
+<details><summary>doctor says "wsl size": WSL has much less than the laptop</summary>
+
+WSL starts with half the laptop's RAM and often less swap than a big
+build wants. `goway doctor NAME` compares what WSL got with what the
+laptop has and prints the command, for example
+`goway-setup.exe tune --memory 12GB --swap 6GB --processors 14`. The
+suggestion leaves Windows at least 4 GiB or 25% of the RAM. Run it in a
+normal (non-administrator) terminal on the helper's Windows side. It
+edits `.wslconfig` through a journal, refuses while goway jobs run (unless
+`--yes`), and asks before `wsl --shutdown`, which stops everything in
+WSL. `goway-setup uninstall --host` puts the old values back. See
+docs/install-windows.md ("Giving WSL more of the machine").
+</details>
+
+<details><summary>doctor says the GPU is invisible to WSL, or CUDA is missing</summary>
+
+If Windows lists an NVIDIA or AMD GPU that WSL does not see, install the
+current Windows driver with WSL support, never a Linux GPU driver inside
+WSL, then run `wsl --shutdown` from a normal terminal and check
+`nvidia-smi` in WSL. If the GPU is visible but `nvcc` is missing,
+`goway doctor NAME --fix --rsudo` installs NVIDIA's `cuda-toolkit` for
+WSL-Ubuntu (x86_64, apt; no driver) and records it, so `goway uninstall`
+removes it again.
+</details>
+
 <details><summary>"kept N secret-looking file(s) on this machine"</summary>
 
 goway did not send files that look like passwords or keys (`.env`,

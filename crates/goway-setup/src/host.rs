@@ -797,7 +797,11 @@ pub fn restart_need(journal: &Journal) -> RestartNeed {
     let mut need = RestartNeed::default();
     for e in journal.entries.iter().filter(|e| changed(e)) {
         match &e.change {
-            Change::SetIniKey { key, .. } if key == "networkingMode" => need.shutdown = true,
+            Change::SetIniKey { path, .. }
+                if path.to_str().is_some_and(|p| p.ends_with(".wslconfig")) =>
+            {
+                need.shutdown = true;
+            }
             c @ Change::SetIniKey { .. } if is_wsl_conf(c) => need.terminate = true,
             _ => {}
         }

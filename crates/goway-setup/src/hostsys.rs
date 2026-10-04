@@ -180,7 +180,7 @@ pub enum Activation {
 pub struct HostSystem<R: Runner = ProcessRunner> {
     local: LocalSystem,
     runner: R,
-    distro: String,
+    pub(crate) distro: String,
     /// Never start the distro: it is only touched while `wsl.exe --list --running` shows it
     /// (set for an elevated process, whose token WSL interop would otherwise inherit).
     never_start: bool,
@@ -497,6 +497,25 @@ impl<R: Runner> HostSystem<R> {
                 false
             }
         }
+    }
+
+    /// How many goway jobs hold a work-directory lock in the distro (0 when it is not running:
+    /// nothing runs there, and asking must not start it). `root` is goway's remote root, relative
+    /// to the default user's home.
+    pub fn goway_jobs_running(&self, root: &str) -> SysResult<u32> {
+        if !self.distro_running()? {
+            return Ok(0);
+        }
+        let out = self.wsl_user(&[
+            "sh",
+            "-c",
+            "n=0; for l in \"$HOME\"/\"$1\"/work/*/lock; do [ -e \"$l\" ] || continue; flock -n \"$l\" true || n=$((n + 1)); done; echo $n",
+            "goway-jobs",
+            root,
+        ])?;
+        out.text()
+            .parse()
+            .map_err(|_| cmd_error("count goway jobs", &out))
     }
 
     /// Whether the distro's `/etc/wsl.conf` sets `[interop] enabled=false`.

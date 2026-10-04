@@ -32,6 +32,8 @@ pub struct Layout {
     pub state_dir: PathBuf,
     /// `<state_dir>\install-journal.json`.
     pub journal_path: PathBuf,
+    /// `<state_dir>\tune-journal.json`, the user-level journal of `.wslconfig` tuning.
+    pub tune_journal_path: PathBuf,
     /// The Add/Remove Programs key for this profile.
     pub uninstall_key: String,
     /// `<ProgramData>\goway`, the administrator-only parent of every profile's host state.
@@ -85,6 +87,7 @@ impl Layout {
             goway_exe: bin_dir.join("goway.exe"),
             setup_exe: install_root.join("goway-setup.exe"),
             journal_path: state_dir.join("install-journal.json"),
+            tune_journal_path: state_dir.join("tune-journal.json"),
             uninstall_key: format!(r"{UNINSTALL_ROOT}\{profile}"),
             host_uninstall_key: format!(r"{MACHINE_UNINSTALL_ROOT}\{profile}-host"),
             host_journal_path: admin_dir.join("host-journal.json"),
