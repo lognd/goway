@@ -8,7 +8,7 @@ points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T03:22:51Z"
-updated = "2026-10-04T03:26:55Z"
+updated = "2026-10-04T03:26:59Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/needs.rs", "crates/goway/src/shard.rs", "crates/goway/tests/os_pool.rs", "docs/hosts.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given --needs os=windows (or a goway.toml rule) or --host <a Windows host>, when goway picks, then Windows hosts are used as today; a test with mixed fake hosts proves both directions"
-bound = false
+bound = true
 +++
