@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-04T00:15:45Z"
+digest = "14d1f7f1ff11ac19509d9fd665b3752e747b7e8536054b7b86887d69fc1283dc"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 39ab117e-9136-4e3a-8a13-004bb022dd52 with nextest profile: default
+    Starting 5 tests across 41 binaries (493 tests skipped)
+        PASS [   5.941s] goway::slot_trees keep_copies_the_tree_out_and_the_slot_stays_usable
+        PASS [  31.948s] goway::remote_ps1 every_run_triggers_a_detached_gc_of_expired_entries
+        PASS [  45.229s] goway::remote_ps1 a_run_passes_output_and_the_exit_code_and_removes_its_work_dir
+        PASS [  48.764s] goway::remote_ps1 a_dropped_connection_stops_the_job_tree_and_releases_the_slot
+        SLOW [> 60.000s] goway::remote_ps1 keep_copies_the_tree_out_and_the_slot_stays_usable
+        PASS [  61.148s] goway::remote_ps1 keep_copies_the_tree_out_and_the_slot_stays_usable
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  61.153s] 5 tests run: 5 passed (1 slow), 493 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_run_passes_output_and_the_exit_code_and_removes_its_work_dir) | test(every_run_triggers_a_detached_gc_of_expired_entries) | test(a_dropped_connection_stops_the_job_tree_and_releases_the_slot) | test(keep_copies_the_tree_out_and_the_slot_stays_usable)'"
+size = 1067
+status = "measured"
+tests = ["keep_copies_the_tree_out_and_the_slot_stays_usable", "every_run_triggers_a_detached_gc_of_expired_entries", "a_run_passes_output_and_the_exit_code_and_removes_its_work_dir", "a_dropped_connection_stops_the_job_tree_and_releases_the_slot"]
+at = "2026-10-04T00:15:45Z"
+actor = "lognd"
+rev = 1
