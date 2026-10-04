@@ -2,13 +2,14 @@
 id = "01M41DQSJZS28G72PJWFMD718W"
 title = "Owner awareness: a helper whose owner is using it stays available but goway runs extra nicely there"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T17:42:08Z"
-updated = "2026-10-04T04:16:37Z"
+updated = "2026-10-04T04:16:49Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/config.rs", "crates/goway/src/status.rs", "crates/goway/src/remote.sh", "crates/goway/tests/owner_awareness.rs", "crates/goway/src/facts.rs", "docs/config.md", "crates/goway/src/needs.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs"]
 
 [[acceptance]]
