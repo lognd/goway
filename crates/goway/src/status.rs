@@ -58,8 +58,8 @@ fn pool_cell(facts: &crate::facts::Facts, pool_os: &str) -> String {
     }
 }
 
+// frob:ticket 01M42RAM7D56M1KH49NTGZTRVF
 /// One warning per reached host whose clock is over 2 s off, with the fix.
-// frob:ticket TGZTRVF
 pub fn clock_warnings(probed: &[Probed<'_>]) -> Vec<String> {
     probed
         .iter()

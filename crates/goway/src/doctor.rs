@@ -320,7 +320,7 @@ fn probe_host(
     });
     let mut found = found?;
     if let Some(ms) = crate::facts::clock::measure(&found.output, sent, rtt) {
-        // frob:ticket TGZTRVF
+        // frob:ticket 01M42RAM7D56M1KH49NTGZTRVF
         let _ = writeln!(found.output, "\n{}={ms}", crate::facts::clock::FACT);
     }
     if Kind::of(host) != Kind::Unix {
