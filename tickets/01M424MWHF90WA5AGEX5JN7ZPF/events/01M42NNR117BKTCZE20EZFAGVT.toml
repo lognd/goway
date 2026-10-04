@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T05:20:04Z"
+digest = "8f4e341a0e95d373dc032a2195d8d3cf3ba85b53eb25fbc2b925dbc57ef7cfc7"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 6c189666-866d-4db1-bc91-4c7e0eb74df3 with nextest profile: default
+    Starting 1 test across 58 binaries (687 tests skipped)
+        PASS [   0.005s] goway cmakeapi::tests::libraries_a_target_links_map_to_packages_through_the_one_table
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.008s] 1 test run: 1 passed, 687 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "libraries_a_target_links_map_to_packages"
+size = 579
+status = "measured"
+tests = ["cmakeapi::tests::libraries_a_target_links_map_to_packages_through_the_one_table"]
+at = "2026-10-04T05:20:04Z"
+actor = "lognd"
+rev = 1
