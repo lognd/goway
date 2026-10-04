@@ -2,7 +2,8 @@
 id = "01M43JBGHCD68QDZVMDMG5P4GS"
 title = "Allow max_disk, min_free and cache_size per [[host]], overriding [defaults]"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
