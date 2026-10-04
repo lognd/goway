@@ -2,13 +2,13 @@
 id = "01M426PCBA3AW3Q3XXMYKF9Q5D"
 title = "remote_ps1 stamp test: build output must get a fresh mtime, not Copy-Item's preserved one"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T00:58:16Z"
-updated = "2026-10-04T00:58:16Z"
+updated = "2026-10-04T00:58:18Z"
 scope = ["crates/goway/tests/remote_ps1.rs", "crates/goway/src/remote.ps1"]
 
 [[acceptance]]
