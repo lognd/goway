@@ -2,13 +2,14 @@
 id = "01M43B0W5Q7HPXFMBEEZ14S4VY"
 title = "A per-repository sccache server inherits one run's TMPDIR and breaks later runs after that work dir is removed"
 type = "bug"
-category = "todo"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T11:33:08Z"
-updated = "2026-10-04T21:49:40Z"
+updated = "2026-10-04T21:49:41Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/sccache_tmpdir.rs", "docs/design.md"]
 
 [[acceptance]]
