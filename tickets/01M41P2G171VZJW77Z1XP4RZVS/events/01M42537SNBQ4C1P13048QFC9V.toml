@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-04T00:30:20Z"
+digest = "ac22119b3fae6c986f1a78d79282acc8c4dcecbc44faaa85bdeb4ac81122b475"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1223efba-ef81-4bdb-bab0-9c29aa1c1213 with nextest profile: default
+    Starting 3 tests across 44 binaries (522 tests skipped)
+        PASS [   0.012s] goway doctor::projneeds::tests::cmake_presets_asking_for_ninja_replace_make
+        PASS [   0.012s] goway doctor::projneeds::tests::checks_flag_missing_and_too_old_tools_with_the_right_fix
+        PASS [   0.012s] goway doctor::projneeds::tests::a_cpp_project_is_never_asked_for_cargo_or_node
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.015s] 3 tests run: 3 passed, 522 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_cpp_project_is_never_asked_for_cargo_or_node) | test(cmake_presets_asking_for_ninja_replace_make) | test(checks_flag_missing_and_too_old_tools_with_the_right_fix)'"
+size = 789
+status = "measured"
+tests = ["doctor::projneeds::tests::cmake_presets_asking_for_ninja_replace_make", "doctor::projneeds::tests::checks_flag_missing_and_too_old_tools_with_the_right_fix", "doctor::projneeds::tests::a_cpp_project_is_never_asked_for_cargo_or_node"]
+at = "2026-10-04T00:30:20Z"
+actor = "lognd"
+rev = 1
