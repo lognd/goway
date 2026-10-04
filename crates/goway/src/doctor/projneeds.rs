@@ -661,6 +661,9 @@ struct UserPin {
     version: &'static str,
     /// Binaries inside the unpacked directory, linked by file name.
     bins: &'static [&'static str],
+    /// Used only where the distribution has no package for the tool (see
+    /// [`packaged`]); elsewhere the system package is the fix.
+    fallback_only: bool,
     /// `(arch, url, hash algorithm, hash)`.
     builds: &'static [(&'static str, &'static str, &'static str, &'static str)],
 }
@@ -670,6 +673,7 @@ const PINS: &[UserPin] = &[
         tool: "uv",
         version: "0.12.23",
         bins: &["uv", "uvx"],
+        fallback_only: false,
         builds: &[
             (
                 "x86_64",
@@ -689,6 +693,7 @@ const PINS: &[UserPin] = &[
         tool: "go",
         version: "1.27.1",
         bins: &["bin/go", "bin/gofmt"],
+        fallback_only: false,
         builds: &[
             (
                 "x86_64",
@@ -708,6 +713,7 @@ const PINS: &[UserPin] = &[
         tool: "cmake",
         version: "3.30.5",
         bins: &["bin/cmake", "bin/ctest", "bin/cpack"],
+        fallback_only: false,
         builds: &[
             (
                 "x86_64",
@@ -727,6 +733,7 @@ const PINS: &[UserPin] = &[
         tool: "node",
         version: "24.21.0",
         bins: &["bin/node", "bin/npm", "bin/npx", "bin/corepack"],
+        fallback_only: false,
         builds: &[
             (
                 "x86_64",
@@ -746,6 +753,7 @@ const PINS: &[UserPin] = &[
         tool: "java",
         version: "21.0.12",
         bins: &["bin/java", "bin/javac", "bin/jar"],
+        fallback_only: false,
         builds: &[
             (
                 "x86_64",
@@ -765,6 +773,7 @@ const PINS: &[UserPin] = &[
         tool: "mvn",
         version: "3.9.16",
         bins: &["bin/mvn"],
+        fallback_only: false,
         builds: &[
             (
                 "x86_64",
@@ -777,6 +786,26 @@ const PINS: &[UserPin] = &[
                 "https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.tar.gz",
                 "sha512",
                 "831a8591fe20c8243b1dbe7d71e3244f31d1665b0804b2e825e38cbbe5ce0cafb8338851f90780735568773e0a6cd07bbec107cda0b896b008b861075358b6f6",
+            ),
+        ],
+    },
+    UserPin {
+        tool: "mold",
+        version: "2.42.1",
+        bins: &["bin/mold", "bin/ld.mold"],
+        fallback_only: true,
+        builds: &[
+            (
+                "x86_64",
+                "https://github.com/rui314/mold/releases/download/v2.42.1/mold-2.42.1-x86_64-linux.tar.gz",
+                "sha256",
+                "6ff270c9bf07d2bec5c98aa324eb7c4daf6a1a4d815c05ff1708049616047855",
+            ),
+            (
+                "aarch64",
+                "https://github.com/rui314/mold/releases/download/v2.42.1/mold-2.42.1-aarch64-linux.tar.gz",
+                "sha256",
+                "16b025652d3d7456689e6025a77e1903bb2a15e7630877c26cc133f5df95b9c6",
             ),
         ],
     },
@@ -844,6 +873,23 @@ const PACKAGES: &[(&str, &str, &str, &str)] = &[
     ),
 ];
 
+/// Whether the host's distribution packages `tool`. Only mold has a known
+/// gap: Ubuntu before 22.04 and Debian before 12 have no package for it.
+/// An unknown or unlisted distribution counts as packaged (the package
+/// manager then says so itself if it is not).
+fn packaged(tool: &str, facts: &BTreeMap<String, String>) -> bool {
+    if tool != "mold" {
+        return true;
+    }
+    let os = facts.get("os").map(|o| o.to_ascii_lowercase());
+    let version = os.as_deref().and_then(first_version);
+    match (os.as_deref(), version) {
+        (Some(o), Some(v)) if o.contains("ubuntu") => v >= vec![22, 4],
+        (Some(o), Some(v)) if o.contains("debian") => v.first().is_some_and(|m| *m >= 12),
+        _ => true,
+    }
+}
+
 /// The fix for a missing or too-old `tool`: a pinned user-level install
 /// when one satisfies the requirement, else a system package (root), else
 /// a user-level helper for the few tools that have one.
@@ -855,7 +901,11 @@ fn fix_for(req: &Req, facts: &BTreeMap<String, String>) -> Option<Fix> {
             .min
             .as_ref()
             .is_none_or(|m| numbers(pin.version).is_some_and(|v| m.matches(&v)));
-        if ok && let Some(command) = pin_install(pin, arch) {
+        let wanted = !pin.fallback_only || !packaged(tool, facts);
+        if ok
+            && wanted
+            && let Some(command) = pin_install(pin, arch)
+        {
             return Some(Fix {
                 command,
                 root: false,
