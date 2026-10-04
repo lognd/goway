@@ -2,13 +2,13 @@
 id = "01M43ETRMKFS15MWTTVZHX18YW"
 title = "An unpinned cross-OS run whose translation is in doubt re-picks a host of the laptop's OS instead of stopping"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T12:39:42Z"
-updated = "2026-10-04T13:22:29Z"
+updated = "2026-10-04T14:47:35Z"
 scope = ["crates/goway/src/run.rs", "crates/goway/src/error.rs", "crates/goway/src/remote.sh", "crates/goway/src/remote.ps1", "docs/usage.md", "crates/goway/tests/translate_repick.rs"]
 
 [[acceptance]]
