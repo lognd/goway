@@ -2,7 +2,8 @@
 id = "01M43CZG0V20SHCRVJ75YX9H8Q"
 title = "Making room before a run must never evict the run's own seed, work dir or cache"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
