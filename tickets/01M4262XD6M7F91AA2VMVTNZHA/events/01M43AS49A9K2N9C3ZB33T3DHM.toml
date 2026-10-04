@@ -1,0 +1,7 @@
+kind = "field"
+field = "title"
+old = "remote.ps1 parity with remote.sh: disk budget LRU eviction, budget probe word, heartbeat, clock safety, best-effort cleanup"
+new = "remote.ps1 parity: disk budget LRU eviction, budget probe word, cache size caps"
+at = "2026-10-04T11:28:55Z"
+actor = "lognd"
+rev = 1
