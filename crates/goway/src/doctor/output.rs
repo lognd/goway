@@ -242,7 +242,14 @@ pub fn describe(check: &Check) -> String {
 /// The fix `fix` of the check `name`, in plain words.
 pub fn describe_fix(name: &str, fix: &Fix) -> String {
     if let Some(words) = package_words(fix) {
-        return format!("install {words} with the system package manager (administrator rights)");
+        let by = if fix.why.starts_with("from repository") {
+            format!(", {}", fix.why)
+        } else {
+            String::new()
+        };
+        return format!(
+            "install {words} with the system package manager (administrator rights){by}"
+        );
     }
     match name {
         "sshd password login" => "turn off ssh password login (keys only)".to_owned(),

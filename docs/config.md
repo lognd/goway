@@ -81,6 +81,13 @@ rules as every other host. See docs/hosts.md.
 project's `goway.toml` (see [usage.md](usage.md)); they are 1-63 letters,
 digits, `-` or `_`. Labels live only in this file, never in a project.
 
+A project's own `goway.toml` `[toolchain]` section (not this file) can also
+list `rust_targets` and `packages = { apt, dnf, pacman }` that `goway doctor`
+checks and installs on the helpers; packages are root installs that need
+`--rsudo` and a confirmation naming the repository as their source. The
+name syntax, the `rust-toolchain.toml` targets and the fixes are in
+[usage.md](usage.md).
+
 Without `identity`, ssh offers every key in your agent and default key
 files to the helper, one after another, so the helper learns their
 fingerprints and comments and a full agent can exhaust the helper's

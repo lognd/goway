@@ -13,8 +13,10 @@ use std::process::Stdio;
 
 mod cmakecheck;
 pub mod output;
+mod prereq;
 mod projneeds;
 
+pub use prereq::Packages;
 pub use projneeds::{Needs, Toolchain, first_version};
 
 use crate::cli::DoctorArgs;
@@ -804,7 +806,9 @@ impl Installed {
         if let Some((command, root)) = undo_of(&self.check) {
             return Undo::Run { command, root };
         }
-        if PACKAGE_CHECKS.contains(&self.check.as_str()) || projneeds::is_package_check(&self.check)
+        if PACKAGE_CHECKS.contains(&self.check.as_str())
+            || projneeds::is_package_check(&self.check)
+            || self.check.starts_with("pkg:")
         {
             Undo::KeepPackage
         } else {
@@ -947,7 +951,9 @@ fn project_needs() -> Result<projneeds::Needs> {
     let toolchain = crate::project::Rules::load(&repo.root)?
         .map(|r| r.toolchain)
         .unwrap_or_default();
-    projneeds::analyse(&repo.root, &toolchain)
+    let mut needs = projneeds::analyse(&repo.root, &toolchain)?;
+    needs.prereqs.repo = repo.name;
+    Ok(needs)
 }
 
 /// For a `CMake` project, add what `CMake` itself says it needs (its File API
@@ -1227,7 +1233,8 @@ pub fn doctor(
     let names = needs.probe_names();
     let mut cmd_args = vec![config.defaults.remote_root.as_str()];
     cmd_args.extend(names.iter().map(String::as_str));
-    let cmd = remote::invocation("doctor", &cmd_args);
+    // The repository's targets and packages are asked in the same ssh call.
+    let cmd = needs.prereqs.wrap(&remote::invocation("doctor", &cmd_args));
     let mut state = State::load(&paths.state_file())?;
     let results = pool::on_hosts(&hosts, &mut state, |host, local| {
         resolve::resolve(

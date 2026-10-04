@@ -11,6 +11,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use super::prereq::{self, Packages, Prereqs};
 use super::{Check, Fix, Level, install};
 use crate::ecotools::{self, CargoLinking};
 use crate::error::{Error, Result};
@@ -158,6 +159,10 @@ pub struct Toolchain {
     pub versions: BTreeMap<String, String>,
     /// `tools = ["protoc"]`.
     pub tools: Vec<String>,
+    /// `rust_targets = ["x86_64-pc-windows-gnu"]`: installed user-level with rustup.
+    pub rust_targets: Vec<String>,
+    /// `packages = { apt = [...], dnf = [...], pacman = [...] }`: root installs.
+    pub packages: Packages,
 }
 
 /// What a project needs.
@@ -170,6 +175,8 @@ pub struct Needs {
     /// How cargo links per target triple (the linker and `-fuse-ld` backend
     /// its config and environment name); the host's own triple picks one.
     pub linking: Vec<CargoLinking>,
+    /// Rust targets and distro packages the repository asks for.
+    pub prereqs: Prereqs,
 }
 
 /// Whether `name` is safe to put in a probe command (and a file name).
@@ -327,11 +334,28 @@ fn rust(root: &Path, needs: &mut Needs) {
         needs.push(from_detected("rustc", &d));
     }
     // The toolchain checks (cargo, nextest, sccache) are goway's own; the
-    // channel in rust-toolchain.toml is rustup's to install.
+    // channel in rust-toolchain.toml is rustup's to install, but its pinned
+    // channel and `targets` say which toolchain the targets are checked for.
     if let Some(text) = read(root, "rust-toolchain.toml")
         && let Ok(v) = toml::from_str::<toml::Table>(&text)
     {
-        tracing::debug!(channel = ?v.get("toolchain").and_then(|t| t.get("channel")), "rust-toolchain.toml");
+        let tc = v.get("toolchain");
+        tracing::debug!(channel = ?tc.and_then(|t| t.get("channel")), "rust-toolchain.toml");
+        needs.prereqs.channel = tc
+            .and_then(|t| t.get("channel")?.as_str())
+            .filter(|c| prereq::valid_channel(c))
+            .map(str::to_owned);
+        let targets = tc.and_then(|t| t.get("targets")?.as_array());
+        for t in targets.into_iter().flatten().filter_map(|t| t.as_str()) {
+            if prereq::valid_target(t) {
+                needs.prereqs.rust_targets.push(t.to_owned());
+            } else {
+                tracing::warn!(
+                    target = t,
+                    "rust-toolchain.toml: not a target triple; ignored"
+                );
+            }
+        }
     }
 }
 
@@ -681,6 +705,13 @@ pub fn analyse(root: &Path, toolchain: &Toolchain) -> Result<Needs> {
         }
         needs.add(name, None, "goway.toml [toolchain] tools");
     }
+    for t in &toolchain.rust_targets {
+        if !needs.prereqs.rust_targets.contains(t) {
+            needs.prereqs.rust_targets.push(t.clone());
+        }
+    }
+    needs.prereqs.packages = toolchain.packages.clone();
+    needs.prereqs.validate(&root.join("goway.toml"))?;
     tracing::info!(ecosystems = ?needs.ecosystems, tools = needs.reqs.len(), "project needs");
     Ok(needs)
 }
@@ -1040,6 +1071,7 @@ pub fn checks(needs: &Needs, facts: &BTreeMap<String, String>, skip: &[String]) 
             fix,
         });
     }
+    out.extend(needs.prereqs.checks(facts));
     out
 }
 
@@ -1186,6 +1218,43 @@ mod tests {
         assert_eq!(tools(&analyse_dir(&d)), ["python3"]);
     }
 
+    // frob:ticket 01M42KTW3HF5XY7HAZD6P32EB5
+    // frob:tests crates/goway/src/doctor/projneeds.rs::analyse
+    #[test]
+    fn rust_toolchain_targets_and_goway_toml_targets_both_count_and_hostile_names_are_refused() {
+        let d = dir_with(&[
+            ("Cargo.toml", "[package]\nname = \"x\"\n"),
+            (
+                "rust-toolchain.toml",
+                "[toolchain]\nchannel = \"1.98.0\"\ntargets = [\"wasm32-unknown-unknown\", \"bad target\"]\n",
+            ),
+        ]);
+        let tc = Toolchain {
+            rust_targets: vec!["x86_64-pc-windows-gnu".to_owned()],
+            packages: Packages {
+                apt: vec!["gcc-mingw-w64-x86-64".to_owned()],
+                ..Packages::default()
+            },
+            ..Toolchain::default()
+        };
+        let n = analyse(d.path(), &tc).unwrap();
+        assert_eq!(
+            n.prereqs.rust_targets,
+            ["wasm32-unknown-unknown", "x86_64-pc-windows-gnu"]
+        );
+        assert_eq!(n.prereqs.channel.as_deref(), Some("1.98.0"));
+        assert_eq!(n.prereqs.packages.apt, ["gcc-mingw-w64-x86-64"]);
+        let evil = Toolchain {
+            packages: Packages {
+                dnf: vec!["--installroot=/x".to_owned()],
+                ..Packages::default()
+            },
+            ..Toolchain::default()
+        };
+        let err = analyse(d.path(), &evil).unwrap_err().to_string();
+        assert!(err.contains("not a dnf package name"), "{err}");
+    }
+
     #[test]
     fn go_java_ruby_dotnet_and_rust_are_detected_from_their_files() {
         let d = dir_with(&[("go.mod", "module x\n\ngo 1.22\n")]);
@@ -1231,6 +1300,7 @@ mod tests {
             ]
             .into(),
             tools: vec!["protoc".to_owned()],
+            ..Toolchain::default()
         };
         let n = analyse(d.path(), &tc).unwrap();
         let cmake = n.reqs.iter().find(|r| r.tool == "cmake").unwrap();

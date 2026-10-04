@@ -882,6 +882,36 @@ tools = ["protoc"]    # must exist, any version
 Tool names must be plain (letters, digits, `._+-`): they go into a
 command on the host.
 
+A repository can also ask for Rust targets and distro packages, such as the
+cross-compiler a CI step needs on the helpers:
+
+```toml
+[toolchain]
+rust_targets = ["x86_64-pc-windows-gnu"]
+tools = ["x86_64-w64-mingw32-gcc"]
+
+[toolchain.packages]
+apt = ["gcc-mingw-w64-x86-64"]
+dnf = ["mingw64-gcc"]
+pacman = ["mingw-w64-gcc"]
+```
+
+`rust-toolchain.toml` `targets = [...]` count as `rust_targets` too, and its
+`channel` names the toolchain the targets are checked for (the default
+toolchain when it names none). `goway doctor` checks each target and package
+on every Unix helper, as rows `target:TRIPLE` and `pkg:NAME` (a package
+manager other than apt, dnf or pacman gets one warning row). `--fix` adds a
+missing target for your user only (`rustup target add --toolchain CHANNEL
+TRIPLE`). A missing package is a root fix: it needs `--fix --rsudo`, and the
+confirmation lists every package and names the repository and `goway.toml`
+as the source before asking, then shows the exact commands. A package list
+is validated against the package manager's name syntax (apt: lower-case
+letters, digits and `+-.`; dnf: letters, digits and `+._-`; pacman: letters,
+digits and `@._+-`; never starting with `-`), so a repository can ask for
+package names and nothing else: an option, a path, a space or a shell
+character is a config error and nothing runs. Any other key under
+`[toolchain.packages]` is an error too.
+
 Fixes for these tools prefer a user-level install: pinned releases of
 uv, go, cmake, node, a Temurin JDK and Maven (and mold where the
 distribution has no package for it, Ubuntu before 22.04 and Debian

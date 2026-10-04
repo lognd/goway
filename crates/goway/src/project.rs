@@ -47,13 +47,29 @@ struct RawFile {
     cross_os: Option<bool>,
 }
 
-/// `[toolchain]`: `tools = [...]` plus `tool = "version"` pins.
+/// `[toolchain]`: `tools = [...]`, `rust_targets`, `packages`, plus `tool = "version"` pins.
 #[derive(Debug, Default, Deserialize)]
 struct RawToolchain {
     #[serde(default)]
     tools: Vec<String>,
+    #[serde(default)]
+    rust_targets: Vec<String>,
+    #[serde(default)]
+    packages: RawPackages,
     #[serde(flatten)]
     versions: std::collections::BTreeMap<String, String>,
+}
+
+/// `[toolchain] packages`: names per package manager; any other manager is an error.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawPackages {
+    #[serde(default)]
+    apt: Vec<String>,
+    #[serde(default)]
+    dnf: Vec<String>,
+    #[serde(default)]
+    pacman: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -262,6 +278,12 @@ impl Rules {
         let toolchain = crate::doctor::Toolchain {
             versions: raw.toolchain.versions,
             tools: raw.toolchain.tools,
+            rust_targets: raw.toolchain.rust_targets,
+            packages: crate::doctor::Packages {
+                apt: raw.toolchain.packages.apt,
+                dnf: raw.toolchain.packages.dnf,
+                pacman: raw.toolchain.packages.pacman,
+            },
         };
         Ok(Self {
             rules,
@@ -389,6 +411,26 @@ mod tests {
         let (win, _) =
             selection_for(dir.path(), &[], &["os=windows".to_owned()], &none, false).unwrap();
         assert_eq!(win.pool_os, None);
+    }
+
+    // frob:ticket 01M42KTW3HF5XY7HAZD6P32EB5
+    // frob:tests crates/goway/src/project.rs::Rules
+    #[test]
+    fn toolchain_reads_rust_targets_and_packages_and_refuses_unknown_managers() {
+        let r = parse(
+            "[toolchain]\nrust_targets = [\"x86_64-pc-windows-gnu\"]\ntools = [\"x86_64-w64-mingw32-gcc\"]\nsh = \">=1\"\n[toolchain.packages]\napt = [\"gcc-mingw-w64-x86-64\"]\ndnf = [\"mingw64-gcc\"]\n",
+        )
+        .unwrap();
+        assert_eq!(r.toolchain.rust_targets, ["x86_64-pc-windows-gnu"]);
+        assert_eq!(r.toolchain.packages.apt, ["gcc-mingw-w64-x86-64"]);
+        assert_eq!(r.toolchain.packages.dnf, ["mingw64-gcc"]);
+        assert!(r.toolchain.packages.pacman.is_empty());
+        assert_eq!(r.toolchain.tools, ["x86_64-w64-mingw32-gcc"]);
+        assert_eq!(
+            r.toolchain.versions.get("sh").map(String::as_str),
+            Some(">=1")
+        );
+        assert!(parse("[toolchain.packages]\nbrew = [\"x\"]\n").is_err());
     }
 
     // frob:tests crates/goway/src/project.rs::glob_matches

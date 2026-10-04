@@ -146,3 +146,45 @@ fn harden_needs_rsudo_and_explain_is_not_a_fix() {
     let out = w.run(&["doctor", "--fix", "--explain", "cargo"]);
     assert_eq!(out.status.code(), Some(2));
 }
+
+// frob:ticket 01M42KTW3HF5XY7HAZD6P32EB5
+// frob:tests crates/goway/src/doctor/prereq.rs::Prereqs.checks
+// frob:tests crates/goway/src/doctor/prereq.rs::Prereqs.probe_script
+#[test]
+fn goway_toml_packages_and_targets_are_probed_and_missing_ones_fail() {
+    let w = common::world();
+    std::fs::write(
+        w.repo.join("goway.toml"),
+        "[toolchain]\nrust_targets = [\"goway-no-such-target\"]\n[toolchain.packages]\napt = [\"goway-no-such-pkg\"]\ndnf = [\"goway-no-such-pkg\"]\npacman = [\"goway-no-such-pkg\"]\n",
+    )
+    .unwrap();
+    let (out, table, err) = doctor(&w);
+    // Which rows appear depends on the machine (a package manager, rustup);
+    // none of them may pass.
+    assert!(!table.contains("ok  pkg:goway-no-such-pkg"), "{table}");
+    assert!(
+        !table.contains("ok  target:goway-no-such-target"),
+        "{table}"
+    );
+    assert!(
+        has_row(&table, "pkg:goway-no-such-pkg") || has_row(&table, "packages"),
+        "{table}\n{err}"
+    );
+    assert_ne!(out.status.code(), Some(125), "{err}");
+}
+
+// frob:ticket 01M42KTW3HF5XY7HAZD6P32EB5
+// frob:tests crates/goway/src/doctor/prereq.rs::Prereqs.validate
+#[test]
+fn a_hostile_package_name_in_goway_toml_is_a_config_error_not_a_command() {
+    let w = common::world();
+    std::fs::write(
+        w.repo.join("goway.toml"),
+        "[toolchain.packages]\napt = [\"--allow-unauthenticated\", \"x; touch pwned\"]\n",
+    )
+    .unwrap();
+    let (out, _, err) = doctor(&w);
+    assert_eq!(out.status.code(), Some(125), "{err}");
+    assert!(err.contains("not a apt package name"), "{err}");
+    assert!(!w.repo.join("pwned").exists());
+}
