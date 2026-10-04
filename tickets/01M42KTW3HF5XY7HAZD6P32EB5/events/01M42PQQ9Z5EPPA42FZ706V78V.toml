@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T05:38:37Z"
+digest = "efc7ca9a825b5013bea95361a5cb68cf374350ea696782b08a79e5f9b5ca66c1"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 18f78d89-fa20-4445-b04a-fe5a6d46a932 with nextest profile: default
+    Starting 1 test across 58 binaries (702 tests skipped)
+        PASS [   0.069s] goway doctor::projneeds::tests::rust_toolchain_targets_and_goway_toml_targets_both_count_and_hostile_names_are_refused
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.072s] 1 test run: 1 passed, 702 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(rust_toolchain_targets_and_goway_toml_targets_both_count_and_hostile_names_are_refused)'"
+size = 612
+status = "measured"
+tests = ["doctor::projneeds::tests::rust_toolchain_targets_and_goway_toml_targets_both_count_and_hostile_names_are_refused"]
+at = "2026-10-04T05:38:37Z"
+actor = "lognd"
+rev = 1
