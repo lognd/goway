@@ -2,7 +2,8 @@
 id = "01M43CFMDFG8YSM3HNRD0GB213"
 title = "Pending claims reserve their repository's disk footprint so a wave of one repository spreads across helpers"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
