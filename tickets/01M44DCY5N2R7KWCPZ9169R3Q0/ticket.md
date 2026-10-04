@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T21:33:55Z"
-updated = "2026-10-04T21:38:50Z"
+updated = "2026-10-04T21:38:51Z"
 labels = ["security"]
 scope = ["crates/goway-journal/src/lib.rs", "crates/goway-journal/src/psquote.rs", "crates/goway/src/transport.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/src/helper.rs", "crates/goway/src/sshsetup.rs", "crates/goway/tests/ps_quote.rs", "crates/goway-setup/tests/hostsys.rs", "docs/design.md"]
 
@@ -18,5 +18,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a key comment containing dollar-parenthesis, backtick or curly quotes, when native_setup_command prints the administrator command, then the comment is absent and the key is a single-quoted literal"
-bound = false
+bound = true
 +++
