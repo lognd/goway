@@ -182,5 +182,8 @@ fn making_room_never_evicts_the_runs_own_seed() {
         .flat_map(|r| std::fs::read_dir(r.path()).unwrap().flatten())
         .collect();
     assert!(!seeds.is_empty(), "the run's seed was kept: {err}");
-    assert!(seeds.iter().all(|s| s.path().join("tree").exists()), "{err}");
+    assert!(
+        seeds.iter().all(|s| s.path().join("tree").exists()),
+        "{err}"
+    );
 }
