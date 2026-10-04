@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T17:34:50Z"
+digest = "685cab5915afbd6320ee26643c3aabe76b1b45c6cd64ee5eea51a33e91df5b2e"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.64s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 76a8cc7f-d446-4a8a-bd32-fb48a0f42b91 with nextest profile: default
+    Starting 3 tests across 72 binaries (824 tests skipped)
+        PASS [   0.005s] goway pool::tests::a_pinned_host_is_warned_about_the_peak_never_refused
+        PASS [   0.005s] goway pool::tests::ignore_footprint_and_mem_zero_switch_the_checks_off
+        PASS [   0.005s] goway pool::tests::a_peak_no_helper_could_hold_runs_on_the_largest_with_a_warning
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.008s] 3 tests run: 3 passed, 824 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_peak_no_helper_could_hold_runs_on_the_largest_with_a_warning) | test(ignore_footprint_and_mem_zero_switch_the_checks_off) | test(a_pinned_host_is_warned_about_the_peak_never_refused)'"
+size = 955
+status = "measured"
+tests = ["pool::tests::a_pinned_host_is_warned_about_the_peak_never_refused", "pool::tests::ignore_footprint_and_mem_zero_switch_the_checks_off", "pool::tests::a_peak_no_helper_could_hold_runs_on_the_largest_with_a_warning"]
+at = "2026-10-04T17:34:50Z"
+actor = "lognd"
+rev = 1
