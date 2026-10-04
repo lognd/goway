@@ -2,13 +2,13 @@
 id = "01M42AMDX29E13TQABY19PCKTH"
 title = "rsudo and lsudo elevate Windows-side steps through an admin OpenSSH session or UAC, never with a stored password"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:07:06Z"
-updated = "2026-10-04T02:07:06Z"
+updated = "2026-10-04T03:56:30Z"
 scope = ["crates/goway/src/add.rs", "crates/goway/src/doctor.rs", "crates/goway/src/cli.rs", "docs/usage.md", "docs/install-windows.md"]
 
 [[acceptance]]
