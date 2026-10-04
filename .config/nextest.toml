@@ -1,0 +1,9 @@
+# A hung test must never hold CI for hours (macOS runs once did, and starved
+# the runner pool). Every test is reported SLOW after 60s and killed after
+# five periods; the suites that really do heavy work get ten.
+[profile.default]
+slow-timeout = { period = "60s", terminate-after = 5 }
+
+[[profile.default.overrides]]
+filter = "binary(shard_runners) | binary(cmake_api) | binary(footprint) | binary(mem_footprint)"
+slow-timeout = { period = "60s", terminate-after = 10 }

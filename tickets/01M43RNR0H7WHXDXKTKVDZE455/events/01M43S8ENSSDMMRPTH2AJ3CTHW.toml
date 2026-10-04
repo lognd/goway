@@ -1,0 +1,11 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T15:41:57Z"
+digest = "6379b788df42857162f79bb09e5f49be43527423ece8e2887375c3d294507916"
+provider = "file"
+ref = ".config/nextest.toml"
+size = 471
+status = "measured"
+at = "2026-10-04T15:41:57Z"
+actor = "lognd"
+rev = 1

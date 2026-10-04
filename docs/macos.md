@@ -47,3 +47,13 @@ Things a Mac helper needed that Linux did not:
   second can look equal; use `gmake` or Ninja for fast edit-build loops.
 
 Report anything else you hit.
+
+## Hangs and timeouts in CI
+
+A hung test must not hold a runner for hours. `.config/nextest.toml` marks
+every test SLOW after 60 seconds and kills it after five of those periods
+(ten for the shard, CMake and footprint suites, which do real work). Every
+CI job also has a `timeout-minutes` limit. On macOS the test steps run
+`scripts/ci-ps-watch.sh` beside nextest: once a process has run for 45
+seconds it prints the process table and the open pipes of the goway, bash
+and nextest processes, so a stuck run leaves its evidence in the log.
