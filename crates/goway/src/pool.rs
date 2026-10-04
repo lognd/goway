@@ -3,7 +3,7 @@
 //!
 //! Score = (1-minute load + goway jobs running) / cores. goway's own jobs
 //! are counted on top of the load average because a job that just started
-//! has not shown up in the load yet. Hosts at their job limit (`max_jobs`, default half the cores) are skipped.
+//! has not shown up in the load yet. Hosts at their job limit (`max_jobs`, default every core) are skipped.
 //!
 //! A host short of memory scores worse: when its available RAM per core is
 //! below `mem_per_core` GiB (default 0.5), up to 1.0 is added in proportion
@@ -590,7 +590,7 @@ mod tests {
 
     // frob:tests crates/goway/src/pool.rs::ranked
     #[test]
-    fn an_unset_max_jobs_means_half_the_cores() {
+    fn an_unset_max_jobs_means_every_core() {
         let hosts = [host("h", None)];
         let at = |jobs| {
             let probed = vec![Probed {
@@ -599,8 +599,8 @@ mod tests {
             }];
             ranked(&Config::default(), &probed)
         };
-        assert_eq!(at(3), [0]);
-        assert!(at(4).is_empty(), "4 jobs on 8 cores is the default limit");
+        assert_eq!(at(7), [0]);
+        assert!(at(8).is_empty(), "8 jobs on 8 cores is the default limit");
     }
 
     #[test]

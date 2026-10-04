@@ -1,0 +1,30 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-04T03:55:19Z"
+digest = "02bbcd7199f9895676a7fe1caae8b144e9630245194ba9fe41003dff78f8f8df"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 127bad84-e222-43c4-aa7c-b615d975814d with nextest profile: default
+    Starting 8 tests across 1 binary (51 binaries skipped)
+        PASS [   0.008s] goway::doctor_output explain_gives_the_long_text_for_one_check_only
+        PASS [   0.008s] goway::doctor_output with_harden_the_hardening_is_still_its_own_list
+        PASS [   0.015s] goway::doctor_output one_host_with_nothing_wrong_is_one_line
+        PASS [   0.016s] goway::doctor_output an_unreachable_host_is_one_line
+        PASS [   0.018s] goway::doctor_output all_adds_the_passing_rows_after_the_problems
+        PASS [   0.017s] goway::doctor_output the_plan_lists_each_fix_once_and_hardening_apart_without_harden
+        PASS [   0.018s] goway::doctor_output the_prompt_names_the_host_and_what_changes_and_the_script_is_shown_whole
+        PASS [   0.025s] goway::doctor_output problems_are_grouped_across_hosts_and_passing_checks_stay_hidden
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.027s] 8 tests run: 8 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(doctor_output)'"
+size = 1249
+status = "measured"
+tests = ["explain_gives_the_long_text_for_one_check_only", "with_harden_the_hardening_is_still_its_own_list", "one_host_with_nothing_wrong_is_one_line", "an_unreachable_host_is_one_line", "all_adds_the_passing_rows_after_the_problems", "the_plan_lists_each_fix_once_and_hardening_apart_without_harden", "the_prompt_names_the_host_and_what_changes_and_the_script_is_shown_whole", "problems_are_grouped_across_hosts_and_passing_checks_stay_hidden"]
+at = "2026-10-04T03:55:19Z"
+actor = "lognd"
+rev = 1
