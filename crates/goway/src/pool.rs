@@ -472,16 +472,21 @@ pub fn probe_one(
     let key = host.name.to_ascii_lowercase();
     let now = crate::state::now_secs();
     let statics = state.refresh_facts || facts::stale(state.facts.get(&key), now);
-    let found = resolve::resolve_call(
-        config,
-        host,
-        state,
-        lookup,
-        prober,
-        KeyPolicy::Strict,
-        &probe_call(config, disk, statics),
-    )?;
-    let probe = complete_probe(&host.name, &found.output, state, now)?;
+    let (found, sent, rtt) = crate::facts::clock::timed(|| {
+        resolve::resolve_call(
+            config,
+            host,
+            state,
+            lookup,
+            prober,
+            KeyPolicy::Strict,
+            &probe_call(config, disk, statics),
+        )
+    });
+    let found = found?;
+    let mut probe = complete_probe(&host.name, &found.output, state, now)?;
+    // frob:ticket 01M42TD5V6H043JYBGK591BBA2
+    probe.facts.clock_offset_ms = crate::facts::clock::measure(&found.output, sent, rtt);
     Ok((found, probe))
 }
 
@@ -1417,6 +1422,43 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    /// A host whose clock runs `ahead` seconds fast (and `None`: it reports no epoch).
+    struct Clocked(Option<i64>);
+    impl Prober for Clocked {
+        fn probe(&self, _: &Target, _: KeyPolicy, _: &str) -> resolve::ProbeResult {
+            let epoch = self.0.map_or_else(String::new, |a| {
+                let now = i64::try_from(crate::state::now_secs()).unwrap();
+                format!("epoch={}\n", now + a)
+            });
+            Ok(format!(
+                "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\njobs=0\n{epoch}"
+            ))
+        }
+    }
+
+    // frob:tests crates/goway/src/pool.rs::probe_one
+    #[test]
+    fn probe_one_measures_the_helper_clock_offset() {
+        let mut h = host("h", None);
+        h.address = Some("10.0.0.9".to_owned());
+        let mut config = Config::default();
+        config.hosts.push(h.clone());
+        let offset = |ahead| {
+            let mut state = State::default();
+            probe_one(&config, &h, &mut state, &NoLookup, &Clocked(ahead), false)
+                .unwrap()
+                .1
+                .facts
+                .clock_offset_ms
+        };
+        let ms = offset(Some(3600)).unwrap();
+        assert!((3_595_000..=3_605_000).contains(&ms), "{ms}");
+        let ms = offset(Some(-90)).unwrap();
+        assert!((-95_000..=-85_000).contains(&ms), "{ms}");
+        assert!(offset(Some(0)).unwrap().abs() < 2_000);
+        assert_eq!(offset(None), None);
     }
 
     /// Answers every address like a different machine: only `10.0.0.2` has a GPU.
