@@ -10,6 +10,7 @@ permissions:
   contents: read
 jobs:
   linux:
+    timeout-minutes: 45
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -28,6 +29,7 @@ jobs:
       - name: Packaging dry run (goway-setup is publish = false and skipped)
         run: cargo publish --workspace --dry-run --exclude goway-setup --locked
   wheel:
+    timeout-minutes: 30
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -64,6 +66,7 @@ jobs:
           test ! -e "$XDG_CONFIG_HOME/goway/config.toml"
           echo "goway, its settings and its uv tool environment are gone"
   windows:
+    timeout-minutes: 45
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v7
@@ -83,6 +86,7 @@ jobs:
     # The client, the install scripts and goway's remote script on macOS
     # (bash 3.2, BSD userland; the remote script runs on Homebrew's GNU tools).
     runs-on: macos-14
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - name: Toolchain (from rust-toolchain.toml)
@@ -98,6 +102,9 @@ jobs:
             PATH="/opt/homebrew/opt/$d/libexec/gnubin:$PATH"
           done
           export PATH
+          scripts/ci-ps-watch.sh &
+          watcher=$!
+          trap 'kill $watcher 2>/dev/null' EXIT
           # remote_ps1 needs PowerShell, which a Mac does not have.
           # No retries: a hang or a flake here is a bug (see docs/macos.md).
           cargo nextest run -p goway --locked --no-fail-fast -E 'not binary(remote_ps1)'
@@ -107,4 +114,7 @@ jobs:
             PATH="/opt/homebrew/opt/$d/libexec/gnubin:$PATH"
           done
           export PATH
+          scripts/ci-ps-watch.sh &
+          watcher=$!
+          trap 'kill $watcher 2>/dev/null' EXIT
           cargo nextest run -p goway --locked --no-fail-fast --stress-count 6 -E 'binary(slot_trees) | binary(nesting) | binary(copy_integrity) | test(spawn::)'
