@@ -1,0 +1,13 @@
+name: mac-probe
+on:
+  push:
+    branches: ['ci/**']
+jobs:
+  probe:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          /bin/bash --version | head -1
+          /bin/bash -n crates/goway/src/remote.sh; echo "syntax rc=$?"
+          sed -n 1286,1292p crates/goway/src/remote.sh
