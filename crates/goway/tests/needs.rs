@@ -37,11 +37,13 @@ fn a_host_that_lacks_a_need_is_never_used_and_the_error_lists_why() {
 #[test]
 fn the_report_records_the_facts_that_met_needs_and_preferences() {
     let w = common::world();
+    let os = common::host_os();
+    let os_term = format!("os={os}");
     let (path, arg) = report_of(&w, "report.json");
     let out = w.run(&[
         "run",
         "--needs",
-        "cores>=1,os=linux",
+        &format!("cores>=1,os={os}"),
         "--prefers",
         "gpu=rocm,mem>=1M",
         "--report",
@@ -65,7 +67,7 @@ fn the_report_records_the_facts_that_met_needs_and_preferences() {
         terms,
         [
             ("need", "cores>=1"),
-            ("need", "os=linux"),
+            ("need", os_term.as_str()),
             ("prefer", "mem>=1M")
         ]
     );

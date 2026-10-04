@@ -249,15 +249,16 @@ fn doctor_reports_every_check_with_status() {
     let w = world();
     let out = w.run(&["doctor"]);
     let table = String::from_utf8_lossy(&out.stdout).into_owned();
-    for check in [
-        "bash",
-        "tar",
-        "flock",
-        "setsid",
-        "cc (linker)",
-        "cargo",
-        "sshd password login",
-    ] {
+    // A Mac has one Homebrew check where Linux has one per GNU tool.
+    let tools: &[&str] = if cfg!(target_os = "macos") {
+        &["Homebrew GNU tools"]
+    } else {
+        &["bash", "tar", "flock", "setsid"]
+    };
+    for check in tools
+        .iter()
+        .chain(&["cc (linker)", "cargo", "sshd password login"])
+    {
         assert!(
             table.lines().any(|l| l.starts_with(check)),
             "{check} missing\n{table}"

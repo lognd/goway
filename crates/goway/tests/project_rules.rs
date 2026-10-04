@@ -15,18 +15,21 @@ fn stderr(out: &std::process::Output) -> String {
 #[test]
 fn a_rule_applies_is_named_and_the_command_line_wins() {
     let w = common::world();
+    let os = format!("os={}", common::host_os());
     write_rules(
         &w,
-        "[[rule]]\ncommand = \"true*\"\nneeds = [\"cores>=999999\"]\nprefers = [\"os=linux\"]\n",
+        &format!(
+            "[[rule]]\ncommand = \"true*\"\nneeds = [\"cores>=999999\"]\nprefers = [\"{os}\"]\n"
+        ),
     );
     // The rule alone excludes the only host.
     let out = w.run(&["run", "--", "true"]);
     assert_eq!(out.status.code(), Some(125));
     let err = stderr(&out);
     assert!(
-        err.contains(
-            "goway.toml rule 1 (command = \"true*\") applies: needs cores>=999999 prefers os=linux"
-        ),
+        err.contains(&format!(
+            "goway.toml rule 1 (command = \"true*\") applies: needs cores>=999999 prefers {os}"
+        )),
         "{err}"
     );
     assert!(err.contains("lacks cores>=999999"), "{err}");
@@ -57,7 +60,7 @@ fn a_rule_applies_is_named_and_the_command_line_wins() {
         .iter()
         .map(|m| m["term"].as_str().unwrap())
         .collect();
-    assert_eq!(terms, ["cores>=1", "os=linux"]);
+    assert_eq!(terms, ["cores>=1", os.as_str()]);
     // A command no rule matches runs without needs and without a note.
     let out = w.run(&["run", "--", "echo", "hi"]);
     assert!(out.status.success(), "{}", stderr(&out));

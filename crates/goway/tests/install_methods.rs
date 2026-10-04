@@ -73,6 +73,8 @@ impl Machine {
             .args(args)
             .env_clear()
             .env("HOME", &self.home)
+            // macOS ignores XDG variables, so name the config dir outright.
+            .env("GOWAY_CONFIG_DIR", self.home.join(".config/goway"))
             .env("PATH", format!("{}:/usr/bin:/bin", self.bin.display()))
             .output()
             .unwrap()

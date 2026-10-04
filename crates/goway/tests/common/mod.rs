@@ -140,6 +140,15 @@ pub struct World {
     pub remote: PathBuf,
 }
 
+/// The `os` fact a helper reports for this machine (the fake remote is this machine).
+pub fn host_os() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "darwin"
+    } else {
+        "linux"
+    }
+}
+
 pub fn git(dir: &Path, args: &[&str]) {
     let ok = Command::new("git")
         .arg("-C")
