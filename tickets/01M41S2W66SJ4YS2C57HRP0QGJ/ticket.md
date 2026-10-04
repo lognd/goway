@@ -2,7 +2,8 @@
 id = "01M41S2W66SJ4YS2C57HRP0QGJ"
 title = "NAT relay task runs elevated in the user's environment: scrub runtime-injection variables (COR_PROFILER and friends)"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
