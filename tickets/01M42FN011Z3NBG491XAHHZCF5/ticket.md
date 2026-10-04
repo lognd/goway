@@ -8,7 +8,7 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T03:34:48Z"
-updated = "2026-10-04T12:01:26Z"
+updated = "2026-10-04T12:19:27Z"
 scope = ["crates/goway/src/translate.rs", "crates/goway/src/runners.rs", "crates/goway/src/project.rs", "crates/goway/src/run.rs", "crates/goway/src/remote.ps1", "crates/goway/src/remote.sh", "crates/goway/tests/translate.rs", "docs/config.md", "docs/design.md", "crates/goway/src/shard.rs", "crates/goway/src/lib.rs"]
 
 [[links]]
@@ -17,7 +17,7 @@ target = "01M42FJVGY91ND091THEDPP8DN"
 
 [[acceptance]]
 text = 'Given a command whose program differs by OS, when it runs on a host of another OS, then only the program (argv[0]) is translated, never other arguments: python3 or python to the py -3 launcher (else python.exe; never the WindowsApps Store stub) on Windows and to python3 on a Linux host without python; pip3 or pip to py -3 -m pip; ./gradlew to gradlew.bat; ./mvnw to mvnw.cmd; a ./relative/path program to .\relative\path with .exe appended when that file exists (and the multi-config build\Debug or build\Release location when only that exists); node, npm, npx, cargo, go and dotnet unchanged'
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a translation, when the run starts, then goway prints one line naming host and translation (for example laptop-windows: python3 -> py -3), and the --report records the requested and the actual program"

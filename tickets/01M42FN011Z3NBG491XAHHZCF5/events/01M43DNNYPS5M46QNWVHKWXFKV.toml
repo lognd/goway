@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T12:19:27Z"
+digest = "2bc9e9310bf3047c7215f0210c392a3ff6eb481fda06d302b47bb48d62008110"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 39.63s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 4c3770f6-0b06-4824-8a4e-9ce8b02201b0 with nextest profile: default
+    Starting 3 tests across 68 binaries (797 tests skipped)
+        PASS [   0.009s] goway translate::tests::work_tree_programs_translate_on_windows_only_and_only_when_safe
+        PASS [   0.009s] goway translate::tests::python_and_pip_translate_per_os_and_everything_else_does_not
+        PASS [   0.101s] goway::translate powershell_resolves_the_same_way_path_only_tree_files_and_doubt
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.106s] 3 tests run: 3 passed, 797 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/python_and_pip_translate_per_os|work_tree_programs_translate_on_windows_only|powershell_resolves_the_same_way/)'"
+size = 984
+status = "measured"
+tests = ["translate::tests::work_tree_programs_translate_on_windows_only_and_only_when_safe", "translate::tests::python_and_pip_translate_per_os_and_everything_else_does_not", "powershell_resolves_the_same_way_path_only_tree_files_and_doubt"]
+at = "2026-10-04T12:19:27Z"
+actor = "lognd"
+rev = 1
