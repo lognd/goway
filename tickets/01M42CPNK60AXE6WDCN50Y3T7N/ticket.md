@@ -8,7 +8,7 @@ points = 2
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T02:43:17Z"
-updated = "2026-10-04T03:00:17Z"
+updated = "2026-10-04T03:00:23Z"
 scope = ["crates/goway/src/add.rs", "crates/goway/src/sshsetup.rs", "crates/goway/src/ssh.rs", "crates/goway/tests/ssh_setup.rs", "docs/troubleshooting.md", "crates/goway/src/remotesys.rs", "docs/ssh-setup.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given the password login, when ssh asks, then it asks exactly once (NumberOfPasswordPrompts=1), so a wrong or empty password (an account with no password cannot log in over ssh at all) falls through to the by-hand key path immediately with the cause list, and never makes more than one failed attempt toward a fail2ban limit"
-bound = false
+bound = true
 +++
