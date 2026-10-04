@@ -95,9 +95,17 @@ pub fn valid_channel(name: &str) -> bool {
     )
 }
 
+/// Whether a trailing character makes the package manager read `name` as a modifier: apt
+/// removes on a trailing `-` and force-selects on a single trailing `+` (`curl+`), so a name
+/// ending that way is refused. A `++` ending is a C++ package name (`g++`, `libstdc++`) and fine.
+fn modifier_suffix(name: &str) -> bool {
+    name.ends_with('-') || (name.ends_with('+') && !name.ends_with("++"))
+}
+
 /// Debian policy: 2+ characters of lower-case letters, digits, `+`, `-`, `.`, starting alphanumeric.
 fn valid_apt(name: &str) -> bool {
     name.len() >= 2
+        && !modifier_suffix(name)
         && within(
             name,
             100,
@@ -108,22 +116,24 @@ fn valid_apt(name: &str) -> bool {
 
 /// RPM names: letters, digits and `+ . _ -`, starting alphanumeric.
 fn valid_dnf(name: &str) -> bool {
-    within(
-        name,
-        100,
-        |c| c.is_ascii_alphanumeric(),
-        |c| c.is_ascii_alphanumeric() || b"+._-".contains(&c),
-    )
+    !modifier_suffix(name)
+        && within(
+            name,
+            100,
+            |c| c.is_ascii_alphanumeric(),
+            |c| c.is_ascii_alphanumeric() || b"+._-".contains(&c),
+        )
 }
 
 /// Arch names: letters, digits and `@ . _ + -`, not starting with `-` or `.`.
 fn valid_pacman(name: &str) -> bool {
-    within(
-        name,
-        100,
-        |c| c.is_ascii_alphanumeric() || b"@_+".contains(&c),
-        |c| c.is_ascii_alphanumeric() || b"@._+-".contains(&c),
-    )
+    !modifier_suffix(name)
+        && within(
+            name,
+            100,
+            |c| c.is_ascii_alphanumeric() || b"@_+".contains(&c),
+            |c| c.is_ascii_alphanumeric() || b"@._+-".contains(&c),
+        )
 }
 
 impl Prereqs {
@@ -328,9 +338,11 @@ impl Prereqs {
                 .get(&format!("pkg.{name}"))
                 .is_some_and(|v| v == "yes");
             let command = match manager {
-                "apt" => format!("apt-get update && apt-get install -y {name}"),
-                "dnf" => format!("dnf install -y {name}"),
-                _ => format!("pacman -S --noconfirm {name}"),
+                // `--` ends option parsing, `--no-remove` stops apt from removing anything
+                // a name might have implied, `--needed` skips what is already installed.
+                "apt" => format!("apt-get update && apt-get install -y --no-remove -- {name}"),
+                "dnf" => format!("dnf install -y -- {name}"),
+                _ => format!("pacman -S --noconfirm --needed -- {name}"),
             };
             out.push(Check {
                 name: format!("pkg:{name}"),
@@ -415,6 +427,27 @@ mod tests {
             };
             assert!(p.validate(path).is_err(), "target {name}");
         }
+        // apt reads a trailing `-` as remove and a single `+` as force-install, `=` pins a
+        // version and `/` a release: none of these is a plain name for any manager.
+        for name in [
+            "sudo-",
+            "openssh-server-",
+            "curl+",
+            "a-",
+            "a+",
+            "pkg=1.0",
+            "pkg/stable",
+            "-",
+            "+",
+        ] {
+            for (manager, ok) in [
+                ("apt", valid_apt as fn(&str) -> bool),
+                ("dnf", valid_dnf),
+                ("pacman", valid_pacman),
+            ] {
+                assert!(!ok(name), "{manager} accepted {name}");
+            }
+        }
         let p = Prereqs {
             channel: Some("1.0; rm".to_owned()),
             ..Prereqs::default()
@@ -423,6 +456,8 @@ mod tests {
         // Debian names are lower case; RPM and Arch ones may not be.
         assert!(!valid_apt("GCC"));
         assert!(valid_dnf("GCC") && valid_pacman("libfoo++"));
+        // C++ package names end in `++` and are plain names.
+        assert!(valid_apt("g++") && valid_apt("libstdc++") && valid_dnf("gcc-c++"));
     }
 
     // frob:tests crates/goway/src/doctor/prereq.rs::Prereqs.probe_script
@@ -479,8 +514,26 @@ mod tests {
         assert!(fix.root);
         assert_eq!(
             fix.command,
-            "apt-get update && apt-get install -y gcc-mingw-w64-x86-64"
+            "apt-get update && apt-get install -y --no-remove -- gcc-mingw-w64-x86-64"
         );
+        // The other managers also end option parsing before the name.
+        for (manager, name, want) in [
+            ("dnf", "mingw64-gcc", "dnf install -y -- mingw64-gcc"),
+            (
+                "pacman",
+                "mingw-w64-gcc",
+                "pacman -S --noconfirm --needed -- mingw-w64-gcc",
+            ),
+        ] {
+            let f = facts(&[("pkg.mgr", manager), (&format!("pkg.{name}"), "no")]);
+            let checks = prereqs().checks(&f);
+            let fix = checks
+                .iter()
+                .find(|c| c.name == format!("pkg:{name}"))
+                .and_then(|c| c.fix.as_ref())
+                .unwrap();
+            assert_eq!(fix.command, want);
+        }
         assert!(fix.why.contains("repository `frob-v2`"), "{}", fix.why);
         assert!(fix.why.contains("goway.toml"), "{}", fix.why);
         assert!(fix.why.contains("gcc-mingw-w64-x86-64"), "{}", fix.why);

@@ -1062,8 +1062,11 @@ confirmation lists every package and names the repository and `goway.toml`
 as the source before asking, then shows the exact commands. A package list
 is validated against the package manager's name syntax (apt: lower-case
 letters, digits and `+-.`; dnf: letters, digits and `+._-`; pacman: letters,
-digits and `@._+-`; never starting with `-`), so a repository can ask for
-package names and nothing else: an option, a path, a space or a shell
+digits and `@._+-`; never starting with `-`, never ending in `-` or a single
+`+`, which apt reads as "remove" and "force install"; `g++` style `++` endings
+are fine), so a repository can ask for package names and nothing else. The
+install command puts the names after `--`, and apt runs with `--no-remove`,
+pacman with `--needed`. So: an option, a path, a space or a shell
 character is a config error and nothing runs. Any other key under
 `[toolchain.packages]` is an error too.
 
