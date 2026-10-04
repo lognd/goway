@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T02:55:18Z"
+digest = "c1f873a9fd75310604cbdaad1e858ddc60677d7ffed805ee60618926c361bd0d"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 52.52s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID fc80b3d0-d6c2-4991-a5cb-93b3a2b71236 with nextest profile: default
+    Starting 1 test across 49 binaries (591 tests skipped)
+        PASS [   0.978s] goway::ps_session one_process_serves_many_verbs_with_their_own_exit_codes_and_streams
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.981s] 1 test run: 1 passed, 591 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "one_process_serves_many_verbs"
+size = 764
+status = "measured"
+tests = ["one_process_serves_many_verbs_with_their_own_exit_codes_and_streams"]
+at = "2026-10-04T02:55:18Z"
+actor = "lognd"
+rev = 1
