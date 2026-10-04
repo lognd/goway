@@ -89,6 +89,7 @@ impl Command {
 
 /// Arguments of `goway run`.
 #[derive(Debug, Args)]
+#[allow(clippy::struct_excessive_bools)] // independent command-line flags
 pub struct RunArgs {
     /// Run on this host instead of the least-loaded one.
     #[arg(long, value_parser = host_name)]
@@ -109,6 +110,14 @@ pub struct RunArgs {
     /// `GOWAY_SHARD_COUNT`). Output lines are prefixed with the host.
     #[arg(long, value_name = "N", conflicts_with = "host", value_parser = clap::value_parser!(u16).range(1..))]
     pub shard: Option<u16>,
+    /// Let hosts of every OS take this run (by default only the laptop's OS
+    /// family does); also `cross_os = true` in goway.toml.
+    #[arg(long, conflicts_with = "each_os")]
+    pub any_os: bool,
+    /// Run the command once on one host of each OS in the pool, in
+    /// parallel, with `[host os]` output prefixes and a per-OS summary.
+    #[arg(long, conflicts_with_all = ["host", "shard"])]
+    pub each_os: bool,
     /// How the command's output is shown: `safe` strips terminal control
     /// sequences except colors when a stream is a terminal; `raw` passes
     /// every byte through. Pipes and files are never filtered.

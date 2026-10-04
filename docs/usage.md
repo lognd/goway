@@ -442,6 +442,30 @@ runs, so concurrent GPU runs get different GPUs instead of fighting over one:
 Runs that do not ask for a GPU never take a slot. GPU locks live under the
 remote root's `gpu/` directory, which `goway uninstall` removes.
 
+### Which OS runs it: the same one, unless you say so
+
+A plain `goway run` (and every shard of `--shard N`) only uses hosts of the
+laptop's own OS family (`linux`, `darwin` or `windows`; WSL counts as
+Linux). `goway status` marks the hosts the default pool uses. Ask for more:
+
+- `--any-os`, or `cross_os = true` at the top of `goway.toml`: hosts of
+  every OS are candidates; each OS keeps its own caches, and reports and
+  shard lines name the OS.
+- `--needs os=windows`, or `--host NAME`: that OS or host, as before.
+- `--each-os`: the whole command runs once on the best host of each OS in
+  the pool, in parallel. Lines are prefixed `[host os]`, a summary lists
+  each OS's exit code, and goway exits with the first failing OS's code
+  (125 if goway itself failed there). It cannot be combined with `--host`
+  or `--shard`.
+
+For a recognized portable runner (`cargo build/test/nextest/clippy`,
+`pytest`, `go test`, `npm/pnpm/yarn test`, `vitest`/`jest`, `mvn`,
+`gradle`, `dotnet test`, `ctest`) goway prints a prominent warning when
+hosts of another OS are configured: the run stays on the laptop's OS, and
+the warning names those hosts and the two ways to allow it. `cross_os =
+false` in `goway.toml` silences it. Other commands stay on the same OS
+without a word. The warning reads the config's `os`, not live reachability.
+
 ### Running on this machine: `--host local`
 
 ```

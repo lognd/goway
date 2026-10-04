@@ -323,6 +323,62 @@ fn none_usable(selection: &Selection, results: &[Probed<'_>]) -> Error {
     }
 }
 
+/// One usable host per OS family the reachable hosts report (`--each-os`), in OS-name order,
+/// each the best of its family for `selection`.
+///
+/// # Errors
+///
+/// [`Error::NoHost`] / [`Error::NeedsUnmet`] when no host is usable.
+///
+/// # Panics
+///
+/// Never: each ranked index is taken once.
+pub fn choose_each_os(
+    config: &Config,
+    selection: &Selection,
+    state: &mut State,
+    jobs: &Path,
+    lookup: &(dyn Lookup + Sync),
+    prober: &(dyn Prober + Sync),
+) -> Result<Vec<(HostConfig, Found, Probe)>> {
+    let local_host = local::host(config);
+    let mut results = probe_all(config, state, lookup, prober, selection.wants_disk());
+    if config.local_in_pool() {
+        push_local(config, &local_host, jobs, state, selection, &mut results);
+    }
+    let order = each_os_order(config, selection, &results);
+    if order.is_empty() {
+        return Err(none_usable(selection, &results));
+    }
+    let mut slots: Vec<Option<Probed<'_>>> = results.into_iter().map(Some).collect();
+    order
+        .into_iter()
+        .map(|i| {
+            let p = slots[i].take().expect("each index once");
+            let (found, probe) = p.result?;
+            Ok((p.host.clone(), found, probe))
+        })
+        .collect()
+}
+
+/// The index of the best usable host of each reported OS, in OS-name order.
+fn each_os_order(config: &Config, selection: &Selection, probed: &[Probed<'_>]) -> Vec<usize> {
+    let oses: std::collections::BTreeSet<String> = probed
+        .iter()
+        .filter_map(|p| p.result.as_ref().ok()?.1.facts.os.clone())
+        .map(|o| o.to_ascii_lowercase())
+        .collect();
+    oses.iter()
+        .filter_map(|os| {
+            let mut one = selection.clone();
+            one.pool_os = Some(os.clone());
+            let best = ranked_for(config, &one, probed).first().copied();
+            tracing::info!(os, ?best, "best host for this OS");
+            best
+        })
+        .collect()
+}
+
 /// The `n` least-loaded usable hosts, best first (for sharding).
 ///
 /// # Panics
@@ -1388,5 +1444,25 @@ mod tests {
         );
         let win = selection("os=windows", "").with_default_os("linux");
         assert_eq!(shards(&win, 1).unwrap()[0].0.name, "idle");
+    }
+
+    // frob:ticket 01M42FJVGY91ND091THEDPP8DN
+    // frob:tests crates/goway/src/pool.rs::choose_each_os
+    #[test]
+    fn each_os_takes_the_best_host_of_every_os() {
+        let config = three_hosts();
+        let mut state = State::default();
+        let hosts = choose_each_os(
+            &config,
+            &Selection::default(),
+            &mut state,
+            Path::new(""),
+            &NoLookup,
+            &MixedOsProber,
+        )
+        .unwrap();
+        // Linux: the idler of the two (small); Windows: its only host (idle). OS-name order.
+        let names: Vec<&str> = hosts.iter().map(|h| h.0.name.as_str()).collect();
+        assert_eq!(names, ["small", "idle"]);
     }
 }

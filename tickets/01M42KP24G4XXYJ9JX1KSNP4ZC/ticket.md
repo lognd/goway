@@ -1,0 +1,18 @@
++++
+id = "01M42KP24G4XXYJ9JX1KSNP4ZC"
+title = "doctor_project test expects a bash row, which a Mac's doctor does not print"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 1
+reporter = "lognd"
+created = "2026-10-04T04:45:17Z"
+updated = "2026-10-04T04:45:17Z"
+scope = ["crates/goway/tests/doctor_project.rs"]
+
+[[acceptance]]
+text = "Given the macOS CI job, when doctor_project runs, then doctor_is_quiet_by_default_and_explains_one_check_on_request passes"
+bound = false
++++
+
+found while working B9V2YY4: macOS shows one Homebrew GNU tools row instead of bash/tar/flock rows (see docs/macos.md)
