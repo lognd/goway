@@ -174,7 +174,7 @@ pub fn world_with_ssh(script: &str) -> World {
     std::fs::write(
         config.join("config.toml"),
         format!(
-            "[defaults]\nremote_root = \"{}\"\ntarget_slots = 2\n\n[[host]]\nname = \"local\"\naddress = \"127.0.0.1\"\n",
+            "[defaults]\nremote_root = \"{}\"\ntarget_slots = 2\n\n[[host]]\nname = \"local\"\naddress = \"127.0.0.1\"\nmax_jobs = 64\n",
             remote.display()
         ),
     )
