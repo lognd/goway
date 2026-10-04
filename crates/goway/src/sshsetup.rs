@@ -747,22 +747,29 @@ struct HandInstall<'a> {
 
 /// The command to run in an administrator PowerShell on a native Windows
 /// host so it authorizes `public_key` (goway-setup records it for its own
-/// uninstall).
+/// uninstall). The key is one single-quoted literal (nothing in it expands in
+/// PowerShell) and carries no comment: a comment is free text from a `.pub`
+/// file or an ssh agent, and the administrator session must not see it.
 pub fn native_setup_command(public_key: &str) -> String {
     format!(
-        "goway-setup install --host --native --authorized-key \"{}\"",
-        native_key_line(public_key)
+        "goway-setup install --host --native --authorized-key {}",
+        crate::transport::ps_quote(&native_key_line(public_key))
     )
 }
 
-/// The one key line `goway-setup` is given: the first line of the `.pub` text, without quotes.
+/// The one key `goway-setup` is given: the key type and key of the first line of the `.pub` text,
+/// without the comment (and so without anything a comment could smuggle into a command).
 fn native_key_line(public_key: &str) -> String {
-    public_key
+    let mut words = public_key
         .lines()
         .next()
         .unwrap_or_default()
-        .trim()
-        .replace('"', "")
+        .split_whitespace();
+    [words.next(), words.next()]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// How `--rsudo` elevates a Windows-side step during setup.
@@ -1053,14 +1060,36 @@ mod tests {
 
     // frob:tests crates/goway/src/sshsetup.rs::native_setup_command
     #[test]
-    fn a_native_windows_host_gets_one_goway_setup_command_with_the_key_line() {
+    fn a_native_windows_host_gets_one_goway_setup_command_with_the_key_only() {
         let cmd = native_setup_command("ssh-ed25519 AAAAC3Nza placeholder@laptop\n");
         assert_eq!(
             cmd,
-            "goway-setup install --host --native --authorized-key \"ssh-ed25519 AAAAC3Nza placeholder@laptop\""
+            "goway-setup install --host --native --authorized-key 'ssh-ed25519 AAAAC3Nza'"
         );
-        // A quote in a comment can never break out of the argument.
-        assert!(!native_setup_command("ssh-ed25519 AAAA a\"b").contains("a\"b"));
+    }
+
+    // frob:tests crates/goway/src/sshsetup.rs::native_setup_command
+    #[test]
+    fn a_key_comment_never_reaches_the_printed_administrator_command() {
+        for comment in [
+            "$(Invoke-Expression 'calc')",
+            "`$(x)",
+            "a\"b",
+            "it\u{2019}s; Remove-Item x; \u{2018}",
+            "$env:USERNAME",
+        ] {
+            let cmd = native_setup_command(&format!("ssh-ed25519 AAAAC3Nza {comment}"));
+            assert_eq!(
+                cmd, "goway-setup install --host --native --authorized-key 'ssh-ed25519 AAAAC3Nza'",
+                "{comment}"
+            );
+        }
+        // Even a malformed key line is only ever one single-quoted literal.
+        let cmd = native_setup_command("x$(y)\u{2019}z");
+        assert!(
+            cmd.ends_with("--authorized-key 'x$(y)\u{2019}\u{2019}z'"),
+            "{cmd}"
+        );
     }
 
     #[test]

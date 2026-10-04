@@ -9,9 +9,10 @@ use crate::host::{
 };
 use crate::relay::RelayTaskSpec;
 
-/// Single-quote a value as a PowerShell string literal (`'` doubles).
+/// Single-quote a value as a PowerShell string literal: every quote character PowerShell
+/// recognizes (the ASCII one and U+2018 to U+201B) doubles. goway's own quoter, shared.
 pub fn quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
+    goway_journal::ps_quote(value)
 }
 
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";

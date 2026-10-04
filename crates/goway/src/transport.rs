@@ -77,10 +77,11 @@ pub enum Script<'a> {
     Ps(&'a str),
 }
 
-/// Single-quote `arg` for PowerShell: embedded quotes are doubled, so
-/// nothing in it is ever interpreted (no `$`, backtick or splitting).
+/// Single-quote `arg` for PowerShell: every quote character PowerShell recognizes (the ASCII
+/// one and the typographic U+2018 to U+201B) is doubled, so nothing in it is ever interpreted
+/// (no `$`, backtick or splitting). The one quoter, shared with goway-setup.
 pub fn ps_quote(arg: &str) -> String {
-    format!("'{}'", arg.replace('\'', "''"))
+    goway_journal::ps_quote(arg)
 }
 
 /// PowerShell source that runs `words` (program first) with each word

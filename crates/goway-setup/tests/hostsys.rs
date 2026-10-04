@@ -123,6 +123,11 @@ fn powershell_encoding_and_quoting_are_exact() {
     assert_eq!(ps::encode_command("a"), "YQA=");
     assert_eq!(ps::quote("it's"), "'it''s'");
     assert_eq!(ps::quote("WSL SSH 2222"), "'WSL SSH 2222'");
+    // PowerShell reads the typographic single quotes as quotes too.
+    assert_eq!(
+        ps::quote("a\u{2019}b\u{2018}"),
+        "'a\u{2019}\u{2019}b\u{2018}\u{2018}'"
+    );
     let script = "Write-Output 'caf\u{e9}'";
     let inv = Invocation {
         program: tool_path(Tool::PowerShell),

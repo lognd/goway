@@ -15,6 +15,7 @@ mod local;
 mod local_windows;
 mod model;
 mod plan;
+mod psquote;
 mod system;
 
 pub use apply::{RevertReport, apply, apply_with, revert};
@@ -25,4 +26,5 @@ pub use journal::{Entry, Journal, Prior};
 pub use local::LocalSystem;
 pub use model::{DEFAULT_MODE, DEFAULT_SDDL, ModelSystem};
 pub use plan::{Outcome, still_applied};
+pub use psquote::ps_quote;
 pub use system::{SysResult, System};

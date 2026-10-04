@@ -253,8 +253,8 @@ pub fn public_network_warning(name: &str) -> String {
     format!(
         "this laptop is on the network {name:?}, which Windows treats as Public (Windows does this for cafe and hotel Wi-Fi). \
          goway only opens its door on home or work (Private) networks, so your main laptop cannot reach this helper over this network. \
-         If this is a network you trust, open PowerShell as administrator and run: Set-NetConnectionProfile -Name '{}' -NetworkCategory Private",
-        name.replace('\'', "''")
+         If this is a network you trust, open PowerShell as administrator and run: Set-NetConnectionProfile -Name {} -NetworkCategory Private",
+        goway_journal::ps_quote(name)
     )
 }
 

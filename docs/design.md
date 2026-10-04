@@ -66,7 +66,10 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       a short encoded loader (`remote::ps_invocation`): it exits 126 when
       the file is missing, goway then sends it on stdin to
       `remote::ps_install` and retries. Every argument is single-quoted
-      with embedded quotes doubled, so nothing is re-split; a long
+      with every quote character PowerShell knows doubled (the ASCII `'`
+      and the typographic U+2018 to U+201B, which PowerShell also reads as
+      quotes), by the one quoter `goway_journal::ps_quote` that goway-setup
+      shares, so nothing is re-split or run as code; a long
       command goes through the `argsfile` verb and `run ... -- @args`.
    3. A job runs with the standard handles inherited (live, byte-exact
       output) inside a job object that kills its whole process tree when
