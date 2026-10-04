@@ -2,12 +2,12 @@
 id = "01M43AFK9N84ZE45CY5T8B9HQV"
 title = "A run refreshes a stale tool-version cache from its own probe"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-04T11:23:42Z"
-updated = "2026-10-04T11:23:42Z"
+updated = "2026-10-04T11:23:51Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/pool.rs", "crates/goway/src/run.rs", "crates/goway/src/facts.rs", "crates/goway/src/state.rs", "crates/goway/src/doctor.rs", "crates/goway/src/drift.rs", "docs/usage.md", "crates/goway/tests/drift_refresh.rs"]
 
 [[acceptance]]
