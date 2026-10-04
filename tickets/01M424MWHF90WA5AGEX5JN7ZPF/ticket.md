@@ -6,7 +6,7 @@ category = "in-progress"
 priority = "medium"
 reporter = "lognd"
 created = "2026-10-04T00:22:30Z"
-updated = "2026-10-04T05:19:41Z"
+updated = "2026-10-04T05:19:51Z"
 scope = ["crates/goway/src/cmakeapi.rs", "crates/goway/src/remote.sh", "crates/goway/tests/cmake_api.rs", "crates/goway/tests/fixtures/cxxshard/CMakeLists.txt", "docs/doctor.md", "docs/cmake.md", "crates/goway/src/lib.rs", "crates/goway/src/doctor.rs", "crates/goway/src/cli.rs", "crates/goway/src/doctor/projneeds.rs", "docs/usage.md", "crates/goway/src/doctor/cmakecheck.rs", "crates/goway/src/add.rs"]
 
 [[acceptance]]
