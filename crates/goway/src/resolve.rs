@@ -418,6 +418,22 @@ pub fn parse_ips(text: &str) -> Vec<IpAddr> {
     text.lines().filter_map(|l| l.trim().parse().ok()).collect()
 }
 
+/// The most characters of startup-file noise kept in a [`noise_fact`].
+const NOISE_SAMPLE: usize = 100;
+
+/// A `startup_noise=...` fact line (with a leading newline) naming the first printed line of what
+/// the helper's shell startup files wrote before goway's protocol, for `goway doctor`; `None`
+/// when they wrote nothing visible. Control characters are dropped so the sample is safe to show.
+pub fn noise_fact(noise: &[u8]) -> Option<String> {
+    let first = String::from_utf8_lossy(noise)
+        .lines()
+        .map(|l| l.chars().filter(|c| !c.is_control()).collect::<String>())
+        .map(|l| l.trim().to_owned())
+        .find(|l| !l.is_empty())?;
+    let sample: String = first.chars().take(NOISE_SAMPLE).collect();
+    Some(format!("\nstartup_noise={sample}\n"))
+}
+
 /// Real probes through the system ssh.
 #[derive(Debug, Clone)]
 pub struct SshProber {
@@ -431,8 +447,12 @@ impl Prober for SshProber {
         cmd.stdin(Stdio::null());
         match cmd.output_locked() {
             Ok(out) if out.status.success() => {
-                let (_noise, payload) = remote::split_frame(out.stdout);
-                Ok(String::from_utf8_lossy(&payload).into_owned())
+                let (noise, payload) = remote::split_frame(out.stdout);
+                let mut text = String::from_utf8_lossy(&payload).into_owned();
+                if let Some(line) = noise_fact(&noise) {
+                    text.push_str(&line);
+                }
+                Ok(text)
             }
             Ok(out) => {
                 let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
