@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T00:30:19Z"
+digest = "6f0b4761696a94e2e29efe4e77ab6721d6a7957462f00e0b1a565b6c44ebbda7"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2fc2814e-41f1-460c-b90e-7dccd292e20f with nextest profile: default
+    Starting 3 tests across 44 binaries (522 tests skipped)
+        PASS [   0.010s] goway doctor::projneeds::tests::goway_toml_toolchain_takes_precedence_and_is_validated
+        PASS [   0.041s] goway::doctor_project a_bad_tool_name_in_goway_toml_is_a_config_error_not_a_command
+        PASS [   0.906s] goway::doctor_project goway_toml_toolchain_is_checked_and_a_missing_tool_fails_the_run
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.910s] 3 tests run: 3 passed, 522 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(goway_toml_toolchain_is_checked_and_a_missing_tool_fails_the_run) | test(goway_toml_toolchain_takes_precedence_and_is_validated) | test(a_bad_tool_name_in_goway_toml_is_a_config_error_not_a_command)'"
+size = 803
+status = "measured"
+tests = ["doctor::projneeds::tests::goway_toml_toolchain_takes_precedence_and_is_validated", "a_bad_tool_name_in_goway_toml_is_a_config_error_not_a_command", "goway_toml_toolchain_is_checked_and_a_missing_tool_fails_the_run"]
+at = "2026-10-04T00:30:19Z"
+actor = "lognd"
+rev = 1
