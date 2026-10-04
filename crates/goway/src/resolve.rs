@@ -693,6 +693,36 @@ mod tests {
         );
     }
 
+    // frob:ticket 01M42BHTGMABJE3ZAPBZQETW47
+    // frob:tests crates/goway/src/resolve.rs::resolve
+    #[test]
+    fn two_machines_answering_for_one_name_never_pick_an_unconfirmed_key() {
+        struct Twins;
+        impl Prober for Twins {
+            fn probe(&self, _: &Target, _: KeyPolicy, _: &str) -> ProbeResult {
+                Err((Failure::HostKeyMismatch, String::new()))
+            }
+        }
+        let mut lookup = FakeLookup::default();
+        lookup
+            .system
+            .insert("helios".to_owned(), vec![ip("192.0.2.5"), ip("192.0.2.6")]);
+        let mut state = State::default();
+        let e = resolve(
+            &Config::default(),
+            &host(),
+            &mut state,
+            &lookup,
+            &Twins,
+            KeyPolicy::Strict,
+            "true",
+        )
+        .unwrap_err();
+        let text = e.to_string();
+        assert!(text.contains("2 different machines"), "{text}");
+        assert!(state.get("helios").is_none(), "nothing cached");
+    }
+
     #[test]
     fn nothing_found_lists_every_miss() {
         let config = Config::default();
