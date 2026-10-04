@@ -1,0 +1,1 @@
+A recorded memory or disk footprint no longer locks a run out: --host warns instead of refusing, --ignore-footprint (or --needs mem>=0) skips the checks, a run no helper could fit goes to the largest one, and peaks are PSS-measured, the maximum of the last five runs, shown in status and reset by gc --repo.
