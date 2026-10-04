@@ -748,10 +748,12 @@ fn the_relay_task_runs_the_script_as_the_user_with_highest_privileges_and_stores
         description: "d".into(),
     };
     let ps_exe = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
+    let cmd_exe = r"C:\Windows\System32\cmd.exe";
     let logon = ps::relay_task_create(
         "goway-test WSL Relay",
         &spec(Keepalive::Logon),
         r"C:\Windows\System32\conhost.exe",
+        cmd_exe,
         ps_exe,
     );
     assert!(logon.contains("-LogonType Interactive") && logon.contains("-RunLevel Highest"));
@@ -760,14 +762,17 @@ fn the_relay_task_runs_the_script_as_the_user_with_highest_privileges_and_stores
     assert!(logon.contains("$trigger.Repetition = $repeat.Repetition"));
     assert!(logon.contains("-Execute 'C:\\Windows\\System32\\conhost.exe'"));
     let script = host::relay_script_path(&l).display().to_string();
+    // The script is started through the scrubbing stub, with PowerShell's own options after it.
+    assert!(logon.contains(&format!("--headless \"{cmd_exe}\" /D /S /C ")));
     assert!(logon.contains(&format!(
-        "--headless \"{ps_exe}\" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{script}\""
+        "& \"{ps_exe}\" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{script}\""
     )));
     assert!(!logon.contains("-Password") && !logon.contains("Password"));
     let boot = ps::relay_task_create(
         "goway-test WSL Relay (boot)",
         &spec(Keepalive::Boot),
         "c",
+        cmd_exe,
         ps_exe,
     );
     assert!(
@@ -1001,4 +1006,68 @@ fn the_firewall_rule_exists_before_the_relay_listens_and_the_script_lives_in_the
         l.admin_dir,
         "only administrators can edit the script"
     );
+}
+
+// frob:tests crates/goway-setup/src/relay.rs::scrubbed_arguments
+// frob:tests crates/goway-setup/src/relay.rs::is_scrubbed
+#[test]
+fn the_elevated_refresh_starts_without_runtime_injection_variables() {
+    use goway_setup::relay::{SCRUB_NAMES, SCRUB_PREFIXES, is_scrubbed, scrubbed_arguments};
+    let args = scrubbed_arguments(
+        r"C:\Windows\System32\cmd.exe",
+        r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+        r"C:\ProgramData\goway\goway\relay-refresh.ps1",
+    );
+    // A native cmd.exe runs first: /D skips the user's AutoRun command, and nothing but absolute
+    // paths names a program.
+    assert!(
+        args.starts_with("--headless \"C:\\Windows\\System32\\cmd.exe\" /D /S /C \"(for "),
+        "{args}"
+    );
+    assert!(
+        args.contains(
+            "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile"
+        )
+    );
+    // Every variable family is in the loop that deletes them before PowerShell starts.
+    for word in SCRUB_PREFIXES.iter().chain(SCRUB_NAMES.iter()) {
+        assert!(
+            args.contains(&format!(" {word}")) || args.contains(&format!("({word}")),
+            "{word}: {args}"
+        );
+    }
+    let loop_end = args.find(") & ").unwrap();
+    let ps_start = args.find("powershell.exe").unwrap();
+    assert!(
+        loop_end < ps_start,
+        "the variables go before PowerShell starts: {args}"
+    );
+    // The profiler variables of both .NET runtimes, in any case, are removed; ordinary ones stay.
+    for gone in [
+        "COR_ENABLE_PROFILING",
+        "COR_PROFILER",
+        "COR_PROFILER_PATH_64",
+        "cor_profiler",
+        "CORECLR_ENABLE_PROFILING",
+        "CORECLR_PROFILER_PATH",
+        "COMPlus_ETWEnabled",
+        "COMPLUS_Version",
+        "DOTNET_STARTUP_HOOKS",
+        "PSModulePath",
+        "psmodulepath",
+        "__COMPAT_LAYER",
+    ] {
+        assert!(is_scrubbed(gone), "{gone}");
+    }
+    for kept in [
+        "PATH",
+        "TEMP",
+        "USERPROFILE",
+        "COMPUTERNAME",
+        "CORE_COUNT",
+        "COR",
+        "DOTNET",
+    ] {
+        assert!(!is_scrubbed(kept), "{kept}");
+    }
 }
