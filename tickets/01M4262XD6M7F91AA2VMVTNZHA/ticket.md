@@ -8,8 +8,8 @@ points = 8
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T00:47:38Z"
-updated = "2026-10-04T05:10:19Z"
-scope = ["crates/goway/src/remote.ps1", "docs/hosts.md", "crates/goway/src/pool.rs"]
+updated = "2026-10-04T06:35:11Z"
+scope = ["crates/goway/src/remote.ps1", "crates/goway/tests/remote_ps1.rs"]
 
 [[acceptance]]
 text = "Given the run ttls argument cache:orphan:kept:max_disk:min_free:cache_size and the probe word budget:MAX:MIN_FREE, when remote.ps1 runs them, then it evicts least recently used entries to the budget like remote.sh and probe reports disk_max and disk_min_free"
