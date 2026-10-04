@@ -2,12 +2,12 @@
 id = "01M43S56R7BSW1JHQ0JJS14CQ5"
 title = "macOS: lifeline reports silence as a closed pipe (bash 3.2 read -t returns 1 on timeout), evict_live lifeline test fails"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T15:40:10Z"
-updated = "2026-10-04T15:40:10Z"
+updated = "2026-10-04T17:13:49Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/evict_live.rs"]
 
 [[acceptance]]
