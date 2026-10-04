@@ -2,13 +2,13 @@
 id = "01M42BHTRYPX7PM14FQWR8SNXP"
 title = "SELinux or AppArmor denials on helpers are detected and explained"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "low"
 points = 1
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T02:23:10Z"
-updated = "2026-10-04T02:23:10Z"
+updated = "2026-10-04T06:26:41Z"
 scope = ["crates/goway/src/doctor.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
