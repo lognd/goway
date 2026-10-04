@@ -42,7 +42,7 @@ fn tar_of(names: &[&str]) -> Vec<u8> {
     b.into_inner().unwrap()
 }
 
-// frob:tests crates/goway/src/remote.sh::run
+// frob:tests crates/goway/src/remote.rs::invocation
 #[test]
 fn a_run_keeps_its_scratch_files_under_the_remote_root_not_tmp() {
     let w = world();
@@ -60,7 +60,7 @@ fn a_run_keeps_its_scratch_files_under_the_remote_root_not_tmp() {
     assert!(dir.ends_with("/tmp"), "{dir}");
 }
 
-// frob:tests crates/goway/src/remote.sh::receive
+// frob:tests crates/goway/src/remote.rs::invocation
 #[test]
 fn case_only_clashes_are_refused_on_a_case_insensitive_host_naming_both_paths() {
     let home = tempfile::tempdir().unwrap();
@@ -114,7 +114,7 @@ fn case_only_clashes_are_refused_on_a_case_insensitive_host_naming_both_paths() 
     );
 }
 
-// frob:tests crates/goway/src/remote.sh::fs_facts
+// frob:tests crates/goway/src/doctor.rs::filesystem_checks
 #[test]
 fn the_remote_doctor_reports_the_file_system_of_the_root_and_of_tmp() {
     let home = tempfile::tempdir().unwrap();
