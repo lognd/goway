@@ -44,6 +44,35 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       warns about weak or odd settings: password auth allowed, no agent
       keys and no identity file, identity file with loose permissions
       (stat only, never read), the Windows sshd on 22 instead of WSL.
+2a. The Windows remote side (`remote.ps1`, PowerShell 5.1 and 7)
+   1. Same verbs, protocol, labelled directories and output formats as
+      `remote.sh` (manifest, hashes, deletions, changes, receive,
+      verify-wait, verify-verdict, run, envfile, probe, gc, auto-gc,
+      doctor, purge, ping), including persistent slot trees, keep sets,
+      copy integrity, GPU slots (`gpu-slots:N`, locks under `gpu\`),
+      shard detection (`shard-detect:I:N:NONCE`, PE and ELF magic plus
+      every marker of one framework) and the detached automatic gc.
+      Differences forced by Windows: a seed's executable bits live in a
+      `modes` sidecar (NTFS has none); symlinks are not created (skipped
+      with a note); "load" is the CPU load scaled to the core count; a
+      lock is an open handle (`FileShare.None`), so gc takes the same
+      locks and a locked entry is simply busy.
+   2. The script is about 2000 lines, far over the few thousand
+      characters a Windows OpenSSH command line (often cmd.exe) allows,
+      so it is installed once per version at
+      `%LOCALAPPDATA%\goway\remote-<sha256 prefix>.ps1` and every call is
+      a short encoded loader (`remote::ps_invocation`): it exits 126 when
+      the file is missing, goway then sends it on stdin to
+      `remote::ps_install` and retries. Every argument is single-quoted
+      with embedded quotes doubled, so nothing is re-split; a long
+      command goes through the `argsfile` verb and `run ... -- @args`.
+   3. A job runs with the standard handles inherited (live, byte-exact
+      output) inside a job object that kills its whole process tree when
+      the script ends however it ends; a polling check of the session's
+      parent process also stops the job and frees its slot when the
+      connection drops. Exit codes outside 0-255 map to 128+N.
+   4. Tests: `crates/goway/tests/remote_ps1.rs` drives the script under
+      pwsh on Linux and under Windows PowerShell on Windows CI.
 2. Transport (`ssh`)
    1. Spawn the system `ssh` binary (agent, config, and Windows OpenSSH all
       work). ControlMaster multiplexing on Unix clients only.
