@@ -207,7 +207,17 @@ fn making_room_never_evicts_the_runs_own_seed() {
     );
     assert!(out.status.success(), "{out:?}");
     common::wait_for("the footprint record", || recorded(&w.remote).is_some());
-    // The seed of this repository and worktree is the only thing that could be evicted.
+    // The seed of this repository and worktree is the only thing that could be evicted;
+    // wait until the first run has finished writing it, so the check is not a race.
+    let seed_ready = |remote: &std::path::Path| {
+        std::fs::read_dir(remote.join("seed")).is_ok_and(|d| {
+            d.flatten().any(|r| {
+                std::fs::read_dir(r.path())
+                    .is_ok_and(|e| e.flatten().any(|s| s.path().join("tree").exists()))
+            })
+        })
+    };
+    common::wait_for("the run's seed", || seed_ready(&w.remote));
     fake_df(&w, 100 * MIB, 10 * GIB);
     let out = goway_run(&w, &["run", "--host", "local", "--", "true"]);
     let err = String::from_utf8_lossy(&out.stderr).into_owned();
