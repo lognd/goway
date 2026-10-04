@@ -1,0 +1,12 @@
+kind = "create"
+title = "owner_awareness tests pass on macOS: niceness is relative to the runner's own, idle time is shimmed"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 1
+scope = ["crates/goway/tests/owner_awareness.rs"]
+acceptance = ["Given the macOS CI job, when owner_awareness runs, then every test passes whatever niceness the runner has and whatever its HID idle time is"]
+body = "found by main CI run on macOS after FMD718W landed: base nice -10 and a live HID idle time"
+at = "2026-10-04T04:28:40Z"
+actor = "lognd"
+rev = 1

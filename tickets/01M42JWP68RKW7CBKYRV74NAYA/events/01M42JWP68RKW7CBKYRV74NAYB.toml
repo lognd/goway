@@ -1,0 +1,12 @@
+kind = "create"
+title = "Raise the in-progress cap to 6: five lanes plus the coordinator"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 1
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["frob.toml"]
+acceptance = ["Given frob.toml, when six tickets are in progress, then frob allows it"]
+at = "2026-10-04T04:31:25Z"
+actor = "lognd"
+rev = 1
