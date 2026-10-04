@@ -1,0 +1,12 @@
+kind = "create"
+title = "macOS CI: translate tests assume a symlink-free temp dir and pwsh on /usr/bin"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 1
+scope = ["crates/goway/tests/translate.rs"]
+acceptance = ["Given a temp dir behind a symlink and pwsh outside /usr/bin, When the translate tests run, Then they pass on macOS and Linux"]
+body = "On macOS the temp dir lives under the /var symlink to /private/var, and resolve (rightly) answers with the real path; the powershell test overrides PATH when spawning pwsh, so a pwsh outside /usr/bin is not found. Found while working D6024D0."
+at = "2026-10-04T12:48:23Z"
+actor = "lognd"
+rev = 1

@@ -1393,7 +1393,9 @@ run() {
     if [ "${#sc_tmp}" -ge 80 ]; then sc_tmp=$(short_private_dir) || sc_tmp=; fi
     if [ -n "$sc_tmp" ]; then
       mkdir -p "$sc_tmp" 2>/dev/null
+      sccache_heal "$cache" "$sc_tmp"
       TMPDIR=$sc_tmp sccache --start-server >/dev/null 2>&1 || true
+      printf '%s\n' "$sc_tmp" >"$cache/sccache.tmpdir" 2>/dev/null || true
     fi
     export RUSTC_WRAPPER=sccache
     cc_launcher=sccache
@@ -2262,6 +2264,33 @@ short_private_dir() {
   mkdir -p -m 700 "$d" 2>/dev/null
   [ -O "$d" ] || return 1
   printf '%s\n' "$d"
+}
+
+# sccache_heal CACHE TMP: stop this repository's shared sccache server when it
+# is broken, so the caller starts a fresh one under the stable TMP. Broken:
+# it does not answer, or it was not started by this goway under a TMPDIR that
+# still exists (a server of an older goway runs under a deleted per-run
+# TMPDIR and fails every build, yet constant use keeps its idle timeout from
+# ever firing). Silent when it is healthy; one note when it restarts it.
+sccache_heal() {
+  local cache=$1 tmp=$2 why= recorded=
+  # Only the unix-socket server goway starts; with no socket there is no server
+  # to heal (and asking one would start it under the run's TMPDIR).
+  [ -S "${SCCACHE_SERVER_UDS:-}" ] || return 0
+  TMPDIR=$tmp bounded_for 5 sccache --show-stats >/dev/null 2>&1 || why="it does not answer"
+  if [ -z "$why" ]; then
+    read -r recorded <"$cache/sccache.tmpdir" 2>/dev/null || recorded=
+    if [ -z "$recorded" ]; then
+      why="it was started by an older goway, under a temp directory that may be gone"
+    elif [ ! -d "$recorded" ]; then
+      why="its temp directory $recorded is gone"
+    fi
+  fi
+  [ -n "$why" ] || return 0
+  printf 'goway-remote: restarting the shared sccache server (%s)\n' "$why" >&2
+  bounded_for 10 sccache --stop-server >/dev/null 2>&1 || true
+  rm -f "$cache/sccache.tmpdir" 2>/dev/null || true
+  return 0
 }
 
 # The sccache server socket for a cache dir: inside it when the path fits a

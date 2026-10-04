@@ -338,3 +338,15 @@ devices can see each other, or put a reachable address in the config
   key. goway never uses an address whose key it has not confirmed, so
   it will not run on the wrong machine. Rename one machine so the names
   differ, or give the right address in the config.
+
+## Every build fails with "sccache: Failed to create temp dir"
+
+A shared sccache server started by an older goway runs under a per-run
+temporary directory that is removed when that run ends. Constant use keeps
+its idle timeout from ever firing, so every later build fails. Current goway
+checks the repository's server before each run (it must answer, and it must
+have been started under goway's stable `sccache-tmp` directory), stops a
+broken one, starts a fresh one and prints one note:
+`restarting the shared sccache server (...)`. Nothing to do by hand; to
+force it, run `sccache --stop-server` with `SCCACHE_SERVER_UDS` pointing at
+the repository's socket under the helper's goway cache.
