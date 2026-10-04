@@ -2,7 +2,8 @@
 id = "01M429PSDPQ96TAGQ4W3C33N2D"
 title = "macOS helper gaps: shard detection, nested runs, copy-verify rerun, slot leftovers, sync.rs ignores"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 reporter = "lognd"
