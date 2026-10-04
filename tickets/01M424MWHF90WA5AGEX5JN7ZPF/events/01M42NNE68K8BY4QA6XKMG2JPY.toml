@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T05:19:54Z"
+digest = "096046d246ba8aeb873e0e5893b4fb27a4bac49492dc5b03d15edb34beced3a6"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 3bb04fc4-3e7a-4a10-a678-3cc61b062d45 with nextest profile: default
+    Starting 1 test across 58 binaries (687 tests skipped)
+        PASS [   1.934s] goway::cmake_api doctor_reads_the_replies_a_normal_configure_left_without_running_anything
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.936s] 1 test run: 1 passed, 687 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "doctor_reads_the_replies_a_normal"
+size = 584
+status = "measured"
+tests = ["doctor_reads_the_replies_a_normal_configure_left_without_running_anything"]
+at = "2026-10-04T05:19:54Z"
+actor = "lognd"
+rev = 1

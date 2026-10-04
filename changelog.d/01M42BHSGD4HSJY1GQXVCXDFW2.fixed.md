@@ -1,0 +1,1 @@
+goway counts the failed logins it causes per helper and stops at 2 from automatic probing and 4 overall, so fail2ban and sshguard never ban the laptop, and reports a probable ban with the fail2ban-client commands to lift it.

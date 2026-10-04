@@ -9,6 +9,9 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+pub mod attempts;
+pub mod mux;
+
 use crate::config::key_alias;
 use crate::paths::Paths;
 
@@ -51,6 +54,7 @@ impl Settings {
     /// Settings from goway's paths; multiplexing only on Unix clients
     /// (Windows OpenSSH has no `ControlMaster`).
     pub fn from_paths(paths: &Paths) -> Self {
+        attempts::init(&paths.state_dir);
         let control_dir = cfg!(unix)
             .then(|| paths.control_dir())
             .filter(|d| {
@@ -86,6 +90,17 @@ fn option_value(path: &std::path::Path) -> String {
 
 /// The ssh arguments up to and including the destination.
 pub fn args(target: &Target, settings: &Settings, policy: KeyPolicy) -> Vec<OsString> {
+    let socket = settings.control_dir.as_ref().map(|d| d.join("%C"));
+    args_with(target, settings, policy, socket.as_deref())
+}
+
+/// [`args`] with an explicit control socket (`None`: no multiplexing).
+fn args_with(
+    target: &Target,
+    settings: &Settings,
+    policy: KeyPolicy,
+    socket: Option<&Path>,
+) -> Vec<OsString> {
     let strict = match policy {
         KeyPolicy::Strict => "yes",
         KeyPolicy::AcceptNew => "accept-new",
@@ -118,9 +133,9 @@ pub fn args(target: &Target, settings: &Settings, policy: KeyPolicy) -> Vec<OsSt
         "VerifyHostKeyDNS=no".to_owned(),
         "CheckHostIP=no".to_owned(),
     ];
-    if let Some(dir) = &settings.control_dir {
+    if let Some(socket) = socket {
         opts.push("ControlMaster=auto".to_owned());
-        opts.push(format!("ControlPath={}", option_value(&dir.join("%C"))));
+        opts.push(format!("ControlPath={}", option_value(socket)));
         opts.push("ControlPersist=60s".to_owned());
     } else {
         // Off means off: never reuse a connection from the user's config
@@ -203,8 +218,15 @@ pub fn command(target: &Target, settings: &Settings, policy: KeyPolicy, remote: 
     {
         tracing::warn!(dir = %dir.display(), error = %e, "cannot create config dir");
     }
+    // One of a few masters per host, claimed per process, so a wave of
+    // runs never exceeds the helper's MaxSessions; none free: no mux.
+    let socket = settings
+        .control_dir
+        .as_deref()
+        .and_then(|dir| mux::socket(dir, target));
     let mut cmd = Command::new("ssh");
-    cmd.args(args(target, settings, policy)).arg(remote);
+    cmd.args(args_with(target, settings, policy, socket.as_deref()))
+        .arg(remote);
     scrub_env(&mut cmd);
     tracing::debug!(host = %target.name, address = %target.address, port = target.port, ?policy, "ssh");
     cmd
@@ -365,6 +387,12 @@ pub enum Failure {
     AuthRefused,
     /// No connection (refused, timed out, no route, name not resolved).
     Unreachable,
+    /// goway did not try: too many failed logins to this host lately
+    /// (see [`attempts`]).
+    Throttled,
+    /// The connection was refused soon after failed logins: probably a
+    /// fail2ban or sshguard ban of this machine.
+    ProbableBan,
     /// Anything else.
     Other,
 }

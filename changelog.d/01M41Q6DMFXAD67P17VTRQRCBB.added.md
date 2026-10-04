@@ -1,0 +1,1 @@
+goway doctor now checks Windows hosts (OpenSSH or WSL interop) with the same transport as run: Build Tools, rustup with the msvc target, cargo-nextest and the system drive, each with an exact fix command.

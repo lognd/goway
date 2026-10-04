@@ -97,6 +97,24 @@ lock_dir() {
   die "cannot lock $dir (kept vanishing)"
 }
 
+# user_tool_path: make the usual per-user tool directories visible to a
+# non-interactive ssh command, whose PATH never saw .profile or .bashrc.
+# ~/.local/bin (mold, uv tools, goway's own fixes) goes first, then
+# ~/.cargo/bin if it is not already on PATH; the uv, node and go locations
+# that exist are appended (a system install still wins). Startup files are
+# never sourced: they may print text or run anything. Shared by run and doctor.
+user_tool_path() {
+  local d n
+  case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH" ;; esac
+  case ":$PATH:" in *":$HOME/.cargo/bin:"*) ;; *) [ -d "$HOME/.cargo/bin" ] && PATH="$HOME/.cargo/bin:$PATH" ;; esac
+  n=$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1 || true)
+  for d in "$HOME/.local/share/uv/bin" "$HOME/.volta/bin" "$n" "$HOME/.local/share/fnm/aliases/default/bin" /usr/local/go/bin "$HOME/go/bin"; do
+    [ -n "$d" ] && [ -d "$d" ] || continue
+    case ":$PATH:" in *":$d:"*) ;; *) PATH="$PATH:$d" ;; esac
+  done
+  export PATH
+}
+
 # Change-log entries a seed keeps.
 LOG_KEEP=64
 
@@ -118,6 +136,41 @@ seed_from_sibling() {
   new_generation >"$seed/generation"
   mv "$seed/tree.new" "$seed/tree"
   exec 6>&-
+}
+
+# nearest_dir PATH: PATH, or its closest existing ancestor.
+nearest_dir() {
+  local d=$1
+  while [ ! -d "$d" ] && [ "$d" != / ] && [ "$d" != . ]; do d=$(dirname "$d"); done
+  printf '%s' "$d"
+}
+
+# case_insensitive DIR: succeed when the file system under DIR ignores case
+# (macOS APFS by default, exFAT, a Windows drive under WSL, ext4 casefold).
+# GOWAY_ASSUME_CASE_INSENSITIVE=1 forces it (a test hook).
+case_insensitive() {
+  local d probe
+  [ "${GOWAY_ASSUME_CASE_INSENSITIVE:-0}" = 1 ] && return 0
+  d=$(nearest_dir "$1")
+  probe="$d/.goway-Case-$$"
+  : >"$probe" 2>/dev/null || return 1
+  if [ -e "$d/.goway-case-$$" ]; then rm -f "$probe"; return 0; fi
+  rm -f "$probe"
+  return 1
+}
+
+# case_clashes LIST TREE [DELETIONS]: read tar member names from LIST plus
+# the names under TREE (less the NUL-separated paths in DELETIONS, which the
+# sync removes first); print each pair of distinct paths that differ only
+# in case.
+case_clashes() {
+  local gone=/dev/null
+  [ -n "${3:-}" ] && [ -f "$3" ] && { gone=$(mktemp "$(dirname "$2")/gone.XXXXXX"); tr '\0' '\n' <"$3" >"$gone"; }
+  { cat "$1"
+    (cd "$2" 2>/dev/null && find . -mindepth 1 \( -type f -o -type l \) -print | sed 's|^\./||' | { grep -vxF -f "$gone" || true; }); } |
+    sed 's|/$||' | sort -u |
+    awk '{ k = tolower($0); if ((k in seen) && seen[k] != $0) print "  " seen[k] "  and  " $0; else seen[k] = $0 }'
+  [ "$gone" = /dev/null ] || rm -f "$gone"
 }
 
 # manifest ROOT SEED: print the seed tree as NUL-terminated records
@@ -202,6 +255,22 @@ receive() {
     mkdir -p "$seed/tree"
     new_generation >"$seed/generation"
   fi
+  # On a case-insensitive file system two paths that differ only in case
+  # would silently become one file: refuse, naming them, before touching
+  # anything. The stream is spooled to a file so it can be listed first.
+  local tarsrc=-
+  if case_insensitive "$root"; then
+    tarsrc="$seed/incoming.tar"
+    cat >"$tarsrc"
+    local clash
+    clash=$(tar -tf "$tarsrc" | case_clashes /dev/stdin "$seed/tree" "$seed/deletions.$attempt")
+    if [ -n "$clash" ]; then
+      rm -f "$tarsrc" "$seed"/deletions.* "$seed"/changes.*
+      printf 'goway-remote: this repository has paths that differ only in case, and this host'"'"'s file system ignores case:\n%s\n' "$clash" >&2
+      printf 'goway-remote: next: use a host with a case-sensitive file system (set remote_root there), or rename one of each pair\n' >&2
+      exit 76
+    fi
+  fi
   printf '%s' "$3" | base64 -d >"$seed/meta.json"
   if [ -n "$attempt" ] && [ -f "$seed/deletions.$attempt" ]; then
     (cd "$seed/tree" && xargs -0 -r rm -f -- <"$seed/deletions.$attempt")
@@ -221,11 +290,20 @@ receive() {
   fi
   rm -f "$seed"/changes.*
   rm -f "$seed/fresh"
-  tar -x --unlink-first --recursive-unlink --no-same-owner -C "$seed/tree" -f -
+  # Files dated in this host's future (the laptop's clock runs ahead) are not
+  # an error: the slot's copies get this host's time (sync_slot), so tar's
+  # "time stamp is in the future" warnings are only noise.
+  tar -x --unlink-first --recursive-unlink --no-same-owner --warning=no-timestamp -C "$seed/tree" -f "$tarsrc"
+  if [ "$tarsrc" != - ]; then rm -f "$tarsrc"; fi
   find "$seed/tree" -mindepth 1 -depth -type d -empty -delete
   if [ -n "${5:-}" ]; then
     work="$root/work/$5"
     mkdir -p "$work"
+    # What keeps gc from removing this dir before its run takes the lock,
+    # whatever the wall clock does: this process while it lives, then the
+    # monotonic time since boot (see work_young).
+    printf '%s %s\n' "$$" "$(proc_start "$$")" >"$work/creator"
+    printf '%s\n' "$(uptime_secs)" >"$work/born"
     printf '%s' "$6" | base64 -d >"$work/meta.json"
     if [ "${7:-0}" = 1 ]; then : >"$work/keep"; fi
     printf '%s' "$2" >"$work/seed"
@@ -544,9 +622,23 @@ verify_verdict() {
   mv "$work/verdict.$3.tmp" "$work/verdict.$3"
 }
 
+# stop_group PID: stop the process group PID (a job's session leader):
+# SIGTERM, up to 5 seconds for the group to empty, then SIGKILL for whatever
+# is left. Bounded; never fails.
+stop_group() {
+  local pid=$1 n
+  kill -TERM -- "-$pid" 2>/dev/null || true
+  for n in $(seq 1 25); do
+    kill -0 -- "-$pid" 2>/dev/null || return 0
+    sleep 0.2
+  done
+  kill -KILL -- "-$pid" 2>/dev/null || true
+}
+
 # Kill the job's process group when the ssh session that started it dies
 # (sshd does not signal commands without a pty, it orphans them). The job
 # writes its pid (= its process group, it is a session leader) to PIDFILE.
+# A client that vanished without the connection closing is lifeline's job.
 watchdog() {
   local session=$1 pidfile=$2 pid=""
   trap '' HUP PIPE
@@ -558,11 +650,39 @@ watchdog() {
   while kill -0 "$session" 2>/dev/null && kill -0 "$pid" 2>/dev/null; do
     sleep 1
   done
-  if kill -0 "$pid" 2>/dev/null; then
-    kill -TERM -- "-$pid" 2>/dev/null || true
-    sleep 5
-    kill -KILL -- "-$pid" 2>/dev/null || true
+  if kill -0 "$pid" 2>/dev/null; then stop_group "$pid"; fi
+}
+
+# How long (seconds) lifeline waits for the client's next heartbeat byte.
+LIFELINE_TIMEOUT=30
+
+# lifeline ROOT RUN_ID: the run's lifeline. The client keeps this call open
+# and writes a byte to its stdin every few seconds. When stdin ends (the
+# client died, even by SIGKILL, so its end of the pipe closed) or no byte
+# arrives for LIFELINE_TIMEOUT seconds (laptop asleep, network gone), the
+# run is stopped: its job's process group when the job started (bounded by
+# stop_group), else the run's own shell. A run that already finished (its
+# work dir is gone or marked done) is left alone. Stops within
+# LIFELINE_TIMEOUT plus 5 seconds at the worst, at once on end of stdin.
+lifeline() {
+  local root work c="" pid runner
+  root=$(root_dir "$1"); work="$root/work/$2"
+  case "$2" in *[!A-Za-z0-9-]* | "") die "lifeline: bad run id" ;; esac
+  while IFS= read -r -n 1 -t "$LIFELINE_TIMEOUT" c; do
+    [ -d "$work" ] && [ ! -e "$work/done" ] || return 0
+  done
+  [ -d "$work" ] && [ ! -e "$work/done" ] || return 0
+  : >"$work/lost" 2>/dev/null || return 0
+  pid=$(cat "$work/pid" 2>/dev/null || true)
+  case "$pid" in "" | *[!0-9]*) pid="" ;; esac
+  if [ -n "$pid" ]; then
+    printf 'goway-remote: client of run %s is gone; stopping its job\n' "$2" >&2
+    stop_group "$pid"
+    return 0
   fi
+  runner=$(cat "$work/runner" 2>/dev/null || true)
+  case "$runner" in "" | *[!0-9]*) return 0 ;; esac
+  kill -TERM "$runner" 2>/dev/null || true
 }
 
 # envfile ROOT RUN_ID: store the run's --env values (NUL-separated on
@@ -719,6 +839,131 @@ cap_parallelism() {
   [ -n "${MAKEFLAGS+x}" ] || export MAKEFLAGS="-j$half"
   [ -n "${CMAKE_BUILD_PARALLEL_LEVEL+x}" ] || export CMAKE_BUILD_PARALLEL_LEVEL=$half
   [ -n "${NEXTEST_TEST_THREADS+x}" ] || export NEXTEST_TEST_THREADS=$half
+}
+
+# ---- CMake's own interfaces (File API replies, a traced configure) ------
+#
+# doctor asks CMake what a project needs instead of reading CMakeLists.txt as
+# text. Every run leaves a stateful File API query (client-goway) in the
+# build directories of its slot tree, so a normal configure there writes
+# replies. doctor reads the newest ones (cmake-replies), and doctor
+# --configure runs one traced configure of a snapshot in the run's own work
+# dir (cmake-configure), which gc covers like any work dir. Output is framed
+# as "@@build LABEL", "@@file NAME SIZE" + SIZE bytes + newline, "@@end".
+CMAKE_QUERY='{"requests":[{"kind":"codemodel","version":2},{"kind":"cache","version":2},{"kind":"cmakeFiles","version":1},{"kind":"toolchains","version":1}]}'
+CMAKE_MAX_FILE=4194304
+CMAKE_MAX_FILES=400
+CMAKE_MAX_TOTAL=16777216
+
+# cmake_query_dir DIR: write the File API query into the build directory DIR.
+cmake_query_dir() {
+  local q="$1/.cmake/api/v1/query/client-goway"
+  [ -f "$q/query.json" ] && return 0
+  mkdir -p "$q" 2>/dev/null && printf '%s\n' "$CMAKE_QUERY" >"$q/query.json" 2>/dev/null || true
+  return 0
+}
+
+# cmake_queries TREE: leave the query in the build directories of a slot
+# tree: build/ (made when absent) and cmake-build-*, each only when it holds
+# a CMake cache or nothing (a directory with the project's own files is not
+# a build directory).
+cmake_queries() {
+  local tree=$1 d own
+  [ -f "$tree/CMakeLists.txt" ] || return 0
+  [ -e "$tree/build" ] || mkdir "$tree/build" 2>/dev/null || true
+  for d in "$tree/build" "$tree"/cmake-build-*; do
+    if [ ! -d "$d" ] || [ -L "$d" ]; then continue; fi
+    if [ ! -f "$d/CMakeCache.txt" ]; then
+      own=$(ls -A "$d" 2>/dev/null | grep -v '^\.cmake$' | head -1 || true)
+      [ -z "$own" ] || continue
+    fi
+    cmake_query_dir "$d"
+  done
+  return 0
+}
+
+# cmake_emit REPLY_DIR LABEL: the replies in REPLY_DIR, size-limited.
+cmake_emit() {
+  local f name size n=0 total=0
+  printf '@@build %s\n' "$2"
+  for f in "$1"/*.json; do
+    if [ ! -f "$f" ] || [ -L "$f" ]; then continue; fi
+    name=${f##*/}
+    case "$name" in *[!A-Za-z0-9._-]*) continue ;; esac
+    size=$(stat -c %s "$f" 2>/dev/null || echo 0)
+    if [ "$size" -le 0 ] || [ "$size" -gt "$CMAKE_MAX_FILE" ]; then continue; fi
+    n=$((n + 1)); total=$((total + size))
+    if [ "$n" -gt "$CMAKE_MAX_FILES" ] || [ "$total" -gt "$CMAKE_MAX_TOTAL" ]; then break; fi
+    printf '@@file %s %s\n' "$name" "$size"
+    cat "$f"; printf '\n'
+  done
+}
+
+# cmake_replies ROOT REPO_ID: the newest File API replies of the repository's slot trees.
+cmake_replies() {
+  local root cache tree d reply idx best="" best_t=0 t
+  root=$(root_dir "$1")
+  case "$2" in "" | *[!A-Za-z0-9._-]*) die "cmake-replies: bad repository id" ;; esac
+  cache="$root/cache/$2"
+  printf 'goway-cmake1\n'
+  for tree in "$cache"/tree-*; do
+    [ -d "$tree" ] || continue
+    for d in "$tree/build" "$tree"/cmake-build-*; do
+      reply="$d/.cmake/api/v1/reply"
+      [ -d "$reply" ] || continue
+      idx=$(ls -1 "$reply"/index-*.json 2>/dev/null | sort | tail -1 || true)
+      [ -n "$idx" ] || continue
+      t=$(stat -c %Y "$idx" 2>/dev/null || echo 0)
+      if [ -z "$best" ] || [ "$t" -gt "$best_t" ]; then best=$d; best_t=$t; fi
+    done
+  done
+  if [ -n "$best" ]; then
+    cmake_emit "$best/.cmake/api/v1/reply" "${best#"$cache"/}"
+    printf '@@end\n'
+  fi
+  return 0
+}
+
+# cmake_configure ROOT RUN_ID SECONDS: one traced configure of the snapshot
+# synced into work/RUN_ID/tree, in that work dir (labelled, locked, removed
+# afterwards, collected by gc if this dies). Prints the exit code, the tail of
+# stderr, the filtered json-v1 trace and the File API replies.
+cmake_configure() {
+  local root work secs=${3:-300} rc=0 src build
+  root=$(root_dir "$1"); work="$root/work/$2"
+  case "$2" in *[!A-Za-z0-9-]* | "") die "cmake-configure: bad run id" ;; esac
+  case "$secs" in "" | *[!0-9]*) die "cmake-configure: bad seconds" ;; esac
+  [ "$secs" -le 900 ] || secs=900
+  [ -d "$work/tree" ] || die "cmake-configure: no work dir at $work (was it synced?)"
+  printf 'goway-cmake1\n'
+  if ! command -v cmake >/dev/null 2>&1; then printf '@@rc 127\n@@end\n'; return 0; fi
+  mark_root "$root"
+  exec 9>"$work/lock"
+  flock -x 9
+  src="$work/cfg-src"; build="$work/cfg-build"
+  rm -rf "$src" "$build"
+  cp -a --reflink=auto "$work/tree" "$src"
+  cmake_query_dir "$build"
+  # A configure may download (FetchContent, CPM): into this scratch dir only.
+  (cd "$src" && bounded_for "$secs" nice -n 19 cmake -S . -B "$build" \
+    --trace-expand --trace-format=json-v1 --trace-redirect="$work/trace.json" \
+    >"$work/cfg.out" 2>"$work/cfg.err" </dev/null) || rc=$?
+  printf '@@rc %s\n' "$rc"
+  for f in stderr:cfg.err trace.jsonl:trace.json; do
+    local name=${f%%:*} file="$work/${f#*:}" body
+    body=$(mktemp "$work/body.XXXXXX")
+    case "$name" in
+      stderr) tail -c 65536 "$file" >"$body" 2>/dev/null || true ;;
+      *) grep -E '^\{"version"|"cmd":"(cmake_minimum_required|project|find_package|FetchContent_Declare|FetchContent_MakeAvailable|FetchContent_Populate|pkg_check_modules|pkg_search_module|CPMAddPackage|CPMFindPackage|CPMDeclarePackage|add_subdirectory)"' "$file" 2>/dev/null | head -c "$CMAKE_MAX_FILE" >"$body" || true ;;
+    esac
+    printf '@@file %s %s\n' "$name" "$(stat -c %s "$body")"
+    cat "$body"; printf '\n'
+    rm -f "$body"
+  done
+  if [ -d "$build/.cmake/api/v1/reply" ]; then cmake_emit "$build/.cmake/api/v1/reply" configure; fi
+  printf '@@end\n'
+  remove_work "$work"
+  return 0
 }
 
 # keep_awake: set AWAKE to the words that wrap a job in a sleep inhibitor,
@@ -895,6 +1140,13 @@ run() {
   mkdir -p "$cache"
   exec 9>"$work/lock"
   flock -x 9
+  # The client's lifeline stops this shell with SIGTERM while it is still
+  # preparing (before the job exists): clean up and go.
+  # The lock protects the dir from here on; the starting-run markers are done.
+  rm -f "$work/born" "$work/creator"
+  printf '%s\n' "$$" >"$work/runner"
+  trap 'remove_work "$work"; exit 143' TERM
+  if [ -e "$work/lost" ]; then remove_work "$work"; exit 143; fi
   # What the last automatic disk-budget eviction freed (it ran detached).
   if [ -s "$root/evicted.log" ]; then
     cat "$root/evicted.log" >&2 2>/dev/null || true
@@ -905,12 +1157,21 @@ run() {
   touch "$cache/meta.json"
 
   # Settings that already exist win over goway's defaults: first the
-  # remote environment and ~/.cargo/env, then the user's --env values;
-  # goway only fills in what is still unset.
-  if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; fi
+  # remote environment and the usual per-user tool directories, then the
+  # user's --env values; goway only fills in what is still unset.
+  # Scratch files (compilers, test harnesses, build scripts) go under the
+  # run's own work dir, never to the helper's /tmp: that may be a small
+  # tmpfs, or mounted noexec so that build scripts cannot run. Only an
+  # explicit --env TMPDIR=... wins; the helper's own TMPDIR does not.
+  unset TMPDIR
+  user_tool_path
   if [ -f "$work/env" ]; then
     while IFS= read -r -d '' kv; do export "$kv"; done <"$work/env"
     rm -f "$work/env"
+  fi
+  if [ -z "${TMPDIR:-}" ]; then
+    mkdir -p "$work/tmp"
+    export TMPDIR="$work/tmp"
   fi
 
   # A GPU run holds one GPU slot until this shell ends (fd 5). It waits for
@@ -976,6 +1237,7 @@ run() {
   fi
   # What the tree looked like (ctime, size) when the command started: a file
   # whose record changes was changed by the command, not by the copy.
+  cmake_queries "$rundir"
   tree_stamps "$rundir" >"$work/stamps.before"
   if [ -z "${CARGO_TARGET_DIR:-}" ]; then
     export CARGO_TARGET_DIR="$cache/target-$slot"
@@ -1024,6 +1286,8 @@ run() {
   # it (a handler, not an ignore, so the job keeps default dispositions)
   # long enough for the watchdog to stop the job and for cleanup to run.
   trap 'hangup=1' HUP PIPE
+  trap - TERM
+  if [ -e "$work/lost" ]; then remove_work "$work"; exit 143; fi
   cd "$rundir"
   : >"$work/pid"
   # The watchdog must not inherit the lock fds, or a lingering `sleep`
@@ -1051,10 +1315,11 @@ run() {
     setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
   fi
   kill "$wd" 2>/dev/null || true
+  : >"$work/done"
   cd "$root"
   # A failed command: before blaming the code, goway compares every synced
   # file the command did not itself change with the laptop's.
-  if [ -n "$verify" ] && [ "$rc" -ne 0 ] && kill -0 "$PPID" 2>/dev/null; then
+  if [ -n "$verify" ] && [ "$rc" -ne 0 ] && [ ! -e "$work/lost" ] && kill -0 "$PPID" 2>/dev/null; then
     tree_stamps "$rundir" >"$work/stamps.after"
     comm -z -12 "$work/stamps.before" "$work/stamps.after" | sed -z "s/^\\([^$SOH]*$SOH\\)\\{2\\}//" |
       sort -z >"$work/untouched"
@@ -1251,6 +1516,8 @@ probe() {
   if [ "$want_static" = 1 ]; then static_facts; fi
   printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(machine)" "$(uname -n)" "$(cores)"
   printf 'os=%s\n' "$(uname -s | tr '[:upper:]' '[:lower:]')"
+  # The host's wall clock in whole seconds; goway computes the clock offset from it.
+  printf 'epoch=%s\n' "$(date +%s)"
   if [ "$IS_DARWIN" = 1 ]; then
     # "{ 1.23 1.45 1.67 }"
     read -r _ l1 l5 l15 _ < <(sysctl -n vm.loadavg)
@@ -1277,6 +1544,37 @@ probe() {
 
 # A work dir with no lock file yet and younger than this (seconds) is never removed by gc.
 WORK_GRACE=120
+
+# Seconds since boot: monotonic, so a step of the wall clock never changes
+# it. Empty where the host does not say (/proc/uptime).
+uptime_secs() {
+  local up
+  read -r up _ </proc/uptime 2>/dev/null || return 0
+  printf '%s' "${up%%.*}"
+}
+
+# proc_start PID: the start time (clock ticks since boot) of process PID, so
+# a recycled pid is not mistaken for the process that wrote it. Empty if unknown.
+proc_start() {
+  { sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null || true; } | awk '{ print $20 }'
+}
+
+# work_young DIR: whether the run that owns work dir DIR is still starting.
+# True while its creator process is alive, or for WORK_GRACE seconds after
+# the dir was born by the monotonic clock. Never judged by wall-clock age,
+# which a clock jump can make huge. A dir without the marker (an older
+# goway made it) is not young by this test.
+work_young() {
+  local pid start born now
+  if read -r pid start <"$1/creator" 2>/dev/null && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    if [ -z "$start" ] || [ "$(proc_start "$pid")" = "$start" ]; then return 0; fi
+  fi
+  born=$(cat "$1/born" 2>/dev/null || true)
+  now=$(uptime_secs)
+  case "$born" in "" | *[!0-9]*) return 1 ;; esac
+  case "$now" in "" | *[!0-9]*) return 1 ;; esac
+  [ "$now" -ge "$born" ] && [ $((now - born)) -lt "$WORK_GRACE" ]
+}
 
 # Seconds since the last use of DIR (its meta.json mtime).
 age_of() {
@@ -1349,6 +1647,10 @@ gc_entry() {
   # for a moment the dir is unlocked and has no lock file yet. Never remove
   # such a young dir, not even with --all (a finished run always has the file).
   if [ "$kind" = work ] && [ "$action" = "$verb" ] && [ ! -e "$dir/lock" ] && [ "$age" -lt "$WORK_GRACE" ]; then action=keep; fi
+  # A run that is starting is protected by liveness (its creator process, or
+  # the monotonic clock), not by wall-clock age: if the host's clock jumps
+  # forward every age is huge, and this dir must still survive.
+  if [ "$kind" = work ] && [ "$action" = "$verb" ] && work_young "$dir"; then action=keep; fi
   bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$action" "$kind" "$age" "${bytes:-0}" "$repo" "$dir"
   GC_ACTION=$action; GC_BYTES=${bytes:-0}
@@ -1533,12 +1835,34 @@ want_version() {
 # needs, names checked here as well as by the client) is reported as
 # want.TOOL=<version line>, empty when missing. User-level installs that
 # goway's fixes make (~/.local/bin) count.
+# fs_facts PREFIX DIR: print PREFIX_fs (file system type), PREFIX_free and
+# PREFIX_size (bytes) and PREFIX_noexec (1 when a script placed there will
+# not run) for DIR, or its nearest existing ancestor.
+fs_facts() {
+  local d probe type free size noexec=0
+  d=$(nearest_dir "$2")
+  type=$(df -T "$d" 2>/dev/null | tail -1 | awk '{print $2}' || true)
+  free=$(df -B1 --output=avail "$d" 2>/dev/null | tail -1 | tr -d ' ' || true)
+  size=$(df -B1 --output=size "$d" 2>/dev/null | tail -1 | tr -d ' ' || true)
+  probe="$d/.goway-exec-$$"
+  if printf '#!/bin/sh\nexit 0\n' >"$probe" 2>/dev/null; then
+    chmod +x "$probe" 2>/dev/null || true
+    "$probe" >/dev/null 2>&1 || noexec=1
+    rm -f "$probe"
+  fi
+  printf '%s_fs=%s\n%s_free=%s\n%s_size=%s\n%s_noexec=%s\n' "$1" "${type:-unknown}" "$1" "${free:-}" "$1" "${size:-}" "$1" "$noexec"
+}
+
 doctor() {
-  local t v pa out
+  local t v pa out root
+  root=$(root_dir "$1")
   shift
-  PATH="$HOME/.local/bin:$PATH"
-  if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; printf 'cargo_env=yes\n'; else printf 'cargo_env=no\n'; fi
+  user_tool_path
+  if [ -f "$HOME/.cargo/env" ]; then printf 'cargo_env=yes\n'; else printf 'cargo_env=no\n'; fi
+  # Names only: a proxy URL may carry credentials, so values never leave the host.
+  printf 'proxy_vars=%s\n' "$({ env | sed -n 's/=.*//p' | grep -iE '^(https?|all|no)_proxy$' | sort -u | paste -sd, - ; } 2>/dev/null || true)"
   printf 'kernel=%s\n' "$(uname -s)"
+  printf 'epoch=%s\n' "$(date +%s)"
   if [ "$IS_DARWIN" = 1 ]; then
     # Which tools still resolve to the BSD versions (no --version, or not GNU).
     v=""
@@ -1582,6 +1906,9 @@ doctor() {
   fi
   printf 'password_auth=%s\n' "${pa:-default-yes}"
   printf 'home=%s\n' "$HOME"
+  fs_facts root "$root"
+  fs_facts tmp "${TMPDIR:-/tmp}"
+  if case_insensitive "$root"; then printf 'root_case_insensitive=1\n'; else printf 'root_case_insensitive=0\n'; fi
   static_facts
   # Whether a cargo home existed before any goway fix (so uninstall never removes it).
   if [ -e "${CARGO_HOME:-$HOME/.cargo}" ]; then printf 'cargo_home=1\n'; else printf 'cargo_home=0\n'; fi
@@ -1624,9 +1951,12 @@ case "$verb" in
   run) run "$@" ;;
   envfile) envfile "$@" ;;
   probe) probe "$@" ;;
+  cmake-replies) cmake_replies "$@" ;;
+  cmake-configure) cmake_configure "$@" ;;
   gc) gc "$@" ;;
   doctor) doctor "$@" ;;
   purge) purge "$@" ;;
+  lifeline) lifeline "$@" ;;
   ping) printf 'goway-remote ok\n' ;;
   *) die "unknown verb: $verb" ;;
 esac

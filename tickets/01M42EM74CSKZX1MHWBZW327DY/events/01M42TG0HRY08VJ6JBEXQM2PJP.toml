@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T06:44:19Z"
+digest = "069553f1e002f8122c4b0d44de1fb94666b2de0076297816c73e65727d90508f"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1942be86-772a-4355-a2ba-4a98ed9f8232 with nextest profile: default
+    Starting 2 tests across 64 binaries (752 tests skipped)
+        PASS [   0.308s] goway::queue a_host_short_of_memory_for_one_more_job_is_waited_for_not_used
+        PASS [   1.010s] goway::queue a_full_pool_fails_at_once_with_zero_wait_and_after_the_wait_otherwise
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.013s] 2 tests run: 2 passed, 752 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_full_pool_fails_at_once_with_zero_wait_and_after_the_wait_otherwise) | test(a_host_short_of_memory_for_one_more_job_is_waited_for_not_used)'"
+size = 679
+status = "measured"
+tests = ["a_host_short_of_memory_for_one_more_job_is_waited_for_not_used", "a_full_pool_fails_at_once_with_zero_wait_and_after_the_wait_otherwise"]
+at = "2026-10-04T06:44:19Z"
+actor = "lognd"
+rev = 1

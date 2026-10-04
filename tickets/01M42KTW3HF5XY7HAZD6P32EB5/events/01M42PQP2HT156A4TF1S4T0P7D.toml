@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T05:38:36Z"
+digest = "831c0ba17f3c2fe54df182a37ed1a8227398803538efb08fa58dd83e876eeed0"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 22.99s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID af503381-3da8-4608-84b7-f2a764e83231 with nextest profile: default
+    Starting 3 tests across 58 binaries (700 tests skipped)
+        PASS [   0.005s] goway doctor::prereq::tests::a_missing_target_is_a_user_fix_and_a_missing_package_is_a_root_fix_naming_the_repository
+        PASS [   0.006s] goway project::tests::toolchain_reads_rust_targets_and_packages_and_refuses_unknown_managers
+        PASS [   7.643s] goway::doctor_project goway_toml_packages_and_targets_are_probed_and_missing_ones_fail
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   7.646s] 3 tests run: 3 passed, 700 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(goway_toml_packages_and_targets_are_probed_and_missing_ones_fail) | test(toolchain_reads_rust_targets_and_packages_and_refuses_unknown_managers) | test(a_missing_target_is_a_user_fix_and_a_missing_package_is_a_root_fix_naming_the_repository)'"
+size = 1028
+status = "measured"
+tests = ["doctor::prereq::tests::a_missing_target_is_a_user_fix_and_a_missing_package_is_a_root_fix_naming_the_repository", "project::tests::toolchain_reads_rust_targets_and_packages_and_refuses_unknown_managers", "goway_toml_packages_and_targets_are_probed_and_missing_ones_fail"]
+at = "2026-10-04T05:38:36Z"
+actor = "lognd"
+rev = 1

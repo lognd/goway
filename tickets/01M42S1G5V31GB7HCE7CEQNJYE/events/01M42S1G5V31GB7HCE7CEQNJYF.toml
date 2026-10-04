@@ -1,0 +1,12 @@
+kind = "create"
+title = "slot_trees cargo stale-build regression test fails on a helper"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 2
+scope = ["crates/goway/tests/slot_trees.rs"]
+acceptance = ["Given a helper with cargo, When cargo_rebuilds_when_an_older_branch_reuses_the_slot runs, Then it passes 10 of 10 times"]
+body = "Fails with exit 2 on one helper; the helper hides the child's stdout so the cause is unseen."
+at = "2026-10-04T06:18:55Z"
+actor = "lognd"
+rev = 1

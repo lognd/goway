@@ -81,6 +81,13 @@ rules as every other host. See docs/hosts.md.
 project's `goway.toml` (see [usage.md](usage.md)); they are 1-63 letters,
 digits, `-` or `_`. Labels live only in this file, never in a project.
 
+A project's own `goway.toml` `[toolchain]` section (not this file) can also
+list `rust_targets` and `packages = { apt, dnf, pacman }` that `goway doctor`
+checks and installs on the helpers; packages are root installs that need
+`--rsudo` and a confirmation naming the repository as their source. The
+name syntax, the `rust-toolchain.toml` targets and the fixes are in
+[usage.md](usage.md).
+
 Without `identity`, ssh offers every key in your agent and default key
 files to the helper, one after another, so the helper learns their
 fingerprints and comments and a full agent can exhaust the helper's
@@ -133,6 +140,22 @@ Caps, all on the laptop side:
 
 Durations use humantime syntax: `90s`, `30m`, `12h`, `7d`.
 
+## Unusual temp and home file systems
+
+goway never uses a helper's `/tmp`: a run's `TMPDIR` is a directory in its
+own work dir under `remote_root` (removed with the work dir), so a small
+tmpfs or a `noexec` `/tmp` cannot break builds. Pass `--env TMPDIR=...` to
+choose another place. `goway doctor` prints the file system type and free
+space of `remote_root`, and says when the helper's temp directory is small
+or `noexec`.
+
+It warns when `remote_root` is on a network or translated file system
+(NFS, SMB, 9p), fails when it is mounted `noexec`, and warns when it ignores
+case (macOS by default). On such a host goway refuses a repository that has
+paths differing only in case, naming each clashing pair, instead of letting
+one file silently overwrite the other. Put `remote_root` on a case-sensitive
+file system to run that repository.
+
 ## Environment variables
 
 | Variable | Effect |
@@ -157,7 +180,7 @@ On the remote, a job sees these variables:
 | `CCACHE_DIR` | a per-repository ccache directory, when ccache (and no sccache) is the launcher and the variable is unset |
 | `CPM_SOURCE_CACHE` | `cache/<repo-id>/cpm` in goway's remote root: one CPM.cmake download directory shared by all slots and worktrees of the repository, unless already set |
 
-The remote environment, `~/.cargo/env` and `--env KEY=VALUE` values are
+The remote environment, the per-user tool directories on PATH and `--env KEY=VALUE` values are
 applied first. goway only fills in what is still unset, so your settings
 always win (see docs/positioning.md).
 

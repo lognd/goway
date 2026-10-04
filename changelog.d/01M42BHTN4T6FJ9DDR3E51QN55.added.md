@@ -1,0 +1,1 @@
+Runs and doctor now find tools in the usual per-user directories (~/.local/bin, ~/.cargo/bin, uv, node and go locations) without sourcing startup files, so a helper's user-level mold or cargo is found.

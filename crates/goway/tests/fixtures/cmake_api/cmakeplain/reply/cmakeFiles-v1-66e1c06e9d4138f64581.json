@@ -1,0 +1,28 @@
+{
+ "inputs": [
+  {
+   "path": "CMakeLists.txt"
+  },
+  {
+   "isGenerated": true,
+   "path": "/work/b/CMakeFiles/3.28.3/CMakeSystem.cmake"
+  },
+  {
+   "isGenerated": true,
+   "path": "/work/b/CMakeFiles/3.28.3/CMakeCXXCompiler.cmake"
+  },
+  {
+   "isGenerated": true,
+   "path": "/work/b/CMakeFiles/3.28.3/CMakeCXXCompiler.cmake"
+  }
+ ],
+ "kind": "cmakeFiles",
+ "paths": {
+  "build": "/work/b",
+  "source": "/work/src"
+ },
+ "version": {
+  "major": 1,
+  "minor": 0
+ }
+}

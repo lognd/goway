@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.20)
+project(cmakefind CXX)
+find_package(GTest REQUIRED)
+add_executable(gt gt.cpp)
+target_link_libraries(gt GTest::gtest_main)

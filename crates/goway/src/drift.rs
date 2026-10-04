@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::doctor::first_version;
 use crate::render;
+use crate::state::State;
 
 /// Tools whose minor version also matters: a different compiler minor can
 /// change what a build produces. Other tools drift only across majors,
@@ -180,4 +181,85 @@ pub fn laptop_versions(tools: &[String]) -> BTreeMap<String, String> {
         .iter()
         .filter_map(|t| laptop_version(t).map(|v| (t.clone(), v)))
         .collect()
+}
+
+/// The tool versions of the host a run used, as `--report` records them.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Record {
+    /// Where they come from: goway's cache of what `goway doctor` saw.
+    pub source: &'static str,
+    /// When doctor captured them, in seconds since the Unix epoch.
+    pub captured: u64,
+    /// Tool name to the first line of its version report.
+    pub versions: BTreeMap<String, String>,
+}
+
+/// What a run says about the tool versions of the host it chose.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ForRun {
+    /// One line when the chosen host differs from the rest of the fleet.
+    pub note: Option<String>,
+    /// The chosen host's versions, for the report.
+    pub record: Option<Record>,
+}
+
+/// Seconds as a short age: `3d`, `5h`, `12m`.
+fn age(secs: u64) -> String {
+    match secs {
+        s if s >= 86_400 => format!("{}d", s / 86_400),
+        s if s >= 3_600 => format!("{}h", s / 3_600),
+        s => format!("{}m", s / 60),
+    }
+}
+
+/// Compare the cached versions (written by `goway doctor` in this
+/// repository) of the chosen `host` with the other hosts', at time `now`.
+/// Nothing is probed: a run never waits for versions. Without a cache for
+/// this repository on the chosen host the result is empty.
+pub fn for_run(state: &State, host: &str, repo_id: &str, now: u64) -> ForRun {
+    let key = host.to_ascii_lowercase();
+    let Some(mine) = state
+        .tool_versions
+        .get(&key)
+        .filter(|c| !repo_id.is_empty() && c.repo == repo_id)
+    else {
+        return ForRun::default();
+    };
+    let record = Some(Record {
+        source: "goway doctor cache",
+        captured: mine.captured,
+        versions: mine.versions.clone(),
+    });
+    let fleet: Vec<Observed> = state
+        .tool_versions
+        .iter()
+        .filter(|(_, c)| c.repo == repo_id)
+        .map(|(h, c)| Observed {
+            host: h.clone(),
+            versions: c.versions.clone(),
+        })
+        .collect();
+    let tools: Vec<String> = mine.versions.keys().cloned().collect();
+    let drift = drifting(&tools, &BTreeSet::new(), &fleet);
+    if drift.is_empty() {
+        return ForRun { note: None, record };
+    }
+    let list: Vec<String> = drift
+        .iter()
+        .map(|(tool, how)| {
+            let here = mine
+                .versions
+                .get(tool)
+                .map_or_else(String::new, |l| short(l));
+            format!("{tool} {here} here ({how})")
+        })
+        .collect();
+    ForRun {
+        note: Some(format!(
+            "tool versions differ across your hosts: {} (cached by goway doctor {} ago; builds may behave differently here)",
+            list.join(", "),
+            age(now.saturating_sub(mine.captured))
+        )),
+        record,
+    }
 }

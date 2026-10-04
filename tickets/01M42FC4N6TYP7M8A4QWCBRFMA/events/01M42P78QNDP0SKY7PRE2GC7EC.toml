@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T05:29:38Z"
+digest = "3fb1e7bba42515f6b7c555382f5b3cc2be96836bb205a9cdfac25b9e7e95d70e"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c9458b07-9258-45db-89d7-fea15ff66b93 with nextest profile: default
+    Starting 1 test across 58 binaries (694 tests skipped)
+        PASS [   0.008s] goway needs::tests::bare_minimum_key_explains_redirect
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.011s] 1 test run: 1 passed, 694 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(bare_minimum_key_explains_redirect)'"
+size = 548
+status = "measured"
+tests = ["needs::tests::bare_minimum_key_explains_redirect"]
+at = "2026-10-04T05:29:38Z"
+actor = "lognd"
+rev = 1

@@ -242,10 +242,21 @@ pub fn describe(check: &Check) -> String {
 /// The fix `fix` of the check `name`, in plain words.
 pub fn describe_fix(name: &str, fix: &Fix) -> String {
     if let Some(words) = package_words(fix) {
-        return format!("install {words} with the system package manager (administrator rights)");
+        let by = if fix.why.starts_with("from repository") {
+            format!(", {}", fix.why)
+        } else {
+            String::new()
+        };
+        return format!(
+            "install {words} with the system package manager (administrator rights){by}"
+        );
     }
     match name {
         "sshd password login" => "turn off ssh password login (keys only)".to_owned(),
+        "msvc build tools" => {
+            "install the Visual C++ Build Tools with winget (Windows asks for administrator rights)"
+                .to_owned()
+        }
         "cuda toolkit" => "install NVIDIA's CUDA toolkit (administrator rights)".to_owned(),
         name if fix.root => format!("change {name} (administrator rights)"),
         name => format!("set up {name} for your user (pinned, checksum-verified downloads)"),
@@ -301,6 +312,25 @@ pub fn plan_lines(hosts: &[HostReport], harden: bool, rsudo: bool) -> Vec<String
         "Optional hardening (not applied; rerun with --harden --rsudo):"
     };
     section(&mut lines, &is_hardening, title);
+    lines
+}
+
+/// What `doctor --fix` is about to do on a Windows host, step by step with the
+/// exact PowerShell, and which steps need administrator rights (run only
+/// with `--rsudo`: through an administrator ssh account, else a UAC prompt,
+/// else the exact command to run by hand; goway never sees a password).
+pub fn windows_plan_lines(host: &str, steps: &[super::windows::Step], rsudo: bool) -> Vec<String> {
+    let mut lines = vec![format!("on {host}, goway will run (PowerShell):")];
+    for s in steps {
+        let how = match (s.admin, rsudo) {
+            (false, _) => "as your user",
+            (true, true) => "with administrator rights (administrator ssh, else a UAC prompt)",
+            (true, false) => "needs administrator rights: NOT run without --rsudo",
+        };
+        lines.push(format!("  {} ({how})", s.check));
+        lines.push(format!("    why: {}", s.fix.why));
+        lines.push(format!("    exact: {}", s.fix.command));
+    }
     lines
 }
 

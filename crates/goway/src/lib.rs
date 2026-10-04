@@ -3,6 +3,7 @@
 
 pub mod add;
 pub mod cli;
+pub mod cmakeapi;
 pub mod config;
 pub mod detect;
 pub mod doctor;
@@ -19,6 +20,7 @@ pub mod needs;
 pub mod paths;
 pub mod pool;
 pub mod project;
+pub mod queue;
 pub mod remote;
 pub mod remotesys;
 pub mod render;
@@ -199,6 +201,7 @@ fn run_command(paths: &Paths, renderer: Renderer, args: &cli::RunArgs) -> Result
         prefers: args.prefers.clone(),
         trust_copy: args.trust_copy,
         with_git: args.with_git,
+        wait: args.wait,
         env: nested,
         command: args.command.clone(),
     };

@@ -96,7 +96,7 @@ What happens:
    docs/config.md). A worktree prefers the slot it used last. Builds
    bake absolute source paths into binaries (`CARGO_MANIFEST_DIR`,
    `file!()`), and cargo reuses binaries when only the path changed, so
-   a slot's binaries always find the current tree where they expect it. `~/.cargo/env` is sourced. sccache is
+   a slot's binaries always find the current tree where they expect it. The usual per-user tool directories (`~/.local/bin`, `~/.cargo/bin`, ...) are put on PATH; no startup file is sourced. `goway doctor` names any proxy variables (`HTTPS_PROXY`, ...) set on the helper, never their values. sccache is
    used if installed. With `priority = "low"` (the default) the job
    runs under `nice -n 10` with idle-class I/O.
 5. **Finish.** The work dir is removed unless `--keep` is given (then
@@ -124,6 +124,49 @@ it), kept between runs, so the second run of a build or test is warm and
 only changed crates recompile. Idle caches expire like on any other host
 (`cache_ttl`), and `goway gc` removes them on demand. The command's exit
 code is goway's exit code.
+
+#### Checking a Windows host
+
+`goway doctor NAME` works on a Windows host the same way it does on any
+helper, over the same transport `goway run` uses (ssh to the Windows OpenSSH
+server, or `powershell.exe` through WSL interop for the Windows side of this
+machine). It checks how goway reaches the host, the Visual C++ Build Tools
+(msvc linker), rustup, rustup's `windows-msvc` target, cargo-nextest (also
+when it is only a bare file in the cargo `bin` directory, copied there by
+hand) and the free space of the system drive. Each problem names the exact
+PowerShell command that fixes it (`goway doctor NAME --explain CHECK`). Only
+problems are listed unless you pass `--all`.
+
+#### Fixing a Windows host
+
+`goway doctor NAME --fix` installs what a Windows host lacks, after one
+confirmation that lists every step with its exact PowerShell (`-y` skips the
+question):
+
+- the Visual C++ Build Tools with the C++ workload, through winget
+  (`Microsoft.VisualStudio.2022.BuildTools`); this is the one step that needs
+  Windows administrator rights;
+- rustup, from a pinned `rustup-init.exe` whose sha256 is checked before it
+  runs, with the msvc host toolchain (or, when rustup is there without an msvc
+  toolchain, `rustup toolchain install`);
+- cargo-nextest, from a pinned zip whose sha256 is checked, copied into the
+  user's cargo `bin` directory. A cargo-nextest that is already there as a
+  bare file counts as present and is left alone.
+
+The steps that need no administrator rights always run as the host's user.
+The administrator step runs only with `--rsudo`, through the best route
+there is, each tried once: `--windows-admin USER` (a Windows administrator
+account whose key is in the host's `administrators_authorized_keys`, so
+nobody has to be at the host), else the UAC prompt (for the Windows side of
+this machine, the prompt on this desktop), else goway stops and prints the
+exact command to paste into an administrator PowerShell. goway never asks
+for, stores or types a password.
+
+Each install that a re-check confirms is recorded for `goway uninstall`:
+rustup is removed with `rustup self uninstall` (kept when `~/.cargo` existed
+before), the msvc toolchain with `rustup toolchain uninstall`, and
+cargo-nextest by deleting the file (never `cargo uninstall`). The Build Tools
+are a system package other software may use: they are listed, not removed.
 
 #### Running a Windows test suite from WSL
 
@@ -355,6 +398,12 @@ by 0.5 (about half a core of load per core), so a preferred host wins unless
 it is much busier; a host that lacks a preference is never excluded. Both
 flags repeat or take comma-separated terms.
 
+Minimums (`cores`, `mem`, `gpu-mem`, `disk`, `cuda`) can be written
+`cores:8`, `mem:2G` or `cuda:12.1`, which mean the same as `cores>=8` and
+need no quoting. An unquoted `cores>=8` is read by the shell as the word
+`cores` plus a redirect into a file named `=8`; goway then sees a bare
+`cores`, says so, and names that file so you can delete it.
+
 | Term | Meaning |
 |---|---|
 | `gpu`, `gpu=cuda`, `gpu=rocm` | a GPU (any, NVIDIA, AMD) visible on the host |
@@ -523,6 +572,30 @@ nested runs of one repository need `target_slots` above the depth.
 goway's own background work never starts runs: the automatic gc after a run
 only deletes expired entries, and `gc.lock` in the remote root keeps it to
 one automatic gc per host root at a time.
+
+### Waves of runs queue
+
+Many `goway run` processes started together (an agent launching a wave)
+do not fail when the helpers are busy: they wait in a local
+first-come-first-served queue, kept as small lock files in goway's state
+directory (`queue/`), and run as soon as a host qualifies. A host qualifies
+when it is under its job limit and its available memory, less what runs
+that are still starting will take, is at least one job's reserve
+(`[defaults] job_mem`, default `1.5G`, or `job_mem` on one host; `0` turns the memory test off). A run
+that has chosen a host holds a claim on it until its job shows in the
+host's probe (about ten seconds after it starts), so a wave never puts more
+jobs on a helper than its slots and memory allow, and runs that arrive
+earlier are served first: a later run is held back only from hosts an
+earlier waiting run could also use.
+
+The run says why it waits and its place (`no host has room yet (h1: 4 of 4
+job slots in use); queued at position 3, waiting up to 5m`). `--wait
+DURATION` sets how long (default `5m`); when it runs out goway exits 125
+saying how long it waited and what for, and `--wait 0s` keeps the old
+behaviour of failing at once. Only the first three waiters probe the hosts
+again, every five seconds, so the ssh load does not grow with the wave.
+A run that no host could ever take (unreachable, or failing a `--needs`
+term) still fails at once. `--host NAME` pins a host and never waits.
 
 ### Exit codes
 
@@ -725,6 +798,7 @@ setup.
 goway doctor                 # every host: problems only
 goway doctor --all           # also the passing checks
 goway doctor --explain mold  # the long text for one check
+goway doctor --configure     # CMake project: also one traced configure on each helper
 goway doctor <YOUR-COMPUTER-NAME-HERE> --fix          # run the fixes that need no root
 goway doctor <YOUR-COMPUTER-NAME-HERE> --fix --rsudo  # also the administrator fixes
 goway doctor --fix --rsudo --harden                   # and the optional hardening
@@ -767,6 +841,15 @@ comparison only and never counts as drift. `goway doctor --fix
 default when no HOST is named) and refuses a HOST. The versions are cached
 in goway's state (with the time they were captured) so later runs can use
 them.
+
+A run uses that cache without probing. When the host it picked differs
+from the others for a tool the project uses, goway prints one note
+(`tool versions differ across your hosts: gcc 13.2.0 here (major: 13 vs
+12) ...`, with how long ago doctor saw them). `--report` records those
+versions under `tool_versions` (with `source` and the time they were
+captured), so frob evidence says what built and tested the run. The cache is
+per repository: run `goway doctor` in the project to refresh it, and a run in
+another project does not use it.
 
 Hardening, such as turning off ssh password login, is not needed to run
 anything. It is listed separately as optional and is applied only with
@@ -824,6 +907,16 @@ plugins and build scripts, which a diagnostic must not do on your laptop. Every
 tool doctor does run is started without a shell, with a time limit and a cap on
 its output, and `cargo` is told not to install a toolchain.
 
+#### CMake projects: what CMake itself says
+
+For a project with a `CMakeLists.txt`, doctor asks CMake rather than reading the
+file as text, and only on helpers (never on this laptop, never in your work
+tree): see [cmake.md](cmake.md). `goway doctor` reads the File API replies the
+helpers' slot trees already hold; `goway doctor --configure` also runs one
+traced configure of a snapshot on each helper, in goway's own labelled scratch
+directory, and names every package a `find_package` could not find with the
+exact install command.
+
 #### The linker cargo will use
 
 A Rust project may name a linker or a linker backend in cargo's own
@@ -864,6 +957,36 @@ tools = ["protoc"]    # must exist, any version
 
 Tool names must be plain (letters, digits, `._+-`): they go into a
 command on the host.
+
+A repository can also ask for Rust targets and distro packages, such as the
+cross-compiler a CI step needs on the helpers:
+
+```toml
+[toolchain]
+rust_targets = ["x86_64-pc-windows-gnu"]
+tools = ["x86_64-w64-mingw32-gcc"]
+
+[toolchain.packages]
+apt = ["gcc-mingw-w64-x86-64"]
+dnf = ["mingw64-gcc"]
+pacman = ["mingw-w64-gcc"]
+```
+
+`rust-toolchain.toml` `targets = [...]` count as `rust_targets` too, and its
+`channel` names the toolchain the targets are checked for (the default
+toolchain when it names none). `goway doctor` checks each target and package
+on every Unix helper, as rows `target:TRIPLE` and `pkg:NAME` (a package
+manager other than apt, dnf or pacman gets one warning row). `--fix` adds a
+missing target for your user only (`rustup target add --toolchain CHANNEL
+TRIPLE`). A missing package is a root fix: it needs `--fix --rsudo`, and the
+confirmation lists every package and names the repository and `goway.toml`
+as the source before asking, then shows the exact commands. A package list
+is validated against the package manager's name syntax (apt: lower-case
+letters, digits and `+-.`; dnf: letters, digits and `+._-`; pacman: letters,
+digits and `@._+-`; never starting with `-`), so a repository can ask for
+package names and nothing else: an option, a path, a space or a shell
+character is a config error and nothing runs. Any other key under
+`[toolchain.packages]` is an error too.
 
 Fixes for these tools prefer a user-level install: pinned releases of
 uv, go, cmake, node, a Temurin JDK and Maven (and mold where the

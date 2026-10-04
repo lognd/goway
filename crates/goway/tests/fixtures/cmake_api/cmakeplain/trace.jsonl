@@ -1,0 +1,16 @@
+{"version":{"major":1,"minor":2}}
+{"args":["VERSION","3.20"],"cmd":"cmake_minimum_required","file":"/work/src/CMakeLists.txt","frame":1,"global_frame":1,"line":1,"time":1791087544.434835}
+{"args":["cmakeplain","CXX"],"cmd":"project","file":"/work/src/CMakeLists.txt","frame":1,"global_frame":1,"line":2,"time":1791087544.4348879}
+{"args":["VERSION","3.28.3.0"],"cmd":"cmake_minimum_required","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-jYGWMa/CMakeLists.txt","frame":1,"global_frame":4,"line":1,"time":1791087544.5452659}
+{"args":["CMAKE_TRY_COMPILE","CXX"],"cmd":"project","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-jYGWMa/CMakeLists.txt","frame":1,"global_frame":4,"line":4,"time":1791087544.5453169}
+{"args":["cmTC_4dcd9"],"cmd":"add_executable","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-jYGWMa/CMakeLists.txt","frame":1,"global_frame":4,"line":21,"time":1791087544.56512}
+{"args":["cmTC_4dcd9",""],"cmd":"target_link_libraries","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-jYGWMa/CMakeLists.txt","frame":1,"global_frame":4,"line":27,"time":1791087544.5652399}
+{"args":["Threads","REQUIRED"],"cmd":"find_package","file":"/work/src/CMakeLists.txt","frame":1,"global_frame":1,"line":3,"time":1791087544.6752191}
+{"args":["VERSION","3.28.3.0"],"cmd":"cmake_minimum_required","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-YBOTcw/CMakeLists.txt","frame":1,"global_frame":6,"line":1,"time":1791087544.6782041}
+{"args":["CMAKE_TRY_COMPILE","CXX"],"cmd":"project","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-YBOTcw/CMakeLists.txt","frame":1,"global_frame":6,"line":4,"time":1791087544.6782629}
+{"args":["cmTC_7b71e"],"cmd":"add_executable","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-YBOTcw/CMakeLists.txt","frame":1,"global_frame":6,"line":20,"time":1791087544.6899099}
+{"args":["cmTC_7b71e",""],"cmd":"target_link_libraries","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-YBOTcw/CMakeLists.txt","frame":1,"global_frame":6,"line":26,"time":1791087544.690033}
+{"args":["PkgConfig","QUIET"],"cmd":"find_package","file":"/work/src/CMakeLists.txt","frame":1,"global_frame":1,"line":4,"time":1791087544.8121901}
+{"args":["Catch2","3","QUIET"],"cmd":"find_package","file":"/work/src/CMakeLists.txt","frame":1,"global_frame":1,"line":8,"time":1791087544.8152261}
+{"args":["plain","main.cpp"],"cmd":"add_executable","file":"/work/src/CMakeLists.txt","frame":1,"global_frame":1,"line":9,"time":1791087544.817863}
+{"args":["plain","Threads::Threads"],"cmd":"target_link_libraries","file":"/work/src/CMakeLists.txt","frame":1,"global_frame":1,"line":10,"time":1791087544.8179629}

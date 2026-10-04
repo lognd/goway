@@ -391,6 +391,7 @@ fn run_on_helper(s: &Setup, commands: &str) {
 }
 
 // frob:tests crates/goway/src/sshsetup.rs::HandInstall
+// frob:tests crates/goway/src/ssh/attempts.rs::permit
 #[test]
 fn a_helper_that_refuses_passwords_gets_the_key_by_hand_without_a_terminal() {
     let s = setup_world();
@@ -447,9 +448,12 @@ fn a_helper_that_refuses_passwords_gets_the_key_by_hand_without_a_terminal() {
     let again = s.run(&args);
     let stderr = String::from_utf8_lossy(&again.stderr).into_owned();
     assert!(again.status.success(), "{stderr}");
-    assert!(stderr.contains("key login to newbox works"), "{stderr}");
+    // goway's own key is offered to the first probe, so the rerun costs no
+    // failed login at all (and the host is registered with that key).
+    assert!(stderr.contains("already works"), "{stderr}");
     let config = std::fs::read_to_string(s.w.config.join("config.toml")).unwrap();
     assert!(config.contains("name = \"newbox\""), "{config}");
+    assert!(config.contains("id_ed25519"), "{config}");
 }
 
 // frob:tests crates/goway/src/sshsetup.rs::HandInstall

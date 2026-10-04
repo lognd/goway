@@ -1,0 +1,30 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T06:12:28Z"
+digest = "3cf40c1d1c3db7f63dad151e56c7de3367ed524ad77bd4200614736aa4636099"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID eb511a4f-0818-490d-8b27-efc51ce18d8f with nextest profile: default
+    Starting 8 tests across 62 binaries (725 tests skipped)
+        PASS [   0.006s] goway doctor::windows::tests::an_unknown_arch_never_reaches_a_command
+        PASS [   0.006s] goway doctor::windows::tests::a_bare_host_gets_every_fix_as_an_exact_powershell_command
+        PASS [   0.006s] goway doctor::windows::tests::a_low_system_drive_is_a_warning
+        PASS [   0.005s] goway doctor::windows::tests::a_bare_nextest_file_in_the_cargo_bin_counts_as_present
+        PASS [   0.006s] goway doctor::windows::tests::a_windows_host_with_everything_is_all_ok
+        PASS [   0.006s] goway doctor::windows::tests::rustup_without_an_msvc_toolchain_gets_a_toolchain_fix
+        PASS [   0.006s] goway doctor::windows::tests::a_non_rust_project_is_not_asked_for_rust
+        PASS [   0.012s] goway doctor::windows::tests::doctor_reaches_a_windows_host_through_the_run_transport_and_merges_the_facts
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.014s] 8 tests run: 8 passed, 725 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(doctor::windows)'"
+size = 1308
+status = "measured"
+tests = ["doctor::windows::tests::an_unknown_arch_never_reaches_a_command", "doctor::windows::tests::a_bare_host_gets_every_fix_as_an_exact_powershell_command", "doctor::windows::tests::a_low_system_drive_is_a_warning", "doctor::windows::tests::a_bare_nextest_file_in_the_cargo_bin_counts_as_present", "doctor::windows::tests::a_windows_host_with_everything_is_all_ok", "doctor::windows::tests::rustup_without_an_msvc_toolchain_gets_a_toolchain_fix", "doctor::windows::tests::a_non_rust_project_is_not_asked_for_rust", "doctor::windows::tests::doctor_reaches_a_windows_host_through_the_run_transport_and_merges_the_facts"]
+at = "2026-10-04T06:12:28Z"
+actor = "lognd"
+rev = 1

@@ -1,0 +1,41 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T06:16:46Z"
+digest = "c73829a22b46ff5a98e20ca779ea62796d33829faebff49fc89e24a8a14ca963"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.23s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b198f27d-427f-4152-9d6b-dbdcbc9c522a with nextest profile: default
+    Starting 16 tests across 63 binaries (728 tests skipped)
+        PASS [   0.006s] goway doctor::windows::tests::a_non_rust_project_is_not_asked_for_rust
+        PASS [   0.006s] goway doctor::windows::tests::a_windows_host_with_everything_is_all_ok
+        PASS [   0.007s] goway doctor::windows::tests::a_bare_nextest_file_in_the_cargo_bin_counts_as_present
+        PASS [   0.007s] goway doctor::windows::tests::a_bare_host_gets_every_fix_as_an_exact_powershell_command
+        PASS [   0.007s] goway doctor::windows::tests::the_administrator_step_goes_through_the_elevation_and_failures_do_not_stop_the_rest
+        PASS [   0.007s] goway doctor::windows::tests::an_unknown_arch_never_reaches_a_command
+        PASS [   0.007s] goway doctor::windows::tests::nothing_runs_until_the_whole_plan_is_confirmed
+        PASS [   0.008s] goway doctor::windows::tests::no_route_to_administrator_rights_leaves_the_exact_command
+        PASS [   0.009s] goway doctor::windows::tests::rustup_without_an_msvc_toolchain_gets_a_toolchain_fix
+        PASS [   0.011s] goway doctor::windows::tests::a_low_system_drive_is_a_warning
+        PASS [   0.011s] goway doctor::windows::tests::a_recorded_nextest_is_undone_by_deleting_the_file_never_cargo_uninstall
+        PASS [   0.005s] goway doctor::windows::tests::windows_undo_keeps_what_may_have_existed_and_the_system_package
+        PASS [   0.006s] goway doctor::windows::tests::this_machines_uac_prompt_maps_onto_the_elevation_outcomes
+        PASS [   0.006s] goway doctor::windows::tests::the_plan_puts_the_administrator_step_first_and_lists_every_missing_tool
+        PASS [   0.004s] goway doctor::windows::tests::without_rsudo_the_administrator_step_is_left_for_the_owner_and_the_user_steps_run
+        PASS [   0.013s] goway doctor::windows::tests::doctor_reaches_a_windows_host_through_the_run_transport_and_merges_the_facts
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.014s] 16 tests run: 16 passed, 728 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(doctor::windows)'"
+size = 2473
+status = "measured"
+tests = ["doctor::windows::tests::a_non_rust_project_is_not_asked_for_rust", "doctor::windows::tests::a_windows_host_with_everything_is_all_ok", "doctor::windows::tests::a_bare_nextest_file_in_the_cargo_bin_counts_as_present", "doctor::windows::tests::a_bare_host_gets_every_fix_as_an_exact_powershell_command", "doctor::windows::tests::the_administrator_step_goes_through_the_elevation_and_failures_do_not_stop_the_rest", "doctor::windows::tests::an_unknown_arch_never_reaches_a_command", "doctor::windows::tests::nothing_runs_until_the_whole_plan_is_confirmed", "doctor::windows::tests::no_route_to_administrator_rights_leaves_the_exact_command", "doctor::windows::tests::rustup_without_an_msvc_toolchain_gets_a_toolchain_fix", "doctor::windows::tests::a_low_system_drive_is_a_warning", "doctor::windows::tests::a_recorded_nextest_is_undone_by_deleting_the_file_never_cargo_uninstall", "doctor::windows::tests::windows_undo_keeps_what_may_have_existed_and_the_system_package", "doctor::windows::tests::this_machines_uac_prompt_maps_onto_the_elevation_outcomes", "doctor::windows::tests::the_plan_puts_the_administrator_step_first_and_lists_every_missing_tool", "doctor::windows::tests::without_rsudo_the_administrator_step_is_left_for_the_owner_and_the_user_steps_run", "doctor::windows::tests::doctor_reaches_a_windows_host_through_the_run_transport_and_merges_the_facts"]
+at = "2026-10-04T06:16:46Z"
+actor = "lognd"
+rev = 1

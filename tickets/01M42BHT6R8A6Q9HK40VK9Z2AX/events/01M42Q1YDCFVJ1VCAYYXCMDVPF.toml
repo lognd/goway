@@ -1,0 +1,29 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T05:44:12Z"
+digest = "1f230e4e409aad04266c3e0e22db889e889ab1b56ecd0bca8c2bcb6eb83c81c0"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 25.34s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 02589875-1709-4b28-a575-2b5f25dbd1a4 with nextest profile: default
+    Starting 4 tests across 60 binaries (710 tests skipped)
+        PASS [   0.011s] goway doctor::logout::tests::killing_logind_without_lingering_warns_with_a_root_fix
+        PASS [   0.009s] goway doctor::logout::tests::the_probe_is_valid_shell_that_quotes_the_remote_root
+        PASS [   0.012s] goway doctor::logout::tests::an_encrypted_or_network_root_warns_and_an_ordinary_one_passes
+        PASS [   0.013s] goway doctor::logout::tests::lingering_or_a_keeping_logind_passes_and_a_hostile_user_gets_no_command
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.018s] 4 tests run: 4 passed, 710 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(killing_logind_without_lingering_warns_with_a_root_fix) | test(lingering_or_a_keeping_logind_passes_and_a_hostile_user_gets_no_command) | test(an_encrypted_or_network_root_warns_and_an_ordinary_one_passes) | test(the_probe_is_valid_shell_that_quotes_the_remote_root)'"
+size = 1113
+status = "measured"
+tests = ["doctor::logout::tests::killing_logind_without_lingering_warns_with_a_root_fix", "doctor::logout::tests::the_probe_is_valid_shell_that_quotes_the_remote_root", "doctor::logout::tests::an_encrypted_or_network_root_warns_and_an_ordinary_one_passes", "doctor::logout::tests::lingering_or_a_keeping_logind_passes_and_a_hostile_user_gets_no_command"]
+at = "2026-10-04T05:44:12Z"
+actor = "lognd"
+rev = 1

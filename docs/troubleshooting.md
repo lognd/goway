@@ -204,6 +204,31 @@ test certificate, list it in `secret_allow` in `~/.config/goway/config.toml`:
     secret_allow = ["tests/fixtures/*.pem"]
 </details>
 
+<details><summary>goway says it is holding back, or the helper looks banned</summary>
+
+Many helpers run fail2ban or sshguard, which ban a machine after about
+5 failed logins in 10 minutes (the fail2ban default). goway keeps its own
+count of the failed logins it causes, per helper, in `auth-failures.json`
+in its state directory, and stays well under that:
+
+- Automatic probing (finding a helper, `goway status`, `goway doctor`)
+  causes at most 2 failed logins per helper per 10 minutes, then stops
+  trying and says "holding back" with the minutes left. Candidates are
+  tried with the pinned key only, never a password.
+- Steps you drive come on top: the one password attempt of `goway add`
+  and the key re-check each time you press Enter after pasting the key
+  lines. In all, goway causes at most 4 failed logins per helper per 10
+  minutes (under fail2ban's 5), so the paste flow is never blocked by
+  background probing; if the total is reached goway stops and tells you
+  to wait and rerun the same `goway add` command.
+- Only failed authentications count; a host that is simply off does not.
+
+If a connection is refused right after failed logins, goway reports
+"probably banned". On the helper, `sudo fail2ban-client status sshd`
+lists the banned addresses and
+`sudo fail2ban-client set sshd unbanip ADDRESS` lifts one.
+</details>
+
 <details><summary>The helper laptop is slow while goway runs</summary>
 
 goway runs jobs at low priority, so the person using the helper comes
@@ -211,9 +236,82 @@ first. To keep goway off a busy helper entirely, set `max_load` for it
 in the config (docs/config.md).
 </details>
 
+<details><summary>doctor warns "logind kills ... processes at logout" or about the remote root's file system</summary>
+
+`goway doctor` reads two things from each Linux helper. First, whether
+systemd-logind is set to `KillUserProcesses=yes` while lingering is off for
+the helper's user: then everything that user left running dies when the
+last login session ends, so a run whose ssh connection drops, or goway's own
+background work, is killed with it. The fix is `loginctl enable-linger USER`;
+it needs root, so `goway doctor --fix --rsudo` offers it with the usual
+confirmation (undo: `loginctl disable-linger USER`). goway reads the setting
+from `logind.conf` and its drop-in directories, so an override somewhere else
+can differ.
+
+Second, the file system under goway's remote root (`defaults.remote_root`,
+`.cache/goway` in the helper's home by default). An encrypted home (ecryptfs,
+encfs, gocryptfs) is only mounted while its owner is logged in, and a network
+file system (NFS, CIFS, sshfs) goes away with the network, so the work trees
+and caches would vanish between sessions. doctor reports the type; point
+`defaults.remote_root` at a directory on an ordinary local disk, such as
+`/srv/goway` (create it and give your user ownership first). goway cannot
+choose that for you.
+</details>
+
+<details><summary>A tool works in my login shell on the helper but goway cannot find it</summary>
+
+ssh commands do not read `.profile` or `.bashrc`, so a tool added to
+PATH there is invisible. goway never reads those files (they may print
+text or run anything). Instead, runs and `goway doctor` add the usual
+per-user directories to PATH: `~/.local/bin` (mold, uv tools), then
+`~/.cargo/bin`, then, where they exist, the uv, Volta, nvm and fnm
+locations, `/usr/local/go/bin` and `~/go/bin`. Install the tool in one
+of those, for example with `cargo install` or `uv tool install`.
+</details>
+
 <details><summary>Something else</summary>
 
 Run the failing command again with `-vv` (for example
 `goway -vv run -- true`) to see what goway does step by step. Then
 check `goway doctor`.
+</details>
+
+<details><summary>"Session open refused by peer" / "ControlSocket already exists"</summary>
+
+You may see this from older goway versions when many runs started at
+once. A helper's sshd allows 10 sessions per connection, and goway used
+one shared connection per helper. goway now keeps up to four shared
+connections per helper (a few runs each). When all are busy, a run
+connects on its own, quietly. A leftover socket from a connection that
+ended is removed and replaced automatically. Nothing to do.
+</details>
+
+<details><summary>"selinux" or "apparmor" warning in `goway doctor`</summary>
+
+A security module on the helper denied one of the programs goway runs
+jobs with (`setsid`, `flock`, the shell or goway itself). The run then
+fails with a plain "Permission denied". doctor reads the latest matching
+denial from the audit log (`ausearch`) or the kernel log (`dmesg`), names
+the denied program and domain or profile, and prints the change to make:
+`restorecon` or a reviewed `audit2allow` policy module for SELinux, a
+local override plus `apparmor_parser -r` for AppArmor. Both logs need
+root on many systems, so no warning does not prove there is no denial;
+run the printed `ausearch` command with sudo to be sure. goway never
+changes a security policy itself.
+</details>
+
+<details><summary>"clock is N s ahead of / behind this machine"</summary>
+
+The helper's wall clock differs from your main laptop's by more than two
+seconds. goway measures this on every probe: the helper reports its time,
+and goway subtracts your own time at the midpoint of the round trip.
+`goway status` and `goway doctor` warn about offsets over 2 s. A skewed
+clock makes build tools see files as newer or older than they are
+(endless rebuilds, or stale results). The usual cause is a WSL helper that
+slept: its clock stops with the VM. Fix it from Windows with
+`wsl --shutdown` (WSL restarts on next use), or on the helper with
+`sudo hwclock -s`. On a Windows helper, resync the time (Settings, Time
+& language, Sync now, or `w32tm /resync` as administrator). The offset is
+only as exact as the round trip is symmetric; it is a warning, never a
+reason for goway to refuse a run.
 </details>

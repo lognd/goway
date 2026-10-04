@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T05:38:36Z"
+digest = "07c13f477b13b8e51b133690ffdf4fab32fc562db607f39be8c7c229a2133b61"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID ee8acbc9-fc76-44ea-b665-790da6792db1 with nextest profile: default
+    Starting 3 tests across 58 binaries (700 tests skipped)
+        PASS [   0.006s] goway doctor::prereq::tests::a_missing_target_is_a_user_fix_and_a_missing_package_is_a_root_fix_naming_the_repository
+        PASS [   0.008s] goway doctor::prereq::tests::names_are_validated_against_each_package_managers_syntax
+        PASS [   0.029s] goway::doctor_project a_hostile_package_name_in_goway_toml_is_a_config_error_not_a_command
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.033s] 3 tests run: 3 passed, 700 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_missing_target_is_a_user_fix_and_a_missing_package_is_a_root_fix_naming_the_repository) | test(names_are_validated_against_each_package_managers_syntax) | test(a_hostile_package_name_in_goway_toml_is_a_config_error_not_a_command)'"
+size = 840
+status = "measured"
+tests = ["doctor::prereq::tests::a_missing_target_is_a_user_fix_and_a_missing_package_is_a_root_fix_naming_the_repository", "doctor::prereq::tests::names_are_validated_against_each_package_managers_syntax", "a_hostile_package_name_in_goway_toml_is_a_config_error_not_a_command"]
+at = "2026-10-04T05:38:36Z"
+actor = "lognd"
+rev = 1

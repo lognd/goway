@@ -20,8 +20,10 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
   (`powershell.exe Resolve-DnsName`, about 4 s, so results are cached).
   LLMNR also answers with unrelated adapters (VirtualBox 192.168.56.1), so a
   name lookup alone is not an identity.
-- Non-interactive ssh does not read ~/.cargo/env; cargo is only on PATH in a
-  login shell.
+- Non-interactive ssh reads no startup file, so tools are only on PATH in a
+  login shell. goway never sources startup files; `user_tool_path` in
+  remote.sh adds ~/.local/bin, ~/.cargo/bin and the uv, node and go
+  locations that exist, for runs and doctor alike.
 - Cargo stays Fresh when a workspace is copied to a new directory with mtimes
   kept and the same CARGO_TARGET_DIR (tested with path and registry deps).
   This makes per-run work directories plus a shared per-repo target cheap.
@@ -210,6 +212,15 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       itself fails (the docker convention).
    5. Ctrl-C: goway sends a remote kill to the job's process group, and a
       watchdog in the remote script kills the group if the ssh session dies.
+      A client that vanishes without the connection closing (SIGKILL, a
+      sleeping laptop, a dropped network) is covered by a lifeline: a second
+      quiet ssh call (`lifeline ROOT RUN_ID`, Unix helpers only) on which the
+      client writes a byte every 5 seconds. End of its stdin (the client's
+      end of the pipe closes when it dies) stops the job at once; no byte for
+      30 seconds stops it too; a run still preparing is stopped through its
+      own shell. Stopping is SIGTERM, up to 5 seconds, then SIGKILL, so it is
+      bounded by 35 seconds at the worst. A run that finished (`done` marker)
+      is never touched, so a reused pid cannot be hit.
    6. Provenance for frob: a header line on stderr naming host, arch and
       address, and `--report FILE` writes the same as JSON.
 5. Pool (`pool`)
@@ -316,6 +327,37 @@ the overlay (`write_tar_with`, `compare_claims_with`). Because they are
 ordinary seed files, `remote.sh` and `remote.ps1` need no change and the
 copy-integrity check covers them. Blobs of paths the secret rules keep local
 are filtered out of the pack list.
+
+### Clocks
+
+goway stores and compares only epoch seconds (UTC), so time zones never
+matter anywhere. Every comparison uses one machine's clock, never a mix:
+
+- The laptop's clock decides which local files changed (their mtimes
+  against the mtimes it sent last time) and when a run started.
+- The helper's clock decides what is expired on the helper: the age of
+  caches, kept work dirs and slots in gc, and the time given to files written
+  into a slot.
+- The helper's monotonic time since boot (`/proc/uptime`) decides whether a
+  starting run is young, because the wall clock can step.
+
+No comparison subtracts a laptop time from a helper time: the two clocks may
+differ by minutes (a WSL machine after sleep), and a comparison across them
+would be wrong by that amount.
+
+What a clock step does:
+
+- **A helper's wall clock jumps forward.** Every age on that helper becomes
+  huge, so gc would see a run that has just been synced as long abandoned.
+  A work dir is therefore protected by liveness, not age: `receive` records
+  its own process (with its start time, so a recycled pid is not trusted) and
+  the monotonic time at birth, and gc keeps the dir while that process lives
+  or for two minutes by the monotonic clock. Once the run takes the dir's
+  lock, the lock protects it and the markers are removed.
+- **The laptop's clock runs ahead.** Synced files have mtimes in the helper's
+  future. A slot's copies are written with the helper's current time, never the
+  laptop's, so make and ninja see no clock skew and a second run rebuilds
+  nothing, and tar's future-timestamp warnings are suppressed.
 
 ## 3. Where each part is documented
 

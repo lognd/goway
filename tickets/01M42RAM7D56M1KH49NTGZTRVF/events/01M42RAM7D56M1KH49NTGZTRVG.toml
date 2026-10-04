@@ -1,0 +1,13 @@
+kind = "create"
+title = "goway measures each helper clock offset in the probe, status shows offsets over 2 seconds, doctor warns with the fix"
+type = "story"
+category = "todo"
+priority = "medium"
+points = 2
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/src/remote.sh", "crates/goway/src/pool.rs", "crates/goway/src/facts.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs", "docs/troubleshooting.md", "crates/goway/tests/clock.rs"]
+acceptance = ["Given a probe, when it runs, then goway measures the helper clock offset from the laptop (helper epoch time against the laptop time, corrected by half the round trip), goway status shows offsets over 2 seconds, and goway doctor warns with the fix (WSL after sleep: wsl --shutdown or sudo hwclock -s; Windows: resync time)"]
+body = "Criterion 1 of ~VAJPQC3, split so gc liveness and mtime clamping can land while status.rs and doctor.rs are leased."
+at = "2026-10-04T06:06:25Z"
+actor = "lognd"
+rev = 1
