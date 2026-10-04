@@ -117,3 +117,29 @@ fn a_session_that_cannot_start_reports_why() {
     let err = Session::start(cmd).unwrap_err();
     assert!(err.contains("no"), "{err}");
 }
+
+// frob:ticket 01M42FEZBPMJ958RA4K1TD3D5H
+// frob:tests crates/goway/src/session.rs::Session
+#[test]
+fn a_first_sync_into_an_empty_root_keeps_empty_arguments() {
+    let (_dir, root, mut s) = session!();
+    let root = root.to_string_lossy().into_owned();
+    // receive ROOT SEED META GENERATION RUN_ID WORK_META KEEP ATTEMPT with
+    // an empty generation (no tree yet) and an empty tar: an empty word must
+    // stay a word, or the attempt id shifts into the generation slot.
+    let tar = vec![0u8; 1024];
+    let r = s
+        .call(
+            &["receive", &root, "k1", "e30=", "", "", "", "", "a1"],
+            &tar,
+            CAP,
+        )
+        .unwrap();
+    assert_eq!(r.code, 0, "{}", String::from_utf8_lossy(&r.stderr));
+    assert!(std::path::Path::new(&root).join("seed/k1/tree").is_dir());
+    assert!(
+        std::path::Path::new(&root)
+            .join("seed/k1/generation")
+            .is_file()
+    );
+}
