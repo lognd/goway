@@ -781,6 +781,25 @@ through real TOML and JSON parsers. `CMakeLists.txt` has no declarative
 form, so it is read as text (bounded) and its findings are labelled
 approximate.
 
+#### Asking each ecosystem's own tool
+
+Where an ecosystem has a tool that answers, doctor asks it instead of
+reading text:
+
+| Ecosystem | Asked | Falls back to |
+| --- | --- | --- |
+| Rust | `cargo metadata --no-deps --offline` for the greatest `rust-version` (checked as `rustc`) | the root `Cargo.toml`, parsed as TOML, labelled approximate |
+| Go | `go list -m -json` (offline, no toolchain download) for the `go` version | the `go` line of `go.mod`, labelled approximate |
+| .NET | `global.json` parsed as JSON; the SDK itself is checked on each host | |
+| Java | the `pom.xml` or Gradle files, read as text | always labelled approximate |
+
+When a tool is missing on this laptop, the result is labelled
+`approximate` and says to install that tool first for an exact answer.
+doctor never runs `mvn` or `gradle` for this: both execute the project's own
+plugins and build scripts, which a diagnostic must not do on your laptop. Every
+tool doctor does run is started without a shell, with a time limit and a cap on
+its output, and `cargo` is told not to install a toolchain.
+
 #### The linker cargo will use
 
 A Rust project may name a linker or a linker backend in cargo's own

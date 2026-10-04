@@ -4,9 +4,6 @@
 //! probe is the only part that runs anything.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::Read as _;
-use std::process::{Command, Stdio};
-use std::time::Duration;
 
 use crate::doctor::first_version;
 use crate::render;
@@ -17,9 +14,6 @@ use crate::render;
 const COMPILERS: &[&str] = &[
     "gcc", "g++", "cc", "c++", "clang", "clang++", "rustc", "go", "java", "javac", "dotnet",
 ];
-
-/// The longest a laptop version probe may take.
-const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// What one host reported: tool name to its first version line (absent or
 /// empty when the tool is missing there).
@@ -163,44 +157,18 @@ fn version_command(tool: &str) -> (&str, &'static [&'static str]) {
 }
 
 /// The first line of `tool`'s version report on this laptop, `None` when it
-/// is missing, fails, or takes longer than [`PROBE_TIMEOUT`]. The tool names
-/// come from the project's own files and `goway.toml` and are validated
-/// names, never shell text (no shell is involved).
+/// is missing, fails, or is too slow. The tool names come from the project's
+/// own files and `goway.toml` and are validated names, never shell text (no
+/// shell is involved).
 pub fn laptop_version(tool: &str) -> Option<String> {
     let (program, args) = version_command(tool);
-    let mut child = Command::new(program)
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .ok()?;
-    let mut out = child.stdout.take()?;
-    let mut err = child.stderr.take()?;
-    let reader = std::thread::spawn(move || {
-        let mut text = String::new();
-        let _ = out.by_ref().take(4096).read_to_string(&mut text);
-        if text.trim().is_empty() {
-            let _ = err.by_ref().take(4096).read_to_string(&mut text);
-        }
-        text
-    });
-    let deadline = std::time::Instant::now() + PROBE_TIMEOUT;
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if std::time::Instant::now() < deadline => {
-                std::thread::sleep(Duration::from_millis(20));
-            }
-            _ => {
-                tracing::warn!(tool, "laptop version probe timed out");
-                let _ = child.kill();
-                let _ = child.wait();
-                break;
-            }
-        }
-    }
-    let text = reader.join().ok()?;
+    let printed = crate::ecotools::bounded_output(program, args, None, &[])?;
+    // `java -version` reports on stderr.
+    let text = if printed.stdout.trim().is_empty() {
+        printed.stderr
+    } else {
+        printed.stdout
+    };
     text.lines()
         .find(|l| !l.trim().is_empty())
         .map(|l| l.trim().to_owned())
