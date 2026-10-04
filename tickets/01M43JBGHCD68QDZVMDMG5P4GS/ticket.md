@@ -2,13 +2,13 @@
 id = "01M43JBGHCD68QDZVMDMG5P4GS"
 title = "Allow max_disk, min_free and cache_size per [[host]], overriding [defaults]"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T13:41:17Z"
-updated = "2026-10-04T13:41:17Z"
+updated = "2026-10-04T15:06:31Z"
 scope = ["crates/goway/src/config.rs", "docs/config.md"]
 
 [[acceptance]]
