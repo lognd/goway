@@ -2,7 +2,8 @@
 id = "01M42TDEA5GVVB5R23YC77Y6CE"
 title = "The probe verb reports the host epoch"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
