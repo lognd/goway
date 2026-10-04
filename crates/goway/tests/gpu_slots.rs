@@ -169,3 +169,33 @@ fn a_bad_gpu_jobs_is_a_config_error() {
         err(&out)
     );
 }
+
+/// A held run never outlives its test: dropping it releases it, and even a
+/// test that dies without running Drop (killed by the harness) leaves a
+/// poller that ends by itself once the test's world directory is gone.
+#[cfg(target_os = "linux")]
+#[test]
+fn held_runs_never_outlive_their_test() {
+    let w = gpu_world(1);
+    let held = w.hold(&["--needs", "gpu"], "true");
+    held.wait_started();
+    let marker = w.root.join("held-").display().to_string();
+    assert!(common::process_mentions(&marker), "the poller runs");
+    drop(held);
+    common::wait_for("the dropped run's poller to end", || {
+        !common::process_mentions(&marker)
+    });
+
+    // A test killed without Drop: the guard never runs, the directory goes.
+    let w = gpu_world(1);
+    let marker = w.root.join("held-").display().to_string();
+    let held = w.hold(&["--needs", "gpu"], "true");
+    held.wait_started();
+    std::mem::forget(held);
+    let root = w.root.clone();
+    drop(w);
+    assert!(!root.exists());
+    common::wait_for("the orphaned poller to notice the vanished world", || {
+        !common::process_mentions(&marker)
+    });
+}

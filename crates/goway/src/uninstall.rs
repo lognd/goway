@@ -23,7 +23,7 @@ use crate::config::{self, Config, HostConfig};
 use crate::doctor::{self, FixRunner as _, Undo};
 use crate::error::{Error, Result};
 use crate::paths::Paths;
-use crate::remote;
+use crate::remote::Call;
 use crate::render::Renderer;
 use crate::resolve::{self, Lookup, Prober};
 use crate::ssh::{self, KeyPolicy};
@@ -587,23 +587,17 @@ fn clean_host(
     settings: &ssh::Settings,
 ) -> Result<()> {
     let mut state = State::load(&paths.state_file())?;
-    let found = resolve::resolve(
+    let found = resolve::resolve_call(
         config,
         host,
         &mut state,
         lookup,
         prober,
         KeyPolicy::Strict,
-        "true",
+        &Call::new("ping", &[] as &[&str]),
     )?;
-    let transport = crate::sync::SshTransport {
-        target: &found.target,
-        settings,
-    };
-    let out = transport.output(&remote::invocation(
-        "purge",
-        &[&config.defaults.remote_root],
-    ))?;
+    let transport = crate::sync::SshTransport::of(&found, settings);
+    let out = transport.output(&Call::new("purge", &[&config.defaults.remote_root]))?;
     renderer.ok(format_args!(
         "{}: goway's state {}",
         host.name,
