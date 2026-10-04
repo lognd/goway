@@ -58,6 +58,10 @@ pub struct ToolVersions {
     /// When doctor captured them, in seconds since the Unix epoch.
     #[serde(default)]
     pub captured: u64,
+    /// The repository doctor ran in (its tools are the project's); empty
+    /// when unknown, in which case runs do not use these versions.
+    #[serde(default)]
+    pub repo: String,
     /// Tool name to the first line of its version report.
     #[serde(default)]
     pub versions: BTreeMap<String, String>,
@@ -173,12 +177,20 @@ impl State {
         self.tool_versions.remove(&name.to_ascii_lowercase());
     }
 
-    /// Remember the tool versions doctor saw on `host` at `now`.
-    pub fn record_tools(&mut self, host: &str, now: u64, versions: BTreeMap<String, String>) {
+    /// Remember the tool versions doctor saw on `host` at `now` for the
+    /// project `repo_id` (empty when doctor ran outside a project).
+    pub fn record_tools(
+        &mut self,
+        host: &str,
+        repo_id: &str,
+        now: u64,
+        versions: BTreeMap<String, String>,
+    ) {
         self.tool_versions.insert(
             host.to_ascii_lowercase(),
             ToolVersions {
                 captured: now,
+                repo: repo_id.to_owned(),
                 versions,
             },
         );

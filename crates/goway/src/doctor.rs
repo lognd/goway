@@ -1380,8 +1380,13 @@ pub fn doctor(
     ));
     print_versions(renderer, args.all, &needs, &reached);
     let now = crate::state::now_secs();
+    let repo_id = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| crate::repo::Repo::discover(&cwd).ok())
+        .map(|r| r.id)
+        .unwrap_or_default();
     for o in observed_versions(&needs, &reached) {
-        state.record_tools(&o.host, now, o.versions);
+        state.record_tools(&o.host, &repo_id, now, o.versions);
     }
     if let Err(e) = state.save(&paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache tool versions");

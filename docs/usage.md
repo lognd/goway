@@ -775,6 +775,15 @@ default when no HOST is named) and refuses a HOST. The versions are cached
 in goway's state (with the time they were captured) so later runs can use
 them.
 
+A run uses that cache without probing. When the host it picked differs
+from the others for a tool the project uses, goway prints one note
+(`tool versions differ across your hosts: gcc 13.2.0 here (major: 13 vs
+12) ...`, with how long ago doctor saw them). `--report` records those
+versions under `tool_versions` (with `source` and the time they were
+captured), so frob evidence says what built and tested the run. The cache is
+per repository: run `goway doctor` in the project to refresh it, and a run in
+another project does not use it.
+
 Hardening, such as turning off ssh password login, is not needed to run
 anything. It is listed separately as optional and is applied only with
 `--harden` (which needs `--rsudo`), with its own question, never in the
