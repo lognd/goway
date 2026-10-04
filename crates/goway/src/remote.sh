@@ -736,18 +736,20 @@ LIFELINE_TIMEOUT=${GOWAY_LIFELINE_TIMEOUT:-120}
 # work dir is gone or marked done) is left alone. Stops within
 # LIFELINE_TIMEOUT plus 5 seconds at the worst, at once on end of stdin.
 lifeline() {
-  local root work c="" pid runner rc=0 why
+  local root work c="" pid runner rc=0 why began
   root=$(root_dir "$1"); work="$root/work/$2"
   case "$2" in *[!A-Za-z0-9-]* | "") die "lifeline: bad run id" ;; esac
   while :; do
+    began=$SECONDS
     IFS= read -r -n 1 -t "$LIFELINE_TIMEOUT" c || rc=$?
     [ "$rc" = 0 ] || break
     [ -d "$work" ] && [ ! -e "$work/done" ] || return 0
   done
   [ -d "$work" ] && [ ! -e "$work/done" ] || return 0
-  # A timeout (status above 128) means silence; anything else is end of input:
-  # the client's end of the pipe closed, so it is certainly gone.
-  if [ "$rc" -gt 128 ]; then
+  # A timeout means silence; anything else is end of input: the client's end
+  # of the pipe closed, so it is certainly gone. bash 3.2 (macOS) returns 1
+  # for both, so a failed read that waited the whole window counts as silence.
+  if [ "$rc" -gt 128 ] || [ $((SECONDS - began)) -ge "$LIFELINE_TIMEOUT" ]; then
     why="its heartbeat was silent for ${LIFELINE_TIMEOUT}s (laptop asleep or the network gone)"
   else
     why="its lifeline connection closed (the client exited or lost its network)"
