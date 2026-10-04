@@ -357,7 +357,8 @@ mod tests {
         // A crashed run leaves its file but not its lock.
         let crashed = dir.path().join("crashed.lock");
         std::fs::write(&crashed, "").unwrap();
-        // frob:ticket 5WD6GZ8 -- a fresh unlocked file is a run about to lock it.
+        // frob:ticket 5WD6GZ8
+        // A fresh unlocked file is a run about to lock it.
         assert_eq!(running_jobs(dir.path()), 2);
         assert!(crashed.exists());
         let old = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
