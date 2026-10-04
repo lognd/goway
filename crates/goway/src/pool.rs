@@ -44,6 +44,8 @@ pub struct Probe {
     pub disk_free: Option<u64>,
     /// The host's disk budget for goway in bytes (status only).
     pub disk_max: Option<u64>,
+    /// Peak disk footprint of each repository built there, by repository id (see [`crate::footprint`]).
+    pub footprints: BTreeMap<String, u64>,
     /// RAM, GPUs and other facts (see [`crate::facts`]).
     pub facts: Facts,
 }
@@ -79,6 +81,7 @@ pub fn parse_probe(text: &str) -> Option<Probe> {
         disk_used: kv.get("disk_used").and_then(|v| v.parse().ok()),
         disk_free: kv.get("disk_free").and_then(|v| v.parse().ok()),
         disk_max: kv.get("disk_max").and_then(|v| v.parse().ok()),
+        footprints: crate::footprint::parse(&kv),
         facts: facts::parse_live(
             &kv.iter()
                 .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
@@ -232,6 +235,10 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
             let reserve = config.job_mem_of(p.host);
             if reserve > 0 && probe.facts.mem_avail.is_some_and(|a| a < reserve) {
                 tracing::info!(host = %p.host.name, avail = ?probe.facts.mem_avail, reserve, "host has less free memory than one job reserves; skipped");
+                return None;
+            }
+            if let Some(why) = room_shortage(selection, probe) {
+                tracing::info!(host = %p.host.name, %why, "host has no disk room for this repository; skipped");
                 return None;
             }
             let per_core = probe.load[0] / f64::from(probe.cores.max(1));
@@ -707,6 +714,20 @@ fn apply_pending(config: &Config, pending: &BTreeMap<String, u32>, results: &mut
     }
 }
 
+/// Why `probe`'s host has no disk room for the run's repository, when it lacks it
+/// (free plus evictable space below the repository's footprint plus margin).
+fn room_shortage(selection: &Selection, probe: &Probe) -> Option<String> {
+    let id = selection.repo_id.as_deref()?;
+    match crate::footprint::assess(probe, id) {
+        crate::footprint::Room::Short {
+            free,
+            evictable,
+            need,
+        } => Some(crate::footprint::short_text(free, evictable, need)),
+        _ => None,
+    }
+}
+
 /// The hosts that could ever take the run: reachable, in the pool, meeting every need.
 fn eligible_hosts(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> {
     results
@@ -745,6 +766,8 @@ fn busy_lines(
                     gib(probe.facts.mem_avail.unwrap_or(0)),
                     gib(reserve)
                 )
+            } else if let Some(why) = room_shortage(selection, probe) {
+                format!("{name}: {why}")
             } else if snap.held_for_earlier(name) {
                 format!("{name}: reserved for runs ahead in the queue")
             } else {
@@ -757,6 +780,18 @@ fn busy_lines(
 #[allow(clippy::cast_precision_loss)] // display only
 fn gib(bytes: u64) -> f64 {
     bytes as f64 / (1024.0 * 1024.0 * 1024.0)
+}
+
+/// One `host: why` per eligible host that has no disk room for the run's repository.
+fn skipped_for_room(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> {
+    results
+        .iter()
+        .filter_map(|p| {
+            let (_, probe) = p.result.as_ref().ok()?;
+            let why = room_shortage(selection, probe)?;
+            Some(format!("{}: {why}", p.host.name))
+        })
+        .collect()
 }
 
 /// What one probe round decided.
@@ -793,6 +828,14 @@ fn decide_round(
             .find(|&i| !snap.held_for_earlier(&results[i].host.name));
         match pick {
             Some(i) => {
+                let short = skipped_for_room(selection, results);
+                if !short.is_empty() {
+                    (wait.note)(&format!(
+                        "skipped for disk room: {}; using {}",
+                        short.join("; "),
+                        results[i].host.name
+                    ));
+                }
                 let claim = wait.queue.claim(&results[i].host.name)?;
                 tracing::info!(host = %results[i].host.name, position = snap.position(), "picked");
                 Ok(Decision::Taken(i, claim))
@@ -894,7 +937,7 @@ pub fn choose_queued(
         if elapsed >= wait.limit {
             tracing::warn!(?elapsed, "gave up waiting for a host");
             let mut out = vec![format!(
-                "waited {} in the queue (position {}) for a host with a free job slot and memory for one more job",
+                "waited {} in the queue (position {}) for a host with a free job slot, memory and disk for one more job",
                 humantime::format_duration(Duration::from_secs(elapsed.as_secs())),
                 pos + 1
             )];
@@ -954,6 +997,7 @@ mod tests {
             disk_used: None,
             disk_free: None,
             disk_max: None,
+            footprints: std::collections::BTreeMap::new(),
             facts: Facts::default(),
         }
     }
@@ -1215,6 +1259,50 @@ mod tests {
         ];
         assert_eq!(pick(&Config::default(), &probed), Some(1));
         assert_eq!(pick(&Config::default(), &probed[..1]), Some(0));
+    }
+
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn a_host_without_disk_room_for_the_repositorys_footprint_is_held_back() {
+        let gib = 1024u64 * 1024 * 1024;
+        let mut small = probe(16, 0.0, 0);
+        small.disk_free = Some(3 * gib);
+        small.disk_used = Some(2 * gib);
+        small.footprints.insert("repo1".to_owned(), 20 * gib);
+        let mut evictable = probe(16, 4.0, 0);
+        evictable.disk_free = Some(3 * gib);
+        evictable.disk_used = Some(30 * gib);
+        evictable.footprints.insert("repo1".to_owned(), 20 * gib);
+        let hosts = [host("small", None), host("evictable", None)];
+        let probed = vec![
+            Probed {
+                host: &hosts[0],
+                result: Ok((found("small"), small)),
+            },
+            Probed {
+                host: &hosts[1],
+                result: Ok((found("evictable"), evictable)),
+            },
+        ];
+        let config = Config::default();
+        let mut sel = Selection {
+            repo_id: Some("repo1".to_owned()),
+            ..Selection::default()
+        };
+        assert_eq!(
+            ranked_for(&config, &sel, &probed),
+            [1],
+            "5 GiB cannot hold 20 GiB plus its margin; 33 GiB with eviction can"
+        );
+        let why = room_shortage(&sel, &probed[0].result.as_ref().unwrap().1);
+        assert!(why.unwrap().contains("needs about 22.0 GiB"));
+        assert_eq!(skipped_for_room(&sel, &probed).len(), 1);
+        sel.repo_id = Some("other".to_owned());
+        assert_eq!(
+            ranked_for(&config, &sel, &probed).len(),
+            2,
+            "unknown repository"
+        );
     }
 
     // frob:tests crates/goway/src/pool.rs::ranked_for

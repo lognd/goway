@@ -242,6 +242,7 @@ mod tests {
             disk_used: None,
             disk_free: None,
             disk_max: None,
+            footprints: std::collections::BTreeMap::new(),
             facts: Facts {
                 os: Some("linux".to_owned()),
                 mem_total: Some(16 * gib),

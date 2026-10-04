@@ -217,7 +217,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     let env_bytes = encode_env(&args.env)?;
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
-    let (selection, rule) = project::selection_for(
+    let (mut selection, rule) = project::selection_for(
         &repo.root,
         &args.command,
         &args.needs,
@@ -227,6 +227,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     if let Some(r) = &rule {
         renderer.note(r.describe());
     }
+    selection.repo_id = Some(repo.id.clone());
     if args.host.is_none() {
         project::warn_cross_os(
             renderer,
@@ -324,6 +325,9 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
 
         let mut extra = gpu_words(&selection, &config, &host);
         extra.push(verify.word());
+        if found.kind == crate::transport::Kind::Unix {
+            extra.push(crate::footprint::room_word());
+        }
         let priority = pool::priority_word(&config, &host, &found, &probe);
         if let Some(note) = pool::owner_note(&host.name, &probe, priority) {
             renderer.note(format_args!("{note}"));
