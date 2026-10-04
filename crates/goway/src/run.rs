@@ -867,6 +867,17 @@ pub(crate) fn interrupt_flag() -> std::sync::Arc<std::sync::atomic::AtomicBool> 
     flag
 }
 
+/// Copy `reader` to our stdout byte for byte until EOF.
+fn copy_raw(mut reader: impl std::io::Read) {
+    let mut buf = [0u8; 8192];
+    loop {
+        match reader.read(&mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => crate::render::passthrough(false, &buf[..n]),
+        }
+    }
+}
+
 /// Run `cmd` on the found host with stdio passed through; returns the exit
 /// code and whether the user interrupted. A stream that is a terminal goes
 /// through the control-sequence filter unless `mode` is raw; any other
@@ -893,21 +904,28 @@ fn stream(
             Stdio::inherit()
         }
     };
-    tracing::debug!(filter_out, filter_err, "remote output handling");
+    // A Unix helper's stdout starts with the frame mark; whatever its shell
+    // startup files printed before it is dropped, so stdout is always read.
+    let framed = found.kind == crate::transport::Kind::Unix;
+    tracing::debug!(filter_out, filter_err, framed, "remote output handling");
     let ssh_err = |e: std::io::Error| Error::Ssh {
         host: found.target.name.clone(),
         message: format!("cannot run ssh: {e}"),
     };
     let mut child = command
         .stdin(Stdio::inherit())
-        .stdout(piped(filter_out))
+        .stdout(piped(filter_out || framed))
         .stderr(piped(filter_err))
         .spawn()
         .map_err(ssh_err)?;
     let (out, err) = (child.stdout.take(), child.stderr.take());
     let status = std::thread::scope(|s| {
         if let Some(out) = out {
-            s.spawn(move || termfilter::relay(out, false));
+            s.spawn(move || match (framed, filter_out) {
+                (true, true) => termfilter::relay(crate::remote::Framed::new(out), false),
+                (true, false) => copy_raw(crate::remote::Framed::new(out)),
+                (false, _) => termfilter::relay(out, false),
+            });
         }
         if let Some(err) = err {
             s.spawn(move || termfilter::relay(err, true));

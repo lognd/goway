@@ -152,7 +152,8 @@ pub fn probe(config: &Config, jobs: &Path, state: &mut State, disk: bool) -> Res
             String::from_utf8_lossy(&out.stderr).trim()
         )));
     }
-    let mut probe = pool::complete_probe(NAME, &String::from_utf8_lossy(&out.stdout), state, now)?;
+    let (_noise, stdout) = crate::remote::split_frame(out.stdout);
+    let mut probe = pool::complete_probe(NAME, &String::from_utf8_lossy(&stdout), state, now)?;
     probe.jobs = running_jobs(jobs);
     Ok(probe)
 }

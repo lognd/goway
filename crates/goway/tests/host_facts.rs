@@ -16,7 +16,7 @@ fn probe(args: &[&str]) -> String {
         "{}",
         String::from_utf8_lossy(&out.stderr)
     );
-    String::from_utf8(out.stdout).unwrap()
+    String::from_utf8(goway::remote::split_frame(out.stdout).1).unwrap()
 }
 
 // frob:tests crates/goway/src/facts.rs::parse_live

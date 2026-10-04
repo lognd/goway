@@ -412,7 +412,20 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                             let mut pumps = Vec::new();
                             if let Some(out) = out {
                                 let p = prefix.clone();
-                                pumps.push(s.spawn(move || pump(out, false, &p, filter_out)));
+                                let framed =
+                                    !found.is_local() && found.kind == crate::transport::Kind::Unix;
+                                pumps.push(s.spawn(move || {
+                                    if framed {
+                                        pump(
+                                            crate::remote::Framed::new(out),
+                                            false,
+                                            &p,
+                                            filter_out,
+                                        );
+                                    } else {
+                                        pump(out, false, &p, filter_out);
+                                    }
+                                }));
                             }
                             if let Some(err) = err {
                                 let p = prefix.clone();

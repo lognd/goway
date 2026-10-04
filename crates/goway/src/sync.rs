@@ -750,6 +750,9 @@ pub struct Captured {
     pub stderr: Vec<u8>,
     /// Stdout had more than `stdout_cap` bytes (the rest was discarded).
     pub stdout_overflow: bool,
+    /// What the helper's login shell printed before goway's protocol began
+    /// (see [`remote::FRAME_MARK`]); not part of `stdout`.
+    pub noise: Vec<u8>,
 }
 
 /// Read at most `cap` bytes of `reader`, then discard the rest so the child
@@ -786,11 +789,19 @@ pub fn capture(
             "helper stdout exceeded the cap and was cut"
         );
     }
+    let (noise, stdout) = remote::split_frame(stdout);
+    if !noise.is_empty() {
+        tracing::warn!(
+            bytes = noise.len(),
+            "the helper's shell startup files print text; goway ignored it"
+        );
+    }
     Ok(Captured {
         status,
         stdout,
         stderr,
         stdout_overflow,
+        noise,
     })
 }
 
@@ -1948,7 +1959,7 @@ mod tests {
                 "{}",
                 String::from_utf8_lossy(&out.stderr)
             );
-            Ok(out.stdout)
+            Ok(remote::split_frame(out.stdout).1)
         }
         fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
             let mut c = std::process::Command::new("sh");

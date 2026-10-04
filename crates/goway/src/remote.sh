@@ -1,5 +1,5 @@
 # goway remote side. Sent inline with every ssh call and run as
-#   bash -c "<this script>" goway VERB ARGS...
+#   bash -c 'eval "$(printf %s <base64 of: set -- VERB ARGS; this script> | base64 -d)"' goway
 # so the remote needs nothing installed beyond bash, GNU findutils, tar,
 # coreutils and util-linux (flock); on macOS the same GNU tools from Homebrew. Every directory goway owns carries a
 # meta.json label and a lock file that is flock-held while in use.

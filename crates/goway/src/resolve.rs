@@ -430,7 +430,8 @@ impl Prober for SshProber {
         cmd.stdin(Stdio::null());
         match cmd.output() {
             Ok(out) if out.status.success() => {
-                Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+                let (_noise, payload) = remote::split_frame(out.stdout);
+                Ok(String::from_utf8_lossy(&payload).into_owned())
             }
             Ok(out) => {
                 let stderr = String::from_utf8_lossy(&out.stderr).into_owned();

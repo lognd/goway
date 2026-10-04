@@ -300,7 +300,10 @@ mod tests {
             ..args()
         };
         assert!(override_ttl(&bad).is_err());
-        let cmd = command(&Config::default(), &older, 100).unwrap().bash();
+        let cmd = command(&Config::default(), &older, 100)
+            .unwrap()
+            .args
+            .join(" ");
         assert!(cmd.contains(" 43200"));
         // The budget (automatic max, 10 GiB free) follows the filter words.
         assert!(cmd.contains(" 43200 0 10737418240"), "{cmd}");

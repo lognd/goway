@@ -47,6 +47,33 @@ helper you can also see it in its WSL terminal with
 `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
 </details>
 
+<details><summary>The helper's shell prints text, or is not bash</summary>
+
+sshd runs every goway call through the account's login shell, which
+reads its startup files first. A `.bashrc` (or `.profile`, `config.fish`,
+`.cshrc`) that prints a greeting, a `fortune` or an `echo` for
+non-interactive sessions would otherwise land in goway's protocol.
+goway is built for that:
+
+- The command line the login shell sees is plain text (`bash -c` with a
+  base64 payload), so fish, csh, tcsh and others run bash with the script
+  and your command unchanged. Quotes, backslashes and `!` in your command
+  are never parsed by the login shell.
+- goway's output starts with a marker line; everything a startup file
+  printed before it is dropped, for `goway run` and for every internal
+  call. (Text printed on stderr is shown as is.)
+
+Dropping the noise is a workaround, not a fix: it costs nothing, but the
+text is still produced on every call. Guard it so it only runs for a
+person, at the top of the helper's `~/.bashrc`:
+
+    case $- in *i*) ;; *) return ;; esac
+
+or print only on a terminal: `[ -t 1 ] && echo ...`. If a startup file
+makes goway's output differ from what you expect, `goway -v` logs how many
+bytes of startup text it ignored for each call.
+</details>
+
 <details><summary>goway add says Permission denied</summary>
 
 On a terminal `goway add` first asks "Do you know the password of USER
