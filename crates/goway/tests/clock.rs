@@ -77,7 +77,11 @@ fn a_clock_jump_never_lets_gc_remove_a_run_that_is_starting() {
             .success()
     );
     let starting = work_dir(&root, "starting", Some(uptime()));
-    let long_ago = work_dir(&root, "long-ago", Some(uptime().saturating_sub(100_000)));
+    // Born at boot (uptime 0); only old by the monotonic clock once the host
+    // has been up longer than the 120 s grace (plus a margin), which a freshly
+    // booted CI runner or helper may not have.
+    let long_ago = work_dir(&root, "long-ago", Some(0));
+    let long_ago_is_old = uptime() >= 150;
     let unmarked = work_dir(&root, "unmarked", None);
     // The helper's wall clock jumps forward by ten years.
     let out = gc_in_the_future(home.path(), 10);
@@ -86,7 +90,9 @@ fn a_clock_jump_never_lets_gc_remove_a_run_that_is_starting() {
         starting.exists(),
         "a starting run was removed after a clock jump"
     );
-    assert!(!long_ago.exists(), "an old dir by the monotonic clock goes");
+    if long_ago_is_old {
+        assert!(!long_ago.exists(), "an old dir by the monotonic clock goes");
+    }
     assert!(
         !unmarked.exists(),
         "a dir without the marker follows the age rule"
