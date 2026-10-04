@@ -578,6 +578,43 @@ More: [config](docs/config.md), [how helpers are found](docs/hosts.md),
 [goway versus other build systems](docs/positioning.md),
 [design](docs/design.md), [releases](docs/release.md).
 
+## Why not Kubernetes or Docker?
+
+They solve a different problem. Kubernetes and Docker run **services and
+packaged images** on **machines set aside for them**. goway runs **one
+command from the folder you are working in** on **computers you already
+own and use**, and then it is gone.
+
+| | goway | A Kubernetes cluster | Docker (contexts or remote hosts) |
+|---|---|---|---|
+| What you hand it | the command you would type, from your work tree as it is right now (uncommitted edits included) | a container image plus manifests | an image, or a build context, per host |
+| What runs on the other machines | nothing permanent: ssh and a script sent with each call | a control plane, kubelet, a container runtime | a Docker daemon |
+| Getting your code there | automatic, only the changed files | build an image, push it to a registry, pull it | build or copy per host; bind mounts of your local folder do not work remotely |
+| Machines | everyday laptops and desktops with changing addresses, used by people | dedicated nodes | each host set up separately |
+| Picking a machine | the least busy one that meets `--needs`, every run | the scheduler, by resource requests | you pick the context |
+| Warm builds | per repository, kept between runs (cargo, ccache, `node_modules`, `.venv`, ...) | only if you add caching volumes yourself | only the daemon's image layers |
+| Cleanup | automatic, with a disk budget per machine | your job | `docker system prune`, global |
+| Result | live output and the command's own exit code | logs and a job status | output of the container |
+
+<details><summary>When Kubernetes, Docker or CI is the better choice</summary>
+
+- **Long-running services** (web servers, databases, workers): use
+  Kubernetes or Docker. goway runs commands that finish.
+- **Reproducible, hermetic environments** that must be identical
+  everywhere: build an image (or use Nix or Bazel). goway runs on each
+  machine's own toolchain, and `goway doctor` shows where they drift.
+- **A team's shared build fleet** with access control and quotas: a
+  cluster or a CI system. goway runs as your own user on machines you
+  trust.
+- **Checks on every push**: CI. goway is for the minutes before you
+  push, and it can feed CI-like evidence (`--report`).
+
+They also combine: `goway run -- docker build .` uses the helper's own
+Docker, and a project that tests in containers can still be sent with
+goway. The longer comparison, including Bazel, distcc and CI runners, is
+in [docs/positioning.md](docs/positioning.md).
+</details>
+
 ## Something went wrong?
 
 See [docs/troubleshooting.md](docs/troubleshooting.md); if `goway add`
