@@ -2,7 +2,8 @@
 id = "01M42QF9RYT90YDTNP7C30Q9CG"
 title = "Doctor names the proxy variables set on a helper, never their values"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
