@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/src/remote.sh", "crates/goway/src/doctor.rs", "docs/troubleshooting.md"]
+new = ["crates/goway/src/remote.sh", "docs/troubleshooting.md", "crates/goway/tests/user_tool_path.rs"]
+at = "2026-10-04T05:51:30Z"
+actor = "lognd"
+rev = 1

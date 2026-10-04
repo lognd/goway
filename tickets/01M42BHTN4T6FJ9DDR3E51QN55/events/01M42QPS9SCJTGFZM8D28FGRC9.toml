@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T05:55:35Z"
+digest = "1493aa85f60e6bfa8342803a925c709eaa6bac26ab97aec695d9eb42cf098f11"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.28s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 974071c6-9dd8-479d-8d28-704721276929 with nextest profile: default
+    Starting 1 test across 62 binaries (720 tests skipped)
+        PASS [   2.850s] goway::user_tool_path doctor_reports_proxy_variable_names_never_values
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   2.854s] 1 test run: 1 passed, 720 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "doctor_reports_proxy_variable_names"
+size = 564
+status = "measured"
+tests = ["doctor_reports_proxy_variable_names_never_values"]
+at = "2026-10-04T05:55:35Z"
+actor = "lognd"
+rev = 1
