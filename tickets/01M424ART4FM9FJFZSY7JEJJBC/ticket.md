@@ -2,11 +2,11 @@
 id = "01M424ART4FM9FJFZSY7JEJJBC"
 title = "A failing rm -rf of the run's work dir (Directory not empty) turns a good run into exit 125"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 reporter = "lognd"
 created = "2026-10-04T00:16:58Z"
-updated = "2026-10-04T00:16:58Z"
+updated = "2026-10-04T02:06:56Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/remote_cleanup.rs"]
 
 [[acceptance]]
