@@ -8,8 +8,8 @@ points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-04T04:07:43Z"
-updated = "2026-10-04T05:44:03Z"
-scope = ["crates/goway/src/run.rs", "crates/goway/src/drift.rs", "crates/goway/src/render.rs", "crates/goway/tests/drift.rs", "docs/usage.md"]
+updated = "2026-10-04T05:44:36Z"
+scope = ["crates/goway/src/run.rs", "crates/goway/src/drift.rs", "crates/goway/src/render.rs", "crates/goway/tests/drift.rs", "docs/usage.md", "crates/goway/src/state.rs"]
 
 [[links]]
 kind = "blocked-by"
