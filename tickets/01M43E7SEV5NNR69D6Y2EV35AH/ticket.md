@@ -2,7 +2,8 @@
 id = "01M43E7SEV5NNR69D6Y2EV35AH"
 title = "weighted_shards tests fail under a loaded helper: weights come from live load, not the faked core counts"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
