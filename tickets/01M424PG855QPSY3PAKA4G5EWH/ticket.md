@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T00:23:23Z"
-updated = "2026-10-04T02:01:34Z"
-scope = ["crates/goway-setup/src/relay.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/tests/relay.rs", "crates/goway-setup/tests/hostsys.rs", "crates/goway/src/doctor.rs", "crates/goway/src/facts.rs", "crates/goway/src/remote.sh", "crates/goway/tests/host_facts.rs", "docs/install-windows.md", "SECURITY.md", "crates/goway-setup/src/cli.rs", "crates/goway/src/status.rs", "crates/goway/tests/doctor.rs"]
+updated = "2026-10-04T02:01:57Z"
+scope = ["crates/goway-setup/src/relay.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/tests/relay.rs", "crates/goway-setup/tests/hostsys.rs", "crates/goway/src/doctor.rs", "crates/goway/src/facts.rs", "crates/goway/src/remote.sh", "crates/goway/tests/host_facts.rs", "docs/install-windows.md", "SECURITY.md", "crates/goway-setup/src/cli.rs", "crates/goway/src/status.rs"]
 
 [[acceptance]]
 text = "Given goway-setup's elevated code (the elevated install or uninstall child and the NAT relay refresh task, which runs with highest privileges), when it needs a WSL distro, then it never starts WSL: it only queries distros already running (wsl.exe --list --running), and anything that must start WSL does so through a limited token (the Limited keepalive task), so WSL's interop never inherits an elevated token from goway"
