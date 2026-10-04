@@ -2,7 +2,8 @@
 id = "01M43EA8EVNNKP6PV8B1K7C6WG"
 title = "Windows CI: two remote_ps1 tests fail (a gc test sees young work dirs; the auto-gc summary test used a far-future now)"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 1
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
