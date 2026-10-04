@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T04:39:51Z"
+digest = "91cd19364b2c59e874deb98e5dd4a52d13fe15e77a47dfd3fe19f78436bd6797"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 3d45fd11-197e-4301-888e-cf58ebc082d2 with nextest profile: default
+    Starting 3 tests across 57 binaries (662 tests skipped)
+        PASS [   0.013s] goway runners::tests::portable_runners_are_recognized_exactly_and_everything_else_is_not
+        PASS [   0.017s] goway project::tests::cross_os_parses_and_other_os_hosts_exclude_the_laptops_family
+        PASS [  11.034s] goway::cross_os a_portable_runner_gets_the_loud_hint_and_stays_on_the_laptops_os
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  11.038s] 3 tests run: 3 passed, 662 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/portable_runners_are_recognized_exactly|a_portable_runner_gets_the_loud_hint|cross_os_parses_and_other_os_hosts/)'"
+size = 984
+status = "measured"
+tests = ["runners::tests::portable_runners_are_recognized_exactly_and_everything_else_is_not", "project::tests::cross_os_parses_and_other_os_hosts_exclude_the_laptops_family", "a_portable_runner_gets_the_loud_hint_and_stays_on_the_laptops_os"]
+at = "2026-10-04T04:39:51Z"
+actor = "lognd"
+rev = 1
