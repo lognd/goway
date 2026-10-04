@@ -2,13 +2,13 @@
 id = "01M44C7W7BZNCC912JGPA6WM2T"
 title = "Audit3 H1: goway never runs a repository-selected program on the laptop"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T21:13:41Z"
-updated = "2026-10-04T21:13:41Z"
+updated = "2026-10-04T21:13:44Z"
 labels = ["security"]
 scope = ["crates/goway/src/ecotools.rs", "crates/goway/src/drift.rs", "crates/goway/src/repo.rs", "crates/goway/src/sync.rs", "crates/goway/src/gitmeta.rs", "crates/goway/src/runners.rs", "crates/goway/tests/repo_code_never_runs.rs", "docs/usage.md", "docs/design.md"]
 
