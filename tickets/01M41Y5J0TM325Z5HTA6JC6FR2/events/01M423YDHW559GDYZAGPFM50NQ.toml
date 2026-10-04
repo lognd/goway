@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T00:10:13Z"
+digest = "414ab777e5ca2aa314cbdcc56249a6592b549524bdc328526e688c6651d2cd23"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d259e933-490c-4369-a505-f9723b8542d9 with nextest profile: default
+    Starting 3 tests across 1 binary (1 test and 41 binaries skipped)
+        PASS [   0.019s] goway::cxx_launcher no_cache_tool_means_no_launcher_but_the_cpm_cache_is_still_shared
+        PASS [   0.019s] goway::cxx_launcher ccache_is_used_when_sccache_is_absent
+        PASS [   4.737s] goway::cxx_launcher sccache_becomes_the_cmake_launcher_with_a_per_repository_cache
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   4.737s] 3 tests run: 3 passed, 1 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(cxx_launcher) & (test(sccache_becomes) | test(ccache_is_used) | test(no_cache_tool))'"
+size = 965
+status = "measured"
+tests = ["no_cache_tool_means_no_launcher_but_the_cpm_cache_is_still_shared", "ccache_is_used_when_sccache_is_absent", "sccache_becomes_the_cmake_launcher_with_a_per_repository_cache"]
+at = "2026-10-04T00:10:13Z"
+actor = "lognd"
+rev = 1

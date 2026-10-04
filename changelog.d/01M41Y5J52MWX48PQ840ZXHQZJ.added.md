@@ -1,0 +1,1 @@
+Each helper now has a disk budget (max_disk, min_free): over it, goway evicts unlocked build slots, work dirs, seeds and caches least recently used first and reports what it freed; sccache and ccache get a 2 GiB cap per repository; goway status shows use against budget and goway gc --dry-run lists evictions.

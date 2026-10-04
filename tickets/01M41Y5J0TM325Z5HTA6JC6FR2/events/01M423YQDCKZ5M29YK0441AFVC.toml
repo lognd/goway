@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T00:10:24Z"
+digest = "88fabaa0613fd80e5b6e3d2df7c2f2567b9c0673bded1ee06e54bbdfc9aba817"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.27s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID bf33288d-fc59-4505-8a75-22598ada2a7a with nextest profile: default
+    Starting 1 test across 1 binary (3 tests and 41 binaries skipped)
+        PASS [   1.820s] goway::cxx_launcher settings_of_the_user_are_left_untouched
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.821s] 1 test run: 1 passed, 3 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(cxx_launcher) & test(settings_of_the_user)'"
+size = 562
+status = "measured"
+tests = ["settings_of_the_user_are_left_untouched"]
+at = "2026-10-04T00:10:24Z"
+actor = "lognd"
+rev = 1

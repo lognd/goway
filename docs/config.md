@@ -35,6 +35,9 @@ cache_ttl = "7d"               # seeds and per-repository caches expire after th
 orphan_ttl = "1d"              # unlocked work dirs left by crashed runs
 kept_ttl = "3d"                # work dirs kept with `goway run --keep`
 target_slots = 4               # most cargo target dirs per repository per host
+# max_disk = "20G"             # most disk goway's remote root may use; default: the smaller of 20% of the host's disk and 50G
+min_free = "10G"               # free space kept on the host's disk; over budget or below this, least recently used entries are evicted
+cache_size = "2G"              # size cap of each repository's sccache and ccache (unless you set SCCACHE_CACHE_SIZE / CCACHE_MAXSIZE)
 send_secret_files = false      # secret-looking files are never sent unless true
 secret_allow = []              # ...or send these anyway, e.g. ["tests/fixtures/*.pem"]
 keep = []                      # extra paths that stay in a build slot's tree between runs (below)
@@ -146,6 +149,10 @@ On the remote, a job sees these variables:
 | `GOWAY_RUN_ID` | the run's id |
 | `CARGO_TARGET_DIR` | a free per-repository target slot, unless already set |
 | `RUSTC_WRAPPER`, `SCCACHE_DIR`, `SCCACHE_SERVER_UDS`, `SCCACHE_IDLE_TIMEOUT` | sccache with a per-repository cache, a server socket in goway's owner-only cache directory (no TCP port), and a 300 s idle timeout. These are set only when sccache is installed and `RUSTC_WRAPPER` is unset, and each one only if it is still unset. |
+
+| `CMAKE_C_COMPILER_LAUNCHER`, `CMAKE_CXX_COMPILER_LAUNCHER` | `sccache`, or else `ccache`, when installed on the host (CMake 3.17+ reads these from the environment), so C and C++ builds compile from the per-repository cache. Set only if unset: `CMAKE_CXX_COMPILER_LAUNCHER=` (empty) switches it off. A `-DCMAKE_..._LAUNCHER` on the command line or in the project's CMakeLists always wins over the environment. |
+| `CCACHE_DIR` | a per-repository ccache directory, when ccache (and no sccache) is the launcher and the variable is unset |
+| `CPM_SOURCE_CACHE` | `cache/<repo-id>/cpm` in goway's remote root: one CPM.cmake download directory shared by all slots and worktrees of the repository, unless already set |
 
 The remote environment, `~/.cargo/env` and `--env KEY=VALUE` values are
 applied first. goway only fills in what is still unset, so your settings

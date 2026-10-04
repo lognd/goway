@@ -3,7 +3,7 @@
 //!
 //! Score = (1-minute load + goway jobs running) / cores. goway's own jobs
 //! are counted on top of the load average because a job that just started
-//! has not shown up in the load yet. Hosts at `max_jobs` are skipped.
+//! has not shown up in the load yet. Hosts at their job limit (`max_jobs`, default half the cores) are skipped.
 //!
 //! A host short of memory scores worse: when its available RAM per core is
 //! below `mem_per_core` GiB (default 0.5), up to 1.0 is added in proportion
@@ -40,6 +40,8 @@ pub struct Probe {
     pub disk_used: Option<u64>,
     /// Bytes free in the remote home (status only).
     pub disk_free: Option<u64>,
+    /// The host's disk budget for goway in bytes (status only).
+    pub disk_max: Option<u64>,
     /// RAM, GPUs and other facts (see [`crate::facts`]).
     pub facts: Facts,
 }
@@ -74,6 +76,7 @@ pub fn parse_probe(text: &str) -> Option<Probe> {
         jobs,
         disk_used: kv.get("disk_used").and_then(|v| v.parse().ok()),
         disk_free: kv.get("disk_free").and_then(|v| v.parse().ok()),
+        disk_max: kv.get("disk_max").and_then(|v| v.parse().ok()),
         facts: facts::parse_live(
             &kv.iter()
                 .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
@@ -136,8 +139,9 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
         .enumerate()
         .filter_map(|(i, p)| {
             let (_, probe) = p.result.as_ref().ok()?;
-            if p.host.max_jobs.is_some_and(|m| probe.jobs >= m) {
-                tracing::info!(host = %p.host.name, jobs = probe.jobs, "host at max_jobs; skipped");
+            let limit = p.host.job_limit(probe.cores);
+            if probe.jobs >= limit {
+                tracing::info!(host = %p.host.name, jobs = probe.jobs, limit, "host at its job limit; skipped");
                 return None;
             }
             let per_core = probe.load[0] / f64::from(probe.cores.max(1));
@@ -275,8 +279,12 @@ pub fn choose_many(
 pub fn probe_command(config: &Config, disk: bool, statics: bool) -> String {
     let root = config.defaults.remote_root.as_str();
     let mut args = vec![root];
+    let budget;
     if disk {
         args.push("disk");
+        let (max_disk, min_free, _) = config.defaults.budget_bytes();
+        budget = format!("budget:{max_disk}:{min_free}");
+        args.push(&budget);
     }
     if statics {
         args.push("static");
@@ -512,6 +520,7 @@ mod tests {
             jobs,
             disk_used: None,
             disk_free: None,
+            disk_max: None,
             facts: Facts::default(),
         }
     }
@@ -561,6 +570,21 @@ mod tests {
         )
         .unwrap();
         assert_eq!(p.hostname, "ev?[2Jil");
+    }
+
+    // frob:tests crates/goway/src/pool.rs::ranked
+    #[test]
+    fn an_unset_max_jobs_means_half_the_cores() {
+        let hosts = [host("h", None)];
+        let at = |jobs| {
+            let probed = vec![Probed {
+                host: &hosts[0],
+                result: Ok((found("h"), probe(8, 0.0, jobs))),
+            }];
+            ranked(&Config::default(), &probed)
+        };
+        assert_eq!(at(3), [0]);
+        assert!(at(4).is_empty(), "4 jobs on 8 cores is the default limit");
     }
 
     #[test]

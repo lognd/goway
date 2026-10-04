@@ -479,7 +479,7 @@ A single-host run to a pipe stays byte-identical to the command's output.
   those facts
 - load averages
 - running goway jobs (against `max_jobs` if set)
-- disk used by goway and disk free
+- disk used by goway against its budget (`max_disk`, marked `(over)` past it) and disk free
 
 Unreachable hosts are marked.
 
@@ -525,6 +525,51 @@ Locked entries (a run in progress) are reported `busy` and never
 touched. gc removes only entries goway labelled itself, and only under a
 root that carries goway's `.goway-root` marker. Anything else you put
 there is left alone and reported as `unlabelled`.
+
+### C and C++ builds
+
+On a host with sccache (preferred) or ccache, goway sets `CMAKE_C_COMPILER_LAUNCHER`
+and `CMAKE_CXX_COMPILER_LAUNCHER` in the job's environment, so a CMake build in a
+fresh slot or worktree compiles from the repository's compiler cache. goway
+installs sccache for Rust (`goway doctor --fix`) but never installs ccache; a
+host without either simply has no launcher. `CPM_SOURCE_CACHE` points at one
+directory per repository, shared by every slot, so CPM.cmake downloads once.
+
+goway only fills in what is unset. A launcher or `CPM_SOURCE_CACHE` you set
+(in `--env`, the host's environment, or on the cmake command line) is left
+alone, and `CMAKE_CXX_COMPILER_LAUNCHER=` (empty) turns the launcher off.
+
+Plain `FetchContent` downloads into the build directory (`build/_deps`), which
+stays in the slot's tree between runs, so each slot downloads once and then
+stays warm. To share downloads across slots and worktrees, set
+`FETCHCONTENT_BASE_DIR` yourself, for example in your CMakeLists or with
+`-DFETCHCONTENT_BASE_DIR=$HOME/.cache/deps`. goway never adds it to your
+command line, because it is a cmake variable and changes where your project
+looks for its sources.
+
+### The disk budget
+
+A helper's disk is not goway's to fill. Each host has a budget: goway's root
+may use `max_disk` (default: the smaller of 20% of the host's disk and
+50 GiB) and the disk keeps `min_free` free (default 10 GiB). After a run, and
+on every `goway gc`, a host over either limit evicts unlocked entries, least
+recently used first, until both hold: build slots (a slot's tree with its
+target and build directories, aged by when it was last used), work dirs,
+seeds of idle worktrees, then whole per-repository caches. An entry in use is
+never touched: the same locks as the TTL gc are taken first, a locked slot is
+reported `busy` and skipped, and ages are read after the lock is held.
+
+`goway gc --dry-run` lists what eviction would remove (`would evict`, kind
+`slot`, `work`, `seed` or `cache`). The eviction that follows a run is
+detached, so its summary ("evicted 2 entries, freed 3.1 GiB") is printed by the
+next run on that host. Note that `min_free` counts the whole disk: on a host
+whose disk is nearly full for other reasons, goway frees everything it is
+allowed to. On a small disk `min_free` is capped at a quarter of it, so a
+4 GiB tmpfs is not emptied after every run.
+
+sccache and ccache get a size cap per repository (`cache_size`, default 2 GiB)
+through `SCCACHE_CACHE_SIZE` and `CCACHE_MAXSIZE`, unless you set them
+(`--env` or the host's environment).
 
 ## Uninstall
 

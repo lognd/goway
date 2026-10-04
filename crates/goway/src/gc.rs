@@ -29,6 +29,8 @@ pub enum Action {
     Keep,
     /// Expired and unlocked: removed (or would be, under `--dry-run`).
     Remove,
+    /// Unlocked and least recently used: removed (or would be) to fit the disk budget.
+    Evict,
     /// Locked by a run: never touched.
     Busy,
 }
@@ -38,7 +40,7 @@ pub enum Action {
 pub struct Entry {
     /// The decision.
     pub action: Action,
-    /// `work`, `seed` or `cache`.
+    /// `work`, `seed`, `cache` or `slot`.
     pub kind: String,
     /// Seconds since last use.
     pub age_secs: u64,
@@ -64,6 +66,7 @@ pub fn parse(text: &str) -> Vec<Entry> {
             let action = match *action {
                 "keep" | "unlabelled" => Action::Keep,
                 "remove" => Action::Remove,
+                "evict" => Action::Evict,
                 "busy" => Action::Busy,
                 _ => return None,
             };
@@ -97,6 +100,7 @@ pub fn override_ttl(args: &GcArgs) -> Result<Option<Duration>> {
 /// The remote gc invocation.
 pub fn command(config: &Config, args: &GcArgs, now: u64) -> Result<String> {
     let d = &config.defaults;
+    let (max_disk, min_free, _) = d.budget_bytes();
     let older = override_ttl(args)?.map(|t| t.as_secs().to_string());
     let words = [
         d.remote_root.clone(),
@@ -107,6 +111,8 @@ pub fn command(config: &Config, args: &GcArgs, now: u64) -> Result<String> {
         if args.dry_run { "dry" } else { "apply" }.to_owned(),
         args.repo.clone().unwrap_or_default(),
         older.unwrap_or_default(),
+        max_disk.to_string(),
+        min_free.to_string(),
     ];
     let refs: Vec<&str> = words.iter().map(String::as_str).collect();
     Ok(remote::invocation("gc", &refs))
@@ -117,6 +123,28 @@ fn human_age(secs: u64) -> String {
         s if s < 3600 => format!("{}m", s / 60),
         s if s < 86_400 => format!("{}h", s / 3600),
         s => format!("{}d", s / 86_400),
+    }
+}
+
+/// Forget local memories of a repository (or all) after a real `--repo` or `--all` gc.
+fn forget_local_state(state: &mut State, renderer: Renderer, args: &GcArgs) {
+    // Remembered detection failures are local state: `--repo` clears that
+    // repository's, `--all` everyone's.
+    if args.repo.is_none() && !args.all {
+        return;
+    }
+    let cleared = crate::detect::clear(state, args.repo.as_deref());
+    if cleared > 0 {
+        renderer.note(format_args!(
+            "forgot {cleared} remembered failed test-binary detections"
+        ));
+    }
+    // So is the distrust a copy mismatch left behind (see `goway run`).
+    let cleared = state.clear_distrust(args.repo.as_deref(), crate::state::now_secs());
+    if cleared > 0 {
+        renderer.note(format_args!(
+            "trusting {cleared} repositories' copies on hosts again"
+        ));
     }
 }
 
@@ -147,32 +175,16 @@ pub fn gc(
         )
         .map(|found| parse(&found.output))
     });
-    // Remembered detection failures are local state: `--repo` clears that
-    // repository's, `--all` everyone's.
-    if !args.dry_run && (args.repo.is_some() || args.all) {
-        let cleared = crate::detect::clear(&mut state, args.repo.as_deref());
-        if cleared > 0 {
-            renderer.note(format_args!(
-                "forgot {cleared} remembered failed test-binary detections"
-            ));
-        }
-    }
-    // So is the distrust a copy mismatch left behind (see `goway run`).
-    if !args.dry_run && (args.repo.is_some() || args.all) {
-        let cleared = state.clear_distrust(args.repo.as_deref(), crate::state::now_secs());
-        if cleared > 0 {
-            renderer.note(format_args!(
-                "trusting {cleared} repositories' copies on hosts again"
-            ));
-        }
+    if !args.dry_run {
+        forget_local_state(&mut state, renderer, args);
     }
     if let Err(e) = state.save(&paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
     }
-    let verb = if args.dry_run {
-        "would remove"
+    let (verb, evict_verb) = if args.dry_run {
+        ("would remove", "would evict")
     } else {
-        "removed"
+        ("removed", "evicted")
     };
     let mut rows = vec![
         ["host", "action", "kind", "repo", "idle", "size", "path"]
@@ -185,17 +197,21 @@ pub fn gc(
             Ok(entries) => {
                 let mut freed = 0;
                 let mut count = 0;
+                let mut evicted = 0;
                 for e in entries.iter().filter(|e| e.action != Action::Keep) {
-                    if e.action == Action::Remove {
+                    if matches!(e.action, Action::Remove | Action::Evict) {
                         freed += e.bytes;
                         count += 1;
                     }
+                    if e.action == Action::Evict {
+                        evicted += 1;
+                    }
                     rows.push(vec![
                         host.name.clone(),
-                        if e.action == Action::Busy {
-                            "busy"
-                        } else {
-                            verb
+                        match e.action {
+                            Action::Busy => "busy",
+                            Action::Evict => evict_verb,
+                            _ => verb,
                         }
                         .to_owned(),
                         e.kind.clone(),
@@ -206,13 +222,18 @@ pub fn gc(
                     ]);
                 }
                 tracing::info!(host = %host.name, count, freed, dry_run = args.dry_run, "gc done");
+                let budget = if evicted > 0 {
+                    format!(" ({evicted} of them for the disk budget)")
+                } else {
+                    String::new()
+                };
                 renderer.note(format_args!(
-                    "{}: {verb} {count} entries ({}), kept {}",
+                    "{}: {verb} {count} entries ({}){budget}, kept {}",
                     host.name,
                     human_bytes(freed),
                     entries
                         .iter()
-                        .filter(|e| e.action != Action::Remove)
+                        .filter(|e| !matches!(e.action, Action::Remove | Action::Evict))
                         .count()
                 ));
             }
@@ -254,6 +275,8 @@ mod tests {
             (90000, 1024, "goway")
         );
         assert_eq!(e[1].action, Action::Busy);
+        let e = parse("evict\tslot\t5\t2048\tgoway\tabcd\t/r/cache/x/tree-0\n");
+        assert_eq!((e[0].action, e[0].bytes), (Action::Evict, 2048));
     }
 
     #[test]
@@ -277,11 +300,10 @@ mod tests {
             ..args()
         };
         assert!(override_ttl(&bad).is_err());
-        assert!(
-            command(&Config::default(), &older, 100)
-                .unwrap()
-                .contains(" 43200")
-        );
+        let cmd = command(&Config::default(), &older, 100).unwrap();
+        assert!(cmd.contains(" 43200"));
+        // The budget (automatic max, 10 GiB free) follows the filter words.
+        assert!(cmd.contains(" 43200 0 10737418240"), "{cmd}");
         assert_eq!(human_age(90_000), "1d");
     }
 }
