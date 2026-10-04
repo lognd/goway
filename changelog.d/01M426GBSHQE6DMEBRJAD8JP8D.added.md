@@ -1,0 +1,1 @@
+frob: Windows elevation: detect a desktop session by session id (not SESSIONNAME), and --rsudo/--lsudo elevate Windows-side steps through an admin OpenSSH session or UAC, never with a stored password.

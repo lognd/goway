@@ -1115,7 +1115,7 @@ fn relaunch_host_elevated(
         } else if !elevate.allowed {
             "--no-elevate was given; start goway-setup from a terminal opened with Run as administrator"
         } else {
-            "this is not an interactive desktop session, so Windows cannot ask for permission; start goway-setup from an elevated terminal (an administrator account over SSH already is)"
+            "this process is not in the active desktop session (it runs as a service, a boot task or in another account's session), so Windows cannot ask for permission; start goway-setup from an elevated terminal (an administrator account over SSH already is)"
         };
         return Err(SetupError::NeedsAdmin(format!("{what}: {why}")));
     }
