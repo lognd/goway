@@ -52,7 +52,7 @@ mark_root() {
   for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
     [ -e "$e" ] || [ -L "$e" ] || continue
     case "${e##*/}" in
-      work | seed | cache | gpu | footprints | gc.lock | evicted.log | .goway-root) ;;
+      work | seed | cache | gpu | footprints | mempeaks | gc.lock | evicted.log | .goway-root) ;;
       *) die "$1 exists, is not empty and is not goway state; pick a dedicated remote_root" ;;
     esac
   done
@@ -635,12 +635,68 @@ stop_group() {
   kill -KILL -- "-$pid" 2>/dev/null || true
 }
 
+# scope_argv WORK CMD...: leave CMD (argv, NUL separated) and a loader that execs it in WORK.
+# systemd-run expands `$` and `%` in the arguments it is given (`$$` becomes `$`), so the
+# user's command never goes through its command line.
+scope_argv() {
+  local work=$1
+  shift
+  printf '%s\0' "$@" >"$work/argv"
+  cat >"$work/scope-exec.sh" <<'LOADER'
+args=()
+while IFS= read -r -d '' a; do args+=("$a"); done <"$1"
+exec "${args[@]}"
+LOADER
+}
+
+# mem_cgroup PID: the cgroup v2 directory of PID when it runs in goway's own
+# scope (see job_scope), else nothing: only then is memory.peak the job's alone.
+mem_cgroup() {
+  local cg
+  cg=$(sed -n 's/^0:://p' "/proc/$1/cgroup" 2>/dev/null | head -1 || true)
+  case "$cg" in */goway-*.scope) [ -d "/sys/fs/cgroup$cg" ] && printf '/sys/fs/cgroup%s' "$cg" ;; esac
+  return 0
+}
+
+# mem_sample PID DIR: raise DIR/mempeak to the job's memory now and note in
+# DIR/oom when the kernel's OOM killer has killed one of its processes. The
+# peak is the scope's own memory.peak when the job has a scope (exact, kernel
+# 5.19+), else the resident memory of the job's session, sampled (a short
+# spike between two samples is missed, which is why the margin exists).
+mem_sample() {
+  local pid=$1 dir=$2 cg v="" old
+  cg=$(mem_cgroup "$pid" || true)
+  if [ -n "$cg" ] && [ -r "$cg/memory.peak" ]; then
+    v=$(cat "$cg/memory.peak" 2>/dev/null || true)
+    if awk '/^oom_kill / && $2 > 0 {f=1} END {exit !f}' "$cg/memory.events" 2>/dev/null; then : >"$dir/oom"; fi
+  elif [ "$IS_DARWIN" != 1 ]; then
+    v=$(ps -A -o sid= -o rss= 2>/dev/null | awk -v s="$pid" '$1 == s {t += $2} END {print t * 1024}' || true)
+  fi
+  case "$v" in "" | *[!0-9]*) return 0 ;; esac
+  old=$(cat "$dir/mempeak" 2>/dev/null || echo 0)
+  case "$old" in "" | *[!0-9]*) old=0 ;; esac
+  if [ "$v" -gt "$old" ]; then printf '%s' "$v" >"$dir/mempeak" 2>/dev/null || true; fi
+  return 0
+}
+
+# job_scope RUN_ID: set SCOPE to a wrapper that puts the job in its own
+# transient systemd scope (so its memory is measured exactly), probed once
+# with `true`; empty where there is no user manager (a WSL without systemd).
+job_scope() {
+  SCOPE=()
+  [ "$IS_DARWIN" != 1 ] && [ -e /sys/fs/cgroup/cgroup.controllers ] && command -v systemd-run >/dev/null 2>&1 || return 0
+  if bounded_for 3 systemd-run --user --scope --quiet --collect --unit="goway-probe-$1" true >/dev/null 2>&1; then
+    SCOPE=(systemd-run --user --scope --quiet --collect --unit="goway-$1")
+  fi
+  return 0
+}
+
 # Kill the job's process group when the ssh session that started it dies
 # (sshd does not signal commands without a pty, it orphans them). The job
 # writes its pid (= its process group, it is a session leader) to PIDFILE.
 # A client that vanished without the connection closing is lifeline's job.
 watchdog() {
-  local session=$1 pidfile=$2 pid=""
+  local session=$1 pidfile=$2 pid="" memdir=${3:-}
   trap '' HUP PIPE
   while [ -z "$pid" ]; do
     kill -0 "$session" 2>/dev/null || return 0
@@ -648,7 +704,8 @@ watchdog() {
     pid=$(cat "$pidfile" 2>/dev/null || true)
   done
   while kill -0 "$session" 2>/dev/null && kill -0 "$pid" 2>/dev/null; do
-    sleep 1
+    if [ -n "$memdir" ]; then mem_sample "$pid" "$memdir"; fi
+    sleep 0.5
   done
   if kill -0 "$pid" 2>/dev/null; then stop_group "$pid"; fi
 }
@@ -1373,7 +1430,7 @@ run() {
   : >"$work/pid"
   # The watchdog must not inherit the lock fds, or a lingering `sleep`
   # would keep this run's slot and work dir locked after it ends.
-  watchdog "$PPID" "$work/pid" </dev/null >/dev/null 2>&1 5>&- 7>&- 9>&- &
+  watchdog "$PPID" "$work/pid" "$work" </dev/null >/dev/null 2>&1 5>&- 7>&- 9>&- &
   wd=$!
   # Foreground (not `&`): background jobs of a non-interactive shell start
   # with SIGINT and SIGQUIT ignored, and the command must not inherit that.
@@ -1388,16 +1445,24 @@ run() {
   # Outermost, so the inhibitor wraps the niceness wrappers and the job.
   keep_awake
   nicer=(${AWAKE[@]+"${AWAKE[@]}"} ${nicer[@]+"${nicer[@]}"})
+  SCOPE=()
+  if [ -z "$detect" ]; then job_scope "$run_id"; fi
   if [ -n "$detect" ]; then
     JOB_PID="$work/pid"
     JOB_NICER=(${nicer[@]+"${nicer[@]}"})
     shard_run "$detect" "$work" "$@" || rc=$?
   else
-    setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
+    if [ ${#SCOPE[@]} -gt 0 ]; then
+      scope_argv "$work" ${nicer[@]+"${nicer[@]}"} "$@"
+      setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "${SCOPE[@]}" bash "$work/scope-exec.sh" "$work/argv" || rc=$?
+    else
+      setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
+    fi
   fi
   kill "$wd" 2>/dev/null || true
   : >"$work/done"
   cd "$root"
+  memory_report "$root" "$repo_id" "$work" "$rc"
   # A failed command: before blaming the code, goway compares every synced
   # file the command did not itself change with the laptop's.
   if [ -n "$verify" ] && [ "$rc" -ne 0 ] && [ ! -e "$work/lost" ] && kill -0 "$PPID" 2>/dev/null; then
@@ -1618,6 +1683,7 @@ probe() {
   printf 'jobs=%s\n' "$jobs"
   if [ "$want_owner" = 1 ]; then power_state; idle_secs; fi
   probe_footprints "$root" "$room" "$want_disk"
+  probe_mempeaks "$root"
   if [ -n "$tools" ]; then
     # shellcheck disable=SC2086 # the comma-separated names are split on purpose
     (IFS=,; want_facts $tools)
@@ -1629,6 +1695,17 @@ probe() {
       printf 'disk_max=%s\ndisk_min_free=%s\n' "$(budget_max "$HOME" "${budget%%:*}")" "${budget#*:}"
     fi
   fi
+}
+
+# probe_mempeaks ROOT: the recorded memory peaks as mempeak.ID=BYTES.
+probe_mempeaks() {
+  local f v
+  for f in "$1"/mempeaks/*; do
+    [ -f "$f" ] || continue
+    v=$({ cat "$f" 2>/dev/null || true; } | head -1)
+    case "$v" in "" | *[!0-9]*) continue ;; esac
+    printf 'mempeak.%s=%s\n' "${f##*/}" "$v"
+  done
 }
 
 # probe_footprints ROOT ROOM WANT_DISK: the recorded footprints as
@@ -1831,6 +1908,57 @@ footprint_record() {
   f=$(footprint_file "$1" "$2")
   mkdir -p "${f%/*}" 2>/dev/null || return 0
   printf '%s\n' "$3" >"$f.tmp.$$" 2>/dev/null && mv -f "$f.tmp.$$" "$f" 2>/dev/null || rm -f "$f.tmp.$$"
+  return 0
+}
+
+# Memory peaks: the most memory a repository's job tree has used on this
+# host, one small file per repository id under mempeaks/ (reported by the
+# probe as mempeak.ID=BYTES; goway never places the repository on a host whose
+# memory is below it plus a margin, and waits while less is available).
+mempeak_file() { printf '%s/mempeaks/%s' "$1" "$2"; }
+
+# mempeak_record ROOT REPO_ID BYTES: keep the larger of BYTES and the recorded peak.
+mempeak_record() {
+  local f old=0
+  case "$2" in "" | *[!A-Za-z0-9._-]*) return 0 ;; esac
+  case "$3" in "" | *[!0-9]*) return 0 ;; esac
+  [ "$3" -gt 0 ] || return 0
+  f=$(mempeak_file "$1" "$2")
+  old=$({ cat "$f" 2>/dev/null || true; } | head -1)
+  case "$old" in "" | *[!0-9]*) old=0 ;; esac
+  [ "$3" -gt "$old" ] || return 0
+  mkdir -p "${f%/*}" 2>/dev/null || return 0
+  printf '%s\n' "$3" >"$f.tmp.$$" 2>/dev/null && mv -f "$f.tmp.$$" "$f" 2>/dev/null || rm -f "$f.tmp.$$"
+  return 0
+}
+
+# oom_in_dmesg: whether the kernel log's recent lines show an OOM kill
+# (often unreadable without privilege: then it simply says no).
+oom_in_dmesg() {
+  local log
+  log=$({ bounded_for 3 dmesg 2>/dev/null || true; } | tail -n 200 || true)
+  printf '%s\n' "$log" | grep -qiE 'out of memory: kill|oom-kill|killed process'
+}
+
+# memory_report ROOT REPO_ID WORK RC: after the job, record its measured peak
+# memory; when the job was OOM-killed (the scope's oom_kill count, else exit 137 with
+# the kernel log or nothing else to explain it) say so in plain words, with the
+# peak and the host's total and what to do. A killed job's true peak is higher
+# than measured, so a quarter more is recorded.
+memory_report() {
+  local root=$1 repo_id=$2 work=$3 rc=$4 peak total oom=0 gib=1073741824
+  peak=$(cat "$work/mempeak" 2>/dev/null || echo 0)
+  case "$peak" in "" | *[!0-9]*) peak=0 ;; esac
+  if [ -e "$work/oom" ]; then oom=1; fi
+  if [ "$oom" = 0 ] && [ "$rc" = 137 ] && [ ! -e "$work/lost" ] && oom_in_dmesg; then oom=1; fi
+  if [ "$oom" = 1 ]; then
+    mempeak_record "$root" "$repo_id" $((peak + peak / 4))
+    total=$(awk '/^MemTotal:/ {printf "%.0f", $2 * 1024}' /proc/meminfo 2>/dev/null || true)
+    printf 'goway: this host ran out of memory: the kernel killed a process of the job (measured peak %s of %s total). Run it on another host (--host), ask for more memory (--needs mem>=%sG), run fewer jobs at once (CARGO_BUILD_JOBS=2, nextest -j 2), or give the helper more memory (goway-setup tune on WSL helpers).\n' \
+      "$(human "$peak")" "$(human "${total:-0}")" "$(((peak + peak / 4 + gib - 1) / gib))" >&2
+  else
+    mempeak_record "$root" "$repo_id" "$peak"
+  fi
   return 0
 }
 
@@ -2163,7 +2291,7 @@ purge() {
     SCCACHE_SERVER_UDS="$s" sccache --stop-server >/dev/null 2>&1 || true
   done
   # Only goway's own entries: a root that also holds foreign files keeps them.
-  rm -rf "$root/work" "$root/seed" "$root/cache" "$root/gpu" "$root/footprints" "$root/gc.lock" "$root/evicted.log"
+  rm -rf "$root/work" "$root/seed" "$root/cache" "$root/gpu" "$root/footprints" "$root/mempeaks" "$root/gc.lock" "$root/evicted.log"
   rm -f "$root/.goway-root"
   rmdir "$root" 2>/dev/null || true
   printf 'removed\n'
