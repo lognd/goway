@@ -5,6 +5,7 @@
 # meta.json label and a lock file that is flock-held while in use.
 set -Eeuo pipefail
 umask 077
+[ -z "${GOWAY_XTRACE:-}" ] || set -x
 
 # Portability. On macOS (BSD userland, bash 3.2) put Homebrew's GNU tools
 # first: coreutils, findutils, gnu-sed, gnu-tar and grep ship "gnubin"
