@@ -147,6 +147,8 @@ pub struct Req {
     pub optional: bool,
     /// Read from text, not from a parser or the tool itself.
     pub approximate: bool,
+    /// The long explanation `goway doctor --explain` shows.
+    pub explain: Option<String>,
 }
 
 /// `goway.toml` `[toolchain]`: version pins and extra tools.
@@ -191,6 +193,7 @@ impl Needs {
             why: why.to_owned(),
             optional: false,
             approximate: false,
+            explain: None,
         });
     }
 
@@ -232,8 +235,9 @@ impl Needs {
         let Some(l) = self.linking.iter().find(|l| l.triple == triple) else {
             return Vec::new();
         };
-        let override_hint = format!(
-            "to run once without installing it: goway run --env {}=cc --env \"RUSTFLAGS=-C link-arg=-fuse-ld=lld\" -- ... (a non-empty RUSTFLAGS replaces the config's rustflags and Rust's bundled lld needs nothing installed; cargo-nextest's inner `cargo test` ignores --config and an empty CARGO_TARGET_*_RUSTFLAGS does not override config rustflags); goway never applies this itself",
+        let explain = format!(
+            "cargo's configuration ({}) names this for {triple}. To run once without installing it: goway run --env {}=cc --env \"RUSTFLAGS=-C link-arg=-fuse-ld=lld\" -- ... A non-empty RUSTFLAGS replaces the config's rustflags and Rust's bundled lld needs nothing installed; cargo-nextest's inner `cargo test` ignores --config and an empty CARGO_TARGET_*_RUSTFLAGS does not override config rustflags. goway never applies this itself.",
+            l.source,
             ecotools::target_var(triple, "LINKER")
         );
         l.linker
@@ -243,12 +247,10 @@ impl Needs {
             .map(|(role, tool)| Req {
                 tool: tool.clone(),
                 min: None,
-                why: format!(
-                    "cargo's {role} for {triple} ({}); {override_hint}",
-                    l.source
-                ),
+                why: format!("cargo's {role} for {triple}"),
                 optional: false,
                 approximate: false,
+                explain: Some(explain.clone()),
             })
             .collect()
     }
@@ -516,6 +518,7 @@ fn cpp(root: &Path, needs: &mut Needs) {
         why: format!("{why} (approximate: read from CMakeLists.txt text)"),
         optional: false,
         approximate: true,
+        explain: None,
     };
     needs.push(approx(
         "cmake",
@@ -559,6 +562,7 @@ fn cpp(root: &Path, needs: &mut Needs) {
         why: "optional compiler launcher".to_owned(),
         optional: true,
         approximate: false,
+        explain: None,
     });
 }
 
@@ -640,6 +644,7 @@ pub fn analyse(root: &Path, toolchain: &Toolchain) -> Result<Needs> {
             why: "goway.toml [toolchain]".to_owned(),
             optional: false,
             approximate: false,
+            explain: None,
         });
     }
     for name in &toolchain.tools {
@@ -1003,6 +1008,7 @@ pub fn checks(needs: &Needs, facts: &BTreeMap<String, String>, skip: &[String]) 
         };
         out.push(Check {
             name: req.tool.clone(),
+            explain: req.explain.clone(),
             level,
             detail,
             fix,
@@ -1277,6 +1283,7 @@ mod tests {
             why: "go.mod".to_owned(),
             optional: false,
             approximate: false,
+            explain: None,
         };
         let fix = fix_for(&req, &facts(&[])).expect("falls back to the package");
         assert!(fix.root, "pinned go 1.27 cannot satisfy >=9");

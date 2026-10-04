@@ -7,7 +7,11 @@
 mod common;
 
 fn doctor(w: &common::World) -> (std::process::Output, String, String) {
-    let out = w.run(&["doctor"]);
+    doctor_with(w, &["doctor", "--all"])
+}
+
+fn doctor_with(w: &common::World, args: &[&str]) -> (std::process::Output, String, String) {
+    let out = w.run(args);
     let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
     (out, stdout, stderr)
@@ -16,7 +20,7 @@ fn doctor(w: &common::World) -> (std::process::Output, String, String) {
 fn has_row(table: &str, name: &str) -> bool {
     table
         .lines()
-        .any(|l| l.split_whitespace().next() == Some(name))
+        .any(|l| l.split_whitespace().nth(1) == Some(name))
 }
 
 // frob:tests crates/goway/src/doctor/projneeds.rs::analyse
@@ -71,7 +75,7 @@ fn goway_toml_toolchain_is_checked_and_a_missing_tool_fails_the_run() {
     let row = |name: &str| {
         table
             .lines()
-            .find(|l| l.split_whitespace().next() == Some(name))
+            .find(|l| l.split_whitespace().nth(1) == Some(name))
             .unwrap_or_else(|| panic!("{name} row missing\n{table}"))
             .to_owned()
     };
@@ -96,4 +100,40 @@ fn a_bad_tool_name_in_goway_toml_is_a_config_error_not_a_command() {
     assert_eq!(out.status.code(), Some(125), "{err}");
     assert!(err.contains("not a tool name"), "{err}");
     assert!(!w.repo.join("pwned").exists());
+}
+
+// frob:tests crates/goway/src/doctor.rs::doctor
+#[test]
+fn doctor_is_quiet_by_default_and_explains_one_check_on_request() {
+    let w = common::world();
+    std::fs::write(
+        w.repo.join("goway.toml"),
+        "[toolchain]\ntools = [\"goway-no-such-tool\"]\n",
+    )
+    .unwrap();
+    let (_, quiet, _) = doctor_with(&w, &["doctor"]);
+    assert!(quiet.contains("goway-no-such-tool"), "{quiet}");
+    assert!(
+        !has_row(&quiet, "bash"),
+        "passing rows stay hidden\n{quiet}"
+    );
+    let (_, all, _) = doctor_with(&w, &["doctor", "--all"]);
+    assert!(has_row(&all, "bash"), "{all}");
+    let (out, explained, _) = doctor_with(&w, &["doctor", "--explain", "goway-no-such-tool"]);
+    assert!(
+        explained.contains("FAIL goway-no-such-tool: missing"),
+        "{explained}"
+    );
+    assert_eq!(out.status.code(), Some(1));
+    let (_, none, _) = doctor_with(&w, &["doctor", "--explain", "nonsense"]);
+    assert!(none.contains("no check named `nonsense`"), "{none}");
+}
+
+#[test]
+fn harden_needs_rsudo_and_explain_is_not_a_fix() {
+    let w = common::world();
+    let out = w.run(&["doctor", "--fix", "--harden"]);
+    assert_eq!(out.status.code(), Some(2), "--harden requires --rsudo");
+    let out = w.run(&["doctor", "--fix", "--explain", "cargo"]);
+    assert_eq!(out.status.code(), Some(2));
 }

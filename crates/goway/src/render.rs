@@ -45,6 +45,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
+    /// Whether tables are printed as labelled lines.
+    pub fn is_plain(self) -> bool {
+        self.plain
+    }
+
     /// Build a renderer honouring `--color` (and `NO_COLOR` under `auto`).
     pub fn new(when: ColorWhen) -> Self {
         let choice = match when {

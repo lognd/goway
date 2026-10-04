@@ -1,0 +1,1 @@
+goway doctor is quiet: one line per host, each problem once across the hosts that share it, passing checks only with --all, long text only with --explain, fixes listed once, and hardening opt-in with --harden.

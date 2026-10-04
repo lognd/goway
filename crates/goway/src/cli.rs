@@ -159,6 +159,7 @@ pub struct GcArgs {
 
 /// Arguments of `goway doctor`.
 #[derive(Debug, Args)]
+#[allow(clippy::struct_excessive_bools)] // independent command-line switches
 pub struct DoctorArgs {
     /// Only this host (default: every configured host).
     #[arg(value_parser = host_name)]
@@ -174,6 +175,16 @@ pub struct DoctorArgs {
     /// Do not ask before running root fixes (with --rsudo).
     #[arg(long, short = 'y')]
     pub yes: bool,
+    /// With --fix --rsudo, also offer the optional hardening (such as turning
+    /// off ssh password login), asked separately from the tool installs.
+    #[arg(long, requires = "rsudo")]
+    pub harden: bool,
+    /// Also list the passing checks (by default only problems are shown).
+    #[arg(long)]
+    pub all: bool,
+    /// Explain one check in full: what was found, why, and the exact fix.
+    #[arg(long, value_name = "CHECK", conflicts_with = "fix")]
+    pub explain: Option<String>,
 }
 
 /// Arguments of `goway uninstall`.
