@@ -328,6 +328,50 @@ ordinary seed files, `remote.sh` and `remote.ps1` need no change and the
 copy-integrity check covers them. Blobs of paths the secret rules keep local
 are filtered out of the pack list.
 
+### Portable command translation (crates/goway/src/translate.rs)
+
+Goal: `python3 -m pytest` or `./gradlew test` written on a Linux laptop runs
+on a Windows helper (and `python` on a Linux helper that only has `python3`).
+Binding rules from the owner: it makes sense, is small to maintain, has no
+security risk and cannot fail; a false negative (no translation) is always
+better than a false positive (running a guessed program).
+
+- **Only argv[0] changes.** Exact, case-sensitive match against one
+  declarative table (`program`, per-OS ordered candidates, each a program and
+  fixed leading arguments, for example `python3` on Windows: `py.exe -3`, then
+  `python.exe`). Nothing else in the command line is read or rewritten.
+- **The client plans, the host decides.** The client sends the candidate list
+  for the host's OS (stdin of the `resolve` verb, which exists in both
+  `remote.sh` and `remote.ps1`); only the host knows what is installed. A
+  command whose candidates for that OS are all "the name as given" is not
+  sent at all (no round trip for `cargo`, or `python3` on Linux).
+- **Bare names resolve from PATH directories only**: absolute entries that
+  are not inside goway's own root (the synced tree lives there). Empty or
+  relative entries (including the current directory) are skipped, so a
+  repository cannot ship a look-alike `python.exe`. The resolved absolute
+  path is what runs and what `--report` records. A reparse point (the Windows
+  Store `python.exe` stub under WindowsApps) is refused by its attributes, not
+  its name. A candidate with a `check` (for example `py.exe -3 -c pass`) must
+  exit 0 within 15 seconds.
+- **Work-tree paths** (`./gradlew` becomes `gradlew.bat`, `./mvnw` becomes
+  `mvnw.cmd`, `./x/y` becomes `x\y.exe`, else `x\Debug\y.exe` or
+  `x\Release\y.exe`) are checked in the synced tree on the host: plain files
+  only, never `..`, never absolute. The first tier with a hit wins; two hits in
+  one tier (both Debug and Release) is doubt.
+- **Doubt means no translation**: nothing found, several plausible
+  candidates, a failed check, a probe that fails or times out, any internal
+  error. The run then stops before the command starts and says what was
+  looked for (the host was chosen, possibly pinned, to run it; goway never
+  runs a program it guessed).
+- **`[translate]` in goway.toml** adds entries or replaces a built-in one
+  (`mytool = { windows = "mytool.cmd", linux = "mytool" }`); targets are bare
+  program names (PATH rules above) or work-tree paths, and an unknown OS key
+  is a config error. goway.toml is part of the repository, so this carries the
+  repository's own trust level (what its scripts already can run on the
+  helper); it adds no way to run anything the repository could not.
+- The same table answers "is this command cross-platform?" for the cross-OS
+  hint, so there is one source of truth.
+
 ### Clocks
 
 goway stores and compares only epoch seconds (UTC), so time zones never

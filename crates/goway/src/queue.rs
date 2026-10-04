@@ -67,6 +67,9 @@ pub struct Snapshot {
     pub earlier: Vec<Option<Vec<String>>>,
     /// Claims not yet visible in a probe, per host (lowercase).
     pub pending: BTreeMap<String, u32>,
+    /// The repository ids of those pending claims that named one, per host (lowercase),
+    /// so their disk footprint can be set aside like their memory.
+    pub pending_repos: BTreeMap<String, Vec<String>>,
 }
 
 impl Snapshot {
@@ -187,16 +190,20 @@ impl Queue {
         })
     }
 
-    /// Claim `host` for a run that is about to sync and start.
+    /// Claim `host` for a run of repository `repo_id` that is about to sync and start.
     ///
     /// # Errors
     ///
-    /// [`Error::Io`] when the claim file cannot be created or locked.
-    pub fn claim(&self, host: &str) -> Result<Claim> {
+    /// [`Error::Io`] when the claim file cannot be created or locked, or its
+    /// repository sidecar cannot be written.
+    pub fn claim(&self, host: &str, repo_id: Option<&str>) -> Result<Claim> {
         self.ensure()?;
         let base = self.dir.join(format!("c-{}-{host}", new_id()));
         let file = locked_file(&base.with_extension("claim"))?;
-        tracing::debug!(host, "host claimed");
+        if let Some(id) = repo_id {
+            write_atomic(&base.with_extension("repo"), id.as_bytes())?;
+        }
+        tracing::debug!(host, repo_id, "host claimed");
         Ok(Claim {
             _file: file,
             base,
@@ -224,9 +231,15 @@ impl Queue {
                     }
                 }
                 // `c-<ns>-<pid>-<seq>-<host>`: the host is the rest after four dashes.
-                Some("claim") if live(&path, &["started"]) && still_pending(&path, self.grace) => {
+                Some("claim")
+                    if live(&path, &["started", "repo"]) && still_pending(&path, self.grace) =>
+                {
                     if let Some(host) = name.splitn(5, '-').nth(4) {
-                        *snap.pending.entry(host.to_ascii_lowercase()).or_insert(0) += 1;
+                        let host = host.to_ascii_lowercase();
+                        if let Ok(id) = std::fs::read_to_string(path.with_extension("repo")) {
+                            snap.pending_repos.entry(host.clone()).or_default().push(id);
+                        }
+                        *snap.pending.entry(host).or_insert(0) += 1;
                     }
                 }
                 _ => {}
@@ -295,6 +308,7 @@ impl Drop for Claim {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(self.base.with_extension("claim"));
         let _ = std::fs::remove_file(self.base.with_extension("started"));
+        let _ = std::fs::remove_file(self.base.with_extension("repo"));
     }
 }
 
@@ -338,8 +352,8 @@ mod tests {
     #[test]
     fn claims_count_until_started_and_graced_and_die_with_their_owner() {
         let (_d, q) = queue();
-        let c = q.claim("my-host").unwrap();
-        let second = q.claim("my-host").unwrap();
+        let c = q.claim("my-host", None).unwrap();
+        let second = q.claim("my-host", None).unwrap();
         assert_eq!(q.snapshot(None).pending.get("my-host"), Some(&2));
         c.started();
         // Just started: still counted until a probe can see the job.
@@ -356,5 +370,28 @@ mod tests {
         drop(c);
         drop(second);
         assert!(q.snapshot(None).pending.is_empty());
+    }
+
+    // frob:ticket 01M43CFMDFG8YSM3HNRD0GB213
+    // frob:tests crates/goway/src/queue.rs::Snapshot
+    #[test]
+    fn a_claim_remembers_its_repository_until_dropped() {
+        let (_d, q) = queue();
+        let a = q.claim("My-Host", Some("repo1")).unwrap();
+        let b = q.claim("my-host", None).unwrap();
+        let snap = q.snapshot(None);
+        assert_eq!(snap.pending.get("my-host"), Some(&2));
+        assert_eq!(snap.pending_repos["my-host"], ["repo1"]);
+        drop(a);
+        drop(b);
+        let snap = q.snapshot(None);
+        assert!(snap.pending_repos.is_empty());
+        assert!(
+            std::fs::read_dir(&q.dir)
+                .unwrap()
+                .flatten()
+                .all(|e| { e.path().extension().is_none_or(|x| x != "repo") }),
+            "sidecar removed"
+        );
     }
 }
