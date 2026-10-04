@@ -7,7 +7,7 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-03T23:24:01Z"
-updated = "2026-10-04T00:16:55Z"
+updated = "2026-10-04T00:18:47Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/status.rs"]
 
 [[acceptance]]
