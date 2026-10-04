@@ -1306,6 +1306,7 @@ function Get-GitIgnored([string]$Farm, [string[]]$Paths, [string]$Scratch) {
   foreach ($p in $Paths) { $b = $script:Utf8.GetBytes($p); $ms.Write($b, 0, $b.Length); $ms.WriteByte(0) }
   $null_ = if ($script:IsWin) { 'NUL' } else { '/dev/null' }
   $r = Invoke-Native $git @('-c', "core.excludesFile=$null_", 'check-ignore', '--no-index', '-z', '--stdin') $ms.ToArray() @{ GIT_DIR = $gitdir; GIT_WORK_TREE = $Farm }
+  Write-Err "goway-diag: check-ignore git=$git exit=$($r[0]) bytes=$($r[1].Length) paths=$($Paths -join ',')`n"
   return [string[]](Split-Nul $r[1])
 }
 

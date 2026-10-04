@@ -767,13 +767,15 @@ fn changed_files_are_stamped_newer_than_the_slots_outputs() {
     );
     // Nothing changed: the warm build stays warm.
     let stats_s2 = h.stats(0);
-    let s3 = lines(&h.jobrun("s3", STAMP_BUILD));
+    let s3_out = h.jobrun("s3", STAMP_BUILD);
+    let s3 = lines(&s3_out);
     let diag = text(&h.jobrun("s4", STAMP_DIAG).stdout);
     assert_eq!(
         s3,
         ["from B"],
-        "stats after s2: {stats_s2}; after s3: {}; times: {diag}",
-        h.stats(0)
+        "stats after s2: {stats_s2}; after s3: {}; times: {diag}; stderr: {}",
+        h.stats(0),
+        text(&s3_out.stderr)
     );
     assert_eq!(h.stats(0), "written=0 removed=0");
 }
