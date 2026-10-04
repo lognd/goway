@@ -7,7 +7,7 @@ priority = "high"
 points = 3
 reporter = "lognd"
 created = "2026-10-04T22:33:22Z"
-updated = "2026-10-04T23:17:21Z"
+updated = "2026-10-04T23:17:25Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/doctor/wsl_down.rs", "crates/goway/tests/doctor_wsl_down.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
@@ -20,7 +20,7 @@ bound = true
 
 [[acceptance]]
 text = "Given an address that does not answer at all, When goway doctor runs, Then it says the machine is unreachable (not that WSL is stopped)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given the manual, When a reader opens the debugging section, Then it lists the by-hand checks: ping, port probe, wsl -l -v over Windows ssh, schtasks /query, and how to restart"
