@@ -6,7 +6,7 @@ category = "in-progress"
 priority = "medium"
 reporter = "lognd"
 created = "2026-10-04T00:22:32Z"
-updated = "2026-10-04T02:29:00Z"
+updated = "2026-10-04T02:29:58Z"
 scope = ["crates/goway/src/ecotools.rs", "crates/goway/src/doctor.rs", "docs/usage.md", "crates/goway/src/doctor/projneeds.rs", "crates/goway/src/lib.rs"]
 
 [[acceptance]]
