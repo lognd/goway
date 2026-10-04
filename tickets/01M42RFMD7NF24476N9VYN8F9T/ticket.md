@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T06:09:09Z"
-updated = "2026-10-04T11:18:16Z"
+updated = "2026-10-04T11:18:19Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/state.rs", "crates/goway/src/run.rs", "crates/goway/tests/footprint.rs", "docs/usage.md", "crates/goway/src/needs.rs", "crates/goway/src/project.rs", "crates/goway/src/footprint.rs", "crates/goway/src/lib.rs", "crates/goway/src/queue.rs", "crates/goway/src/remote.sh"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a run that fails while the helper's disk is (nearly) full, when goway reports it, then it says the helper ran out of disk, how much the repository needs and has free there, what the disk budget freed afterwards, and suggests --needs disk>=SIZE or another host, instead of only the tool's error"
-bound = false
+bound = true
 +++
