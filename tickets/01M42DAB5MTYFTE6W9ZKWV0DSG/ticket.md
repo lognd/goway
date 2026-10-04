@@ -2,7 +2,8 @@
 id = "01M42DAB5MTYFTE6W9ZKWV0DSG"
 title = "doctor output is quiet and grouped: problems first across hosts, one line each, explanations on request, fixes listed once, hardening opt-in"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
