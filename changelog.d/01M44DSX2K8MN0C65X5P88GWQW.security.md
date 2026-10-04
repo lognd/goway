@@ -1,0 +1,1 @@
+The --rsudo administrator routes no longer start goway-setup by name: they run only a copy under Program Files or the administrator-only ProgramData directory after checking its owner and permissions, and otherwise print the command to run by hand.
