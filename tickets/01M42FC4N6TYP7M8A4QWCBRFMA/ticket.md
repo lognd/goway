@@ -2,7 +2,8 @@
 id = "01M42FC4N6TYP7M8A4QWCBRFMA"
 title = "--needs terms are shell-safe: accept cores:8 and mem:2G forms, and hint when a bare key suggests an unquoted >= redirect"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
