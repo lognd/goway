@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T00:33:50Z"
+digest = "9b780054b77b6cf201ad401c98c857d5a71832bda8d626bcf36840a86963e5d5"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID eb1e4a93-d970-464a-b1c8-9493ada2a682 with nextest profile: default
+    Starting 2 tests across 43 binaries (516 tests skipped)
+        PASS [   0.019s] goway interop::tests::paths_outside_goways_root_are_refused
+        PASS [   0.026s] goway interop::tests::windows_paths_convert_with_wslpath_when_it_exists
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.030s] 2 tests run: 2 passed, 516 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(paths_outside_goways_root_are_refused) | test(windows_paths_convert_with_wslpath_when_it_exists)'"
+size = 652
+status = "measured"
+tests = ["interop::tests::paths_outside_goways_root_are_refused", "interop::tests::windows_paths_convert_with_wslpath_when_it_exists"]
+at = "2026-10-04T00:33:50Z"
+actor = "lognd"
+rev = 1
