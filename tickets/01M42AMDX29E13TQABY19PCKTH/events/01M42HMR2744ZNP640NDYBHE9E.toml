@@ -1,0 +1,32 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T04:09:37Z"
+digest = "db34323054bd0056901b4b4c0bb88ca3ee4638d192de6fb394c9730a281db374"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 29.43s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 039ed15d-5dc8-4cc7-9253-8ac07a1a3de3 with nextest profile: default
+    Starting 7 tests across 54 binaries (630 tests skipped)
+        PASS [   0.013s] goway winadmin::tests::a_step_that_ran_and_failed_is_not_retried_on_another_route
+        PASS [   0.019s] goway winadmin::tests::with_no_route_it_stops_with_what_was_tried_and_never_prompts_an_empty_desktop
+        PASS [   0.034s] goway winadmin::tests::without_an_admin_account_a_logged_in_desktop_gets_the_uac_prompt
+        PASS [   0.040s] goway winadmin::tests::an_administrator_session_checks_wsl_is_running_and_never_starts_it
+        PASS [   0.071s] goway winadmin::tests::an_administrator_ssh_account_is_used_first_and_unattended
+        PASS [   0.088s] goway::win_elevate without_an_admin_route_it_prints_the_exact_command_and_what_was_tried
+        PASS [   0.299s] goway::win_elevate rsudo_authorizes_the_key_through_the_windows_ssh_admin_account_without_a_password
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.320s] 7 tests run: 7 passed, 630 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(win_elevate) | test(/winadmin::tests::(an_admin|without_an|with_no|a_step|an_adm)/)'"
+size = 1462
+status = "measured"
+tests = ["winadmin::tests::a_step_that_ran_and_failed_is_not_retried_on_another_route", "winadmin::tests::with_no_route_it_stops_with_what_was_tried_and_never_prompts_an_empty_desktop", "winadmin::tests::without_an_admin_account_a_logged_in_desktop_gets_the_uac_prompt", "winadmin::tests::an_administrator_session_checks_wsl_is_running_and_never_starts_it", "winadmin::tests::an_administrator_ssh_account_is_used_first_and_unattended", "without_an_admin_route_it_prints_the_exact_command_and_what_was_tried", "rsudo_authorizes_the_key_through_the_windows_ssh_admin_account_without_a_password"]
+at = "2026-10-04T04:09:37Z"
+actor = "lognd"
+rev = 1
