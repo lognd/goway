@@ -271,6 +271,9 @@ pub struct HostConfig {
     /// `defaults.gpu_jobs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gpu_jobs: Option<u32>,
+    /// Free RAM one job needs on this host (default: `defaults.job_mem`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job_mem: Option<String>,
     /// The host's operating system (default: linux, which includes WSL).
     #[serde(default, skip_serializing_if = "Os::is_default")]
     pub os: Os,
@@ -525,6 +528,14 @@ impl Config {
     /// The effective job priority on `host`.
     pub fn priority_of(&self, host: &HostConfig) -> Priority {
         host.priority.unwrap_or(self.defaults.priority)
+    }
+
+    /// The per-job memory reserve of `host` in bytes (0: no memory test).
+    pub fn job_mem_of(&self, host: &HostConfig) -> u64 {
+        host.job_mem.as_deref().map_or_else(
+            || self.defaults.job_mem_bytes(),
+            |t| crate::needs::parse_size(t).unwrap_or(0),
+        )
     }
 
     /// The effective load ceiling of `host`.

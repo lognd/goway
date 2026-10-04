@@ -581,7 +581,7 @@ first-come-first-served queue, kept as small lock files in goway's state
 directory (`queue/`), and run as soon as a host qualifies. A host qualifies
 when it is under its job limit and its available memory, less what runs
 that are still starting will take, is at least one job's reserve
-(`[defaults] job_mem`, default `1.5G`; `0` turns the memory test off). A run
+(`[defaults] job_mem`, default `1.5G`, or `job_mem` on one host; `0` turns the memory test off). A run
 that has chosen a host holds a claim on it until its job shows in the
 host's probe (about ten seconds after it starts), so a wave never puts more
 jobs on a helper than its slots and memory allow, and runs that arrive

@@ -229,7 +229,7 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
                 tracing::info!(host = %p.host.name, jobs = probe.jobs, limit, "host at its job limit; skipped");
                 return None;
             }
-            let reserve = config.defaults.job_mem_bytes();
+            let reserve = config.job_mem_of(p.host);
             if reserve > 0 && probe.facts.mem_avail.is_some_and(|a| a < reserve) {
                 tracing::info!(host = %p.host.name, avail = ?probe.facts.mem_avail, reserve, "host has less free memory than one job reserves; skipped");
                 return None;
@@ -693,8 +693,8 @@ const LOCAL_POLL: Duration = Duration::from_millis(250);
 
 /// Count the claims not yet visible in a probe as jobs and as memory spoken for.
 fn apply_pending(config: &Config, pending: &BTreeMap<String, u32>, results: &mut [Probed<'_>]) {
-    let reserve = config.defaults.job_mem_bytes();
     for p in results {
+        let reserve = config.job_mem_of(p.host);
         let Some(n) = pending.get(&p.host.name.to_ascii_lowercase()).copied() else {
             continue;
         };
@@ -728,7 +728,6 @@ fn busy_lines(
     results: &[Probed<'_>],
     snap: &Snapshot,
 ) -> Vec<String> {
-    let reserve = config.defaults.job_mem_bytes();
     let eligible = eligible_hosts(selection, results);
     results
         .iter()
@@ -737,6 +736,7 @@ fn busy_lines(
             let (_, probe) = p.result.as_ref().ok()?;
             let limit = p.host.job_limit(probe.cores);
             let name = &p.host.name;
+            let reserve = config.job_mem_of(p.host);
             Some(if probe.jobs >= limit {
                 format!("{name}: {} of {limit} job slots in use", probe.jobs)
             } else if reserve > 0 && probe.facts.mem_avail.is_some_and(|a| a < reserve) {
@@ -1215,6 +1215,53 @@ mod tests {
         ];
         assert_eq!(pick(&Config::default(), &probed), Some(1));
         assert_eq!(pick(&Config::default(), &probed[..1]), Some(0));
+    }
+
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn a_host_with_less_free_memory_than_one_jobs_reserve_gets_no_further_job() {
+        let gib = 1024u64 * 1024 * 1024;
+        let mut tight = probe(16, 0.0, 6);
+        tight.facts.mem_avail = Some(gib * 7 / 10);
+        let mut roomy = probe(16, 4.0, 0);
+        roomy.facts.mem_avail = Some(8 * gib);
+        let hosts = [host("tight", Some(16)), host("roomy", None)];
+        let probed = vec![
+            Probed {
+                host: &hosts[0],
+                result: Ok((found("tight"), tight)),
+            },
+            Probed {
+                host: &hosts[1],
+                result: Ok((found("roomy"), roomy)),
+            },
+        ];
+        let config = Config::default();
+        assert_eq!(config.defaults.job_mem_bytes(), gib * 3 / 2);
+        assert_eq!(
+            ranked(&config, &probed),
+            [1],
+            "0.7 GiB free is below the 1.5 GiB reserve"
+        );
+        // The reserve is configurable, per host too (0 turns it off).
+        let mut off = Config::default();
+        off.defaults.job_mem = "0".to_owned();
+        assert_eq!(ranked(&off, &probed).len(), 2);
+        let mut small = hosts.clone();
+        small[0].job_mem = Some("512M".to_owned());
+        let probed: Vec<Probed<'_>> = probed
+            .into_iter()
+            .zip(small.iter())
+            .map(|(p, h)| Probed {
+                host: h,
+                result: p.result,
+            })
+            .collect();
+        assert_eq!(
+            ranked(&config, &probed).len(),
+            2,
+            "512M reserve fits in 0.7 GiB"
+        );
     }
 
     #[test]
