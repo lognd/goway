@@ -1574,7 +1574,7 @@ fn evict_lines(out: &str) -> Vec<&str> {
 }
 
 // frob:ticket 01M4262XD6M7F91AA2VMVTNZHA
-// frob:tests crates/goway/src/remote.ps1
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
 #[test]
 fn eviction_removes_the_least_recently_used_slot_first_and_reports_it() {
     let Some(h) = Host::new() else { return };
@@ -1592,7 +1592,7 @@ fn eviction_removes_the_least_recently_used_slot_first_and_reports_it() {
 }
 
 // frob:ticket 01M4262XD6M7F91AA2VMVTNZHA
-// frob:tests crates/goway/src/remote.ps1
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
 #[test]
 fn a_dry_run_lists_what_eviction_would_remove_and_removes_nothing() {
     let Some(h) = Host::new() else { return };
@@ -1605,7 +1605,7 @@ fn a_dry_run_lists_what_eviction_would_remove_and_removes_nothing() {
 }
 
 // frob:ticket 01M4262XD6M7F91AA2VMVTNZHA
-// frob:tests crates/goway/src/remote.ps1
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
 #[test]
 fn the_automatic_gc_leaves_a_summary_and_probe_reports_the_budget() {
     let Some(h) = Host::new() else { return };
