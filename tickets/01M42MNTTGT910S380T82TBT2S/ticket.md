@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T05:02:38Z"
-updated = "2026-10-04T05:30:26Z"
+updated = "2026-10-04T05:30:27Z"
 scope = ["crates/goway/src/ssh.rs", "crates/goway/src/paths.rs", "crates/goway/tests/ssh_mux.rs", "docs/troubleshooting.md", "crates/goway/src/ssh/mux.rs"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a stale control socket (its master is gone), when goway starts, then it removes and replaces it instead of disabling multiplexing for the rest of the run"
-bound = false
+bound = true
 +++
