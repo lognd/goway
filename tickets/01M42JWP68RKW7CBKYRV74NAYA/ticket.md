@@ -2,13 +2,13 @@
 id = "01M42JWP68RKW7CBKYRV74NAYA"
 title = "Raise the in-progress cap to 6: five lanes plus the coordinator"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T04:31:25Z"
-updated = "2026-10-04T04:31:25Z"
+updated = "2026-10-04T04:44:34Z"
 scope = ["frob.toml"]
 
 [[acceptance]]
