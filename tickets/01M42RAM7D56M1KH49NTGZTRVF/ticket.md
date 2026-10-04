@@ -2,7 +2,8 @@
 id = "01M42RAM7D56M1KH49NTGZTRVF"
 title = "goway measures each helper clock offset in the probe, status shows offsets over 2 seconds, doctor warns with the fix"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
