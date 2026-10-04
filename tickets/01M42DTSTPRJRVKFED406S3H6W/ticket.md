@@ -2,13 +2,13 @@
 id = "01M42DTSTPRJRVKFED406S3H6W"
 title = "doctor --fix: per-fix results, one apt-get update per session, and a pinned user-level mold where no package exists"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:03:01Z"
-updated = "2026-10-04T03:03:04Z"
+updated = "2026-10-04T03:03:05Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/doctor/projneeds.rs"]
 
 [[acceptance]]
