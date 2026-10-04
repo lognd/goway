@@ -2,7 +2,8 @@
 id = "01M427TCSW8B9ZMT2HG4XE3D47"
 title = 'Windows run: put Git for Windows usr\bin on PATH when sh is missing, like CI images'
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
