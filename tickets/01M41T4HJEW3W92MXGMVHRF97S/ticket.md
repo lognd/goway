@@ -8,7 +8,7 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T21:18:48Z"
-updated = "2026-10-04T00:22:59Z"
+updated = "2026-10-04T00:30:55Z"
 scope = ["crates/goway-setup/src/native.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/src/helper.rs", "crates/goway-journal/src/change.rs", "scripts/windows/roundtrip-host.sh", "docs/install-windows.md", "crates/goway-setup/tests/native.rs", "crates/goway-setup/src/lib.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/src/sysapi.rs", "crates/goway-setup/src/render.rs", "crates/goway-setup/src/app.rs", "crates/goway-setup/tests/elevated.rs", "crates/goway-setup/tests/relay.rs", "crates/goway-setup/tests/host_plan.rs", "crates/goway-setup/src/error.rs"]
 
 [[links]]
@@ -17,7 +17,7 @@ target = "01M41Q6CX4RRFZT58EE995C0C6"
 
 [[acceptance]]
 text = "Given a Windows laptop, when goway-setup install --host --native runs, then it enables the OpenSSH Server capability (recorded so uninstall removes it only if it was absent), starts sshd on boot, opens the port to local networks only, sets PowerShell as the default shell, and prints the goway add line with the host key fingerprint"
-bound = false
+bound = true
 
 [[acceptance]]
 text = '''Given the installing account is an administrator, when the key is installed, then it goes to ProgramData\ssh\administrators_authorized_keys with the required ACL (SYSTEM and Administrators only); otherwise to the user's authorized_keys with a user-only ACL; both journaled'''
