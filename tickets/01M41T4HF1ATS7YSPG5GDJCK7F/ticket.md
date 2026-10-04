@@ -8,8 +8,8 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:18:48Z"
-updated = "2026-10-04T02:24:54Z"
-scope = ["crates/goway/src/doctor.rs", "crates/goway/src/facts.rs", "crates/goway-setup/src/tune.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/src/host.rs", "docs/install-windows.md", "crates/goway-setup/tests/tune.rs", "crates/goway-setup/src/lib.rs", "crates/goway/src/remote.sh", "crates/goway-setup/src/render.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/error.rs", "docs/troubleshooting.md"]
+updated = "2026-10-04T02:25:13Z"
+scope = ["crates/goway/src/doctor.rs", "crates/goway/src/facts.rs", "crates/goway-setup/src/tune.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/src/host.rs", "docs/install-windows.md", "crates/goway-setup/tests/tune.rs", "crates/goway-setup/src/lib.rs", "crates/goway/src/remote.sh", "crates/goway-setup/src/render.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/error.rs", "docs/troubleshooting.md", "crates/goway-setup/src/layout.rs", "crates/goway-setup/tests/hostsys.rs"]
 
 [[links]]
 kind = "blocked-by"
