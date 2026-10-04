@@ -721,17 +721,29 @@ pub const PROBING_WAITERS: usize = 3;
 /// How often a waiter looks at the local queue (no ssh involved).
 const LOCAL_POLL: Duration = Duration::from_millis(250);
 
-/// Count the claims not yet visible in a probe as jobs and as memory spoken for.
-fn apply_pending(config: &Config, pending: &BTreeMap<String, u32>, results: &mut [Probed<'_>]) {
+/// Count the claims not yet visible in a probe as jobs, memory and disk spoken for.
+fn apply_pending(config: &Config, snap: &Snapshot, results: &mut [Probed<'_>]) {
     for p in results {
         let reserve = config.job_mem_of(p.host);
-        let Some(n) = pending.get(&p.host.name.to_ascii_lowercase()).copied() else {
+        let key = p.host.name.to_ascii_lowercase();
+        let Some(n) = snap.pending.get(&key).copied() else {
             continue;
         };
         if let Ok((_, probe)) = &mut p.result {
             probe.jobs += n;
             if let Some(avail) = probe.facts.mem_avail.as_mut() {
                 *avail = avail.saturating_sub(u64::from(n) * reserve);
+            }
+            // Disk the same way: each pending run of a repository will grow by its footprint.
+            let claimed: u64 = snap
+                .pending_repos
+                .get(&key)
+                .into_iter()
+                .flatten()
+                .filter_map(|id| probe.footprints.get(id))
+                .sum();
+            if let Some(free) = probe.disk_free.as_mut() {
+                *free = free.saturating_sub(claimed);
             }
         }
     }
@@ -838,7 +850,7 @@ fn decide_round(
 ) -> Result<Decision> {
     wait.queue.decide(|| {
         let snap = wait.queue.snapshot(ticket);
-        apply_pending(config, &snap.pending, results);
+        apply_pending(config, &snap, results);
         let eligible = eligible_hosts(selection, results);
         if eligible.is_empty() {
             return Ok(Decision::Hopeless);
@@ -859,7 +871,9 @@ fn decide_round(
                         results[i].host.name
                     ));
                 }
-                let claim = wait.queue.claim(&results[i].host.name)?;
+                let claim = wait
+                    .queue
+                    .claim(&results[i].host.name, selection.repo_id.as_deref())?;
                 tracing::info!(host = %results[i].host.name, position = snap.position(), "picked");
                 Ok(Decision::Taken(i, claim))
             }
@@ -892,7 +906,7 @@ pub fn choose_queued(
 ) -> Result<(HostConfig, Found, Probe, Option<Claim>)> {
     if wanted.is_some() {
         let (host, found, probe) = choose(config, selection, state, jobs, lookup, prober, wanted)?;
-        let claim = wait.queue.claim(&host.name)?;
+        let claim = wait.queue.claim(&host.name, selection.repo_id.as_deref())?;
         return Ok((host, found, probe, Some(claim)));
     }
     if config.hosts.is_empty() && !config.local_fallback() && !config.local_in_pool() {
@@ -1282,6 +1296,41 @@ mod tests {
         ];
         assert_eq!(pick(&Config::default(), &probed), Some(1));
         assert_eq!(pick(&Config::default(), &probed[..1]), Some(0));
+    }
+
+    // frob:ticket 01M43CFMDFG8YSM3HNRD0GB213
+    // frob:tests crates/goway/src/pool.rs::apply_pending
+    #[test]
+    fn a_pending_claim_of_the_repository_takes_its_footprint_from_free_disk() {
+        let gib = 1024u64 * 1024 * 1024;
+        let mut roomy = probe(16, 0.0, 0);
+        roomy.disk_free = Some(30 * gib);
+        roomy.disk_used = Some(0);
+        roomy.footprints.insert("repo1".to_owned(), 20 * gib);
+        let hosts = [host("helios", None)];
+        let mut probed = vec![Probed {
+            host: &hosts[0],
+            result: Ok((found("helios"), roomy)),
+        }];
+        let sel = Selection {
+            repo_id: Some("repo1".to_owned()),
+            ..Selection::default()
+        };
+        let config = Config::default();
+        assert_eq!(ranked_for(&config, &sel, &probed), [0], "room for one copy");
+        let mut snap = Snapshot::default();
+        snap.pending.insert("helios".to_owned(), 1);
+        snap.pending_repos
+            .insert("helios".to_owned(), vec!["repo1".to_owned()]);
+        apply_pending(&config, &snap, &mut probed);
+        assert!(
+            ranked_for(&config, &sel, &probed).is_empty(),
+            "the first run's pending claim leaves no room for a second copy"
+        );
+        assert_eq!(
+            probed[0].result.as_ref().unwrap().1.disk_free,
+            Some(10 * gib)
+        );
     }
 
     // frob:tests crates/goway/src/pool.rs::ranked_for

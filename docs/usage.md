@@ -582,7 +582,10 @@ directory (`queue/`), and run as soon as a host qualifies. A host qualifies
 when it is under its job limit and its available memory, less what runs
 that are still starting will take, is at least one job's reserve
 (`[defaults] job_mem`, default `1.5G`, or `job_mem` on one host; `0` turns the memory test off). A run
-that has chosen a host holds a claim on it until its job shows in the
+that has chosen a host holds a claim on it, naming its repository so the
+repository's recorded disk footprint is also set aside from the helper's
+free disk (two runs of one repository started together do not both pick a
+helper with room for one), until its job shows in the
 host's probe (about ten seconds after it starts), so a wave never puts more
 jobs on a helper than its slots and memory allow, and runs that arrive
 earlier are served first: a later run is held back only from hosts an
