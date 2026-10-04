@@ -1,0 +1,1 @@
+Windows hosts now have their remote side, remote.ps1: the same verbs, persistent slot trees, copy integrity, GPU slots, shard detection and gc as Linux, installed once per version and tested under pwsh and Windows PowerShell.
