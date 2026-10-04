@@ -92,7 +92,7 @@ fn run_files(mut cmd: Command, stdin: &Path, stdout: Option<&Path>, what: &str) 
     }
     let out = cmd
         .spawn_locked()
-        .and_then(|child| child.wait_with_output())
+        .and_then(std::process::Child::wait_with_output)
         .map_err(|e| git_failed(what, e))?;
     if out.status.success() {
         Ok(())

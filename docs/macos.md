@@ -36,7 +36,12 @@ Things a Mac helper needed that Linux did not:
   by another thread in between inherited the pipe, and a call's answer then
   waited for an unrelated job to exit (the copy-verification verdict and
   nested runs stalled for minutes). All such spawns now go through one lock
-  (`spawn.rs`).
+  (`spawn.rs`). That has to be every spawn, not just the ones that capture
+  output: an unlocked fork (the run's lifeline call was one) can carry
+  another thread's half-made pipe into a child that lives as long as the
+  run, and the reader of that pipe then waits for the run, which may be
+  waiting for the reader. A unit test fails if production code spawns
+  without the lock.
 - bash 3.2 mishandles `IFS=$'\001'` in `read`, which broke the detection of
   dependency directories to keep in a slot; the script splits on `\037`.
 - test binaries are Mach-O, not ELF: framework detection accepts both.
