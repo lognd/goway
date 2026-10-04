@@ -8,12 +8,12 @@ points = 8
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T00:47:38Z"
-updated = "2026-10-04T11:28:55Z"
+updated = "2026-10-04T11:29:35Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/tests/remote_ps1.rs"]
 
 [[acceptance]]
 text = "Given the run ttls argument cache:orphan:kept:max_disk:min_free:cache_size and the probe word budget:MAX:MIN_FREE, when remote.ps1 runs them, then it evicts least recently used entries to the budget like remote.sh and probe reports disk_max and disk_min_free"
-bound = false
+bound = true
 +++
 
 Coordinator note: remote.sh changed (~0ZXHQZJ, ~7JEJJBC, ~WXVMJKT, ~VAJPQC3). remote.ps1 today tolerates the extra ttls fields and the budget word (ignores them); no eviction yet. Found while working ~YGM627C.

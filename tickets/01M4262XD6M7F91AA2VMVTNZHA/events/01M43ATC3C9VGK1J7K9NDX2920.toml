@@ -1,0 +1,51 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T11:29:35Z"
+digest = "2c1efd780d5cf96765a1880c518a5c5edb00fbe708d5c5bbab56e7f27a2eefe1"
+exit_code = 0
+inline = '''
+   Compiling regex-syntax v0.8.11
+   Compiling fastrand v2.5.0
+   Compiling getrandom v0.3.4
+   Compiling wait-timeout v0.2.1
+   Compiling zerocopy v0.8.59
+   Compiling getrandom v0.4.3
+   Compiling bit-vec v0.8.0
+   Compiling fnv v1.0.7
+   Compiling quick-error v1.2.3
+   Compiling num-traits v0.2.19
+   Compiling unarray v0.1.4
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling rand_core v0.9.5
+   Compiling tempfile v3.27.0
+   Compiling bit-set v0.8.0
+   Compiling rand v0.9.5
+   Compiling rand_xorshift v0.4.0
+   Compiling rusty-fork v0.3.1
+   Compiling regex-automata v0.4.18
+   Compiling matchers v0.2.0
+   Compiling tracing-subscriber v0.3.23
+   Compiling ppv-lite86 v0.2.21
+   Compiling rand_chacha v0.9.0
+   Compiling proptest v1.11.0
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 23b9a063-bf61-4464-a631-3107f63eef7c with nextest profile: default
+    Starting 3 tests across 1 binary (28 tests and 56 binaries skipped)
+        PASS [   0.050s] goway::remote_ps1 a_dry_run_lists_what_eviction_would_remove_and_removes_nothing
+        PASS [   0.050s] goway::remote_ps1 eviction_removes_the_least_recently_used_slot_first_and_reports_it
+        PASS [   0.054s] goway::remote_ps1 the_automatic_gc_leaves_a_summary_and_probe_reports_the_budget
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.054s] 3 tests run: 3 passed, 28 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/eviction_removes_the_least_recently_used_slot_first_and_reports_it|a_dry_run_lists_what_eviction_would_remove|the_automatic_gc_leaves_a_summary_and_probe_reports_the_budget/) & binary(remote_ps1)'"
+size = 1695
+status = "measured"
+tests = ["a_dry_run_lists_what_eviction_would_remove_and_removes_nothing", "eviction_removes_the_least_recently_used_slot_first_and_reports_it", "the_automatic_gc_leaves_a_summary_and_probe_reports_the_budget"]
+at = "2026-10-04T11:29:35Z"
+actor = "lognd"
+rev = 1
