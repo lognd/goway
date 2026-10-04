@@ -7,8 +7,8 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T06:42:54Z"
-updated = "2026-10-04T11:17:35Z"
-scope = ["crates/goway/src/remote.sh"]
+updated = "2026-10-04T11:17:48Z"
+scope = ["crates/goway/src/remote.sh", "crates/goway/tests/probe_epoch.rs"]
 
 [[acceptance]]
 text = "Given the probe verb, when it runs on a Linux or macOS host, then it prints epoch=SECONDS since the Unix epoch"
