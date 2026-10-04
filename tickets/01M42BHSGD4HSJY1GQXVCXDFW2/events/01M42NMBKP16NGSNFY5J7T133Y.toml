@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T05:19:18Z"
+digest = "49f918db5e4f809d23f5603e25e4daf273485e7e049e6efdddc3b0d195cfbbf4"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d45d7c18-ace7-4961-bb50-ac13c985d71f with nextest profile: default
+    Starting 1 test across 57 binaries (670 tests skipped)
+        PASS [   1.786s] goway::host_add a_refusal_right_after_failed_logins_is_reported_as_a_probable_ban
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.788s] 1 test run: 1 passed, 670 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "refusal_right_after_failed_logins"
+size = 575
+status = "measured"
+tests = ["a_refusal_right_after_failed_logins_is_reported_as_a_probable_ban"]
+at = "2026-10-04T05:19:18Z"
+actor = "lognd"
+rev = 1

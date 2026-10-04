@@ -113,12 +113,21 @@ fn doctor_is_quiet_by_default_and_explains_one_check_on_request() {
     .unwrap();
     let (_, quiet, _) = doctor_with(&w, &["doctor"]);
     assert!(quiet.contains("goway-no-such-tool"), "{quiet}");
-    assert!(
-        !has_row(&quiet, "bash"),
-        "passing rows stay hidden\n{quiet}"
-    );
     let (_, all, _) = doctor_with(&w, &["doctor", "--all"]);
-    assert!(has_row(&all, "bash"), "{all}");
+    // Which checks pass depends on the host (macOS fails some that Linux
+    // passes), so: every row --all shows as ok is absent from the quiet output.
+    let ok_checks: Vec<&str> = all
+        .lines()
+        .filter(|l| l.split_whitespace().next() == Some("ok"))
+        .filter_map(|l| l.split_whitespace().nth(1))
+        .collect();
+    assert!(!ok_checks.is_empty(), "no passing row with --all\n{all}");
+    for check in ok_checks {
+        assert!(
+            !has_row(&quiet, check),
+            "{check} passes, so it stays hidden\n{quiet}"
+        );
+    }
     let (out, explained, _) = doctor_with(&w, &["doctor", "--explain", "goway-no-such-tool"]);
     assert!(
         explained.contains("FAIL goway-no-such-tool: missing"),

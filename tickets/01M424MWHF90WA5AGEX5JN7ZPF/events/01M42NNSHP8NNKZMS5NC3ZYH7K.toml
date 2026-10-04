@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T05:20:05Z"
+digest = "fcafd9a3bdbd13ba109019229bb088cd8a523e6096df886d2185024aafac7661"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 45fa7b98-30a4-477b-bbc5-2b9a52d670db with nextest profile: default
+    Starting 1 test across 58 binaries (687 tests skipped)
+        PASS [   0.005s] goway doctor::cmakecheck::tests::fetched_dependencies_need_no_package_and_a_failed_configure_without_a_name_still_fails
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.007s] 1 test run: 1 passed, 687 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "fetched_dependencies_need_no_package"
+size = 613
+status = "measured"
+tests = ["doctor::cmakecheck::tests::fetched_dependencies_need_no_package_and_a_failed_configure_without_a_name_still_fails"]
+at = "2026-10-04T05:20:05Z"
+actor = "lognd"
+rev = 1

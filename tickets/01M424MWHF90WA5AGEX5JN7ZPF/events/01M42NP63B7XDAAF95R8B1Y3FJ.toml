@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T05:20:18Z"
+digest = "8f676716bb17ebbbf182ad19e04e47a657d808e711ee406dc6a7ea78ad8b74e4"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 696da8b4-44f0-4c96-ab39-596aae6f76c4 with nextest profile: default
+    Starting 1 test across 58 binaries (687 tests skipped)
+        PASS [   1.353s] goway::cmake_api a_scratch_dir_a_killed_configure_left_behind_is_an_ordinary_labelled_work_dir_gc_removes
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.355s] 1 test run: 1 passed, 687 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_scratch_dir_a_killed_configure"
+size = 599
+status = "measured"
+tests = ["a_scratch_dir_a_killed_configure_left_behind_is_an_ordinary_labelled_work_dir_gc_removes"]
+at = "2026-10-04T05:20:18Z"
+actor = "lognd"
+rev = 1

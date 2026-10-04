@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T05:20:12Z"
+digest = "47cfbdbec6d80c5ee225664b1b979ddc0e63d3ddb0a3e353a0a0edca53b845b3"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID dc8fbdfb-831d-4449-8f3a-e468b40649ad with nextest profile: default
+    Starting 1 test across 58 binaries (687 tests skipped)
+        PASS [   4.067s] goway::cmake_api a_find_package_of_a_library_the_host_lacks_fails_naming_the_package_and_its_install_command
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   4.072s] 1 test run: 1 passed, 687 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_find_package_of_a_library_the_host_lacks"
+size = 602
+status = "measured"
+tests = ["a_find_package_of_a_library_the_host_lacks_fails_naming_the_package_and_its_install_command"]
+at = "2026-10-04T05:20:12Z"
+actor = "lognd"
+rev = 1
