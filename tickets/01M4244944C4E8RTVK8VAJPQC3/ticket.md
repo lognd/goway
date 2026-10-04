@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given docs/design.md, when read, then it states that goway stores only epoch seconds (timezones never matter), which clock each comparison uses (laptop or helper), and why no comparison mixes the two"
-bound = false
+bound = true
 +++

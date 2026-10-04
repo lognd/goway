@@ -1,0 +1,11 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T06:10:48Z"
+digest = "132caf9737fcef4392fcdb8f930f5317b9d9e5b308e7b1719a096a14c3671804"
+provider = "file"
+ref = "docs/design.md"
+size = 24250
+status = "measured"
+at = "2026-10-04T06:10:48Z"
+actor = "lognd"
+rev = 1
