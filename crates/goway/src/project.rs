@@ -297,7 +297,7 @@ mod tests {
         s.split_whitespace().map(str::to_owned).collect()
     }
 
-    // frob:ticket YKNEA39
+    // frob:ticket 01M42EZ3TAWHTCJ4MWVYKNEA39
     // frob:tests crates/goway/src/project.rs::selection_for
     #[test]
     fn a_run_defaults_to_the_laptops_os_unless_a_need_names_one() {

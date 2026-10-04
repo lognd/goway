@@ -267,7 +267,7 @@ mod tests {
         assert!(line.contains("2h ago"), "{line}");
     }
 
-    // frob:ticket YKNEA39
+    // frob:ticket 01M42EZ3TAWHTCJ4MWVYKNEA39
     // frob:tests crates/goway/src/status.rs::pool_cell
     #[test]
     fn status_marks_hosts_the_default_pool_uses() {

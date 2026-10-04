@@ -1115,7 +1115,7 @@ mod tests {
         .map(|(h, ..)| h.name)
     }
 
-    // frob:ticket YKNEA39
+    // frob:ticket 01M42EZ3TAWHTCJ4MWVYKNEA39
     // frob:tests crates/goway/src/pool.rs::ranked_for
     // frob:tests crates/goway/src/pool.rs::choose
     #[test]
@@ -1133,7 +1133,7 @@ mod tests {
         );
     }
 
-    // frob:ticket YKNEA39
+    // frob:ticket 01M42EZ3TAWHTCJ4MWVYKNEA39
     // frob:tests crates/goway/src/pool.rs::choose
     #[test]
     fn asking_for_another_os_or_pinning_a_host_reaches_it() {
@@ -1144,7 +1144,7 @@ mod tests {
         assert_eq!(pool_choice(&linux, Some("idle")).unwrap(), "idle");
     }
 
-    // frob:ticket YKNEA39
+    // frob:ticket 01M42EZ3TAWHTCJ4MWVYKNEA39
     // frob:tests crates/goway/src/pool.rs::choose_many
     #[test]
     fn shards_never_mix_operating_systems() {
