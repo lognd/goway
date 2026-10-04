@@ -2,13 +2,13 @@
 id = "01M424PG855QPSY3PAKA4G5EWH"
 title = "WSL started from an elevated process gives every WSL user Windows admin through interop; goway must never start WSL elevated and must detect it"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T00:23:23Z"
-updated = "2026-10-04T00:27:47Z"
+updated = "2026-10-04T01:59:53Z"
 scope = ["crates/goway-setup/src/relay.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/tests/relay.rs", "crates/goway-setup/tests/hostsys.rs", "crates/goway/src/doctor.rs", "crates/goway/src/facts.rs", "crates/goway/src/remote.sh", "crates/goway/tests/host_facts.rs", "docs/install-windows.md", "SECURITY.md", "crates/goway-setup/src/cli.rs"]
 
 [[acceptance]]
