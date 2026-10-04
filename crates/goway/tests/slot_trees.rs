@@ -12,8 +12,9 @@ use common::{World, world};
 fn ok(out: &std::process::Output) -> String {
     assert!(
         out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
+        "{}\n--- stdout ---\n{}",
+        String::from_utf8_lossy(&out.stderr),
+        String::from_utf8_lossy(&out.stdout)
     );
     String::from_utf8_lossy(&out.stdout).into_owned()
 }

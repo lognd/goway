@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T11:56:04Z"
+digest = "bfce6dc7430f9dbb6d57f05275171b6bb19c3a7e09b75bb17777acd6042f7d56"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3m 04s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID a17fc33f-4052-443f-936d-cf3d4bba4bbb with nextest profile: default
+    Starting 2 tests across 67 binaries (777 tests skipped)
+        PASS [   0.043s] goway error::tests::hidden_helpers_and_duplicate_names_get_their_own_hint
+        PASS [   0.046s] goway resolve::tests::two_machines_answering_for_one_name_never_pick_an_unconfirmed_key
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.051s] 2 tests run: 2 passed, 777 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(hidden_helpers_and_duplicate_names_get_their_own_hint) | test(two_machines_answering_for_one_name_never_pick_an_unconfirmed_key)'"
+size = 867
+status = "measured"
+tests = ["error::tests::hidden_helpers_and_duplicate_names_get_their_own_hint", "resolve::tests::two_machines_answering_for_one_name_never_pick_an_unconfirmed_key"]
+at = "2026-10-04T11:56:04Z"
+actor = "lognd"
+rev = 1

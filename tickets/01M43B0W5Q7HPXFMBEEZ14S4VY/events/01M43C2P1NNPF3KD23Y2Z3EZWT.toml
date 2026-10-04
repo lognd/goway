@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T11:51:36Z"
+digest = "1af5f3c3e8e8bee80f4f1145ac659af35cc39987c0ab397538b370c10d149945"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.39s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 7aad7965-6f0b-4843-8c82-502733ef5d96 with nextest profile: default
+    Starting 1 test across 67 binaries (778 tests skipped)
+        PASS [   5.751s] goway::run_local sccache_server_survives_the_removal_of_the_run_that_started_it
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   5.760s] 1 test run: 1 passed, 778 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(sccache_server_survives_the_removal_of_the_run_that_started_it)'"
+size = 573
+status = "measured"
+tests = ["sccache_server_survives_the_removal_of_the_run_that_started_it"]
+at = "2026-10-04T11:51:36Z"
+actor = "lognd"
+rev = 1

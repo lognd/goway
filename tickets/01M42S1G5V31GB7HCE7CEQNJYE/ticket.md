@@ -2,12 +2,13 @@
 id = "01M42S1G5V31GB7HCE7CEQNJYE"
 title = "slot_trees cargo stale-build regression test fails on a helper"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T06:18:55Z"
-updated = "2026-10-04T11:45:33Z"
+updated = "2026-10-04T11:49:11Z"
 scope = ["crates/goway/tests/slot_trees.rs", "crates/goway/src/remote.sh", "crates/goway/tests/run_local.rs", "docs/config.md", "CHANGELOG.md", "crates/goway/tests/common/mod.rs", "crates/goway/tests/cmake_api.rs"]
 
 [[acceptance]]

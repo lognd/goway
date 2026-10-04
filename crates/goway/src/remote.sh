@@ -1254,11 +1254,22 @@ run() {
     # A unix socket in the owner-only cache dir: no TCP port another user
     # on the host could reach or squat (unless the user chose an endpoint).
     if [ -z "${SCCACHE_SERVER_PORT:-}" ] && [ -z "${SCCACHE_SERVER_UDS:-}" ]; then
-      export SCCACHE_SERVER_UDS="$cache/sccache.sock"
+      export SCCACHE_SERVER_UDS=$(sccache_socket "$cache")
     fi
     # sccache's server is the one process allowed to outlive a run (it
     # keeps the cache warm); make it leave soon after the last build.
     export SCCACHE_IDLE_TIMEOUT="${SCCACHE_IDLE_TIMEOUT:-300}"
+    # The server outlives this run, so it must not be started with the run's
+    # TMPDIR: that directory is removed when the run ends (the server's later
+    # temp files then fail), and a deep one overflows the start-up socket's
+    # unix address ("path must be shorter than SUN_LEN"). Start it from a
+    # stable directory, a short private one when the cache path is long.
+    sc_tmp="$cache/sccache-tmp"
+    if [ "${#sc_tmp}" -ge 80 ]; then sc_tmp=$(short_private_dir) || sc_tmp=; fi
+    if [ -n "$sc_tmp" ]; then
+      mkdir -p "$sc_tmp" 2>/dev/null
+      TMPDIR=$sc_tmp sccache --start-server >/dev/null 2>&1 || true
+    fi
     export RUSTC_WRAPPER=sccache
     cc_launcher=sccache
   elif command -v ccache >/dev/null 2>&1; then
@@ -2045,6 +2056,25 @@ doctor() {
 }
 
 # purge ROOT: remove all of goway's state on this host (goway uninstall).
+# An owner-only directory with a short path, for things that must fit a unix
+# socket address (108 bytes): $XDG_RUNTIME_DIR, else /tmp/goway-<uid>.
+short_private_dir() {
+  local d="${XDG_RUNTIME_DIR:-/tmp/goway-$(id -u)}"
+  mkdir -p -m 700 "$d" 2>/dev/null
+  [ -O "$d" ] || return 1
+  printf '%s\n' "$d"
+}
+
+# The sccache server socket for a cache dir: inside it when the path fits a
+# unix socket address, else in the short private dir (sccache fails every
+# build with "path must be shorter than SUN_LEN" otherwise).
+sccache_socket() {
+  local s="$1/sccache.sock" d
+  if [ "${#s}" -lt 100 ]; then printf '%s\n' "$s"; return 0; fi
+  d=$(short_private_dir) || { printf '%s\n' "$s"; return 0; }
+  printf '%s/sccache-%s.sock\n' "$d" "$(printf '%s' "$1" | cksum | cut -d' ' -f1)"
+}
+
 # Refuses an unmarked root and a root with a run in progress.
 purge() {
   local root l s
@@ -2056,7 +2086,8 @@ purge() {
     # gc and the end of a run hold locks for moments; a real run for longer.
     flock -w 10 "$l" true || die "a goway run is in progress on this host; try again when it ends"
   done
-  for s in "$root"/cache/*/sccache.sock; do
+  for s in "$root"/cache/*; do
+    s=$(sccache_socket "$s")
     [ -S "$s" ] || continue
     SCCACHE_SERVER_UDS="$s" sccache --stop-server >/dev/null 2>&1 || true
   done
