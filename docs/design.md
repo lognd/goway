@@ -217,10 +217,15 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       quiet ssh call (`lifeline ROOT RUN_ID`, Unix helpers only) on which the
       client writes a byte every 5 seconds. End of its stdin (the client's
       end of the pipe closes when it dies) stops the job at once; no byte for
-      30 seconds stops it too; a run still preparing is stopped through its
-      own shell. Stopping is SIGTERM, up to 5 seconds, then SIGKILL, so it is
-      bounded by 35 seconds at the worst. A run that finished (`done` marker)
-      is never touched, so a reused pid cannot be hit.
+      120 seconds stops it too (an overloaded laptop sends its beats late, so
+      silence alone waits the long window; `GOWAY_LIFELINE_TIMEOUT` shortens
+      it for tests); a run still preparing is stopped through its own shell.
+      Stopping is SIGTERM, up to 5 seconds, then SIGKILL. The reason (closed
+      connection or silence) is written into the `lost` marker and printed by
+      the run on its own stream ("stopped by the helper: ..."), and the client
+      warns when its lifeline connection broke while the job ran, so an exit
+      143 is never unexplained. A run that finished (`done` marker) is never
+      touched, so a reused pid cannot be hit.
    6. Provenance for frob: a header line on stderr naming host, arch and
       address, and `--report FILE` writes the same as JSON.
 5. Pool (`pool`)
@@ -402,6 +407,19 @@ What a clock step does:
   the monotonic time at birth, and gc keeps the dir while that process lives
   or for two minutes by the monotonic clock. Once the run takes the dir's
   lock, the lock protects it and the markers are removed.
+- **Liveness decides eviction, never age.** gc and the disk-budget eviction
+  take only entries whose lock they can take, and skip a work dir whose
+  recorded runner or job process is alive even if its lock looks free. The
+  run's own seed, work dir and cache are protected only while it makes room
+  for itself; the gc after the run may take what it left. Disk and memory
+  eviction is therefore safe under a wave of concurrent runs on a host far
+  over its budget (`tests/evict_live.rs`).
+- **The sccache server never runs under a run's TMPDIR.** The run starts
+  (and heals) the shared server under a stable directory. A server that
+  idled out mid-run and was restarted by a job's own sccache client runs
+  under that run's TMPDIR; the next run detects it from the server's
+  environment and restarts it. A host with no stable directory for the
+  server builds without sccache.
 - **The laptop's clock runs ahead.** Synced files have mtimes in the helper's
   future. A slot's copies are written with the helper's current time, never the
   laptop's, so make and ninja see no clock skew and a second run rebuilds

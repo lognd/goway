@@ -208,7 +208,52 @@ pub struct Env<'a> {
 ///
 /// Only if the copy-verification thread panics, which is a bug.
 pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
-    match run_picked(env, renderer, args, false) {
+    let started = Instant::now();
+    let mut host = None;
+    let result = run_repicking(env, renderer, args, &mut host);
+    if let (Err(e), Some(path)) = (&result, &args.report)
+        && args.shard.is_none()
+        && !args.each_os
+    {
+        // Every exit path leaves the report: a run that failed before or while
+        // it ran still says what happened and where.
+        let failure = FailureReport {
+            host,
+            command: args.command.clone(),
+            exit_code: e.exit_code(),
+            duration_secs: started.elapsed().as_secs_f64(),
+            error: e.to_string(),
+        };
+        if let Err(w) = write_report(path, &failure) {
+            tracing::warn!(error = %w, "cannot write the report of a failed run");
+        }
+    }
+    result
+}
+
+/// `--report` of a run that ended in a goway error, before or without an outcome of the command.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct FailureReport {
+    /// The host chosen, when one was.
+    pub host: Option<String>,
+    /// The command as given.
+    pub command: Vec<String>,
+    /// The exit code goway exits with.
+    pub exit_code: u8,
+    /// Wall-clock seconds until the failure.
+    pub duration_secs: f64,
+    /// Why the run failed.
+    pub error: String,
+}
+
+/// [`run`] without the failure report: one attempt, and the second pick after a doubt.
+fn run_repicking(
+    env: &Env<'_>,
+    renderer: Renderer,
+    args: &RunArgs,
+    chosen: &mut Option<String>,
+) -> Result<u8> {
+    match run_picked(env, renderer, args, false, chosen) {
         Err(Error::TranslationDoubt {
             requested,
             os,
@@ -220,7 +265,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
                 "`{requested}` has no certain equivalent on the {os} host ({why}); \
                  running on a host of this machine's OS instead"
             ));
-            run_picked(env, renderer, args, true)
+            run_picked(env, renderer, args, true, chosen)
         }
         other => other,
     }
@@ -241,7 +286,13 @@ fn discard_work(env: &Env<'_>, found: &Found, remote_root: &str, run_id: &str) {
 /// One attempt of `goway run`; `own_os_only` limits the pool to this machine's OS (the
 /// second pick after a translation in doubt).
 #[allow(clippy::too_many_lines)] // one sequence: choose, sync, run, report
-fn run_picked(env: &Env<'_>, renderer: Renderer, args: &RunArgs, own_os_only: bool) -> Result<u8> {
+fn run_picked(
+    env: &Env<'_>,
+    renderer: Renderer,
+    args: &RunArgs,
+    own_os_only: bool,
+    chosen: &mut Option<String>,
+) -> Result<u8> {
     if args.each_os {
         return crate::shard::run_each_os(env, renderer, args);
     }
@@ -312,6 +363,7 @@ fn run_picked(env: &Env<'_>, renderer: Renderer, args: &RunArgs, own_os_only: bo
         args.host.as_deref(),
         &wait,
     )?;
+    *chosen = Some(host.name.clone());
     crate::drift::record_probed(
         &mut state,
         &host.name,
@@ -459,6 +511,7 @@ fn run_picked(env: &Env<'_>, renderer: Renderer, args: &RunArgs, own_os_only: bo
         let (streamed, gate_report) = std::thread::scope(|s| {
             let watcher = s.spawn(|| gate.drive(&done));
             let streamed = stream(
+                renderer,
                 &found,
                 env.settings,
                 &cmd,
@@ -1150,6 +1203,17 @@ impl Beat {
     }
 }
 
+impl Beat {
+    /// Why the lifeline's ssh already ended, or `None` while it is still up.
+    fn broken(&mut self) -> Option<String> {
+        self.child
+            .try_wait()
+            .ok()
+            .flatten()
+            .map(|status| format!("ssh {status}"))
+    }
+}
+
 impl Drop for Beat {
     /// The run is over: stop beating and close the lifeline.
     fn drop(&mut self) {
@@ -1167,6 +1231,7 @@ impl Drop for Beat {
 /// through the control-sequence filter unless `mode` is raw; any other
 /// stream is inherited and so stays byte-exact.
 fn stream(
+    renderer: Renderer,
     found: &Found,
     settings: &ssh::Settings,
     cmd: &Call,
@@ -1175,7 +1240,7 @@ fn stream(
 ) -> Result<(u8, bool)> {
     let interrupted = interrupt_flag();
     // Before the command starts, so a client that dies at once is covered.
-    let _beat = Beat::start(found, settings, life);
+    let mut beat = Beat::start(found, settings, life);
     let mut command = SshTransport::of(found, settings).command(cmd)?;
     if std::io::IsTerminal::is_terminal(&std::io::stderr()) {
         command.env("CARGO_TERM_COLOR", "always");
@@ -1221,6 +1286,13 @@ fn stream(
     })
     .map_err(ssh_err)?;
     let interrupted = interrupted.load(std::sync::atomic::Ordering::SeqCst);
+    if let Some(why) = beat.as_mut().and_then(Beat::broken) {
+        // Only the lifeline broke while the job streamed: the helper may have stopped it.
+        renderer.warn(format_args!(
+            "the lifeline connection to {} broke while the job ran ({why}); the helper stops a job whose client it considers gone, which would explain an unexpected exit 143",
+            found.target.name
+        ));
+    }
     // ssh exits 255 when interrupted; report it like the shell would (128+SIGINT).
     let code = if interrupted && status.code() == Some(255) {
         130
