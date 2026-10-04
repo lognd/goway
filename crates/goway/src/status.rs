@@ -50,13 +50,22 @@ fn disk_cell(used: Option<u64>, max: Option<u64>) -> String {
     }
 }
 
+/// Whether a plain `goway run` considers the host: `yes`, or `no (windows)` for another OS family.
+fn pool_cell(facts: &crate::facts::Facts, pool_os: &str) -> String {
+    match facts.os.as_deref() {
+        Some(os) if !os.eq_ignore_ascii_case(pool_os) => format!("no ({os})"),
+        _ => "yes".to_owned(),
+    }
+}
+
 /// The status table rows (header first); pure so it can be tested.
-pub fn rows(probed: &[Probed<'_>], local_in_pool: bool) -> Vec<Vec<String>> {
+pub fn rows(probed: &[Probed<'_>], local_in_pool: bool, pool_os: &str) -> Vec<Vec<String>> {
     let mut rows = vec![
         [
             "host",
             "address",
             "arch",
+            "default pool",
             "cores",
             "ram avail/total",
             "gpu",
@@ -88,6 +97,7 @@ pub fn rows(probed: &[Probed<'_>], local_in_pool: bool) -> Vec<Vec<String>> {
                     format!("{} ({})", found.target.address, found.source)
                 },
                 probe.arch.clone(),
+                pool_cell(&probe.facts, pool_os),
                 probe.cores.to_string(),
                 crate::facts::ram_summary(&probe.facts),
                 gpu_summary(&probe.facts),
@@ -104,6 +114,7 @@ pub fn rows(probed: &[Probed<'_>], local_in_pool: bool) -> Vec<Vec<String>> {
             Err(_) => rows.push(vec![
                 p.host.name.clone(),
                 "unreachable".to_owned(),
+                "-".to_owned(),
                 "-".to_owned(),
                 "-".to_owned(),
                 "-".to_owned(),
@@ -158,7 +169,11 @@ pub fn status(
     if let Err(e) = state.save(&paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
     }
-    renderer.table(&rows(&results, config.local_in_pool()));
+    renderer.table(&rows(
+        &results,
+        config.local_in_pool(),
+        crate::needs::laptop_os(),
+    ));
     for p in &results {
         match &p.result {
             Err(e) => renderer.warn(format_args!("{}: {e}", p.host.name)),
@@ -243,13 +258,26 @@ mod tests {
                 result: Err(crate::error::Error::Usage("x".to_owned())),
             },
         ];
-        let rows = rows(&probed, false);
+        let rows = rows(&probed, false, "linux");
         assert!(rows.iter().all(|r| r.len() == rows[0].len()));
         let line = rows[1].join(" | ");
         assert!(line.contains("8.0/16.0 GiB"), "{line}");
         assert!(line.contains("RTX 4090 24 GiB cuda 12.5"), "{line}");
         assert!(line.contains("avx2 kvm"), "{line}");
         assert!(line.contains("2h ago"), "{line}");
+    }
+
+    // frob:ticket YKNEA39
+    // frob:tests crates/goway/src/status.rs::pool_cell
+    #[test]
+    fn status_marks_hosts_the_default_pool_uses() {
+        let facts = |os: &str| crate::facts::Facts {
+            os: Some(os.to_owned()),
+            ..crate::facts::Facts::default()
+        };
+        assert_eq!(pool_cell(&facts("linux"), "linux"), "yes");
+        assert_eq!(pool_cell(&facts("windows"), "linux"), "no (windows)");
+        assert_eq!(pool_cell(&crate::facts::Facts::default(), "linux"), "yes");
     }
 
     #[test]

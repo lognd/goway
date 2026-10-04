@@ -260,7 +260,7 @@ pub fn selection_for(
     cli_needs: &[String],
     cli_prefers: &[String],
 ) -> Result<(Selection, Option<Applied>)> {
-    let cli = Selection::parse(cli_needs, cli_prefers)?;
+    let cli = Selection::parse(cli_needs, cli_prefers)?.with_default_os(crate::needs::laptop_os());
     let Some(rules) = Rules::load(root)? else {
         return Ok((cli, None));
     };
@@ -278,7 +278,9 @@ pub fn selection_for(
     let selection = Selection {
         needs: merged(&rule.needs, &cli.needs),
         prefers: merged(&rule.prefers, &cli.prefers),
-    };
+        pool_os: None,
+    }
+    .with_default_os(crate::needs::laptop_os());
     Ok((selection, Some(applied)))
 }
 
@@ -293,6 +295,18 @@ mod tests {
 
     fn words(s: &str) -> Vec<String> {
         s.split_whitespace().map(str::to_owned).collect()
+    }
+
+    // frob:ticket YKNEA39
+    // frob:tests crates/goway/src/project.rs::selection_for
+    #[test]
+    fn a_run_defaults_to_the_laptops_os_unless_a_need_names_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let none: Vec<String> = Vec::new();
+        let (plain, _) = selection_for(dir.path(), &[], &none, &none).unwrap();
+        assert_eq!(plain.pool_os.as_deref(), Some(crate::needs::laptop_os()));
+        let (win, _) = selection_for(dir.path(), &[], &["os=windows".to_owned()], &none).unwrap();
+        assert_eq!(win.pool_os, None);
     }
 
     // frob:tests crates/goway/src/project.rs::glob_matches
