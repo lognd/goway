@@ -2,7 +2,8 @@
 id = "01M43ETRMKFS15MWTTVZHX18YW"
 title = "An unpinned cross-OS run whose translation is in doubt re-picks a host of the laptop's OS instead of stopping"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
