@@ -2,7 +2,8 @@
 id = "01M42KTW3HF5XY7HAZD6P32EB5"
 title = "Per-repository prerequisites in goway.toml: rust targets, tools and distro packages that doctor checks and installs"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
