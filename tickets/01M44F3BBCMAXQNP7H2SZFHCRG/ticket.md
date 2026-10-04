@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T22:03:38Z"
-updated = "2026-10-04T22:50:25Z"
+updated = "2026-10-04T22:50:30Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/client_loss.rs", "crates/goway/tests/mem_footprint.rs", "docs/design.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given the same in a test (a job that starts background subshells in a new process group, then the client is SIGKILLed), when the bound passes, then no process of the job remains and the slot lock is free; also for jobs without a scope (fallback path)"
-bound = false
+bound = true
 +++
