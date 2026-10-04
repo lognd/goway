@@ -1794,6 +1794,9 @@ fn the_lifeline_stops_the_job_when_the_client_goes_away_and_spares_a_finished_ru
     let out = h.call(&["lifeline", &h.root(), "run1"], b"");
     assert!(out.status.success(), "{}", text(&out.stderr));
     assert!(work.join("lost").exists());
+    let why = std::fs::read_to_string(work.join("lost")).unwrap();
+    assert!(why.contains("lifeline connection closed"), "{why}");
+    assert!(text(&out.stderr).contains("is gone (its lifeline connection closed"));
     assert!(
         job.wait().is_ok_and(|s| !s.success()),
         "the job was stopped"
@@ -1807,6 +1810,84 @@ fn the_lifeline_stops_the_job_when_the_client_goes_away_and_spares_a_finished_ru
     assert!(job.try_wait().unwrap().is_none(), "the job still runs");
     job.kill().unwrap();
     let _ = job.wait();
+}
+
+// frob:ticket 01M43QZJJJRG844E9KHRV6ZEKH
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
+#[cfg(unix)]
+#[test]
+fn a_silent_client_stops_the_job_after_the_timeout_and_the_marker_says_why() {
+    let Some(h) = Host::new() else { return };
+    h.ok(&["manifest", &h.root(), "abc"], b"");
+    let (work, mut job) = work_with_job(&h, "quiet");
+    let mut c = h.command(&["lifeline", &h.root(), "quiet"]);
+    c.env("GOWAY_LIFELINE_TIMEOUT", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    // The client's end stays open and sends nothing.
+    let mut child = c.spawn().unwrap();
+    let _open = child.stdin.take();
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    let why = std::fs::read_to_string(work.join("lost")).unwrap();
+    assert!(why.contains("heartbeat was silent for 1s"), "{why}");
+    assert!(
+        job.wait().is_ok_and(|s| !s.success()),
+        "the job was stopped"
+    );
+}
+
+// frob:ticket 01M43QZJJJRG844E9KHRV6ZEKH
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
+#[test]
+fn gc_never_takes_a_work_dir_whose_runner_is_alive_even_without_a_lock() {
+    let Some(h) = Host::new() else { return };
+    h.ok(&["manifest", &h.root(), "abc"], b"");
+    let day = 86_400;
+    let make = |name: &str, runner: u32| {
+        let dir = h.root.join("work").join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("meta.json"),
+            r#"{"kind":"work","repo":"r","repo_id":"i"}"#,
+        )
+        .unwrap();
+        age(&dir.join("meta.json"), day);
+        std::fs::write(dir.join("runner"), format!("{runner}\n")).unwrap();
+    };
+    // Both are a day old with no lock; only the one whose runner lives is spared.
+    make("alive", std::process::id());
+    make("dead", 999_999_999);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string();
+    let out = h.ok(
+        &[
+            "gc",
+            &h.root(),
+            &now,
+            "604800",
+            "3600",
+            "259200",
+            "apply",
+            "",
+            "",
+        ],
+        b"",
+    );
+    let line = |name: &str| {
+        out.lines()
+            .find(|l| l.ends_with(name))
+            .unwrap_or("")
+            .to_owned()
+    };
+    assert!(line("alive").starts_with("busy\t"), "{out}");
+    assert!(line("dead").starts_with("remove\t"), "{out}");
+    assert!(h.root.join("work/alive").exists());
+    assert!(!h.root.join("work/dead").exists());
 }
 
 // frob:ticket 01M43AS3TM0HGV1Q866V4A27S6
