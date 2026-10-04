@@ -1,0 +1,37 @@
+CMake Warning (dev) at /usr/share/cmake-3.28/Modules/CMakeFindBinUtils.cmake:224 (find_program):
+  the same name.  Run "cmake --help-policy CMP0126" for policy details.  Use
+  the cmake_policy command to set the policy and suppress this warning.
+  For compatibility with older versions of CMake, normal variable
+  "CMAKE_TAPI" will be removed from the current scope.
+  /usr/share/cmake-3.28/Modules/CMakeDetermineCCompiler.cmake:196 (include)
+  /work/b/_deps/googletest-src/CMakeLists.txt:6 (project)
+CMake Warning (dev) at /work/b/_deps/catch2-src/CMake/CatchConfigOptions.cmake:84 (mark_as_advanced):
+  is not in the cache.  This results in an empty cache entry which is no
+  longer created when policy CMP0102 is set to NEW.  Run "cmake --help-policy
+  CMP0102" for policy details.  Use the cmake_policy command to set the
+  policy and suppress this warning.
+  /work/b/_deps/catch2-src/CMakeLists.txt:57 (include)
+CMake Warning (dev) in /work/b/_deps/googletest-src/googlemock/CMakeLists.txt:
+  interleaved with those in caller.  Run "cmake --help-policy CMP0082" for
+  policy details.  Use the cmake_policy command to set the policy and
+  suppress this warning.
+CMake Warning (dev) in /work/b/_deps/catch2-src/src/CMakeLists.txt:
+  flags improved.  Run "cmake --help-policy CMP0128" for policy details.  Use
+  the cmake_policy command to set the policy and suppress this warning.
+  For compatibility with older versions of CMake, unnecessary flags for
+  language standard or compiler extensions may be added.
+CMake Warning (dev) in /work/b/_deps/catch2-src/src/CMakeLists.txt:
+  flags improved.  Run "cmake --help-policy CMP0128" for policy details.  Use
+  the cmake_policy command to set the policy and suppress this warning.
+  For compatibility with older versions of CMake, unnecessary flags for
+  language standard or compiler extensions may be added.
+CMake Warning (dev) in /work/b/_deps/catch2-src/src/CMakeLists.txt:
+  flags improved.  Run "cmake --help-policy CMP0128" for policy details.  Use
+  the cmake_policy command to set the policy and suppress this warning.
+  For compatibility with older versions of CMake, unnecessary flags for
+  language standard or compiler extensions may be added.
+CMake Warning (dev) in /work/b/_deps/catch2-src/src/CMakeLists.txt:
+  flags improved.  Run "cmake --help-policy CMP0128" for policy details.  Use
+  the cmake_policy command to set the policy and suppress this warning.
+  For compatibility with older versions of CMake, unnecessary flags for
+  language standard or compiler extensions may be added.

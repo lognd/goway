@@ -1,0 +1,9 @@
+{"version":{"major":1,"minor":2}}
+{"args":["VERSION","3.20"],"cmd":"cmake_minimum_required","file":"/work/src/CMakeLists.txt","frame":1,"global_frame":1,"line":1,"time":1791087544.156764}
+{"args":["cmakefind","CXX"],"cmd":"project","file":"/work/src/CMakeLists.txt","frame":1,"global_frame":1,"line":2,"time":1791087544.156812}
+{"args":["VERSION","3.28.3.0"],"cmd":"cmake_minimum_required","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-mXaqln/CMakeLists.txt","frame":1,"global_frame":4,"line":1,"time":1791087544.2554071}
+{"args":["CMAKE_TRY_COMPILE","CXX"],"cmd":"project","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-mXaqln/CMakeLists.txt","frame":1,"global_frame":4,"line":4,"time":1791087544.2554531}
+{"args":["cmTC_2de91"],"cmd":"add_executable","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-mXaqln/CMakeLists.txt","frame":1,"global_frame":4,"line":21,"time":1791087544.275578}
+{"args":["cmTC_2de91",""],"cmd":"target_link_libraries","file":"/work/b/CMakeFiles/CMakeScratch/TryCompile-mXaqln/CMakeLists.txt","frame":1,"global_frame":4,"line":27,"time":1791087544.275701}
+{"args":["GTest","REQUIRED"],"cmd":"find_package","file":"/work/src/CMakeLists.txt","frame":1,"global_frame":1,"line":3,"time":1791087544.390506}
+{"args":["GTest","QUIET","NO_MODULE"],"cmd":"find_package","file":"/usr/share/cmake-3.28/Modules/FindGTest.cmake","frame":2,"global_frame":2,"line":194,"time":1791087544.3923759}

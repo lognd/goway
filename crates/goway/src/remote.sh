@@ -721,6 +721,131 @@ cap_parallelism() {
   [ -n "${NEXTEST_TEST_THREADS+x}" ] || export NEXTEST_TEST_THREADS=$half
 }
 
+# ---- CMake's own interfaces (File API replies, a traced configure) ------
+#
+# doctor asks CMake what a project needs instead of reading CMakeLists.txt as
+# text. Every run leaves a stateful File API query (client-goway) in the
+# build directories of its slot tree, so a normal configure there writes
+# replies. doctor reads the newest ones (cmake-replies), and doctor
+# --configure runs one traced configure of a snapshot in the run's own work
+# dir (cmake-configure), which gc covers like any work dir. Output is framed
+# as "@@build LABEL", "@@file NAME SIZE" + SIZE bytes + newline, "@@end".
+CMAKE_QUERY='{"requests":[{"kind":"codemodel","version":2},{"kind":"cache","version":2},{"kind":"cmakeFiles","version":1},{"kind":"toolchains","version":1}]}'
+CMAKE_MAX_FILE=4194304
+CMAKE_MAX_FILES=400
+CMAKE_MAX_TOTAL=16777216
+
+# cmake_query_dir DIR: write the File API query into the build directory DIR.
+cmake_query_dir() {
+  local q="$1/.cmake/api/v1/query/client-goway"
+  [ -f "$q/query.json" ] && return 0
+  mkdir -p "$q" 2>/dev/null && printf '%s\n' "$CMAKE_QUERY" >"$q/query.json" 2>/dev/null || true
+  return 0
+}
+
+# cmake_queries TREE: leave the query in the build directories of a slot
+# tree: build/ (made when absent) and cmake-build-*, each only when it holds
+# a CMake cache or nothing (a directory with the project's own files is not
+# a build directory).
+cmake_queries() {
+  local tree=$1 d own
+  [ -f "$tree/CMakeLists.txt" ] || return 0
+  [ -e "$tree/build" ] || mkdir "$tree/build" 2>/dev/null || true
+  for d in "$tree/build" "$tree"/cmake-build-*; do
+    if [ ! -d "$d" ] || [ -L "$d" ]; then continue; fi
+    if [ ! -f "$d/CMakeCache.txt" ]; then
+      own=$(ls -A "$d" 2>/dev/null | grep -v '^\.cmake$' | head -1 || true)
+      [ -z "$own" ] || continue
+    fi
+    cmake_query_dir "$d"
+  done
+  return 0
+}
+
+# cmake_emit REPLY_DIR LABEL: the replies in REPLY_DIR, size-limited.
+cmake_emit() {
+  local f name size n=0 total=0
+  printf '@@build %s\n' "$2"
+  for f in "$1"/*.json; do
+    if [ ! -f "$f" ] || [ -L "$f" ]; then continue; fi
+    name=${f##*/}
+    case "$name" in *[!A-Za-z0-9._-]*) continue ;; esac
+    size=$(stat -c %s "$f" 2>/dev/null || echo 0)
+    if [ "$size" -le 0 ] || [ "$size" -gt "$CMAKE_MAX_FILE" ]; then continue; fi
+    n=$((n + 1)); total=$((total + size))
+    if [ "$n" -gt "$CMAKE_MAX_FILES" ] || [ "$total" -gt "$CMAKE_MAX_TOTAL" ]; then break; fi
+    printf '@@file %s %s\n' "$name" "$size"
+    cat "$f"; printf '\n'
+  done
+}
+
+# cmake_replies ROOT REPO_ID: the newest File API replies of the repository's slot trees.
+cmake_replies() {
+  local root cache tree d reply idx best="" best_t=0 t
+  root=$(root_dir "$1")
+  case "$2" in "" | *[!A-Za-z0-9._-]*) die "cmake-replies: bad repository id" ;; esac
+  cache="$root/cache/$2"
+  printf 'goway-cmake1\n'
+  for tree in "$cache"/tree-*; do
+    [ -d "$tree" ] || continue
+    for d in "$tree/build" "$tree"/cmake-build-*; do
+      reply="$d/.cmake/api/v1/reply"
+      [ -d "$reply" ] || continue
+      idx=$(ls -1 "$reply"/index-*.json 2>/dev/null | sort | tail -1 || true)
+      [ -n "$idx" ] || continue
+      t=$(stat -c %Y "$idx" 2>/dev/null || echo 0)
+      if [ -z "$best" ] || [ "$t" -gt "$best_t" ]; then best=$d; best_t=$t; fi
+    done
+  done
+  if [ -n "$best" ]; then
+    cmake_emit "$best/.cmake/api/v1/reply" "${best#"$cache"/}"
+    printf '@@end\n'
+  fi
+  return 0
+}
+
+# cmake_configure ROOT RUN_ID SECONDS: one traced configure of the snapshot
+# synced into work/RUN_ID/tree, in that work dir (labelled, locked, removed
+# afterwards, collected by gc if this dies). Prints the exit code, the tail of
+# stderr, the filtered json-v1 trace and the File API replies.
+cmake_configure() {
+  local root work secs=${3:-300} rc=0 src build
+  root=$(root_dir "$1"); work="$root/work/$2"
+  case "$2" in *[!A-Za-z0-9-]* | "") die "cmake-configure: bad run id" ;; esac
+  case "$secs" in "" | *[!0-9]*) die "cmake-configure: bad seconds" ;; esac
+  [ "$secs" -le 900 ] || secs=900
+  [ -d "$work/tree" ] || die "cmake-configure: no work dir at $work (was it synced?)"
+  printf 'goway-cmake1\n'
+  if ! command -v cmake >/dev/null 2>&1; then printf '@@rc 127\n@@end\n'; return 0; fi
+  mark_root "$root"
+  exec 9>"$work/lock"
+  flock -x 9
+  src="$work/cfg-src"; build="$work/cfg-build"
+  rm -rf "$src" "$build"
+  cp -a --reflink=auto "$work/tree" "$src"
+  cmake_query_dir "$build"
+  # A configure may download (FetchContent, CPM): into this scratch dir only.
+  (cd "$src" && bounded_for "$secs" nice -n 19 cmake -S . -B "$build" \
+    --trace-expand --trace-format=json-v1 --trace-redirect="$work/trace.json" \
+    >"$work/cfg.out" 2>"$work/cfg.err" </dev/null) || rc=$?
+  printf '@@rc %s\n' "$rc"
+  for f in stderr:cfg.err trace.jsonl:trace.json; do
+    local name=${f%%:*} file="$work/${f#*:}" body
+    body=$(mktemp)
+    case "$name" in
+      stderr) tail -c 65536 "$file" >"$body" 2>/dev/null || true ;;
+      *) grep -E '^\{"version"|"cmd":"(cmake_minimum_required|project|find_package|FetchContent_Declare|FetchContent_MakeAvailable|FetchContent_Populate|pkg_check_modules|pkg_search_module|CPMAddPackage|CPMFindPackage|CPMDeclarePackage|add_subdirectory)"' "$file" 2>/dev/null | head -c "$CMAKE_MAX_FILE" >"$body" || true ;;
+    esac
+    printf '@@file %s %s\n' "$name" "$(stat -c %s "$body")"
+    cat "$body"; printf '\n'
+    rm -f "$body"
+  done
+  if [ -d "$build/.cmake/api/v1/reply" ]; then cmake_emit "$build/.cmake/api/v1/reply" configure; fi
+  printf '@@end\n'
+  remove_work "$work"
+  return 0
+}
+
 # keep_awake: set AWAKE to the words that wrap a job in a sleep inhibitor,
 # empty when the host has none that works. The inhibitor is held by the
 # wrapper process, so it lasts exactly as long as the job and is released
@@ -976,6 +1101,7 @@ run() {
   fi
   # What the tree looked like (ctime, size) when the command started: a file
   # whose record changes was changed by the command, not by the copy.
+  cmake_queries "$rundir"
   tree_stamps "$rundir" >"$work/stamps.before"
   if [ -z "${CARGO_TARGET_DIR:-}" ]; then
     export CARGO_TARGET_DIR="$cache/target-$slot"
@@ -1624,6 +1750,8 @@ case "$verb" in
   run) run "$@" ;;
   envfile) envfile "$@" ;;
   probe) probe "$@" ;;
+  cmake-replies) cmake_replies "$@" ;;
+  cmake-configure) cmake_configure "$@" ;;
   gc) gc "$@" ;;
   doctor) doctor "$@" ;;
   purge) purge "$@" ;;

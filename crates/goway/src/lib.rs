@@ -3,6 +3,7 @@
 
 pub mod add;
 pub mod cli;
+pub mod cmakeapi;
 pub mod config;
 pub mod detect;
 pub mod doctor;

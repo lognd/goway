@@ -1,0 +1,50 @@
+{
+ "configurations": [
+  {
+   "directories": [
+    {
+     "build": ".",
+     "jsonFile": "directory-.-f5ebdc15457944623624.json",
+     "minimumCMakeVersion": {
+      "string": "3.20"
+     },
+     "projectIndex": 0,
+     "source": ".",
+     "targetIndexes": [
+      0
+     ]
+    }
+   ],
+   "name": "",
+   "projects": [
+    {
+     "directoryIndexes": [
+      0
+     ],
+     "name": "cmakeplain",
+     "targetIndexes": [
+      0
+     ]
+    }
+   ],
+   "targets": [
+    {
+     "directoryIndex": 0,
+     "id": "plain::@6890427a1f51a3e7e1df",
+     "jsonFile": "target-plain-e528f46aa4aae0f806ef.json",
+     "name": "plain",
+     "projectIndex": 0
+    }
+   ]
+  }
+ ],
+ "kind": "codemodel",
+ "paths": {
+  "build": "/work/b",
+  "source": "/work/src"
+ },
+ "version": {
+  "major": 2,
+  "minor": 6
+ }
+}
