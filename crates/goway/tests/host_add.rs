@@ -277,3 +277,83 @@ fn host_add_never_takes_the_windows_side_for_the_wsl_host() {
     let config = std::fs::read_to_string(w.config.join("config.toml")).unwrap();
     assert!(!config.contains("windows"), "{config}");
 }
+
+/// A fake ssh whose key login is always refused, logging each connection.
+const DENYING_SSH: &str = r#"#!/bin/sh
+echo x >>"$FAKE_LOG"
+echo "box: Permission denied (publickey)." >&2
+exit 255
+"#;
+
+// frob:tests crates/goway/src/ssh/attempts.rs::Ledger
+// frob:tests crates/goway/src/resolve.rs::SshProber
+#[test]
+fn repeated_refused_logins_stop_after_two_and_say_why() {
+    let w = world_with_ssh(DENYING_SSH);
+    std::fs::write(w.config.join("config.toml"), "# my pool\n").unwrap();
+    let log = w.root.join("ssh.log");
+    let try_add = || {
+        w.goway(&[
+            "host",
+            "add",
+            "box",
+            "--address",
+            "192.0.2.7",
+            "--port",
+            "22",
+        ])
+        .env("FAKE_LOG", &log)
+        .env("GOWAY_SSH_PASS_ENV", "FAKE_LOG,GOWAY_WINDOWS_LOOKUP")
+        .output()
+        .unwrap()
+    };
+    let _ = try_add();
+    let _ = try_add();
+    let third = try_add();
+    let stderr = String::from_utf8_lossy(&third.stderr).into_owned();
+    assert!(stderr.contains("holding back"), "{stderr}");
+    let calls = std::fs::read_to_string(&log).unwrap().lines().count();
+    assert_eq!(calls, 2, "no third login was attempted");
+}
+
+/// Denies the first login, then refuses connections like a banning firewall.
+const BANNING_SSH: &str = r#"#!/bin/sh
+if [ -s "$FAKE_LOG" ]; then
+  echo "ssh: connect to host box port 22: Connection refused" >&2
+  exit 255
+fi
+echo x >>"$FAKE_LOG"
+echo "box: Permission denied (publickey)." >&2
+exit 255
+"#;
+
+// frob:tests crates/goway/src/resolve.rs::SshProber
+#[test]
+fn a_refusal_right_after_failed_logins_is_reported_as_a_probable_ban() {
+    let w = world_with_ssh(BANNING_SSH);
+    std::fs::write(w.config.join("config.toml"), "# my pool\n").unwrap();
+    let log = w.root.join("ssh.log");
+    let try_add = || {
+        w.goway(&[
+            "host",
+            "add",
+            "box",
+            "--address",
+            "192.0.2.7",
+            "--port",
+            "22",
+        ])
+        .env("FAKE_LOG", &log)
+        .env("GOWAY_SSH_PASS_ENV", "FAKE_LOG,GOWAY_WINDOWS_LOOKUP")
+        .output()
+        .unwrap()
+    };
+    let _ = try_add();
+    let second = try_add();
+    let stderr = String::from_utf8_lossy(&second.stderr).into_owned();
+    assert!(stderr.contains("probably banned"), "{stderr}");
+    assert!(
+        stderr.contains("fail2ban-client set sshd unbanip"),
+        "{stderr}"
+    );
+}

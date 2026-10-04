@@ -204,6 +204,31 @@ test certificate, list it in `secret_allow` in `~/.config/goway/config.toml`:
     secret_allow = ["tests/fixtures/*.pem"]
 </details>
 
+<details><summary>goway says it is holding back, or the helper looks banned</summary>
+
+Many helpers run fail2ban or sshguard, which ban a machine after about
+5 failed logins in 10 minutes (the fail2ban default). goway keeps its own
+count of the failed logins it causes, per helper, in `auth-failures.json`
+in its state directory, and stays well under that:
+
+- Automatic probing (finding a helper, `goway status`, `goway doctor`)
+  causes at most 2 failed logins per helper per 10 minutes, then stops
+  trying and says "holding back" with the minutes left. Candidates are
+  tried with the pinned key only, never a password.
+- Steps you drive come on top: the one password attempt of `goway add`
+  and the key re-check each time you press Enter after pasting the key
+  lines. In all, goway causes at most 4 failed logins per helper per 10
+  minutes (under fail2ban's 5), so the paste flow is never blocked by
+  background probing; if the total is reached goway stops and tells you
+  to wait and rerun the same `goway add` command.
+- Only failed authentications count; a host that is simply off does not.
+
+If a connection is refused right after failed logins, goway reports
+"probably banned". On the helper, `sudo fail2ban-client status sshd`
+lists the banned addresses and
+`sudo fail2ban-client set sshd unbanip ADDRESS` lifts one.
+</details>
+
 <details><summary>The helper laptop is slow while goway runs</summary>
 
 goway runs jobs at low priority, so the person using the helper comes

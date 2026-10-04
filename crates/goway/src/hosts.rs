@@ -349,6 +349,7 @@ pub fn add(
     args: &HostAddArgs,
     lookup: &dyn Lookup,
 ) -> Result<u8> {
+    crate::ssh::attempts::init(&paths.state_dir);
     let config_file = paths.config_file();
     let config = Config::load(&config_file)?;
     if config.host(&args.name).is_ok() {

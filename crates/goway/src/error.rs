@@ -116,6 +116,12 @@ fn render_misses(misses: &[crate::resolve::Miss]) -> String {
         out.push_str("\n  next: ");
         out.push_str(&permission_denied_hint("USER"));
     }
+    if any(Failure::Throttled) {
+        out.push_str("\n  next: goway counts the failed logins it causes and stops at its own limit so the helper's fail2ban never bans this machine; wait for the time above, then retry (details in docs/troubleshooting.md)");
+    }
+    if any(Failure::ProbableBan) {
+        out.push_str("\n  next: the helper refused the connection right after failed logins: this machine is probably banned by fail2ban or sshguard. On the helper: `sudo fail2ban-client status sshd` lists banned addresses, `sudo fail2ban-client set sshd unbanip ADDRESS` lifts one (ADDRESS is this machine's address as the helper sees it)");
+    }
     if any(Failure::HostKeyMismatch) {
         out.push_str("\n  next: that address answered with a different key: another machine has it now (goway skips it), or NAME was reinstalled; if reinstalled: `goway host remove NAME`, then `goway add NAME`");
     }

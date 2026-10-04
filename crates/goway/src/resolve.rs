@@ -23,7 +23,7 @@ use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
 use crate::remote::{self, Call};
 use crate::spawn::CommandExt as _;
-use crate::ssh::{self, Failure, KeyPolicy, Target};
+use crate::ssh::{self, Failure, KeyPolicy, Target, attempts};
 use crate::state::State;
 use crate::transport::{self, Kind};
 
@@ -183,9 +183,11 @@ impl std::fmt::Display for Miss {
             Failure::HostKeyUnknown => "host key not pinned",
             Failure::AuthRefused => "key authentication refused",
             Failure::Unreachable => "unreachable",
+            Failure::Throttled => "not tried (failed-login limit)",
+            Failure::ProbableBan => "connection refused after failed logins (probably banned)",
             Failure::Other => "ssh failed",
         };
-        if self.detail.is_empty() || self.failure != Failure::Other {
+        if self.detail.is_empty() || !matches!(self.failure, Failure::Other | Failure::Throttled) {
             write!(f, "{} ({}): {why}", self.address, self.source)
         } else {
             write!(f, "{} ({}): {}", self.address, self.source, self.detail)
@@ -443,6 +445,10 @@ pub struct SshProber {
 
 impl Prober for SshProber {
     fn probe(&self, target: &Target, policy: KeyPolicy, remote: &str) -> ProbeResult {
+        let origin = attempts::current_origin();
+        if let Err(blocked) = attempts::permit(&target.name, origin) {
+            return Err((Failure::Throttled, blocked.to_string()));
+        }
         let mut cmd = ssh::command(target, &self.settings, policy, remote);
         cmd.stdin(Stdio::null());
         match cmd.output_locked() {
@@ -461,6 +467,17 @@ impl Prober for SshProber {
                 } else {
                     Failure::Other
                 };
+                if failure == Failure::AuthRefused {
+                    attempts::record_failure(&target.name, origin);
+                }
+                let refused = stderr.to_ascii_lowercase().contains("connection refused");
+                if failure == Failure::Unreachable
+                    && refused
+                    && attempts::recent_failures(&target.name) > 0
+                {
+                    tracing::warn!(host = %target.name, "connection refused right after failed logins: probable ban");
+                    return Err((Failure::ProbableBan, stderr));
+                }
                 Err((failure, stderr))
             }
             Err(e) => Err((Failure::Other, format!("cannot run ssh: {e}"))),
