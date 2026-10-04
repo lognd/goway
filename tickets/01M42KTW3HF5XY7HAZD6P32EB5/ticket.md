@@ -2,13 +2,13 @@
 id = "01M42KTW3HF5XY7HAZD6P32EB5"
 title = "Per-repository prerequisites in goway.toml: rust targets, tools and distro packages that doctor checks and installs"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-04T04:47:54Z"
-updated = "2026-10-04T04:47:54Z"
+updated = "2026-10-04T05:31:30Z"
 scope = ["crates/goway/src/project.rs", "crates/goway/src/doctor.rs", "crates/goway/src/doctor/projneeds.rs", "crates/goway/tests/doctor_project.rs", "docs/config.md", "docs/usage.md"]
 
 [[acceptance]]

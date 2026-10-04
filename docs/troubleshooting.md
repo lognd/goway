@@ -242,3 +242,13 @@ Run the failing command again with `-vv` (for example
 `goway -vv run -- true`) to see what goway does step by step. Then
 check `goway doctor`.
 </details>
+
+<details><summary>"Session open refused by peer" / "ControlSocket already exists"</summary>
+
+You may see this from older goway versions when many runs started at
+once. A helper's sshd allows 10 sessions per connection, and goway used
+one shared connection per helper. goway now keeps up to four shared
+connections per helper (a few runs each). When all are busy, a run
+connects on its own, quietly. A leftover socket from a connection that
+ended is removed and replaced automatically. Nothing to do.
+</details>
