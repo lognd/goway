@@ -7,7 +7,7 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T13:15:50Z"
-updated = "2026-10-04T13:20:20Z"
+updated = "2026-10-04T14:47:27Z"
 scope = ["crates/goway/src/remote.sh", "docs/usage.md"]
 
 [[acceptance]]
