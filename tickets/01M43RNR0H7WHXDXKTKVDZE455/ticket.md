@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "Given any CI job, When it runs, Then it has a timeout-minutes limit"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a macOS test run that is slow, When a test process outlives 45s, Then the process tree and its open pipes are printed to the log"
