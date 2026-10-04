@@ -1,6 +1,6 @@
 +++
 id = "01M4262XD6M7F91AA2VMVTNZHA"
-title = "remote.ps1 parity with remote.sh: disk budget LRU eviction, budget probe word, heartbeat, clock safety, best-effort cleanup"
+title = "remote.ps1 parity: disk budget LRU eviction, budget probe word, cache size caps"
 type = "story"
 category = "in-progress"
 priority = "high"
@@ -8,7 +8,7 @@ points = 8
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T00:47:38Z"
-updated = "2026-10-04T11:28:54Z"
+updated = "2026-10-04T11:28:55Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/tests/remote_ps1.rs"]
 
 [[acceptance]]
