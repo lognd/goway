@@ -8,8 +8,8 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:54:01Z"
-updated = "2026-10-04T03:13:26Z"
-scope = ["crates/goway/src/doctor.rs", "crates/goway/src/render.rs", "crates/goway/src/cli.rs", "crates/goway/tests/doctor_output.rs", "docs/usage.md", "crates/goway/src/doctor/output.rs", "crates/goway/src/doctor/projneeds.rs", "crates/goway/src/add.rs", "crates/goway/tests/doctor_project.rs"]
+updated = "2026-10-04T03:51:13Z"
+scope = ["crates/goway/src/doctor.rs", "crates/goway/src/render.rs", "crates/goway/src/cli.rs", "crates/goway/tests/doctor_output.rs", "docs/usage.md", "crates/goway/src/doctor/output.rs", "crates/goway/src/doctor/projneeds.rs", "crates/goway/src/add.rs", "crates/goway/tests/doctor_project.rs", "crates/goway/tests/run_local.rs"]
 
 [[acceptance]]
 text = "Given goway doctor over several hosts, when it prints, then it shows one summary line per host (problems and ok counts), then each problem once, grouped across the hosts that share it, in one short line plus at most one line of context; passing checks appear only with --all; long explanations (such as the cargo linker workaround) appear only with goway doctor --explain CHECK"
