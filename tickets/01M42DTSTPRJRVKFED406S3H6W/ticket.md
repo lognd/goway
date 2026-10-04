@@ -2,7 +2,8 @@
 id = "01M42DTSTPRJRVKFED406S3H6W"
 title = "doctor --fix: per-fix results, one apt-get update per session, and a pinned user-level mold where no package exists"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
