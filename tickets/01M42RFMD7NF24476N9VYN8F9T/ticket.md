@@ -2,13 +2,13 @@
 id = "01M42RFMD7NF24476N9VYN8F9T"
 title = "Learn each repository's build footprint and never send a run to a helper without room for it; explain a disk-full failure"
 type = "story"
-category = "in-progress"
+category = "todo"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T06:09:09Z"
-updated = "2026-10-04T11:18:19Z"
+updated = "2026-10-04T11:18:34Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/state.rs", "crates/goway/src/run.rs", "crates/goway/tests/footprint.rs", "docs/usage.md", "crates/goway/src/needs.rs", "crates/goway/src/project.rs", "crates/goway/src/footprint.rs", "crates/goway/src/lib.rs", "crates/goway/src/queue.rs", "crates/goway/src/remote.sh"]
 
 [[acceptance]]

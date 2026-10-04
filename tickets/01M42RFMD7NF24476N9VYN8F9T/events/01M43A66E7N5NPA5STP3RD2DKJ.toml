@@ -1,0 +1,7 @@
+kind = "transition"
+from = "in-progress"
+to = "todo"
+reason = "lease lapsed while waiting for remote.sh"
+at = "2026-10-04T11:18:34Z"
+actor = "lognd"
+rev = 1
