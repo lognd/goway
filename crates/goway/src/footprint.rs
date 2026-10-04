@@ -25,7 +25,7 @@ pub const KEY_PREFIX: &str = "footprint.";
 
 /// The margin kept on top of a footprint of `footprint` bytes.
 pub fn margin(footprint: u64) -> u64 {
-    MIN_MARGIN.max(footprint / 100 * MARGIN_PERCENT)
+    MIN_MARGIN.max(footprint.saturating_mul(MARGIN_PERCENT) / 100)
 }
 
 /// The space a run of a repository with `footprint` bytes needs: footprint plus margin.
