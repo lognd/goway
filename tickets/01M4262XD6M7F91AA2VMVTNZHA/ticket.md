@@ -8,7 +8,7 @@ points = 8
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T00:47:38Z"
-updated = "2026-10-04T06:35:11Z"
+updated = "2026-10-04T11:28:54Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/tests/remote_ps1.rs"]
 
 [[acceptance]]
@@ -17,10 +17,6 @@ bound = false
 
 [[acceptance]]
 text = "Given remote.sh's best-effort work dir cleanup, heartbeat watchdog, clock offset, liveness-not-age gc protection and future-mtime clamping, when remote.ps1 runs the same cases, then it behaves the same"
-bound = false
-
-[[acceptance]]
-text = "Given a Windows helper that would sleep on idle, when a goway job runs there, then remote.ps1 holds a keep-awake request (SetThreadExecutionState ES_SYSTEM_REQUIRED from the job's own process) for exactly the job's lifetime (split from ~PSR953W)"
 bound = false
 +++
 
