@@ -2,13 +2,14 @@
 id = "01M42E8Z94EFYWZ4XYMMR97WNB"
 title = "Tests use git init -b (git 2.28+); the suite must run on helpers with older git (Ubuntu 20.04 has git 2.25)"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:10:45Z"
-updated = "2026-10-04T04:06:56Z"
+updated = "2026-10-04T04:06:57Z"
 scope = ["crates/goway/tests/common/mod.rs", "crates/goway/src/repo.rs", "crates/goway/src/sync.rs", "crates/goway/src/run.rs", "docs/hosts.md"]
 
 [[acceptance]]
