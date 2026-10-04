@@ -1,3 +1,25 @@
+  if ($slot -lt 0) {
+    # Every slot is busy: wait for the first to free, at most the run's --wait.
+    $note = Slots-Busy-Note $cache $slots
+    Write-Err "goway: all $slots build slots busy ($note); waiting up to $($slotWait)s for one`n"
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($slot -lt 0) {
+      foreach ($k in $order) {
+        New-Dir $cache
+        $fs = Get-Lock (P $cache @("target-$k.lock")) $true 0
+        if ($fs) { $script:Held['slot'] = $fs; $slot = $k; break }
+      }
+      if ($slot -ge 0) { break }
+      if ($sw.Elapsed.TotalSeconds -ge $slotWait) {
+        $note = Slots-Busy-Note $cache $slots
+        Write-Err "goway: no build slot freed within $($slotWait)s: all $slots build slots busy ($note); raise --wait or try another host`n"
+        Unlock-Key 'work'
+        Remove-Work $work
+        exit 125
+      }
+      Start-Sleep -Seconds 1
+    }
+  }
 # goway remote side for Windows hosts. The counterpart of remote.sh: the
 # same verbs, the same labelled directories, the same protocol and output
 # formats, in PowerShell (Windows PowerShell 5.1 and PowerShell 7, so it
@@ -2393,6 +2415,20 @@ function Add-GitUsrBin {
   Write-Err "goway: sh was not on PATH; appended $u (Git for Windows)`n"
 }
 
+# Slots-Busy-Note CACHE SLOTS: how long the oldest holder of a build slot has run (a slot
+# lock's mtime is stamped when a run takes it), as text such as `oldest holder has run 12m 3s`.
+function Slots-Busy-Note([string]$Cache, [int]$Slots) {
+  $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+  $oldest = 0
+  for ($k = 0; $k -lt $Slots; $k++) {
+    $l = P $Cache @("target-$k.lock")
+    if (-not [IO.File]::Exists($l)) { continue }
+    $age = $now - [DateTimeOffset]([IO.File]::GetLastWriteTimeUtc($l)).ToUnixTimeSeconds()
+    if ($age -gt $oldest) { $oldest = $age }
+  }
+  return ('oldest holder has run {0}m {1}s' -f [math]::Floor($oldest / 60), ($oldest % 60))
+}
+
 # run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 TTLS PRIORITY KEEP_IGNORED
 #     KEEP_B64 [WORD...] -- CMD...
 # The work dir was created by receive (a hard-link snapshot of the seed).
@@ -2409,12 +2445,13 @@ function Verb-run([string[]]$A) {
   $keepIgnored = ($A[8] -eq '1'); $keepB64 = $A[9]
   Test-Id $runId 'run'
   $work = P $root @('work', $runId); $cache = P $root @('cache', $repoId)
-  $detect = ''; $gpuPer = 0; $verify = $false; $fresh = $false; $attempt = 1; $level = 'changed'
+  $detect = ''; $gpuPer = 0; $slotWait = 300; $verify = $false; $fresh = $false; $attempt = 1; $level = 'changed'
   $i = 10
   while ($i -lt $A.Length -and $A[$i] -ne '--') {
     $w = $A[$i]
     if ($w -match '^shard-detect:\d+:\d+:[A-Za-z0-9]+$') { $detect = $w.Substring(13) }
     elseif ($w -match '^gpu-slots:(\d+)$') { $gpuPer = [int]$Matches[1] }
+    elseif ($w -match '^slot-wait:(\d+)$') { $slotWait = [int]$Matches[1] }
     elseif ($w -match '^verify:([12]):(changed|all)(:fresh)?$') {
       # The attempt number is goway's explicit argument, never read from the
       # environment or from anything the helper reports.

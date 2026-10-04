@@ -595,7 +595,10 @@ The run says why it waits and its place (`no host has room yet (h1: 4 of 4
 job slots in use); queued at position 3, waiting up to 5m`). `--wait
 DURATION` sets how long (default `5m`); when it runs out goway exits 125
 saying how long it waited and what for, and `--wait 0s` keeps the old
-behaviour of failing at once. Only the first three waiters probe the hosts
+behaviour of failing at once. The same `--wait` bounds the wait on a helper for
+a free build slot of the repository: the run says how many slots are busy and
+how long the oldest holder has run, and when the time is up it exits 125 saying so.
+Only the first three waiters probe the hosts
 again, every five seconds, so the ssh load does not grow with the wave.
 A run that no host could ever take (unreachable, or failing a `--needs`
 term) still fails at once. `--host NAME` pins a host and never waits.
