@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T01:13:34Z"
+digest = "819d07df2de3274fd3b4cd61397d85c053a59acd31a252aac5106299332ce618"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b324dbef-870a-4c36-bd27-c9e90585b138 with nextest profile: default
+    Starting 2 tests across 45 binaries (550 tests skipped)
+        PASS [   0.146s] goway::remote_ps1 same_size_edit_within_the_same_second_reaches_the_slot
+        PASS [   3.517s] goway::slot_trees same_size_edit_within_the_same_second_reaches_the_slot
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   3.521s] 2 tests run: 2 passed, 550 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(same_size_edit_within_the_same_second_reaches_the_slot)'"
+size = 666
+status = "measured"
+tests = ["same_size_edit_within_the_same_second_reaches_the_slot"]
+at = "2026-10-04T01:13:34Z"
+actor = "lognd"
+rev = 1
