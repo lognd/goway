@@ -121,6 +121,10 @@ pub struct Defaults {
     /// turns the penalty off). A 16-core host with 3 GiB runs out of memory
     /// on big builds, so by default it loses to a roomier one.
     pub mem_per_core: f64,
+    /// Free RAM one job is assumed to need (`1.5G`): a helper whose available
+    /// memory (less what runs still starting will take) is below it gets no
+    /// further job, so a wave waits in the queue instead of piling up (`0` turns this off).
+    pub job_mem: String,
     /// A helper whose user touched it within this long, or which runs on
     /// battery, counts as in use: it is never skipped for that, but it
     /// scores a little worse and runs jobs extra nicely (`0s` turns this
@@ -141,6 +145,11 @@ pub struct Defaults {
 const DAY: u64 = 24 * 60 * 60;
 
 impl Defaults {
+    /// The per-job memory reserve in bytes (0 when off or unreadable).
+    pub fn job_mem_bytes(&self) -> u64 {
+        crate::needs::parse_size(&self.job_mem).unwrap_or(0)
+    }
+
     /// The disk budget words `max_disk:min_free:cache_size` in bytes (max 0 =
     /// automatic), as the remote `run` verb and `gc` take them.
     pub fn budget_bytes(&self) -> (u64, u64, u64) {
@@ -170,6 +179,7 @@ impl Default for Defaults {
             priority: Priority::Low,
             max_load: None,
             mem_per_core: crate::pool::DEFAULT_MEM_PER_CORE,
+            job_mem: "1.5G".to_owned(),
             owner_idle: Duration::from_mins(5),
             gpu_jobs: 1,
             keep: Vec::new(),

@@ -573,6 +573,30 @@ goway's own background work never starts runs: the automatic gc after a run
 only deletes expired entries, and `gc.lock` in the remote root keeps it to
 one automatic gc per host root at a time.
 
+### Waves of runs queue
+
+Many `goway run` processes started together (an agent launching a wave)
+do not fail when the helpers are busy: they wait in a local
+first-come-first-served queue, kept as small lock files in goway's state
+directory (`queue/`), and run as soon as a host qualifies. A host qualifies
+when it is under its job limit and its available memory, less what runs
+that are still starting will take, is at least one job's reserve
+(`[defaults] job_mem`, default `1.5G`; `0` turns the memory test off). A run
+that has chosen a host holds a claim on it until its job shows in the
+host's probe (about ten seconds after it starts), so a wave never puts more
+jobs on a helper than its slots and memory allow, and runs that arrive
+earlier are served first: a later run is held back only from hosts an
+earlier waiting run could also use.
+
+The run says why it waits and its place (`no host has room yet (h1: 4 of 4
+job slots in use); queued at position 3, waiting up to 5m`). `--wait
+DURATION` sets how long (default `5m`); when it runs out goway exits 125
+saying how long it waited and what for, and `--wait 0s` keeps the old
+behaviour of failing at once. Only the first three waiters probe the hosts
+again, every five seconds, so the ssh load does not grow with the wave.
+A run that no host could ever take (unreachable, or failing a `--needs`
+term) still fails at once. `--host NAME` pins a host and never waits.
+
 ### Exit codes
 
 | Code | Meaning |

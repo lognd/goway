@@ -238,7 +238,14 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     }
     let with_git = args.with_git || project::wants_git(&repo.root)?;
     let mut state = State::load(&env.paths.state_file())?;
-    let (host, found, probe) = pool::choose(
+    let queue = crate::queue::Queue::new(env.paths);
+    let wait = pool::Wait {
+        queue: &queue,
+        limit: args.wait,
+        poll: pool::DEFAULT_POLL,
+        note: &|line| renderer.note(line),
+    };
+    let (host, found, probe, claim) = pool::choose_queued(
         &config,
         &selection,
         &mut state,
@@ -246,11 +253,15 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         env.lookup,
         env.prober,
         args.host.as_deref(),
+        &wait,
     )?;
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host address");
     }
     if found.is_local() {
+        if let Some(c) = &claim {
+            c.started();
+        }
         return local::run_here(
             env,
             renderer,
@@ -351,6 +362,9 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
             manifest: &synced.manifest,
             git_overlay: synced.git_overlay.as_deref(),
         };
+        if let Some(c) = &claim {
+            c.started();
+        }
         let done = std::sync::atomic::AtomicBool::new(false);
         let (streamed, gate_report) = std::thread::scope(|s| {
             let watcher = s.spawn(|| gate.drive(&done));

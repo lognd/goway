@@ -202,7 +202,8 @@ fn a_pooled_local_machine_competes_with_a_margin_and_respects_max_jobs() {
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
     assert!(running, "the local job never took its slot");
-    let o = w.run(&["run", "--", "true"]);
+    // `--wait 0s` fails at once instead of queueing for a free slot.
+    let o = w.run(&["run", "--wait", "0s", "--", "true"]);
     assert_eq!(o.status.code(), Some(125), "{}", err(&o));
     assert!(err(&o).contains("local: load"), "{}", err(&o));
     let _ = long.wait();
