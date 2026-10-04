@@ -8,7 +8,7 @@ points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T22:29:16Z"
-updated = "2026-10-04T00:10:13Z"
+updated = "2026-10-04T00:10:21Z"
 scope = ["crates/goway/src/remote.sh", "docs/usage.md", "docs/config.md", "crates/goway/tests/cxx_launcher.rs"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given CPM.cmake projects, when goway runs them, then CPM_SOURCE_CACHE points at a per-repository directory shared by all slots unless the user set it; given plain FetchContent, then docs explain that FetchContent downloads live in each slot's build/_deps (kept warm per slot) and how to share them with FETCHCONTENT_BASE_DIR, which goway never injects into the user's command line"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway's coexistence contract, when any of these variables is already set by the user or the project, then goway leaves it untouched"
