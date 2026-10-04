@@ -364,6 +364,32 @@ What goway does about it:
   terminal run `wsl --shutdown`; the logon keepalive restarts it limited. Do not start WSL from an
   administrator ssh session (or an elevated terminal) on the Windows side.
 
+## Elevating a Windows-side step from your main laptop
+
+`goway add HELPER --rsudo` and `goway ssh setup HELPER --rsudo` run a
+Windows administrator step on a helper without anyone typing a password
+into goway. Set it up once, whichever you prefer:
+
+1. Unattended: give the helper's Windows OpenSSH server an administrator
+   account that logs in with a key. On the helper, as administrator, put your
+   public key in `%ProgramData%\ssh\administrators_authorized_keys` (owned
+   by Administrators and SYSTEM only), then pass `--windows-admin THAT-USER`.
+   goway logs in once with its normal pinned host key and your own key.
+2. Attended (for helpers that run WSL; goway's library supports it, no
+   command uses it yet): when someone is logged in at the helper, goway
+   starts `goway-setup` from the helper's WSL, so Windows shows its UAC
+   prompt on that desktop and the person at the helper approves it.
+3. Otherwise goway stops and prints the exact command to run in an
+   administrator PowerShell, and `goway add` can be repeated afterwards.
+
+An administrator session must never start WSL: WSL started from an
+elevated token lends that token to every WSL user through interop. goway's
+steps that touch a distro first run `wsl --list --running` (with
+`WSL_UTF8=1`) and stop when the distro is not running. Do not add commands
+that run `wsl -d` to an administrator ssh session either. Note that
+`goway-setup tune` changes the account's own `.wslconfig`, so run such steps
+as the Windows user that owns the WSL installation.
+
 ## Security of the elevated host steps
 
 In plain words: the part of goway-setup that runs with administrator rights no longer believes

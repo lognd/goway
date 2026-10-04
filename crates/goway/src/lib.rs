@@ -37,6 +37,7 @@ pub mod sync;
 pub mod termfilter;
 pub mod transport;
 pub mod uninstall;
+pub mod winadmin;
 
 use std::process::ExitCode;
 

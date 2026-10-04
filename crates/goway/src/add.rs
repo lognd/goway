@@ -16,6 +16,7 @@ use crate::error::{Error, Result};
 use crate::paths::Paths;
 use crate::render::Renderer;
 use crate::resolve::{Lookup, Prober};
+use crate::winadmin::{self, Local, WinStep};
 use crate::{doctor, ssh, sshsetup};
 
 /// A tool this laptop needs, and the package that provides it.
@@ -57,7 +58,10 @@ fn local_check(renderer: Renderer, lsudo: bool, yes: bool) -> Result<()> {
         "this laptop is missing {}; goway needs them to reach the helper",
         tools.join(" and ")
     ));
-    if !lsudo || cfg!(windows) {
+    if cfg!(windows) {
+        return local_check_windows(renderer, lsudo, yes, &tools);
+    }
+    if !lsudo {
         renderer.next(format_args!(
             "install them with: sudo bash -c '{command}' (or rerun with --lsudo)"
         ));
@@ -89,6 +93,57 @@ fn local_check(renderer: Renderer, lsudo: bool, yes: bool) -> Result<()> {
             "installing {} failed",
             packages.join(" ")
         )))
+    }
+}
+
+/// The administrator step that adds the Windows OpenSSH client.
+fn ssh_client_step() -> WinStep {
+    WinStep {
+        why: "adds the OpenSSH client Windows feature, which needs administrator rights".to_owned(),
+        command: "Add-WindowsCapability -Online -Name 'OpenSSH.Client~~~~0.0.1.0'".to_owned(),
+        wsl_distro: None,
+    }
+}
+
+/// [`local_check`] on Windows: the OpenSSH client is an administrator step (with `--lsudo`, this
+/// laptop's own UAC prompt; nothing is typed into goway); git is a per-user `winget` install.
+fn local_check_windows(renderer: Renderer, lsudo: bool, yes: bool, tools: &[&str]) -> Result<()> {
+    let ssh_step = ssh_client_step();
+    if tools.contains(&"git") {
+        renderer.next("install git with: winget install --id Git.Git -e (no administrator needed)");
+    }
+    if !tools.contains(&"ssh") {
+        return Err(Error::Usage(format!("missing {}", tools.join(", "))));
+    }
+    if !lsudo {
+        renderer.next(format_args!(
+            "install the OpenSSH client in an administrator PowerShell: {} (or rerun with --lsudo for a UAC prompt)",
+            ssh_step.command
+        ));
+        return Err(Error::Usage("missing ssh".to_owned()));
+    }
+    let approved = yes
+        || crate::render::ask(&format!(
+            "Run `{}` through the Windows UAC prompt on this laptop? [y/N] ",
+            ssh_step.command
+        ))
+        .is_some_and(|a| matches!(a.trim(), "y" | "Y" | "yes" | "Yes" | "YES"));
+    if !approved {
+        return Err(Error::Usage("local tools not installed".to_owned()));
+    }
+    match winadmin::run_local(&ssh_step) {
+        Local::Done if on_path("ssh") => {
+            renderer.ok("installed the OpenSSH client");
+            Ok(())
+        }
+        Local::Done => Err(Error::Usage(
+            "the OpenSSH client was added but ssh is not on PATH yet; open a new terminal and rerun".to_owned(),
+        )),
+        Local::NoWindows => Err(Error::Usage(format!(
+            "cannot reach PowerShell here; run in an administrator PowerShell: {}",
+            ssh_step.command
+        ))),
+        Local::Failed(why) => Err(Error::Usage(format!("the elevated step failed: {why}"))),
     }
 }
 
@@ -137,6 +192,9 @@ pub fn add(
             key: args.key.clone(),
             fingerprint: args.fingerprint.clone(),
             no_password: args.no_password,
+            rsudo: args.rsudo,
+            windows_admin: args.windows_admin.clone(),
+            yes: args.yes,
         };
         let code = sshsetup::setup_with(paths, renderer, &setup, lookup, args.yes)?;
         if code != 0 {

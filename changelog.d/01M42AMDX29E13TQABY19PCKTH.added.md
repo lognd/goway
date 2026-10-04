@@ -1,0 +1,1 @@
+The --rsudo switch now runs a native Windows helper's administrator step through its Windows ssh admin account (or prints the exact command), and --lsudo adds the OpenSSH client through this laptop's UAC prompt; no password is ever stored or typed.

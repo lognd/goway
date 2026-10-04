@@ -23,6 +23,32 @@ in. The README says how to find each value by hand
 
 Running `goway add` again changes nothing that is already in place.
 
+### Windows-side administrator steps
+
+Some steps need Windows administrator rights, not Linux root: on a native
+Windows helper, authorizing goway's key; on a Windows main laptop, adding
+the OpenSSH client. They go through the same two switches, and goway never
+stores, asks for or types a password.
+
+- `--rsudo` on a native Windows helper (`goway add NAME --rsudo`, also
+  `goway ssh setup NAME --rsudo`): goway runs `goway-setup install --host
+  --native --authorized-key ...` there, after one question (`--yes` skips
+  it). It elevates through the helper's own Windows OpenSSH server as the
+  administrator account you name with `--windows-admin USER`, whose key is in
+  the helper's `administrators_authorized_keys` (unattended: nobody has to be
+  at the helper). With no such account, goway says so and prints the exact
+  command to run in an administrator PowerShell on the helper. The login is
+  tried once, so a wrong key never counts toward a fail2ban limit.
+- The elevated session never starts WSL: a step that touches a distro
+  first checks `wsl --list --running` and stops when the distro is not
+  running (start WSL from a normal terminal; see SECURITY.md). A step on a
+  helper that runs WSL can also go through `goway-setup` started from that
+  WSL, which shows Windows' own UAC prompt on the helper's desktop when
+  someone is logged in there; no command uses that route yet.
+- `--lsudo` on a Windows main laptop (`goway add NAME --lsudo`): the missing
+  OpenSSH client is added through this laptop's own UAC prompt. (git needs
+  no administrator: `winget install --id Git.Git -e`.)
+
 
 ## Run a command
 
