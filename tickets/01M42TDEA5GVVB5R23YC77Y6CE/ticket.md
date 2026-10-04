@@ -2,12 +2,12 @@
 id = "01M42TDEA5GVVB5R23YC77Y6CE"
 title = "The probe verb reports the host epoch"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T06:42:54Z"
-updated = "2026-10-04T06:42:54Z"
+updated = "2026-10-04T11:17:35Z"
 scope = ["crates/goway/src/remote.sh"]
 
 [[acceptance]]
