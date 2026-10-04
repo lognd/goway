@@ -96,7 +96,7 @@ What happens:
    docs/config.md). A worktree prefers the slot it used last. Builds
    bake absolute source paths into binaries (`CARGO_MANIFEST_DIR`,
    `file!()`), and cargo reuses binaries when only the path changed, so
-   a slot's binaries always find the current tree where they expect it. `~/.cargo/env` is sourced. sccache is
+   a slot's binaries always find the current tree where they expect it. The usual per-user tool directories (`~/.local/bin`, `~/.cargo/bin`, ...) are put on PATH; no startup file is sourced. `goway doctor` names any proxy variables (`HTTPS_PROXY`, ...) set on the helper, never their values. sccache is
    used if installed. With `priority = "low"` (the default) the job
    runs under `nice -n 10` with idle-class I/O.
 5. **Finish.** The work dir is removed unless `--keep` is given (then

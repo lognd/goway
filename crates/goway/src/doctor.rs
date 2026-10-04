@@ -614,9 +614,22 @@ fn filesystem_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     out
 }
 
+/// The proxy variables set on the host, by name only: a proxy URL may carry credentials.
+fn proxy_check(facts: &BTreeMap<String, String>) -> Option<Check> {
+    let names = facts.get("proxy_vars").filter(|v| !v.is_empty())?;
+    Some(Check {
+        name: "proxy".to_owned(),
+        explain: None,
+        level: Level::Ok,
+        detail: format!("{names} set on the host (values are never shown)"),
+        fix: None,
+    })
+}
+
 /// Disk and sshd hardening.
 fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     let mut out: Vec<Check> = startup_noise_check(facts).into_iter().collect();
+    out.extend(proxy_check(facts));
     out.extend(filesystem_checks(facts));
     let mut push = |name: &str, level, detail: String, fix| {
         out.push(Check {
@@ -1479,6 +1492,21 @@ fn exit_code(reports: &[output::HostReport]) -> u8 {
 mod tests {
     use super::*;
     use std::cell::RefCell;
+
+    // frob:tests crates/goway/src/doctor.rs::host_checks
+    #[test]
+    fn proxy_variable_names_are_shown_and_a_host_without_any_says_nothing() {
+        let mut f = BTreeMap::new();
+        assert!(host_checks(&f).iter().all(|c| c.name != "proxy"));
+        f.insert("proxy_vars".to_owned(), "HTTPS_PROXY,no_proxy".to_owned());
+        let checks = host_checks(&f);
+        let c = checks
+            .iter()
+            .find(|c| c.name == "proxy")
+            .expect("a proxy check");
+        assert_eq!(c.level, Level::Ok);
+        assert!(c.detail.contains("HTTPS_PROXY,no_proxy"), "{}", c.detail);
+    }
 
     fn facts(missing: &[&str]) -> BTreeMap<String, String> {
         let mut f = BTreeMap::new();
