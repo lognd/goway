@@ -109,7 +109,9 @@ fn a_dir_whose_creator_process_is_alive_is_never_removed() {
             .status
             .success()
     );
-    let dir = work_dir(&root, "mine", Some(0));
+    // No birth marker: only the creator pid can protect it (a marker of 0 would
+    // count as young on a host that booted under two minutes ago).
+    let dir = work_dir(&root, "mine", None);
     // This test process is the creator; it is alive.
     std::fs::write(dir.join("creator"), format!("{}\n", std::process::id())).unwrap();
     assert!(gc_in_the_future(home.path(), 10).status.success());
