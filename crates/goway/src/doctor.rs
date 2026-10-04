@@ -16,7 +16,7 @@ mod logout;
 pub mod output;
 mod prereq;
 mod projneeds;
-mod windows;
+pub mod windows;
 
 pub use prereq::Packages;
 pub use projneeds::{Needs, Toolchain, first_version};
@@ -928,6 +928,13 @@ pub enum Undo {
         /// Whether it needs administrator rights.
         root: bool,
     },
+    /// Run this PowerShell command on the Windows host (as administrator when `admin`).
+    Windows {
+        /// The command text, from [`windows::undo`].
+        command: String,
+        /// Whether it needs administrator rights.
+        admin: bool,
+    },
     /// A system package: listed, not removed.
     KeepPackage,
     /// rustup was set up on top of a `~/.cargo` that existed before.
@@ -942,6 +949,9 @@ const PACKAGE_CHECKS: &[&str] = &["bash", "tar", "flock", "setsid", "curl", "cc 
 impl Installed {
     /// The action that takes this install back, derived from the check name.
     pub fn undo(&self) -> Undo {
+        if let Some(check) = self.check.strip_prefix(windows::RECORD_PREFIX) {
+            return windows::undo(check, self.cargo_home_existed);
+        }
         if self.check == "cargo" && self.cargo_home_existed != Some(false) {
             return Undo::KeepCargo;
         }
@@ -1207,6 +1217,9 @@ fn confirm_plan(
 /// judge each by a re-check, record what was verified, and update `probed`.
 /// Returns whether anything ran.
 fn fix_host(ctx: &FixCtx<'_>, probed: &mut Probed<'_>) -> bool {
+    if probed.found.kind != Kind::Unix {
+        return fix_windows_host(ctx, probed);
+    }
     let (renderer, args) = (ctx.renderer, ctx.args);
     let host = probed.host;
     let runner = SshFixRunner {
@@ -1271,6 +1284,119 @@ fn fix_host(ctx: &FixCtx<'_>, probed: &mut Probed<'_>) -> bool {
         probed.checks = after;
     }
     true
+}
+
+/// [`fix_host`] for a Windows host: the installs that need no administrator
+/// rights, and with `--rsudo` the ones that do (through [`crate::winadmin`]),
+/// all confirmed once, each judged by a re-check and recorded for uninstall.
+fn fix_windows_host(ctx: &FixCtx<'_>, probed: &mut Probed<'_>) -> bool {
+    let (renderer, args) = (ctx.renderer, ctx.args);
+    let host = probed.host;
+    let steps = windows::plan(&probed.checks);
+    let runner = windows::HostRunner {
+        found: &probed.found,
+        settings: ctx.settings,
+        admin_user: args.windows_admin.as_deref(),
+    };
+    let confirm = |steps: &[windows::Step]| {
+        for line in output::windows_plan_lines(&host.name, steps, args.rsudo) {
+            renderer.line(line);
+        }
+        args.yes
+            || crate::render::ask(&format!("Run these on {} now? [y/N]: ", host.name))
+                .is_some_and(|a| matches!(a.trim(), "y" | "Y" | "yes" | "Yes" | "YES"))
+    };
+    let applied = windows::apply(&steps, args.rsudo, &confirm, &runner);
+    for (step, notes) in &applied.manual {
+        renderer.warn(format_args!(
+            "{}: {} needs administrator rights and was not run: {}",
+            host.name, step.check, step.fix.why
+        ));
+        for note in notes {
+            renderer.note(format_args!("not elevated: {note}"));
+        }
+        renderer.next(format_args!(
+            "in an administrator PowerShell on {}: {}",
+            host.name, step.fix.command
+        ));
+    }
+    for name in &applied.failed {
+        renderer.warn(format_args!(
+            "{}: the step for {name} failed (its output is above)",
+            host.name
+        ));
+    }
+    if applied.ran.is_empty() && applied.failed.is_empty() {
+        return false;
+    }
+    let mut local = ctx.state.clone();
+    let after = probe_host(
+        ctx.config, host, &mut local, ctx.lookup, ctx.prober, ctx.cmd,
+    )
+    .map(|f| assess_for(f.kind, &parse_facts(&f.output), ctx.needs));
+    let mut fixed = Vec::new();
+    match &after {
+        Ok(after) => {
+            for name in &applied.ran {
+                if after
+                    .iter()
+                    .any(|c| c.name == *name && c.level == Level::Ok)
+                {
+                    renderer.ok(format_args!("{}: fixed: {name}", host.name));
+                    fixed.push(name.clone());
+                } else {
+                    renderer.warn(format_args!("{}: not fixed: {name}", host.name));
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!(host = %host.name, error = %e, "cannot re-check the Windows host");
+            renderer.warn(format_args!(
+                "{}: cannot re-check, so the installs are not recorded",
+                host.name
+            ));
+        }
+    }
+    if let Err(e) = record_windows(ctx.paths, &host.name, &probed.facts, &fixed) {
+        renderer.warn(format_args!(
+            "cannot record what was installed on {}: {e}",
+            host.name
+        ));
+    }
+    if let Ok(after) = after {
+        probed.checks = after;
+    }
+    true
+}
+
+/// Add the Windows checks that were just fixed to the host's record, under
+/// their [`windows::RECORD_PREFIX`] names.
+fn record_windows(
+    paths: &Paths,
+    host: &str,
+    facts: &BTreeMap<String, String>,
+    fixed: &[String],
+) -> Result<()> {
+    let mut items = load_installed(paths, host);
+    let before = items.len();
+    for name in fixed {
+        let check = format!("{}{name}", windows::RECORD_PREFIX);
+        if items.iter().any(|i| i.check == check) {
+            continue;
+        }
+        items.push(Installed {
+            check,
+            cargo_home_existed: (name == "rustup")
+                .then(|| facts.get("cargo_home").is_none_or(|v| v != "0")),
+        });
+    }
+    if items.len() == before {
+        return Ok(());
+    }
+    let text = serde_json::to_string_pretty(&items).map_err(|e| Error::Usage(e.to_string()))?;
+    crate::config::write_atomic(&installed_path(paths, host), text.as_bytes())?;
+    tracing::info!(host, items = items.len(), "recorded what doctor installed");
+    Ok(())
 }
 
 /// Turn the probes of every host into the report and the reachable hosts

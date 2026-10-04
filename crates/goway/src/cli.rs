@@ -188,6 +188,11 @@ pub struct DoctorArgs {
     /// off ssh password login), asked separately from the tool installs.
     #[arg(long, requires = "rsudo")]
     pub harden: bool,
+    /// With --fix --rsudo on a Windows host: a Windows administrator account whose key is in
+    /// the host's `administrators_authorized_keys`, so goway elevates through its Windows ssh
+    /// (otherwise a UAC prompt, else the exact command to run as administrator).
+    #[arg(long, value_name = "USER", requires = "rsudo")]
+    pub windows_admin: Option<String>,
     /// With --fix, say explicitly that every configured host is fixed (the
     /// default when no HOST is named); refuses a HOST.
     #[arg(long, requires = "fix", conflicts_with = "host")]

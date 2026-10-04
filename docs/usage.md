@@ -137,6 +137,37 @@ hand) and the free space of the system drive. Each problem names the exact
 PowerShell command that fixes it (`goway doctor NAME --explain CHECK`). Only
 problems are listed unless you pass `--all`.
 
+#### Fixing a Windows host
+
+`goway doctor NAME --fix` installs what a Windows host lacks, after one
+confirmation that lists every step with its exact PowerShell (`-y` skips the
+question):
+
+- the Visual C++ Build Tools with the C++ workload, through winget
+  (`Microsoft.VisualStudio.2022.BuildTools`); this is the one step that needs
+  Windows administrator rights;
+- rustup, from a pinned `rustup-init.exe` whose sha256 is checked before it
+  runs, with the msvc host toolchain (or, when rustup is there without an msvc
+  toolchain, `rustup toolchain install`);
+- cargo-nextest, from a pinned zip whose sha256 is checked, copied into the
+  user's cargo `bin` directory. A cargo-nextest that is already there as a
+  bare file counts as present and is left alone.
+
+The steps that need no administrator rights always run as the host's user.
+The administrator step runs only with `--rsudo`, through the best route
+there is, each tried once: `--windows-admin USER` (a Windows administrator
+account whose key is in the host's `administrators_authorized_keys`, so
+nobody has to be at the host), else the UAC prompt (for the Windows side of
+this machine, the prompt on this desktop), else goway stops and prints the
+exact command to paste into an administrator PowerShell. goway never asks
+for, stores or types a password.
+
+Each install that a re-check confirms is recorded for `goway uninstall`:
+rustup is removed with `rustup self uninstall` (kept when `~/.cargo` existed
+before), the msvc toolchain with `rustup toolchain uninstall`, and
+cargo-nextest by deleting the file (never `cargo uninstall`). The Build Tools
+are a system package other software may use: they are listed, not removed.
+
 #### Running a Windows test suite from WSL
 
 With an interop host in your config (`transport = "interop"`, `os = "windows"`),

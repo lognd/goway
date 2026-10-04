@@ -315,6 +315,25 @@ pub fn plan_lines(hosts: &[HostReport], harden: bool, rsudo: bool) -> Vec<String
     lines
 }
 
+/// What `doctor --fix` is about to do on a Windows host, step by step with the
+/// exact PowerShell, and which steps need administrator rights (run only
+/// with `--rsudo`: through an administrator ssh account, else a UAC prompt,
+/// else the exact command to run by hand; goway never sees a password).
+pub fn windows_plan_lines(host: &str, steps: &[super::windows::Step], rsudo: bool) -> Vec<String> {
+    let mut lines = vec![format!("on {host}, goway will run (PowerShell):")];
+    for s in steps {
+        let how = match (s.admin, rsudo) {
+            (false, _) => "as your user",
+            (true, true) => "with administrator rights (administrator ssh, else a UAC prompt)",
+            (true, false) => "needs administrator rights: NOT run without --rsudo",
+        };
+        lines.push(format!("  {} ({how})", s.check));
+        lines.push(format!("    why: {}", s.fix.why));
+        lines.push(format!("    exact: {}", s.fix.command));
+    }
+    lines
+}
+
 /// The question asked before root fixes run on `host`: what will change
 /// there, in plain words, and how to see the exact commands.
 pub fn prompt_text(host: &str, steps: &[(String, Fix)], hardening: bool) -> String {

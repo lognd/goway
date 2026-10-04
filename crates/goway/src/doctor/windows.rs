@@ -12,10 +12,13 @@
 
 use std::collections::BTreeMap;
 
-use super::{Check, Fix, Level, MIN_FREE, projneeds, tool};
+use std::process::Stdio;
+
+use super::{Check, Fix, Level, MIN_FREE, Undo, projneeds, tool};
 use crate::resolve::{Found, Prober};
-use crate::ssh::KeyPolicy;
+use crate::ssh::{self, KeyPolicy};
 use crate::transport::{self, Kind};
+use crate::winadmin::{self, WinStep};
 
 /// PowerShell that prints the extra facts, one `key=value` per line. It
 /// only reads: nothing is installed, written or started.
@@ -371,6 +374,226 @@ pub fn assess_project(
     assess(kind, facts, needs.wants_rust())
 }
 
+/// Whether the fix of the check `name` needs Windows administrator rights
+/// (everything else installs for the user).
+pub fn needs_admin(name: &str) -> bool {
+    ADMIN_CHECKS.contains(&name)
+}
+
+/// The checks whose fixes need administrator rights.
+const ADMIN_CHECKS: &[&str] = &["msvc build tools"];
+
+/// The prefix of the install records of a Windows host: its checks share
+/// names with the Unix ones (`cargo-nextest`), but undo differently.
+pub const RECORD_PREFIX: &str = "win:";
+
+/// How a Windows host's fixes run; the real one uses the host's transport and
+/// [`winadmin`], tests use a script.
+pub trait Runner {
+    /// Run the PowerShell `command` as the host's user; whether it succeeded.
+    fn user(&self, command: &str) -> bool;
+    /// Run `step` with administrator rights by the best route there is.
+    fn admin(&self, step: &WinStep) -> winadmin::Outcome;
+}
+
+/// Asks once, before anything is installed, whether to go ahead with
+/// these steps (check name, fix, needs administrator rights).
+pub type Confirm<'a> = dyn Fn(&[Step]) -> bool + 'a;
+
+/// One install step of a Windows host.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Step {
+    /// The check it fixes.
+    pub check: String,
+    /// The fix: PowerShell, exactly as it runs.
+    pub fix: Fix,
+    /// Whether it needs administrator rights.
+    pub admin: bool,
+}
+
+/// What [`apply`] did, by check name.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Applied {
+    /// Steps that ran and reported success (judged again by a re-check).
+    pub ran: Vec<String>,
+    /// Steps that ran and failed.
+    pub failed: Vec<String>,
+    /// Administrator steps not run: no `--rsudo`, or no route to elevate; each
+    /// with the lines explaining why and what to run by hand.
+    pub manual: Vec<(Step, Vec<String>)>,
+    /// Steps nobody confirmed.
+    pub declined: bool,
+}
+
+/// The steps for `checks` that are not fine and have a fix: the
+/// administrator ones first (the Build Tools are what cargo links with),
+/// each distinct command once.
+pub fn plan(checks: &[Check]) -> Vec<Step> {
+    let mut steps: Vec<Step> = Vec::new();
+    for c in checks.iter().filter(|c| c.level != Level::Ok) {
+        let Some(fix) = &c.fix else { continue };
+        if steps.iter().any(|s| s.fix.command == fix.command) {
+            continue;
+        }
+        steps.push(Step {
+            check: c.name.clone(),
+            fix: fix.clone(),
+            admin: needs_admin(&c.name),
+        });
+    }
+    steps.sort_by_key(|s| !s.admin);
+    steps
+}
+
+/// Run the plan: confirm once for everything, then the administrator step
+/// (only when `admin` is allowed) and the user steps. A failing step never
+/// stops the others; whether each one worked is judged by the caller's
+/// re-check, never inferred from the step's own report.
+pub fn apply(steps: &[Step], admin: bool, confirm: &Confirm, runner: &dyn Runner) -> Applied {
+    let mut applied = Applied::default();
+    if steps.is_empty() {
+        return applied;
+    }
+    if !confirm(steps) {
+        tracing::info!("windows fixes not confirmed");
+        applied.declined = true;
+        return applied;
+    }
+    for step in steps {
+        if step.admin {
+            if !admin {
+                applied.manual.push((
+                    step.clone(),
+                    vec![
+                        "rerun with --rsudo to let goway ask Windows for administrator rights"
+                            .to_owned(),
+                    ],
+                ));
+                continue;
+            }
+            let win = WinStep {
+                why: step.fix.why.clone(),
+                command: step.fix.command.clone(),
+                wsl_distro: None,
+            };
+            tracing::info!(check = %step.check, "running an administrator step");
+            match runner.admin(&win) {
+                winadmin::Outcome::Ran(route) => {
+                    tracing::info!(check = %step.check, ?route, "administrator step ran");
+                    applied.ran.push(step.check.clone());
+                }
+                winadmin::Outcome::Failed(route, why) => {
+                    tracing::warn!(check = %step.check, ?route, %why, "administrator step failed");
+                    applied.failed.push(step.check.clone());
+                }
+                winadmin::Outcome::Manual { tried } => applied.manual.push((step.clone(), tried)),
+            }
+        } else {
+            tracing::info!(check = %step.check, "running a user step");
+            if runner.user(&step.fix.command) {
+                applied.ran.push(step.check.clone());
+            } else {
+                applied.failed.push(step.check.clone());
+            }
+        }
+    }
+    applied
+}
+
+/// The real [`Runner`]: the host's transport for user steps, and
+/// [`winadmin::elevate`] (administrator ssh) or this machine's UAC prompt
+/// for administrator ones.
+pub struct HostRunner<'a> {
+    /// The host as found.
+    pub found: &'a Found,
+    /// ssh settings shared by every call.
+    pub settings: &'a ssh::Settings,
+    /// `--windows-admin`: the administrator account for the ssh route.
+    pub admin_user: Option<&'a str>,
+}
+
+/// [`winadmin::run_local`]'s answer as the [`winadmin::Outcome`] of the route
+/// it is: this machine's own UAC prompt.
+fn local_outcome(local: winadmin::Local) -> winadmin::Outcome {
+    match local {
+        winadmin::Local::Done => winadmin::Outcome::Ran(winadmin::Route::DesktopUac),
+        winadmin::Local::Failed(why) => winadmin::Outcome::Failed(winadmin::Route::DesktopUac, why),
+        winadmin::Local::NoWindows => winadmin::Outcome::Manual {
+            tried: vec!["PowerShell is not reachable from here, so no UAC prompt".to_owned()],
+        },
+    }
+}
+
+impl Runner for HostRunner<'_> {
+    fn user(&self, command: &str) -> bool {
+        let cmd = transport::command(
+            self.found.kind,
+            &self.found.target,
+            self.settings,
+            KeyPolicy::Strict,
+            transport::Script::Ps(command),
+        );
+        let mut cmd = match cmd {
+            Ok(cmd) => cmd,
+            Err(e) => {
+                tracing::warn!(error = %e, "cannot start the Windows fix");
+                return false;
+            }
+        };
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .is_ok_and(|s| s.success())
+    }
+
+    fn admin(&self, step: &WinStep) -> winadmin::Outcome {
+        if self.found.kind == Kind::WindowsInterop {
+            return local_outcome(winadmin::run_local(step));
+        }
+        let target = &self.found.target;
+        let runner = winadmin::SshWinRunner {
+            key_name: &target.name,
+            address: &target.address,
+            port: target.port,
+            settings: self.settings,
+            // A native Windows host has no WSL to start the prompt from.
+            wsl: None,
+        };
+        winadmin::elevate(step, self.admin_user, &runner)
+    }
+}
+
+/// How to take back the install recorded as `check` (without the
+/// [`RECORD_PREFIX`]), derived from the name alone: goway never runs text
+/// from a record. `cargo_home_existed` is false when rustup created the cargo
+/// home. A bare cargo-nextest is only ever a file: its undo deletes the file
+/// (never `cargo uninstall`, which does not know a hand-placed binary).
+pub fn undo(check: &str, cargo_home_existed: Option<bool>) -> Undo {
+    match check {
+        "rustup" if cargo_home_existed != Some(false) => Undo::KeepCargo,
+        "rustup" => Undo::Windows {
+            command: format!("& (Join-Path {CARGO_BIN_PS} 'rustup.exe') self uninstall -y"),
+            admin: false,
+        },
+        "cargo-nextest" => Undo::Windows {
+            command: format!(
+                "$f = Join-Path {CARGO_BIN_PS} 'cargo-nextest.exe'; if (Test-Path -LiteralPath $f) {{ Remove-Item -LiteralPath $f -Force }}"
+            ),
+            admin: false,
+        },
+        "rust msvc target" => Undo::Windows {
+            command: format!(
+                "$r = Join-Path {CARGO_BIN_PS} 'rustup.exe'; foreach ($l in (& $r toolchain list)) {{ $n = ($l -split ' ')[0]; if ($n -match '^stable-\\S+windows-msvc$') {{ & $r toolchain uninstall $n }} }}"
+            ),
+            admin: false,
+        },
+        // A system-wide package other software may use: listed, never removed.
+        "msvc build tools" => Undo::KeepPackage,
+        _ => Undo::Unknown,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::parse_facts;
@@ -538,5 +761,160 @@ mod tests {
         let facts = parse_facts(&found.output);
         let checks = assess(found.kind, &facts, true);
         assert!(checks.iter().all(|c| c.level == Level::Ok), "{checks:?}");
+    }
+
+    /// A runner that answers from a script and records what it was asked.
+    struct Script {
+        user_ok: bool,
+        admin: winadmin::Outcome,
+        calls: std::cell::RefCell<Vec<String>>,
+    }
+
+    impl Runner for Script {
+        fn user(&self, command: &str) -> bool {
+            self.calls.borrow_mut().push(format!("user:{command}"));
+            self.user_ok
+        }
+        fn admin(&self, step: &WinStep) -> winadmin::Outcome {
+            self.calls
+                .borrow_mut()
+                .push(format!("admin:{}", step.command));
+            self.admin.clone()
+        }
+    }
+
+    fn script(user_ok: bool, admin: winadmin::Outcome) -> Script {
+        Script {
+            user_ok,
+            admin,
+            calls: std::cell::RefCell::new(Vec::new()),
+        }
+    }
+
+    fn bare_plan() -> Vec<Step> {
+        plan(&assess(
+            Kind::WindowsSsh,
+            &facts(&[("arch", "x86_64")]),
+            true,
+        ))
+    }
+
+    // frob:tests crates/goway/src/doctor/windows.rs::plan
+    #[test]
+    fn the_plan_puts_the_administrator_step_first_and_lists_every_missing_tool() {
+        let steps = bare_plan();
+        let names: Vec<&str> = steps.iter().map(|s| s.check.as_str()).collect();
+        assert_eq!(names, ["msvc build tools", "rustup", "cargo-nextest"]);
+        assert_eq!(
+            steps.iter().map(|s| s.admin).collect::<Vec<_>>(),
+            [true, false, false]
+        );
+    }
+
+    // frob:tests crates/goway/src/doctor/windows.rs::apply
+    #[test]
+    fn nothing_runs_until_the_whole_plan_is_confirmed() {
+        let runner = script(true, winadmin::Outcome::Ran(winadmin::Route::AdminSsh));
+        let applied = apply(&bare_plan(), true, &|_: &[Step]| false, &runner);
+        assert!(applied.declined && applied.ran.is_empty());
+        assert!(runner.calls.borrow().is_empty());
+    }
+
+    // frob:tests crates/goway/src/doctor/windows.rs::apply
+    #[test]
+    fn without_rsudo_the_administrator_step_is_left_for_the_owner_and_the_user_steps_run() {
+        let runner = script(true, winadmin::Outcome::Ran(winadmin::Route::AdminSsh));
+        let applied = apply(&bare_plan(), false, &|_: &[Step]| true, &runner);
+        assert_eq!(applied.ran, ["rustup", "cargo-nextest"]);
+        assert_eq!(applied.manual.len(), 1);
+        assert_eq!(applied.manual[0].0.check, "msvc build tools");
+        assert!(applied.manual[0].1[0].contains("--rsudo"));
+        assert!(runner.calls.borrow().iter().all(|c| c.starts_with("user:")));
+    }
+
+    // frob:tests crates/goway/src/doctor/windows.rs::apply
+    #[test]
+    fn the_administrator_step_goes_through_the_elevation_and_failures_do_not_stop_the_rest() {
+        let runner = script(
+            false,
+            winadmin::Outcome::Failed(winadmin::Route::DesktopUac, "declined".to_owned()),
+        );
+        let applied = apply(&bare_plan(), true, &|_: &[Step]| true, &runner);
+        assert_eq!(
+            applied.failed,
+            ["msvc build tools", "rustup", "cargo-nextest"]
+        );
+        let calls = runner.calls.borrow();
+        assert!(calls[0].starts_with("admin:winget install"));
+        assert_eq!(calls.len(), 3);
+    }
+
+    // frob:tests crates/goway/src/doctor/windows.rs::apply
+    #[test]
+    fn no_route_to_administrator_rights_leaves_the_exact_command() {
+        let runner = script(
+            true,
+            winadmin::Outcome::Manual {
+                tried: vec!["nobody at the desktop".to_owned()],
+            },
+        );
+        let applied = apply(&bare_plan(), true, &|_: &[Step]| true, &runner);
+        assert_eq!(applied.manual.len(), 1);
+        assert_eq!(applied.manual[0].1, ["nobody at the desktop"]);
+        assert!(
+            applied.manual[0]
+                .0
+                .fix
+                .command
+                .starts_with("winget install")
+        );
+    }
+
+    // frob:tests crates/goway/src/doctor/windows.rs::HostRunner
+    #[test]
+    fn this_machines_uac_prompt_maps_onto_the_elevation_outcomes() {
+        assert_eq!(
+            local_outcome(winadmin::Local::Done),
+            winadmin::Outcome::Ran(winadmin::Route::DesktopUac)
+        );
+        assert!(matches!(
+            local_outcome(winadmin::Local::NoWindows),
+            winadmin::Outcome::Manual { .. }
+        ));
+        assert!(matches!(
+            local_outcome(winadmin::Local::Failed("no".to_owned())),
+            winadmin::Outcome::Failed(..)
+        ));
+    }
+
+    // frob:tests crates/goway/src/doctor/windows.rs::undo
+    #[test]
+    fn a_recorded_nextest_is_undone_by_deleting_the_file_never_cargo_uninstall() {
+        let item = crate::doctor::Installed {
+            check: format!("{RECORD_PREFIX}cargo-nextest"),
+            cargo_home_existed: None,
+        };
+        let Undo::Windows { command, admin } = item.undo() else {
+            panic!("{:?}", item.undo());
+        };
+        assert!(!admin);
+        assert!(command.contains("Remove-Item") && command.contains("cargo-nextest.exe"));
+        assert!(!command.contains("cargo uninstall"));
+    }
+
+    // frob:tests crates/goway/src/doctor/windows.rs::undo
+    #[test]
+    fn windows_undo_keeps_what_may_have_existed_and_the_system_package() {
+        assert_eq!(undo("rustup", None), Undo::KeepCargo);
+        assert_eq!(undo("rustup", Some(true)), Undo::KeepCargo);
+        assert!(matches!(undo("rustup", Some(false)), Undo::Windows { .. }));
+        assert_eq!(undo("msvc build tools", None), Undo::KeepPackage);
+        assert_eq!(undo("something else", None), Undo::Unknown);
+        // The Unix names never reach a Windows command.
+        let unix = crate::doctor::Installed {
+            check: "cargo-nextest".to_owned(),
+            cargo_home_existed: None,
+        };
+        assert!(matches!(unix.undo(), Undo::Run { .. }));
     }
 }

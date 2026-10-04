@@ -515,6 +515,20 @@ fn host_plan(paths: &Paths, config: &Config, host: &HostConfig) -> Vec<String> {
                 "undo the {} change (needs --rsudo: administrator rights there; runs `{command}`)",
                 item.check
             )),
+            Undo::Windows {
+                admin: false,
+                command,
+            } => out.push(format!(
+                "remove {} (goway installed it; runs `{command}` in PowerShell there)",
+                item.check.trim_start_matches(doctor::windows::RECORD_PREFIX)
+            )),
+            Undo::Windows {
+                admin: true,
+                command,
+            } => out.push(format!(
+                "undo {} (administrator rights: goway prints `{command}` to run in an administrator PowerShell there)",
+                item.check.trim_start_matches(doctor::windows::RECORD_PREFIX)
+            )),
             Undo::KeepPackage => out.push(format!(
                 "keep the system package for {} (other software may use it; listed with its removal command)",
                 item.check
@@ -570,6 +584,28 @@ fn show_plan(renderer: Renderer, paths: &Paths, config: &Config, removal: &Remov
         Removal::Unknown => renderer.line(
             "    - (goway could not tell how its program was installed; remove it yourself)",
         ),
+    }
+}
+
+/// Run the PowerShell undo `command` on a Windows helper as its user (the
+/// transport it was found by); whether it succeeded.
+fn windows_undo(found: &resolve::Found, settings: &ssh::Settings, command: &str) -> bool {
+    let cmd = crate::transport::command(
+        found.kind,
+        &found.target,
+        settings,
+        KeyPolicy::Strict,
+        crate::transport::Script::Ps(command),
+    );
+    match cmd {
+        Ok(mut cmd) => cmd
+            .stdin(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success()),
+        Err(e) => {
+            tracing::warn!(error = %e, "cannot start the Windows undo");
+            false
+        }
     }
 }
 
@@ -636,6 +672,26 @@ fn clean_host(
                 root: true,
                 why: format!("undoes goway's {} change", item.check),
             }),
+            Undo::Windows {
+                command,
+                admin: false,
+            } => {
+                if windows_undo(&found, settings, &command) {
+                    renderer.ok(format_args!("{}: removed {}", host.name, item.check));
+                } else {
+                    renderer.warn(format_args!(
+                        "{}: could not remove {}",
+                        host.name, item.check
+                    ));
+                }
+            }
+            Undo::Windows {
+                command,
+                admin: true,
+            } => renderer.next(format_args!(
+                "on {}, in an administrator PowerShell: {command}  (undoes goway's {})",
+                host.name, item.check
+            )),
             Undo::KeepPackage => renderer.note(format_args!(
                 "{}: kept the system package goway installed for {}",
                 host.name, item.check
