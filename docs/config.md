@@ -150,6 +150,10 @@ On the remote, a job sees these variables:
 | `CARGO_TARGET_DIR` | a free per-repository target slot, unless already set |
 | `RUSTC_WRAPPER`, `SCCACHE_DIR`, `SCCACHE_SERVER_UDS`, `SCCACHE_IDLE_TIMEOUT` | sccache with a per-repository cache, a server socket in goway's owner-only cache directory (no TCP port), and a 300 s idle timeout. These are set only when sccache is installed and `RUSTC_WRAPPER` is unset, and each one only if it is still unset. |
 
+| `CMAKE_C_COMPILER_LAUNCHER`, `CMAKE_CXX_COMPILER_LAUNCHER` | `sccache`, or else `ccache`, when installed on the host (CMake 3.17+ reads these from the environment), so C and C++ builds compile from the per-repository cache. Set only if unset: `CMAKE_CXX_COMPILER_LAUNCHER=` (empty) switches it off. A `-DCMAKE_..._LAUNCHER` on the command line or in the project's CMakeLists always wins over the environment. |
+| `CCACHE_DIR` | a per-repository ccache directory, when ccache (and no sccache) is the launcher and the variable is unset |
+| `CPM_SOURCE_CACHE` | `cache/<repo-id>/cpm` in goway's remote root: one CPM.cmake download directory shared by all slots and worktrees of the repository, unless already set |
+
 The remote environment, `~/.cargo/env` and `--env KEY=VALUE` values are
 applied first. goway only fills in what is still unset, so your settings
 always win (see docs/positioning.md).
