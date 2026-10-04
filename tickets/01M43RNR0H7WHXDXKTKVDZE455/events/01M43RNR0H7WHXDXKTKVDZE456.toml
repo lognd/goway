@@ -1,0 +1,12 @@
+kind = "create"
+title = "CI: per-test timeouts in nextest and per-job timeout-minutes, plus a stuck-process dump on macOS"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 2
+scope = [".config/nextest.toml", ".github/workflows/ci.yml", "scripts/ci-ps-watch.sh", "docs/macos.md"]
+acceptance = ["Given a test that hangs, When nextest runs it, Then it is terminated after its slow-timeout instead of running for hours", "Given any CI job, When it runs, Then it has a timeout-minutes limit", "Given a macOS test run that is slow, When a test process outlives 45s, Then the process tree and its open pipes are printed to the log"]
+body = "Hung macOS runs ran for hours and starved the runner pool. Hard safety net first, then the diagnosis of ~E09XD8K."
+at = "2026-10-04T15:31:44Z"
+actor = "lognd"
+rev = 1
