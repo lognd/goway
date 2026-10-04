@@ -2,12 +2,13 @@
 id = "01M42JQMHSDJS2ASHQEB9V2YY4"
 title = "owner_awareness tests pass on macOS: niceness is relative to the runner's own, idle time is shimmed"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T04:28:40Z"
-updated = "2026-10-04T04:45:10Z"
+updated = "2026-10-04T04:45:11Z"
 scope = ["crates/goway/tests/owner_awareness.rs"]
 
 [[acceptance]]
