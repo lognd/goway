@@ -2,13 +2,13 @@
 id = "01M427TCSW8B9ZMT2HG4XE3D47"
 title = 'Windows run: put Git for Windows usr\bin on PATH when sh is missing, like CI images'
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T01:17:56Z"
-updated = "2026-10-04T01:17:56Z"
+updated = "2026-10-04T01:19:45Z"
 scope = ["crates/goway/src/remote.ps1", "docs/usage.md"]
 
 [[acceptance]]
