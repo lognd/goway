@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:00:25Z"
-updated = "2026-10-04T00:36:51Z"
+updated = "2026-10-04T00:37:40Z"
 scope = ["crates/goway-setup/src/relay.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/tests/relay.rs", "docs/install-windows.md"]
 
 [[acceptance]]
