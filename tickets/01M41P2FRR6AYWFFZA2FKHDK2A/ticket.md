@@ -2,7 +2,8 @@
 id = "01M41P2FRR6AYWFFZA2FKHDK2A"
 title = "Portable helper side: macOS (and other non-GNU systems) as helpers"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
