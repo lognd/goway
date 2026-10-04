@@ -1,0 +1,11 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-04T23:17:25Z"
+digest = "e496a507ebac1049140e9612edd2b30b2741adbd9d7e93b2ea8235013c2ac284"
+provider = "file"
+ref = "docs/troubleshooting.md"
+size = 19838
+status = "measured"
+at = "2026-10-04T23:17:25Z"
+actor = "lognd"
+rev = 1

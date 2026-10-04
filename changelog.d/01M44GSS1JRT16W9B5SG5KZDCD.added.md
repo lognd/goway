@@ -1,0 +1,1 @@
+goway doctor now tells a stopped WSL distro, a keepalive task that never repeats and an unreachable machine apart by asking Windows OpenSSH, and the troubleshooting page lists the same checks by hand.
