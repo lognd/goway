@@ -2,7 +2,8 @@
 id = "01M42FEZBPMJ958RA4K1TD3D5H"
 title = "A Windows host's first sync into an empty goway root fails with seed changed (have empty generation)"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
