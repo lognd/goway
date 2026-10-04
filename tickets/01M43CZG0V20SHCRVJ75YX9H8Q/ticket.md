@@ -2,13 +2,13 @@
 id = "01M43CZG0V20SHCRVJ75YX9H8Q"
 title = "Making room before a run must never evict the run's own seed, work dir or cache"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T12:07:20Z"
-updated = "2026-10-04T12:07:20Z"
+updated = "2026-10-04T12:20:59Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/footprint.rs"]
 
 [[acceptance]]
