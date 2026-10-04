@@ -49,6 +49,14 @@ pub fn git(dir: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_owned())
 }
 
+/// Create a repository in `dir` whose first branch is `main`. Works on git
+/// older than 2.28, which has no `git init -b`; tests use it everywhere.
+pub fn init_main(dir: &Path) -> Result<()> {
+    git(dir, &["init", "-q"])?;
+    git(dir, &["symbolic-ref", "HEAD", "refs/heads/main"])?;
+    Ok(())
+}
+
 /// Short hex digest of `parts`, joined with NUL.
 pub fn short_hash(parts: &[&str]) -> String {
     let mut h = Sha256::new();
@@ -89,11 +97,9 @@ impl Repo {
             other => other,
         })?;
         let root = PathBuf::from(root);
-        let common = git(
-            &root,
-            &["rev-parse", "--path-format=absolute", "--git-common-dir"],
-        )?;
-        let common = PathBuf::from(common);
+        // `--path-format=absolute` needs git 2.31; older gits answer a path
+        // relative to `root` (or absolute), which `join` resolves either way.
+        let common = root.join(git(&root, &["rev-parse", "--git-common-dir"])?);
         let main_tree = if common.file_name().is_some_and(|n| n == ".git") {
             common
                 .parent()
@@ -141,8 +147,8 @@ mod tests {
     use super::*;
 
     pub(crate) fn init_repo(dir: &Path) {
+        init_main(dir).unwrap();
         for args in [
-            vec!["init", "-q", "-b", "main"],
             vec!["config", "user.email", "t@example.com"],
             vec!["config", "user.name", "t"],
             vec!["config", "core.autocrlf", "false"],

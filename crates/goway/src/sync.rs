@@ -1493,8 +1493,8 @@ mod tests {
     use crate::repo::git;
 
     fn init(dir: &Path) {
+        crate::repo::init_main(dir).unwrap();
         for args in [
-            vec!["init", "-q", "-b", "main"],
             vec!["config", "user.email", "t@example.com"],
             vec!["config", "user.name", "t"],
             vec!["config", "core.autocrlf", "false"],

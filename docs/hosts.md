@@ -138,3 +138,14 @@ with unusual quoting as the command.
 
 Both kinds share one transport abstraction (`crates/goway/src/transport.rs`),
 so running on this machine in place can be one more kind.
+
+## What git a machine needs
+
+goway needs no git on a helper: it syncs with `git ls-files -co
+--exclude-standard -z` and `git rev-parse --git-common-dir` on your laptop,
+which git 2.25 and newer (tested) both handle. A
+helper that has git also keeps gitignored paths in its slots (see
+`keep_ignored` in the config); without it only the detected dependency and
+build directories stay. The test suite itself runs on git 2.25 (Ubuntu 20.04):
+it creates repositories with `git init` and `git symbolic-ref HEAD
+refs/heads/main`, never `git init -b`, which needs 2.28.

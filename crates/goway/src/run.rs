@@ -1032,7 +1032,7 @@ mod tests {
         };
         let proj = dir.path().join("proj");
         std::fs::create_dir(&proj).unwrap();
-        crate::repo::git(&proj, &["init", "-q", "-b", "main"]).unwrap();
+        crate::repo::init_main(&proj).unwrap();
         std::fs::write(proj.join("Cargo.toml"), "[package]\nname = \"p\"\n").unwrap();
         let repo = Repo::discover(&proj).unwrap();
         let mut config = Config::default();
