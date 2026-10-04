@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [7]
+captured_at = "2026-10-04T12:20:01Z"
+digest = "38b49d604a1766b5c4339e07cfaddec9e0a3681024f60b8f82ac157dd2568552"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 693e7e5b-8966-491d-bb39-018f0d84a8ff with nextest profile: default
+    Starting 2 tests across 68 binaries (798 tests skipped)
+        PASS [   0.005s] goway translate::tests::python_and_pip_translate_per_os_and_everything_else_does_not
+        PASS [   0.005s] goway translate::tests::project_entries_replace_the_built_in_ones_and_only_bare_names_or_tree_paths_pass
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.008s] 2 tests run: 2 passed, 798 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/project_entries_replace_the_built_in_ones|python_and_pip_translate_per_os/)'"
+size = 710
+status = "measured"
+tests = ["translate::tests::python_and_pip_translate_per_os_and_everything_else_does_not", "translate::tests::project_entries_replace_the_built_in_ones_and_only_bare_names_or_tree_paths_pass"]
+at = "2026-10-04T12:20:01Z"
+actor = "lognd"
+rev = 1
