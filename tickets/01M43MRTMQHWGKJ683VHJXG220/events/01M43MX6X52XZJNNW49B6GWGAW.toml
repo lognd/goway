@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T14:25:54Z"
+digest = "727c89981d488ba38ff85eb460c73ccf45871fd011a5f9145d0c54220972769b"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d3c8f8bc-56ba-477d-91eb-06eeec9fe4aa with nextest profile: default
+    Starting 3 tests across 1 binary (69 binaries skipped)
+        PASS [   0.319s] goway::queue a_host_short_of_memory_for_one_more_job_is_waited_for_not_used
+        PASS [   1.036s] goway::queue a_full_pool_fails_at_once_with_zero_wait_and_after_the_wait_otherwise
+        PASS [   2.969s] goway::queue twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   2.973s] 3 tests run: 3 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(queue)'"
+size = 976
+status = "measured"
+tests = ["a_host_short_of_memory_for_one_more_job_is_waited_for_not_used", "a_full_pool_fails_at_once_with_zero_wait_and_after_the_wait_otherwise", "twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound"]
+at = "2026-10-04T14:25:54Z"
+actor = "lognd"
+rev = 1
