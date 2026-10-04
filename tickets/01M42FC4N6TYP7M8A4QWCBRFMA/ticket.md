@@ -2,13 +2,14 @@
 id = "01M42FC4N6TYP7M8A4QWCBRFMA"
 title = "--needs terms are shell-safe: accept cores:8 and mem:2G forms, and hint when a bare key suggests an unquoted >= redirect"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:29:57Z"
-updated = "2026-10-04T05:29:38Z"
+updated = "2026-10-04T05:31:22Z"
 scope = ["crates/goway/src/needs.rs", "crates/goway/src/error.rs", "docs/usage.md"]
 
 [[acceptance]]
