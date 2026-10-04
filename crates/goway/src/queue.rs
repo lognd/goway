@@ -373,7 +373,7 @@ mod tests {
     }
 
     // frob:ticket 01M43CFMDFG8YSM3HNRD0GB213
-    // frob:tests crates/goway/src/queue.rs::Queue::snapshot
+    // frob:tests crates/goway/src/queue.rs::Snapshot
     #[test]
     fn a_claim_remembers_its_repository_until_dropped() {
         let (_d, q) = queue();
