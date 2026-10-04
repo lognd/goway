@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T05:20:19Z"
+digest = "05ddafaf783667fc66cb34bbf1b0aa23b417f2f3d619c73a5ad389287f130c7c"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 3fc13cdc-63e5-4ea9-ae73-a9f89490f486 with nextest profile: default
+    Starting 1 test across 58 binaries (687 tests skipped)
+        PASS [   0.009s] goway cmakeapi::tests::replies_that_are_not_what_the_file_api_documents_are_errors
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.011s] 1 test run: 1 passed, 687 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "replies_that_are_not_what_the_file_api"
+size = 576
+status = "measured"
+tests = ["cmakeapi::tests::replies_that_are_not_what_the_file_api_documents_are_errors"]
+at = "2026-10-04T05:20:19Z"
+actor = "lognd"
+rev = 1
