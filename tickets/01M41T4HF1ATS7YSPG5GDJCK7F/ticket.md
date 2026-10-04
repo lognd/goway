@@ -2,7 +2,8 @@
 id = "01M41T4HF1ATS7YSPG5GDJCK7F"
 title = "doctor and goway-setup help a WSL helper get hardware: RAM, swap, cores, nested virtualization (journaled .wslconfig), GPU driver and CUDA guidance"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
