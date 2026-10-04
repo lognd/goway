@@ -99,6 +99,23 @@ only changed crates recompile. Idle caches expire like on any other host
 (`cache_ttl`), and `goway gc` removes them on demand. The command's exit
 code is goway's exit code.
 
+#### Running a Windows test suite from WSL
+
+With an interop host in your config (`transport = "interop"`, `os = "windows"`),
+`goway run --host win -- cargo nextest run --workspace` and
+`goway run --host win -- cargo clippy --workspace --all-targets -- -D warnings`
+run natively on the Windows side of this machine, from any worktree, and
+exit with the command's exit code. This replaces the old `winsync`, `winrun`
+and `winbuild` scripts: there is no mirror to keep in step, and the copy is
+updated incrementally by goway itself. Measured on an ARM Windows laptop
+for a 4000-file, 1300-test workspace: clippy 281 s cold, nextest 213 s warm.
+
+Two differences from a CI checkout are worth knowing. The Windows copy has
+no `.git` (goway never sends it), so tests that open the repository fail
+there; and tests that run `sh` need Git for Windows' `usr\bin` on `PATH`,
+which CI images have and a plain user profile may not:
+`goway run --host win -- powershell -Command '$env:PATH += ";C:\Program Files\Git\usr\bin"; cargo nextest run --workspace; exit $LASTEXITCODE'`.
+
 ### Copy integrity
 
 The copy of your tree on a helper is checked end to end, against your own
