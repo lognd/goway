@@ -20,7 +20,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a macOS test run that is slow, When a test process outlives 45s, Then the process tree and its open pipes are printed to the log"
-bound = false
+bound = true
 +++
 
 Hung macOS runs ran for hours and starved the runner pool. Hard safety net first, then the diagnosis of ~E09XD8K.
