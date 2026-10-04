@@ -1309,8 +1309,24 @@ gc() {
 }
 
 # doctor ROOT: key=value facts about the toolchain and host for `goway doctor`.
+# want_version NAME: the first line of NAME's version report ("go version",
+# "java -version" and the usual "--version"), bounded; empty when missing.
+want_version() {
+  case "$1" in
+    go) { bounded go version 2>&1 || true; } | head -1 ;;
+    java) { bounded java -version 2>&1 || true; } | head -1 ;;
+    *) { bounded "$1" --version 2>&1 || true; } | head -1 ;;
+  esac
+}
+
+# doctor ROOT [TOOL...]: facts about this host; every TOOL (a project's
+# needs, names checked here as well as by the client) is reported as
+# want.TOOL=<version line>, empty when missing. User-level installs that
+# goway's fixes make (~/.local/bin) count.
 doctor() {
   local t v pa
+  shift
+  PATH="$HOME/.local/bin:$PATH"
   if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; printf 'cargo_env=yes\n'; else printf 'cargo_env=no\n'; fi
   for t in bash git tar flock setsid cc curl rustup cargo cargo-nextest sccache apt-get dnf pacman; do
     if command -v "$t" >/dev/null 2>&1; then
@@ -1321,6 +1337,14 @@ doctor() {
       printf 'tool.%s=%s\n' "$t" "${v:-present}"
     else
       printf 'tool.%s=\n' "$t"
+    fi
+  done
+  for t in "$@"; do
+    case "$t" in '' | *[!A-Za-z0-9._+-]*) continue ;; esac
+    if command -v "$t" >/dev/null 2>&1; then
+      printf 'want.%s=%s\n' "$t" "$(want_version "$t")"
+    else
+      printf 'want.%s=\n' "$t"
     fi
   done
   printf 'os=%s\n' "$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}")"

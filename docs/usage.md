@@ -619,6 +619,52 @@ Checks:
 - whether sshd still allows password logins
 - the local ssh setup
 
+### What your project needs
+
+Run inside a project, doctor reads the project's own files and checks
+each host for what they require, and only that (a C++ project is never
+asked for cargo; outside a project, or in one goway does not recognise,
+the Rust-first checks above apply):
+
+| Files | Checked |
+| --- | --- |
+| `Cargo.toml` | cargo, nextest, sccache |
+| `pyproject.toml`, `requirements*.txt`, `uv.lock` | python3 (and `requires-python`), uv, pytest when declared |
+| `package.json`, `.nvmrc` | node (and `engines.node`), npm, pnpm or yarn from `packageManager` or the lockfile |
+| `pom.xml`, `build.gradle(.kts)` | java, mvn or gradle (not when `mvnw` or `gradlew` exists) |
+| `CMakeLists.txt`, `Makefile` | cmake against `cmake_minimum_required`, cc and c++ per `project(... LANGUAGES ...)`, make (ninja when `CMakePresets.json` asks for it), git when FetchContent or CPM fetch from git, ccache (optional) |
+| `go.mod` | go (and its `go` line) |
+| `Gemfile` | ruby (and `.ruby-version`), bundle |
+| `*.csproj`, `*.sln`, `global.json` | dotnet |
+
+Cargo, pyproject, package.json, global.json and CMakePresets.json go
+through real TOML and JSON parsers. `CMakeLists.txt` has no declarative
+form, so it is read as text (bounded) and its findings are labelled
+approximate.
+
+`goway.toml` can pin or add tools; these are checked like detected ones
+and win over a detected version:
+
+```toml
+[toolchain]
+cmake = ">=3.24"      # at least
+gcc = "14"            # starts with 14
+tools = ["protoc"]    # must exist, any version
+```
+
+Tool names must be plain (letters, digits, `._+-`): they go into a
+command on the host.
+
+Fixes for these tools prefer a user-level install: pinned releases of
+uv, go, cmake, node, a Temurin JDK and Maven, each verified by checksum
+before it is unpacked into `~/.local/opt/goway-TOOL` and linked into
+`~/.local/bin` (put that on `PATH`); corepack for pnpm and yarn; a user
+gem for bundler. Everything else (compilers, make, ninja, git, ccache,
+python3, ruby, dotnet, ...) is a system package for apt, dnf or pacman,
+run through `--rsudo`. Every install is recorded for `goway uninstall`
+by check name only; the undo command is derived from the name, never
+read from the record.
+
 Each problem comes with the exact command that fixes it. `--fix` runs
 the user-level fixes as your ordinary user:
 - rustup, from its official installer

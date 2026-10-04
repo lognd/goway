@@ -34,6 +34,17 @@ const MAX_BYTES: u64 = 64 * 1024;
 struct RawFile {
     #[serde(default)]
     rule: Vec<RawRule>,
+    #[serde(default)]
+    toolchain: RawToolchain,
+}
+
+/// `[toolchain]`: `tools = [...]` plus `tool = "version"` pins.
+#[derive(Debug, Default, Deserialize)]
+struct RawToolchain {
+    #[serde(default)]
+    tools: Vec<String>,
+    #[serde(flatten)]
+    versions: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,6 +73,8 @@ pub struct Rule {
 pub struct Rules {
     /// In file order; the first match applies.
     pub rules: Vec<Rule>,
+    /// `[toolchain]`: the tools doctor checks and the versions it pins.
+    pub toolchain: crate::doctor::Toolchain,
 }
 
 /// Which rule applied to a run, for the note and the report.
@@ -162,7 +175,11 @@ impl Rules {
                 command: r.command,
             });
         }
-        Ok(Self { rules })
+        let toolchain = crate::doctor::Toolchain {
+            versions: raw.toolchain.versions,
+            tools: raw.toolchain.tools,
+        };
+        Ok(Self { rules, toolchain })
     }
 
     /// Read `goway.toml` in `root`; `None` when there is none.
