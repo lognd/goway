@@ -137,8 +137,9 @@ const ALLOW: &[Allow] = &[
             "apt-get remove",
             "systemctl reload",
             "wsl --shutdown",
+            "fs",
         ],
-        why: "fix and undo command text: fixes run only through SshFixRunner/HostRunner, which record a RunFix action first; the rest is advice text",
+        why: "fix and undo command text: fixes run only through SshFixRunner/HostRunner, which record a RunFix action first (pinned tools and rustup targets run as journaled resources); the rest is advice text; the file call removes the fix journal after its replay",
     },
     Allow {
         file: "crates/goway/src/doctor/logout.rs",
@@ -158,6 +159,11 @@ const ALLOW: &[Allow] = &[
         file: "crates/goway/src/doctor/prereq.rs",
         labels: &["apt-get install", "dnf install"],
         why: "prerequisite fix command text, run only through the recording fix runners",
+    },
+    Allow {
+        file: "crates/goway/src/doctor/wsl_down.rs",
+        labels: &["schtasks"],
+        why: "a command printed for the person to run, and a read-only schtasks query; nothing here changes a machine",
     },
     Allow {
         file: "crates/goway/src/doctor/windows.rs",

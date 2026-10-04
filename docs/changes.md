@@ -12,7 +12,7 @@ modules (see "How this is enforced" below).
 |---|---|---|---|
 | This laptop: config and pinned keys, and actions (fixes run on helpers, tools installed here) | `changes.json` in goway's config directory (`goway config path`) | `goway changes` | `goway changes undo` (the newest change), `--last N`, `--all` |
 | Key login set up on a helper (its `~/.ssh`, `authorized_keys` line, goway's own key pair) | `ssh-setup-HOST.json` in the config directory | `goway ssh setup HOST` says what is recorded | `goway ssh setup HOST --undo` |
-| What `goway doctor --fix` installed on a helper | `installed-HOST.json` in the config directory | `goway uninstall --dry-run` lists it | `goway uninstall` (derives each undo from the check name) |
+| What `goway doctor --fix` installed on a helper | `installed-HOST.json` (what was installed) and `fixes-HOST.json` (the journal of pinned tools and rustup targets) in the config directory | `goway uninstall --dry-run` lists it | `goway uninstall` (derives each undo from the check name) |
 | The Windows helper install (host and client components) | `host-journal.json` (administrator-only directory) and `install-journal.json` (per-user state), see `docs/install-windows.md` | `goway-setup status` | `goway-setup uninstall` |
 | `.wslconfig` tuning | `tune-journal.json` in the per-user state directory | read the JSON file (no list command yet) | `goway-setup uninstall --host` (restores the previous values) |
 | goway's own install on this laptop | the install journal written by `scripts/install.sh` | `goway uninstall --dry-run` | `goway uninstall` |
@@ -34,6 +34,8 @@ Changes that undo reverses exactly (the journal holds the prior state):
 | `netsh interface portproxy` relay | `goway-setup install --host` in NAT mode |
 | Windows service (sshd) and capability (OpenSSH Server) | `goway-setup install --host --native` |
 | distro package (`openssh-server`) and enabled systemd unit | `goway-setup install --host` |
+| pinned tool: the tree under `~/.local/opt/goway-TOOL` and each link in `~/.local/bin`, and an outside link it replaced (restored; a regular file in the way is never replaced) | `goway doctor --fix` (`uv`, `go`, ...) |
+| rustup target of a user's toolchain | `goway doctor --fix` for `rust_targets` |
 | ssh key pair (goway's own, in its config directory) | `goway ssh setup`, `goway add` |
 | `config.toml` and pinned `known_hosts` edits, as whole-file writes with the text they replaced | `goway add`, `goway host add`, `goway host remove`, `goway ssh setup` |
 
@@ -47,7 +49,7 @@ one silently.
 | start a scheduled task | `goway-setup install --host` (the keepalive), and after a WSL restart |
 | shut down WSL, terminate a distro | `goway-setup tune`, only after an explicit yes (recorded in the tune journal) |
 | reload or restart the distro's sshd | `goway-setup install --host` |
-| run a fix command on a helper (a package, a toolchain, `loginctl enable-linger`, sshd hardening) | `goway doctor --fix`, `goway add`; the entry says to use `goway uninstall` |
+| run a fix command on a helper (a system package, the rustup toolchain, `loginctl enable-linger`, sshd hardening) | `goway doctor --fix`, `goway add`; the entry says to use `goway uninstall` |
 | install the tools goway needs on this laptop | `goway add --lsudo` |
 | authorize goway's key through a Windows administrator step | `goway ssh setup --rsudo` (the elevated `goway-setup` journals its own changes on the helper too) |
 

@@ -6,6 +6,7 @@
 //! mode operations are supported; files are replaced atomically and keep
 //! their mode.
 
+use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::Path;
 use std::process::Stdio;
@@ -236,15 +237,209 @@ impl System for RemoteSystem {
         Err(SystemError::Unsupported("ACLs on a remote host"))
     }
 
-    fn resource_exists(&self, _: ResourceKind, _: &str) -> SysResult<bool> {
-        Err(SystemError::Unsupported("resources on a remote host"))
+    fn resource_exists(&self, kind: ResourceKind, name: &str) -> SysResult<bool> {
+        let script = match kind {
+            ResourceKind::PinnedTool => pinned_exists(&PinName::parse(name)?),
+            ResourceKind::RustupTarget => rustup_exists(&RustupName::parse(name)?),
+            _ => return Err(SystemError::Unsupported("these resources on a remote host")),
+        };
+        Ok(self.exec(&script, None)?.code == Some(0))
     }
 
-    fn resource_create(&mut self, _: ResourceKind, _: &str, _: &str) -> SysResult<()> {
-        Err(SystemError::Unsupported("resources on a remote host"))
+    fn resource_create(&mut self, kind: ResourceKind, name: &str, spec: &str) -> SysResult<()> {
+        let (script, what) = match kind {
+            ResourceKind::PinnedTool => {
+                PinName::parse(name)?;
+                (spec.to_owned(), "install a pinned tool")
+            }
+            ResourceKind::RustupTarget => (
+                rustup_run("add", &RustupName::parse(name)?),
+                "add a rustup target",
+            ),
+            _ => return Err(SystemError::Unsupported("these resources on a remote host")),
+        };
+        self.check(&script, what, Path::new(name))
     }
 
-    fn resource_delete(&mut self, _: ResourceKind, _: &str) -> SysResult<()> {
-        Err(SystemError::Unsupported("resources on a remote host"))
+    fn resource_delete(&mut self, kind: ResourceKind, name: &str) -> SysResult<()> {
+        let (script, what) = match kind {
+            ResourceKind::PinnedTool => (
+                pinned_delete(&PinName::parse(name)?),
+                "remove a pinned tool",
+            ),
+            ResourceKind::RustupTarget => (
+                rustup_run("remove", &RustupName::parse(name)?),
+                "remove a rustup target",
+            ),
+            _ => return Err(SystemError::Unsupported("these resources on a remote host")),
+        };
+        self.check(&script, what, Path::new(name))
     }
+
+    fn resource_outdated(&self, kind: ResourceKind, name: &str) -> SysResult<Option<String>> {
+        if kind != ResourceKind::PinnedTool {
+            return Ok(None);
+        }
+        let pin = PinName::parse(name)?;
+        if !self.resource_exists(kind, name)? {
+            return Ok(None);
+        }
+        let out = self.exec(&pinned_snapshot(&pin), None)?;
+        if out.code == Some(0) {
+            Ok(Some(String::from_utf8_lossy(&out.stdout).into_owned()))
+        } else {
+            Err(SystemError::InvalidState(out.stderr))
+        }
+    }
+
+    fn resource_restore(
+        &mut self,
+        kind: ResourceKind,
+        name: &str,
+        snapshot: &str,
+    ) -> SysResult<()> {
+        if kind != ResourceKind::PinnedTool {
+            return Err(SystemError::Unsupported("restoring these resources"));
+        }
+        let pin = PinName::parse(name)?;
+        if snapshot.lines().any(|l| l == "D") {
+            tracing::warn!(tool = %pin.tool, "an earlier tree of the tool was replaced; it is not retained, only its outside links are restored");
+        }
+        let mut script = String::from("mkdir -p \"$HOME/.local/bin\"\n");
+        for line in snapshot.lines() {
+            let Some(rest) = line.strip_prefix("L ") else {
+                continue;
+            };
+            let (link, target) = rest.split_once(' ').ok_or_else(|| {
+                SystemError::InvalidState(format!("malformed link snapshot line {line:?}"))
+            })?;
+            if !pin.links.iter().any(|l| l == link) {
+                return Err(SystemError::InvalidState(format!(
+                    "snapshot names a link {link:?} the tool does not own"
+                )));
+            }
+            let _ = write!(
+                script,
+                "ln -sfn {} \"$HOME/.local/bin/{link}\"\n",
+                ssh::shell_quote(target)
+            );
+        }
+        self.check(&script, "restore replaced links of", Path::new(name))
+    }
+}
+
+/// The name of a [`ResourceKind::PinnedTool`]: `TOOL:link1,link2`.
+struct PinName {
+    tool: String,
+    links: Vec<String>,
+}
+
+fn plain(text: &str, extra: &[char]) -> bool {
+    !text.is_empty()
+        && !text.starts_with('-')
+        && text.chars().all(|c| {
+            c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') || extra.contains(&c)
+        })
+}
+
+impl PinName {
+    fn parse(name: &str) -> SysResult<Self> {
+        let bad = || SystemError::InvalidState(format!("not a pinned tool name: {name:?}"));
+        let (tool, links) = name.split_once(':').ok_or_else(bad)?;
+        let links: Vec<String> = links.split(',').map(str::to_owned).collect();
+        if !plain(tool, &[]) || !links.iter().all(|l| plain(l, &[])) {
+            return Err(bad());
+        }
+        Ok(Self {
+            tool: tool.to_owned(),
+            links,
+        })
+    }
+
+    fn dir(&self) -> String {
+        format!("\"$HOME/.local/opt/goway-{}\"", self.tool)
+    }
+}
+
+/// Exit 0 when the tool's tree, or any of its link names, is there.
+fn pinned_exists(pin: &PinName) -> String {
+    let mut script = format!("[ -d {} ] && exit 0\n", pin.dir());
+    for l in &pin.links {
+        let _ = write!(
+            script,
+            "{{ [ -L \"$HOME/.local/bin/{l}\" ] || [ -e \"$HOME/.local/bin/{l}\" ]; }} && exit 0\n"
+        );
+    }
+    script.push_str("exit 1\n");
+    script
+}
+
+/// Print `L name target` for each outside link the install would replace and `D` when a tree is
+/// there; refuse (exit 3) to replace a regular file goway did not make.
+fn pinned_snapshot(pin: &PinName) -> String {
+    let dir = pin.dir();
+    let mut script = String::new();
+    for l in &pin.links {
+        let _ = write!(
+            script,
+            "p=\"$HOME/.local/bin/{l}\"\nif [ -L \"$p\" ]; then t=$(readlink \"$p\"); case \"$t\" in {dir}/*) ;; *) printf 'L %s %s\\n' '{l}' \"$t\" ;; esac\nelif [ -e \"$p\" ]; then echo \"goway: $p is a file goway did not make; not replacing it\" >&2; exit 3; fi\n"
+        );
+    }
+    let _ = write!(script, "[ -d {dir} ] && echo D\nexit 0\n");
+    script
+}
+
+/// Remove the links into the tool's tree, the tree, and the parents when they end up empty.
+fn pinned_delete(pin: &PinName) -> String {
+    let dir = pin.dir();
+    format!(
+        "for l in \"$HOME\"/.local/bin/*; do case \"$(readlink \"$l\")\" in {dir}/*) rm -f \"$l\" ;; esac; done; rm -rf {dir}; rmdir \"$HOME/.local/opt\" \"$HOME/.local/bin\" 2>/dev/null; true\n"
+    )
+}
+
+/// The name of a [`ResourceKind::RustupTarget`]: `TARGET` or `TOOLCHAIN/TARGET`.
+struct RustupName {
+    toolchain: Option<String>,
+    target: String,
+}
+
+impl RustupName {
+    fn parse(name: &str) -> SysResult<Self> {
+        let bad = || SystemError::InvalidState(format!("not a rustup target name: {name:?}"));
+        let (toolchain, target) = match name.split_once('/') {
+            Some((t, g)) => (Some(t), g),
+            None => (None, name),
+        };
+        if !plain(target, &[]) || toolchain.is_some_and(|t| !plain(t, &[])) {
+            return Err(bad());
+        }
+        Ok(Self {
+            toolchain: toolchain.map(str::to_owned),
+            target: target.to_owned(),
+        })
+    }
+
+    fn flag(&self) -> String {
+        self.toolchain
+            .as_ref()
+            .map_or_else(String::new, |t| format!(" --toolchain {t}"))
+    }
+}
+
+const RUSTUP_PATH: &str = "PATH=\"${CARGO_HOME:-$HOME/.cargo}/bin:$PATH\"; ";
+
+fn rustup_exists(r: &RustupName) -> String {
+    format!(
+        "{RUSTUP_PATH}rustup target list --installed{} 2>/dev/null | grep -qx '{}'\n",
+        r.flag(),
+        r.target
+    )
+}
+
+fn rustup_run(verb: &str, r: &RustupName) -> String {
+    format!(
+        "{RUSTUP_PATH}rustup target {verb}{} {}\n",
+        r.flag(),
+        r.target
+    )
 }

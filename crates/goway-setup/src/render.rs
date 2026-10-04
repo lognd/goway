@@ -84,6 +84,8 @@ pub fn describe_kind(kind: ResourceKind) -> &'static str {
         ResourceKind::WslPackage => "WSL package",
         ResourceKind::WslUnit => "enabled WSL systemd unit",
         ResourceKind::SshKeyPair => "ssh key pair",
+        ResourceKind::PinnedTool => "pinned tool under ~/.local/opt",
+        ResourceKind::RustupTarget => "rustup target",
     }
 }
 

@@ -45,6 +45,13 @@ pub enum ResourceKind {
     /// the spec is the key comment. Created with `ssh-keygen`; private key contents are
     /// never read or journaled.
     SshKeyPair,
+    /// A pinned, checksum-verified tool unpacked under `~/.local/opt/goway-TOOL` with its
+    /// binaries linked into `~/.local/bin`; `name` is `TOOL:link1,link2`, the spec the install
+    /// script. Removal deletes the tree and the links into it, and an outside link the install
+    /// replaced is restored from the replacement snapshot.
+    PinnedTool,
+    /// A rustup target of a user's toolchain; `name` is `TARGET` or `TOOLCHAIN/TARGET`.
+    RustupTarget,
 }
 
 /// Where a new list entry goes.

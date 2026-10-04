@@ -1091,7 +1091,9 @@ impl<R: Runner> System for HostSystem<R> {
                     &ps::firewall_scope_exists(name),
                 )
             }
-            ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
+            ResourceKind::SshKeyPair | ResourceKind::PinnedTool | ResourceKind::RustupTarget => {
+                Err(SystemError::Unsupported("user-level resources on the host"))
+            }
         }
     }
 
@@ -1232,7 +1234,9 @@ impl<R: Runner> System for HostSystem<R> {
                 )
                 .map(drop)
             }
-            ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
+            ResourceKind::SshKeyPair | ResourceKind::PinnedTool | ResourceKind::RustupTarget => {
+                Err(SystemError::Unsupported("user-level resources on the host"))
+            }
         }
     }
 
@@ -1309,7 +1313,9 @@ impl<R: Runner> System for HostSystem<R> {
                 )
                 .map(drop)
             }
-            ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
+            ResourceKind::SshKeyPair | ResourceKind::PinnedTool | ResourceKind::RustupTarget => {
+                Err(SystemError::Unsupported("user-level resources on the host"))
+            }
         }
     }
 }
