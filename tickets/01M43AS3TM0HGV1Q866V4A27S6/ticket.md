@@ -8,8 +8,8 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T11:28:54Z"
-updated = "2026-10-04T11:49:36Z"
-scope = ["crates/goway/src/remote.ps1", "crates/goway/tests/remote_ps1.rs", "crates/goway/src/sync.rs"]
+updated = "2026-10-04T11:51:21Z"
+scope = ["crates/goway/src/remote.ps1", "crates/goway/tests/remote_ps1.rs", "crates/goway/src/sync.rs", "crates/goway/src/run.rs"]
 
 [[acceptance]]
 text = "Given remote.sh's lifeline verb (stops the job's group when stdin ends or is silent for 30s), runner file, done marker and SIGTERM handling, when a Windows helper runs a job, then remote.ps1 has the same lifeline (stops the job object), writes the done file, and the client starts it for Windows hosts too"
