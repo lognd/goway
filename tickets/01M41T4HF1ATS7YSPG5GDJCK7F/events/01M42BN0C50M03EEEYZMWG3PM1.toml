@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T02:24:54Z"
+digest = "7257a91dd9af6e948512f560a69a12d18f2e8fa95d75c9c1a2f9bfd5ddd0437b"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 61468354-40cf-4e55-8d0c-e1189c3727ef with nextest profile: default
+    Starting 2 tests across 47 binaries (569 tests skipped)
+        PASS [   0.004s] goway doctor::tests::a_visible_nvidia_gpu_without_cuda_gets_the_wsl_toolkit_fix_and_an_undo
+        PASS [   0.005s] goway doctor::tests::doctor_flags_a_gpu_invisible_to_wsl
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.007s] 2 tests run: 2 passed, 569 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_visible_nvidia_gpu_without_cuda_gets_the_wsl_toolkit_fix_and_an_undo) | test(doctor_flags_a_gpu_invisible_to_wsl)'"
+size = 669
+status = "measured"
+tests = ["doctor::tests::a_visible_nvidia_gpu_without_cuda_gets_the_wsl_toolkit_fix_and_an_undo", "doctor::tests::doctor_flags_a_gpu_invisible_to_wsl"]
+at = "2026-10-04T02:24:54Z"
+actor = "lognd"
+rev = 1
