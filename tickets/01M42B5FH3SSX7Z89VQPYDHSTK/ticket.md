@@ -2,13 +2,14 @@
 id = "01M42B5FH3SSX7Z89VQPYDHSTK"
 title = "Windows mDNS lookup asks for A records only, which fails for Linux (avahi) hosts; ask without a type and keep the IPv4 answers"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:16:25Z"
-updated = "2026-10-04T02:21:23Z"
+updated = "2026-10-04T02:21:28Z"
 scope = ["crates/goway/src/resolve.rs"]
 
 [[acceptance]]
