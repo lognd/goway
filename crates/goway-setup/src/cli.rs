@@ -17,6 +17,7 @@ use crate::host::{
 };
 use crate::hostsys::{HostSystem, Invocation, ProcessRunner, Runner, probe_wsl, wsl_exe_present};
 use crate::layout::{DEFAULT_PROFILE, Layout};
+use crate::native::{self, NATIVE_PORT};
 use crate::plan::{Component, Sources, build};
 use crate::render::{ColorWhen, Renderer};
 use crate::stage;
@@ -86,9 +87,18 @@ pub enum Command {
         /// Show the changes without making them.
         #[arg(long)]
         dry_run: bool,
-        /// Host: TCP port the WSL sshd listens on.
-        #[arg(long, default_value_t = DEFAULT_PORT)]
-        port: u16,
+        /// Host: set the machine up through Windows' own OpenSSH Server instead of WSL (a Windows
+        /// helper without WSL). Installs the OpenSSH Server capability when absent, starts sshd
+        /// on boot, opens port 22 to local networks only and makes PowerShell the login shell.
+        #[arg(long, requires = "host")]
+        native: bool,
+        /// Host (native): a public key to authorize for this account: one ssh public key line or
+        /// the path of a `.pub` file (administrator accounts use `administrators_authorized_keys`).
+        #[arg(long, value_name = "KEY", requires = "native")]
+        authorized_key: Option<String>,
+        /// Host: TCP port the WSL sshd listens on (default 2222; a native install uses 22).
+        #[arg(long)]
+        port: Option<u16>,
         /// Host: WSL distro to set up.
         #[arg(long, default_value = DEFAULT_DISTRO)]
         distro: String,
@@ -172,11 +182,26 @@ pub fn selected_components(client: bool, host: bool) -> Vec<Component> {
     }
 }
 
+/// The sshd port of the request: Windows' own sshd listens on 22 and the native install does not
+/// move it; the WSL sshd defaults to 2222.
+fn resolve_port(native: bool, port: Option<u16>) -> Result<u16, SetupError> {
+    match (native, port) {
+        (true, None) => Ok(NATIVE_PORT),
+        (true, Some(p)) if p == NATIVE_PORT => Ok(p),
+        (true, Some(p)) => Err(SetupError::NativeOption(format!(
+            "--port {p}: Windows' OpenSSH Server stays on port {NATIVE_PORT} in this version"
+        ))),
+        (false, p) => Ok(p.unwrap_or(DEFAULT_PORT)),
+    }
+}
+
 /// Everything `install` was asked for, gathered from the flags.
 #[derive(Debug, Clone)]
 #[allow(clippy::struct_excessive_bools)] // one bool per command-line switch
 struct InstallRequest {
     components: Vec<Component>,
+    native: bool,
+    authorized_key: Option<String>,
     dry_run: bool,
     port: u16,
     distro: String,
@@ -219,6 +244,8 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             client,
             host,
             dry_run,
+            native,
+            authorized_key,
             port,
             distro,
             keepalive,
@@ -237,8 +264,10 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             &profile.profile,
             &InstallRequest {
                 components: selected_components(*client, *host),
+                native: *native,
+                authorized_key: authorized_key.clone(),
                 dry_run: *dry_run,
-                port: *port,
+                port: resolve_port(*native, *port)?,
                 distro: distro.clone(),
                 keepalive: *keepalive,
                 network: *network,
@@ -306,6 +335,20 @@ fn current_exe() -> Result<PathBuf, SetupError> {
 
 fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), SetupError> {
     let layout = Layout::from_environment(profile)?;
+    // A key given as a file is read here, with this user's own rights, and passed on (to the
+    // elevated re-run) as the validated line, never as a path an administrator token would open.
+    let resolved;
+    let req = match &req.authorized_key {
+        Some(argument) if req.native => {
+            let line = native::key_from_argument(argument, |p| std::fs::read_to_string(p).ok())?;
+            resolved = InstallRequest {
+                authorized_key: Some(line),
+                ..req.clone()
+            };
+            &resolved
+        }
+        _ => req,
+    };
     let wants_host = req.components.contains(&Component::Host);
     let mut staged: Option<stage::StagedExe> = None;
     if req.elevate.is_child && req.components.contains(&Component::Client) {
@@ -330,7 +373,9 @@ fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), Setup
         }
         if !req.dry_run {
             staged = stage_if_elevating(req)?;
-            precheck_wsl(&req.distro)?;
+            if !req.native {
+                precheck_wsl(&req.distro)?;
+            }
         }
         if req.elevate.is_child {
             enter_elevated_child(&layout, &req.elevate)?;
@@ -364,7 +409,11 @@ fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), Setup
                     install_host(r, &layout, req)?;
                 }
                 if !req.elevate.is_child {
-                    after_host_install(r, &layout, req);
+                    if req.native {
+                        show_native_block(r, &layout);
+                    } else {
+                        after_host_install(r, &layout, req);
+                    }
                 }
             }
         }
@@ -531,6 +580,12 @@ fn install_child_args(profile: &str, req: &InstallRequest) -> Vec<String> {
     ]
     .map(str::to_owned)
     .to_vec();
+    if req.native {
+        args.push("--native".to_owned());
+        if let Some(key) = &req.authorized_key {
+            args.extend(["--authorized-key".to_owned(), key.clone()]);
+        }
+    }
     if !req.harden {
         args.push("--no-harden".to_owned());
     }
@@ -598,6 +653,9 @@ fn host_params(req: &InstallRequest, network: NetworkMode) -> Result<HostParams,
 /// Print the host plan; on Windows with a reachable distro, probe the machine (read-only) so the
 /// plan reflects the real facts and marks what is already in place.
 fn dry_run_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<(), SetupError> {
+    if req.native {
+        return dry_run_native(r, layout, req);
+    }
     let label = format!("host component of profile {}", layout.profile);
     let sys = HostSystem::new(&req.distro);
     let home = dirs::home_dir().ok_or(SetupError::NoLocalAppData)?;
@@ -630,6 +688,9 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
     if req.dry_run {
         return dry_run_host(r, layout, req);
     }
+    if req.native {
+        return install_native(r, layout, req);
+    }
     app::ensure_not_installed(&view)?;
     let mut sys = HostSystem::new(&req.distro);
     if !sys.distro_reachable()? {
@@ -653,6 +714,7 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
             port: params.port,
             allow_from: params.allow_from.clone(),
             network,
+            native: None,
         },
     )?;
     let journal = match app::install(&mut sys, &view, &plan) {
@@ -688,6 +750,127 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
         r.notice("sshd and the keepalive task were not activated (--no-activate)");
     }
     Ok(())
+}
+
+/// The native plan's parameters for this request and probed account.
+fn native_params(req: &InstallRequest, account: native::KeyAccount) -> native::NativeParams {
+    native::NativeParams {
+        allow_from: req.allow_from.clone(),
+        authorized_key: req.authorized_key.clone(),
+        account,
+        shell: tool_path(Tool::PowerShell),
+    }
+}
+
+/// Print the native plan for a dry run. It changes nothing and probes nothing (the capability
+/// query needs administrator rights), so the plan assumes a machine without OpenSSH Server.
+fn dry_run_native(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<(), SetupError> {
+    let home = dirs::home_dir().ok_or(SetupError::NoLocalAppData)?;
+    let account = native::KeyAccount {
+        name: std::env::var("USERNAME").unwrap_or_else(|_| "USER".to_owned()),
+        sid: "S-1-5-21-0-0-0-1000".to_owned(),
+        admin: true,
+        profile_dir: home,
+    };
+    let plan = native::native_plan(
+        layout,
+        &native_params(req, account),
+        &native::NativeFacts::assumed(),
+    );
+    r.notice("dry run assumes a machine without OpenSSH Server and an administrator account; an install probes the real state first");
+    r.plan_component(
+        &format!("native host component of profile {}", layout.profile),
+        &plan,
+        None,
+    );
+    Ok(())
+}
+
+/// Install the native host component: OpenSSH Server, firewall, shell, key and service.
+fn install_native(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<(), SetupError> {
+    let view = layout.host_view();
+    app::ensure_not_installed(&view)?;
+    let mut sys = HostSystem::new(DEFAULT_DISTRO);
+    let (facts, account) = sys.probe_native()?;
+    let params = native_params(req, account.clone());
+    let plan = native::native_plan(layout, &params, &facts);
+    app::save_settings(
+        layout,
+        &HostSettings {
+            distro: DEFAULT_DISTRO.to_owned(),
+            port: NATIVE_PORT,
+            allow_from: req.allow_from.clone(),
+            network: NetworkMode::Mirrored,
+            native: Some(native::NativeSettings {
+                authorized_key: req.authorized_key.clone(),
+                account,
+            }),
+        },
+    )?;
+    let journal = match app::install(&mut sys, &view, &plan) {
+        Ok(j) => j,
+        Err(e) => {
+            if matches!(e, SetupError::InstallFailed { .. }) {
+                app::remove_settings(layout);
+            }
+            return Err(e);
+        }
+    };
+    match current_exe().and_then(|exe| admin::install_protected_exe(&layout.admin_dir, &exe)) {
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!(error = %e, "could not keep a protected copy of the setup exe");
+            r.notice("could not keep an administrator-only copy of goway-setup; a later uninstall must be started from an elevated terminal");
+        }
+    }
+    r.native_installed(layout, journal.entries.len());
+    if let Some(note) = native::shell_replaced_notice(&facts, &params.shell) {
+        r.notice(&note);
+    }
+    if let Some(warning) = native::open_rule_warning(&facts) {
+        r.warning(&warning);
+    }
+    warn_public_networks(r, &sys);
+    Ok(())
+}
+
+/// Print the block with the one command to run on the main laptop, for a native helper.
+fn show_native_block(r: Renderer, layout: &Layout) {
+    let settings = match app::load_settings(layout) {
+        Ok(Some(s)) => s,
+        Ok(None) => return,
+        Err(e) => {
+            tracing::error!(error = %e, "could not read the host settings");
+            return;
+        }
+    };
+    let Some(native_settings) = settings.native else {
+        return;
+    };
+    let sys = HostSystem::new(DEFAULT_DISTRO);
+    let fingerprint = sys
+        .host_public_key(&native::host_key_path(layout))
+        .unwrap_or_else(|e| {
+            tracing::error!(error = %e, "could not read the host public key");
+            None
+        })
+        .and_then(|k| native::fingerprint(&k));
+    let key_file = native_settings.authorized_key.as_ref().map(|_| {
+        native_settings
+            .account
+            .keys_file(&native::program_data(layout))
+            .display()
+            .to_string()
+    });
+    r.block(&crate::helper::native_next_steps(
+        &crate::helper::NativeInfo {
+            device_name: std::env::var("COMPUTERNAME").unwrap_or_default(),
+            fingerprint,
+            account: native_settings.account.name.clone(),
+            key_authorized: native_settings.authorized_key.is_some(),
+            key_file,
+        },
+    ));
 }
 
 /// Loud follow-ups about who can reach sshd: password login left on, and Public networks where
@@ -1046,7 +1229,11 @@ fn status(r: Renderer, profile: &str) -> Result<(), SetupError> {
         let settings = app::load_settings(&layout)?.unwrap_or_default();
         let sys = HostSystem::new(&settings.distro);
         r.status(&view, &app::status(&sys, &journal)?);
-        show_helper_block(r, &settings.distro, settings.port, settings.network);
+        if settings.native.is_some() {
+            show_native_block(r, &layout);
+        } else {
+            show_helper_block(r, &settings.distro, settings.port, settings.network);
+        }
     }
     if !any {
         r.not_installed(&layout);

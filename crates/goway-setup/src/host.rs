@@ -216,6 +216,10 @@ pub struct HostSettings {
     /// The networking mode the install chose (journals before NAT support are mirrored).
     #[serde(default)]
     pub network: NetworkMode,
+    /// Set for a native (no WSL) install: what its plan was built from. The distro and port
+    /// fields then hold the defaults and are not used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native: Option<crate::native::NativeSettings>,
 }
 
 impl Default for HostSettings {
@@ -226,6 +230,7 @@ impl Default for HostSettings {
             port: DEFAULT_PORT,
             allow_from: Vec::new(),
             network: NetworkMode::Mirrored,
+            native: None,
         }
     }
 }
@@ -233,7 +238,11 @@ impl Default for HostSettings {
 impl HostSettings {
     /// Refuse settings an elevated process must not build its expected plan from.
     pub fn validate(&self, path: &std::path::Path) -> Result<(), crate::error::SetupError> {
-        validate_distro(&self.distro)?;
+        if let Some(native) = &self.native {
+            native.validate(path)?;
+        } else {
+            validate_distro(&self.distro)?;
+        }
         // A wide range may have been chosen on purpose at install time (`--allow-wide`), so
         // replaying must not refuse it; the never-accepted ranges stay refused.
         for cidr in &self.allow_from {
@@ -480,7 +489,7 @@ pub fn hardening_dropin(profile: &str) -> String {
     )
 }
 
-fn resource(kind: ResourceKind, name: String, spec: &impl Serialize) -> Change {
+pub(crate) fn resource(kind: ResourceKind, name: String, spec: &impl Serialize) -> Change {
     Change::EnsureResource {
         kind,
         name,
@@ -817,7 +826,10 @@ pub fn needs_admin(journal: &Journal) -> bool {
                     kind: ResourceKind::FirewallRule
                         | ResourceKind::HyperVFirewallRule
                         | ResourceKind::ScheduledTask
-                        | ResourceKind::PortProxy,
+                        | ResourceKind::PortProxy
+                        | ResourceKind::FirewallScope
+                        | ResourceKind::WindowsCapability
+                        | ResourceKind::Service,
                     ..
                 }
             )
@@ -839,6 +851,9 @@ pub fn expected_changes(
     settings: &HostSettings,
     home: &std::path::Path,
 ) -> Vec<Change> {
+    if let Some(native) = &settings.native {
+        return crate::native::expected_changes(layout, &settings.allow_from, native);
+    }
     let mut all: Vec<Change> = Vec::new();
     // Only the mode the install recorded: a journal holding the other mode's entries is refused.
     let network = settings.network;
