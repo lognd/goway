@@ -41,7 +41,7 @@ bound = true
 
 [[acceptance]]
 text = "Given the translation table, when maintained, then it is one declarative table (program, per-OS ordered candidates) with a small reviewed set of entries each covered by per-OS tests; new tools go in goway.toml [translate], whose targets may only be bare program names resolved the same safe way or paths inside the work tree, documented as having the repository's own trust level"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given property tests over arbitrary command lines, when translation runs, then only argv[0] can change, every other argument is byte-identical, and the result is either unchanged or a program resolved from a PATH directory"
