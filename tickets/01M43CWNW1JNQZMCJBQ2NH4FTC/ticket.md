@@ -2,13 +2,13 @@
 id = "01M43CWNW1JNQZMCJBQ2NH4FTC"
 title = "Learn each repository's peak memory per run and only place runs where it fits; explain an out-of-memory kill"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T12:05:48Z"
-updated = "2026-10-04T12:05:48Z"
+updated = "2026-10-04T12:25:29Z"
 scope = ["crates/goway/src/footprint.rs", "crates/goway/src/pool.rs", "crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/tests/mem_footprint.rs", "docs/usage.md"]
 
 [[acceptance]]
