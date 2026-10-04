@@ -1289,7 +1289,7 @@ evict() {
         [ -e "$l" ] || continue
         k=${l##*/target-}
         k=${k%.lock}
-        case "$k" in "" | *[!0-9]*) continue ;; esac
+        if [ -z "$k" ] || [ -n "${k//[0-9]/}" ]; then continue; fi
         printf '%s\t0\tslot\t%s\t%s\n' "$(stat -c %Y "$l" 2>/dev/null || echo "$now")" "$d" "$k"
       done
     done | sort -n -k1,1 -k2,2
