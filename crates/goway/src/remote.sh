@@ -778,7 +778,7 @@ run() {
   local root work cache slot="" k rc=0 wd rundir order=() aff="" seedkey
   root=$(root_dir "$1"); work="$root/work/$2"; cache="$root/cache/$3"
   local root_arg=$1 run_id=$2 repo_id=$3 keep=$4 slots=$5 cache_meta=$6
-  local ttls=$7 priority=$8 keepignored=$9 keepb64=${10} nicer=()
+  local ttls=$7 priority=$8 keepignored=$9 keepb64=${10} nicer=() cc_launcher=""
   shift 10
   # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
   # framework detection of the command's program (see shard_run).
@@ -895,8 +895,12 @@ run() {
   if [ -z "${CARGO_TARGET_DIR:-}" ]; then
     export CARGO_TARGET_DIR="$cache/target-$slot"
   fi
+  # Compiler caches: sccache (or ccache) with a per-repository cache dir.
+  # Rust uses sccache as RUSTC_WRAPPER; C and C++ builds through CMake use
+  # whichever is installed as the compiler launcher. Everything is set only
+  # when still unset: the user's and the project's choices always win (a
+  # RUSTC_WRAPPER of the user's, even an empty one, leaves sccache alone).
   if [ -z "${RUSTC_WRAPPER+set}" ] && command -v sccache >/dev/null 2>&1; then
-    export RUSTC_WRAPPER=sccache
     export SCCACHE_DIR="${SCCACHE_DIR:-$cache/sccache}"
     # A unix socket in the owner-only cache dir: no TCP port another user
     # on the host could reach or squat (unless the user chose an endpoint).
@@ -906,7 +910,22 @@ run() {
     # sccache's server is the one process allowed to outlive a run (it
     # keeps the cache warm); make it leave soon after the last build.
     export SCCACHE_IDLE_TIMEOUT="${SCCACHE_IDLE_TIMEOUT:-300}"
+    export RUSTC_WRAPPER=sccache
+    cc_launcher=sccache
+  elif command -v ccache >/dev/null 2>&1; then
+    export CCACHE_DIR="${CCACHE_DIR:-$cache/ccache}"
+    cc_launcher=ccache
   fi
+  # CMake 3.17+ reads these from the environment; "unset" (not "empty")
+  # decides, so CMAKE_CXX_COMPILER_LAUNCHER= switches the launcher off.
+  if [ -n "$cc_launcher" ]; then
+    export CMAKE_C_COMPILER_LAUNCHER="${CMAKE_C_COMPILER_LAUNCHER-$cc_launcher}"
+    export CMAKE_CXX_COMPILER_LAUNCHER="${CMAKE_CXX_COMPILER_LAUNCHER-$cc_launcher}"
+  fi
+  # CPM.cmake downloads go to one directory shared by every slot of the
+  # repository. (FetchContent's FETCHCONTENT_BASE_DIR is a cmake variable,
+  # never injected into the user's command; see docs/usage.md.)
+  export CPM_SOURCE_CACHE="${CPM_SOURCE_CACHE:-$cache/cpm}"
   # Compiler caches stay under a size cap unless the user chose one. ccache
   # reads bare numbers as GB and sccache needs a suffix, so both get MB.
   if [ -n "$t_csize" ] && [ "$t_csize" -gt 0 ] 2>/dev/null; then

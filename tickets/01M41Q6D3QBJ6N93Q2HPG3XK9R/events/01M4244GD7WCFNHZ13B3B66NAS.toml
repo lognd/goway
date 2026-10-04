@@ -1,0 +1,36 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T00:13:33Z"
+digest = "746a51dc1ad9717fc9e7d9b61c9a8587b463bb0ec3110bde688a034193df87b4"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 17s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 563c0e1f-f3dc-4911-9e5d-4e3b4fa029bc with nextest profile: default
+    Starting 9 tests across 41 binaries (489 tests skipped)
+        PASS [  25.398s] goway::remote_ps1 a_stale_generation_is_refused_with_exit_75
+        PASS [  27.210s] goway::remote_ps1 probe_reports_the_facts_goway_schedules_with
+        PASS [  34.055s] goway::remote_ps1 a_foreign_directory_is_never_adopted_and_purge_keeps_foreign_files
+        PASS [  42.850s] goway::remote_ps1 the_helper_verifies_what_it_wrote_and_a_failure_is_verified_again
+        PASS [  49.613s] goway::remote_ps1 sync_round_trips_files_modes_and_hashes_like_remote_sh
+        PASS [  49.627s] goway::remote_ps1 doctor_reports_tools_and_host_facts_as_key_value_lines
+        PASS [  52.640s] goway::remote_ps1 gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones
+        SLOW [> 60.000s] goway::remote_ps1 a_slot_tree_persists_updates_in_place_and_removes_leftovers
+        SLOW [> 60.000s] goway::remote_ps1 shard_detection_reads_binaries_and_reruns_catch2_at_most_once
+        PASS [  94.961s] goway::remote_ps1 a_slot_tree_persists_updates_in_place_and_removes_leftovers
+        PASS [ 103.760s] goway::remote_ps1 shard_detection_reads_binaries_and_reruns_catch2_at_most_once
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [ 103.771s] 9 tests run: 9 passed (2 slow), 489 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(sync_round_trips_files_modes_and_hashes_like_remote_sh) | test(a_stale_generation_is_refused_with_exit_75) | test(a_foreign_directory_is_never_adopted_and_purge_keeps_foreign_files) | test(a_slot_tree_persists_updates_in_place_and_removes_leftovers) | test(the_helper_verifies_what_it_wrote_and_a_failure_is_verified_again) | test(gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones) | test(probe_reports_the_facts_goway_schedules_with) | test(doctor_reports_tools_and_host_facts_as_key_value_lines) | test(shard_detection_reads_binaries_and_reruns_catch2_at_most_once)'"
+size = 1789
+status = "measured"
+tests = ["a_stale_generation_is_refused_with_exit_75", "probe_reports_the_facts_goway_schedules_with", "a_foreign_directory_is_never_adopted_and_purge_keeps_foreign_files", "the_helper_verifies_what_it_wrote_and_a_failure_is_verified_again", "sync_round_trips_files_modes_and_hashes_like_remote_sh", "doctor_reports_tools_and_host_facts_as_key_value_lines", "gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones", "a_slot_tree_persists_updates_in_place_and_removes_leftovers", "shard_detection_reads_binaries_and_reruns_catch2_at_most_once"]
+at = "2026-10-04T00:13:33Z"
+actor = "lognd"
+rev = 1

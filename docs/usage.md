@@ -526,6 +526,27 @@ touched. gc removes only entries goway labelled itself, and only under a
 root that carries goway's `.goway-root` marker. Anything else you put
 there is left alone and reported as `unlabelled`.
 
+### C and C++ builds
+
+On a host with sccache (preferred) or ccache, goway sets `CMAKE_C_COMPILER_LAUNCHER`
+and `CMAKE_CXX_COMPILER_LAUNCHER` in the job's environment, so a CMake build in a
+fresh slot or worktree compiles from the repository's compiler cache. goway
+installs sccache for Rust (`goway doctor --fix`) but never installs ccache; a
+host without either simply has no launcher. `CPM_SOURCE_CACHE` points at one
+directory per repository, shared by every slot, so CPM.cmake downloads once.
+
+goway only fills in what is unset. A launcher or `CPM_SOURCE_CACHE` you set
+(in `--env`, the host's environment, or on the cmake command line) is left
+alone, and `CMAKE_CXX_COMPILER_LAUNCHER=` (empty) turns the launcher off.
+
+Plain `FetchContent` downloads into the build directory (`build/_deps`), which
+stays in the slot's tree between runs, so each slot downloads once and then
+stays warm. To share downloads across slots and worktrees, set
+`FETCHCONTENT_BASE_DIR` yourself, for example in your CMakeLists or with
+`-DFETCHCONTENT_BASE_DIR=$HOME/.cache/deps`. goway never adds it to your
+command line, because it is a cmake variable and changes where your project
+looks for its sources.
+
 ### The disk budget
 
 A helper's disk is not goway's to fill. Each host has a budget: goway's root

@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T00:14:39Z"
+digest = "75d88403a8813ec39821635388686d6b57be4ddff5bc76370a37d7629ebd8b7e"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID edcfaae3-1e2b-429d-a150-ef8a706911d6 with nextest profile: default
+    Starting 1 test across 41 binaries (497 tests skipped)
+        PASS [  29.620s] goway::remote_ps1 a_dropped_connection_stops_the_job_tree_and_releases_the_slot
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  29.624s] 1 test run: 1 passed, 497 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_dropped_connection_stops_the_job_tree_and_releases_the_slot)'"
+size = 573
+status = "measured"
+tests = ["a_dropped_connection_stops_the_job_tree_and_releases_the_slot"]
+at = "2026-10-04T00:14:40Z"
+actor = "lognd"
+rev = 1
