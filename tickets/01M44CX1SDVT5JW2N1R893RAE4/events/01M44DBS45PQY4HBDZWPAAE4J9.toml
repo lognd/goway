@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T21:33:17Z"
+digest = "aaa6f6840cce5b5a91f128dc3378966e15224028c9517151d4a5ca7f4c80e97f"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 41296db9-6f17-4d3a-9b57-a9456486cf2f with nextest profile: default
+    Starting 1 test across 73 binaries (830 tests skipped)
+        PASS [   0.006s] goway doctor::prereq::tests::names_are_validated_against_each_package_managers_syntax
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.011s] 1 test run: 1 passed, 830 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(names_are_validated_against_each_package_managers_syntax)'"
+size = 579
+status = "measured"
+tests = ["doctor::prereq::tests::names_are_validated_against_each_package_managers_syntax"]
+at = "2026-10-04T21:33:17Z"
+actor = "lognd"
+rev = 1
