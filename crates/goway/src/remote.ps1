@@ -240,6 +240,14 @@ public static class GowayNative {
   [DllImport("kernel32.dll")]
   static extern bool IsProcessorFeaturePresent(uint feature);
 
+  // Keeps the machine from sleeping on idle while a job runs: the request is
+  // per thread and ends with ES_CONTINUOUS cleared or when the thread ends.
+  [DllImport("kernel32.dll")]
+  static extern uint SetThreadExecutionState(uint flags);
+  public static void KeepAwake(bool on) {
+    SetThreadExecutionState(on ? 0x80000001u : 0x80000000u); // ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+  }
+
   public static bool IsWindows { get { return Environment.OSVersion.Platform == PlatformID.Win32NT; } }
 
   // Memory, CPU load and the parent process without WMI (Get-CimInstance
@@ -417,7 +425,11 @@ public static class GowayNative {
 function Load-Native {
   if ($script:NativeLoaded) { return }
   if ($script:Ver -lt 6 -and $script:SelfPath) {
-    $dll = [IO.Path]::Combine([IO.Path]::GetDirectoryName($script:SelfPath), [IO.Path]::GetFileNameWithoutExtension($script:SelfPath) + '.native.dll')
+    # Named by a hash of its source, so a changed script never loads an older build.
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $tag = ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($script:NativeSource)), 0, 4)).Replace('-', '').ToLowerInvariant()
+    $sha.Dispose()
+    $dll = [IO.Path]::Combine([IO.Path]::GetDirectoryName($script:SelfPath), [IO.Path]::GetFileNameWithoutExtension($script:SelfPath) + ".native.$tag.dll")
     if (-not [IO.File]::Exists($dll)) {
       $tmp = "$dll.$PID.tmp"
       try {
@@ -811,6 +823,11 @@ function Verb-receive([string[]]$A) {
   if ($A.Length -gt 4 -and $A[4]) {
     $work = P $root @('work', $A[4])
     New-Dir $work
+    # What keeps gc from removing this dir before its run takes the lock, whatever
+    # the wall clock does: this process while it lives, then the monotonic time
+    # since boot (see Test-WorkYoung).
+    Write-Text (P $work @('creator')) ("{0} {1}`n" -f $PID, (Proc-Start $PID))
+    Write-Text (P $work @('born')) ("{0}`n" -f (Uptime-Secs))
     [IO.File]::WriteAllBytes((P $work @('meta.json')), [Convert]::FromBase64String($A[5]))
     if ($A.Length -gt 6 -and $A[6] -eq '1') { [IO.File]::WriteAllBytes((P $work @('keep')), @()) }
     Write-Text (P $work @('seed')) $A[1]
@@ -1066,14 +1083,32 @@ function Human-Bytes([double]$B) {
   return ('{0:F1} {1}' -f $B, $u[$i])
 }
 
-# probe ROOT [disk] [budget:MAX:MIN_FREE] [static]: key=value facts for scheduling and status.
+# want.TOOL=<first version line> for each safe tool name, `want.TOOL=` when missing
+# (names with anything outside [A-Za-z0-9._+-] are skipped; the Unix side is want_facts).
+function Want-Facts([string[]]$Names) {
+  $sb = New-Object Text.StringBuilder
+  foreach ($t in $Names) {
+    if (-not $t -or $t -notmatch '^[A-Za-z0-9._+-]+$') { continue }
+    $exe = Resolve-Program $t
+    $v = ''
+    if ($exe) {
+      $v = if ($t -eq 'go') { Tool-Version $exe @('version') } elseif ($t -eq 'java') { Tool-Version $exe @('-version') } else { Tool-Version $exe @('--version') }
+      if ($null -eq $v) { $v = '' }
+    }
+    [void]$sb.Append("want.$t=$v`n")
+  }
+  return $sb.ToString()
+}
+
+# probe ROOT [disk] [budget:MAX:MIN_FREE] [static] [tools:A,B]: key=value facts for scheduling and status.
 function Verb-probe([string[]]$A) {
   $root = Get-Root $A[0]
-  $wantDisk = $false; $wantStatic = $false; $budget = $null
+  $wantDisk = $false; $wantStatic = $false; $budget = $null; $tools = @()
   foreach ($x in $A[1..([math]::Max($A.Length - 1, 1))]) {
     if ($x -eq 'disk') { $wantDisk = $true }
     if ($x -eq 'static') { $wantStatic = $true }
     if ($x -match '^budget:(\d+):(\d+)$') { $budget = @([long]$Matches[1], [long]$Matches[2]) }
+    if ($x -like 'tools:*') { $tools = @($x.Substring(6).Split(',')) }
   }
   $sb = New-Object Text.StringBuilder
   $m = Get-Mem
@@ -1082,6 +1117,7 @@ function Verb-probe([string[]]$A) {
   if ($wantStatic) { [void]$sb.Append((Static-Facts)) }
   [void]$sb.Append("arch=$(Get-Arch)`nhostname=$([Environment]::MachineName)`ncores=$([Environment]::ProcessorCount)`n")
   [void]$sb.Append("os=$(Get-OsName)`n")
+  [void]$sb.Append("epoch=$(Unix-Secs)`n")
   $l = Get-Load
   [void]$sb.Append("load1=$($l[0])`nload5=$($l[1])`nload15=$($l[2])`n")
   $jobs = 0
@@ -1099,6 +1135,7 @@ function Verb-probe([string[]]$A) {
     [void]$sb.Append("disk_used=$(Dir-Bytes $root)`ndisk_free=$(Free-Bytes (Get-Home))`n")
     if ($budget) { [void]$sb.Append("disk_max=$(Budget-Max (Get-Home) $budget[0])`ndisk_min_free=$($budget[1])`n") }
   }
+  if ($tools.Count) { [void]$sb.Append((Want-Facts $tools)) }
   Write-Out $sb.ToString()
 }
 
@@ -1122,6 +1159,8 @@ function Verb-doctor([string[]]$A) {
       [void]$sb.Append("tool.$t=`n")
     }
   }
+  [void]$sb.Append("epoch=$(Unix-Secs)`n")
+  if ($A.Length -gt 1) { [void]$sb.Append((Want-Facts ([string[]]$A[1..($A.Length - 1)]))) }
   $os = 'unknown'
   if ($script:IsWin) { try { $os = (Get-CimInstance Win32_OperatingSystem).Caption } catch { } }
   else { $os = Get-OsName }
@@ -1139,6 +1178,44 @@ function Verb-doctor([string[]]$A) {
   $has = if ([IO.Directory]::Exists($ch) -or [IO.File]::Exists($ch)) { 1 } else { 0 }
   [void]$sb.Append("cargo_home=$has`n")
   Write-Out $sb.ToString()
+}
+
+# How long (milliseconds) lifeline waits for the client's next heartbeat byte.
+$script:LifelineTimeoutMs = 30000
+
+# lifeline ROOT RUN_ID: the run's lifeline. The client keeps this call open and
+# writes a byte to its stdin every few seconds. When stdin ends (the client
+# died) or no byte arrives for 30 seconds (laptop asleep, network gone), the run
+# is stopped: its job's process tree when the job started, else the run's own
+# process. A run that already finished (its work dir is gone or marked done) is
+# left alone. The same contract as remote.sh.
+function Verb-lifeline([string[]]$A) {
+  $root = Get-Root $A[0]; Test-Id $A[1] 'lifeline'
+  $work = P $root @('work', $A[1])
+  $live = { [IO.Directory]::Exists($work) -and -not [IO.File]::Exists((P $work @('done'))) }
+  $in = [Console]::OpenStandardInput()
+  $buf = New-Object byte[] 1
+  while ($true) {
+    $t = $in.ReadAsync($buf, 0, 1)
+    if (-not $t.Wait($script:LifelineTimeoutMs)) { break }
+    if ($t.Result -le 0) { break }
+    if (-not (& $live)) { return }
+  }
+  if (-not (& $live)) { return }
+  try { Write-Text (P $work @('lost')) '' } catch { return }
+  $pidText = (Read-TextOrEmpty (P $work @('pid'))).Trim()
+  if ($pidText -match '^\d+$') {
+    $p = Get-Process -Id ([int]$pidText) -ErrorAction SilentlyContinue
+    if ($p) {
+      Write-Err "goway-remote: client of run $($A[1]) is gone; stopping its job`n"
+      Stop-Tree $p
+      return
+    }
+  }
+  $runner = (Read-TextOrEmpty (P $work @('runner'))).Trim()
+  if ($runner -notmatch '^\d+$') { return }
+  $r = Get-Process -Id ([int]$runner) -ErrorAction SilentlyContinue
+  if ($r) { try { $r.Kill() } catch { } }
 }
 
 # envfile ROOT RUN_ID: store the run's --env values (NUL-separated on stdin)
@@ -1164,6 +1241,32 @@ function Verb-argsfile([string[]]$A) {
 
 # A work dir with no lock file yet and younger than this (seconds) is never removed by gc.
 $script:WorkGrace = 120
+
+# Seconds since boot by the monotonic tick counter, which a wall-clock jump
+# cannot move (0 when unknown).
+function Uptime-Secs { try { return [long]([Environment]::TickCount64 / 1000) } catch { return [long]([Environment]::TickCount / 1000) } }
+
+# "pid start-ticks" of this process, so a recycled pid is not mistaken for it.
+function Proc-Start([int]$ProcId) {
+  try { return [string](Get-Process -Id $ProcId -ErrorAction Stop).StartTime.ToUniversalTime().Ticks } catch { return '' }
+}
+
+# Whether the run that owns work dir $Dir is still starting: its creator process
+# is alive, or the dir is younger than WorkGrace by the monotonic clock. Never
+# judged by wall-clock age, which a clock jump can make huge. A dir without the
+# markers is not young by this test.
+function Test-WorkYoung([string]$Dir) {
+  $c = (Read-TextOrEmpty ([IO.Path]::Combine($Dir, 'creator'))).Trim().Split(' ')
+  if ($c.Length -ge 1 -and $c[0] -match '^\d+$') {
+    $start = if ($c.Length -ge 2) { $c[1] } else { '' }
+    $now = Proc-Start ([int]$c[0])
+    if ($now -and (-not $start -or $now -eq $start)) { return $true }
+  }
+  $born = (Read-TextOrEmpty ([IO.Path]::Combine($Dir, 'born'))).Trim()
+  if ($born -notmatch '^\d+$') { return $false }
+  $up = Uptime-Secs
+  return ($up -ge [long]$born -and ($up - [long]$born) -lt $script:WorkGrace)
+}
 
 # What the last Gc-Entry/Evict-Slot decided (action and bytes), the bytes gc
 # has removed or would remove so far, and the paths a dry run lists as gone,
@@ -1221,6 +1324,9 @@ function Gc-Entry([string]$Kind, [string]$Dir, [long]$Ttl, [long]$Now, [string]$
   # A run creates its work dir in one call and its lock in the next: never
   # remove such a young dir, not even with --all.
   if ($Kind -eq 'work' -and $action -eq $Verb -and -not [IO.File]::Exists([IO.Path]::Combine($Dir, 'lock')) -and $age -lt $script:WorkGrace) { $action = 'keep' }
+  # A run that is starting is protected by liveness, not by wall-clock age: if the
+  # host's clock jumps forward every age is huge, and this dir must still survive.
+  if ($Kind -eq 'work' -and $action -eq $Verb -and (Test-WorkYoung $Dir)) { $action = 'keep' }
   $bytes = Dir-Bytes $Dir
   Write-Out ("$action`t$Kind`t$age`t$bytes`t$($repo[0])`t$($repo[1])`t$Dir`n")
   $script:GcAction = $action; $script:GcBytes = $bytes
@@ -2200,6 +2306,11 @@ function Verb-run([string[]]$A) {
   New-Dir $cache
   [void](Test-ParentAlive)
   Lock-Dir 'work' $work $true
+  # The lock protects the dir from here on; the starting-run markers are done.
+  foreach ($m in @('born', 'creator')) { $f = P $work @($m); if ([IO.File]::Exists($f)) { try { [IO.File]::Delete($f) } catch { } } }
+  Write-Text (P $work @('runner')) ("{0}`n" -f $PID)
+  # The client's lifeline gave up on this run while it was starting: clean up and go.
+  if ([IO.File]::Exists((P $work @('lost')))) { Unlock-Key 'work'; try { Remove-Tree $work } catch { }; exit 143 }
   $meta = P $cache @('meta.json')
   if (-not [IO.File]::Exists($meta)) { [IO.File]::WriteAllBytes($meta, [Convert]::FromBase64String($cacheMeta)) }
   [IO.File]::SetLastWriteTimeUtc($meta, [DateTime]::UtcNow)
@@ -2294,15 +2405,24 @@ function Verb-run([string[]]$A) {
   [Environment]::SetEnvironmentVariable('GOWAY_RUN_ID', $runId)
   [Environment]::SetEnvironmentVariable('GOWAY_HOST', [Environment]::MachineName)
 
+  if ([IO.File]::Exists((P $work @('lost')))) { Unlock-Key 'slot'; Unlock-Key 'work'; try { Remove-Tree $work } catch { }; exit 143 }
   $pidFile = P $work @('pid')
   [IO.File]::WriteAllBytes($pidFile, @())
   $rc = 0
-  if ($detect) { $rc = Shard-Run $detect $work $cmd $rundir $priority $pidFile }
-  else { $rc = Run-Job $cmd $rundir $priority $pidFile }
+  # Hold a keep-awake request exactly while the job runs (this thread's own).
+  $awake = $false
+  if ($script:IsWin) { try { Load-Native; [GowayNative]::KeepAwake($true); $awake = $true } catch { Write-Err "goway-remote: keep-awake unavailable: $($_.Exception.Message)`n" } }
+  try {
+    if ($detect) { $rc = Shard-Run $detect $work $cmd $rundir $priority $pidFile }
+    else { $rc = Run-Job $cmd $rundir $priority $pidFile }
+  } finally {
+    if ($awake) { try { [GowayNative]::KeepAwake($false) } catch { } }
+  }
+  Write-Text (P $work @('done')) ''
 
   # A failed command: before blaming the code, goway compares every synced
   # file the command did not itself change with the laptop's.
-  if ($verify -and $rc -ne 0 -and (Test-ParentAlive)) {
+  if ($verify -and $rc -ne 0 -and -not [IO.File]::Exists((P $work @('lost'))) -and (Test-ParentAlive)) {
     $after = Get-Stamps $rundir
     $untouched = @()
     foreach ($p in $script:AllReg) {
@@ -2349,6 +2469,7 @@ function Invoke-Verb([string]$Verb, [string[]]$Rest) {
     'auto-gc' { Verb-auto-gc $Rest }
     'doctor' { Verb-doctor $Rest }
     'purge' { Verb-purge $Rest }
+    'lifeline' { Verb-lifeline $Rest }
     'verify-wait' { Verb-verify-wait $Rest }
     'verify-verdict' { Verb-verify-verdict $Rest }
     default { Die "unknown verb: $Verb" }
@@ -2395,7 +2516,7 @@ function Verb-session([string[]]$A) {
     $script:SessionIn = New-Object IO.MemoryStream (, $inBytes)
     $code = 0
     try {
-      if ($words.Count -eq 0 -or $words[0] -eq 'session' -or $words[0] -eq 'run') { Die 'session: verb not allowed' }
+      if ($words.Count -eq 0 -or $words[0] -eq 'session' -or $words[0] -eq 'run' -or $words[0] -eq 'lifeline') { Die 'session: verb not allowed' }
       [string[]]$rest = @()
       if ($words.Count -gt 1) { $rest = [string[]]@($words[1..($words.Count - 1)]) }
       Invoke-Verb $words[0] $rest

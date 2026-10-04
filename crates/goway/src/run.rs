@@ -974,8 +974,8 @@ const HEARTBEAT_SECS: u64 = 5;
 /// byte on its stdin every [`HEARTBEAT_SECS`]. When goway dies, even by
 /// SIGKILL, the pipe's write end closes and the helper stops the job; when
 /// the machine sleeps or the network drops, the bytes stop and it stops the
-/// job after its timeout. Only for Unix helpers (the Windows helper script
-/// has no lifeline verb). Never fails the run: without it the run is only as
+/// job after its timeout. Every helper kind has the verb (`remote.sh` and
+/// `remote.ps1`). Never fails the run: without it the run is only as
 /// protected as before.
 struct Beat {
     child: std::process::Child,
@@ -985,9 +985,6 @@ struct Beat {
 
 impl Beat {
     fn start(found: &Found, settings: &ssh::Settings, life: &Lifeline<'_>) -> Option<Self> {
-        if found.kind != crate::transport::Kind::Unix {
-            return None;
-        }
         let call = Call::new("lifeline", &[life.remote_root, life.run_id]);
         let mut command = match SshTransport::of(found, settings).command(&call) {
             Ok(c) => c,

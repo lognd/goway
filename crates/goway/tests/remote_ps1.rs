@@ -1644,3 +1644,144 @@ fn the_automatic_gc_leaves_a_summary_and_probe_reports_the_budget() {
         .unwrap();
     assert!(max > 0 && max <= 50 << 30, "{probe}");
 }
+
+// frob:ticket 01M43AS3TM0HGV1Q866V4A27S6
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
+#[test]
+fn probe_reports_the_clock_and_asked_for_tools() {
+    let Some(h) = Host::new() else { return };
+    let out = h.ok(
+        &["probe", &h.root(), "tools:pwsh,no-such-tool-xyz,bad;name"],
+        b"",
+    );
+    let epoch: u64 = out
+        .lines()
+        .find_map(|l| l.strip_prefix("epoch="))
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    assert!(now.abs_diff(epoch) < 30, "{out}");
+    assert!(out.contains("want.no-such-tool-xyz=\n"), "{out}");
+    assert!(
+        !out.contains("bad;name") && !out.contains("want.bad"),
+        "{out}"
+    );
+}
+
+/// A work dir for run `id` whose job (a `sleep` in its own session) is recorded in `pid`.
+#[cfg(unix)]
+fn work_with_job(h: &Host, id: &str) -> (PathBuf, std::process::Child) {
+    let work = h.root.join("work").join(id);
+    std::fs::create_dir_all(&work).unwrap();
+    let child = Command::new("setsid")
+        .args(["sleep", "60"])
+        .spawn()
+        .expect("setsid and sleep exist where pwsh does");
+    std::fs::write(work.join("pid"), child.id().to_string()).unwrap();
+    (work, child)
+}
+
+// frob:ticket 01M43AS3TM0HGV1Q866V4A27S6
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
+#[cfg(unix)]
+#[test]
+fn the_lifeline_stops_the_job_when_the_client_goes_away_and_spares_a_finished_run() {
+    let Some(h) = Host::new() else { return };
+    h.ok(&["manifest", &h.root(), "abc"], b"");
+    // The client closes its end: the job is stopped and the run marked lost.
+    let (work, mut job) = work_with_job(&h, "run1");
+    let out = h.call(&["lifeline", &h.root(), "run1"], b"");
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert!(work.join("lost").exists());
+    assert!(
+        job.wait().is_ok_and(|s| !s.success()),
+        "the job was stopped"
+    );
+    // A run that already finished is left alone.
+    let (work, mut job) = work_with_job(&h, "run2");
+    std::fs::write(work.join("done"), "").unwrap();
+    let out = h.call(&["lifeline", &h.root(), "run2"], b"");
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert!(!work.join("lost").exists());
+    assert!(job.try_wait().unwrap().is_none(), "the job still runs");
+    job.kill().unwrap();
+    let _ = job.wait();
+}
+
+// frob:ticket 01M43AS3TM0HGV1Q866V4A27S6
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
+#[test]
+fn a_starting_runs_work_dir_survives_gc_by_liveness_not_by_age() {
+    let Some(h) = Host::new() else { return };
+    h.ok(&["manifest", &h.root(), "abc"], b"");
+    let day = 86_400;
+    let make = |name: &str, creator: Option<u32>| {
+        let dir = h.root.join("work").join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("meta.json"),
+            r#"{"kind":"work","repo":"r","repo_id":"i"}"#,
+        )
+        .unwrap();
+        age(&dir.join("meta.json"), day);
+        if let Some(pid) = creator {
+            std::fs::write(dir.join("creator"), format!("{pid}\n")).unwrap();
+        }
+    };
+    // Both are a day old and have no lock yet; only the one whose creator lives is kept.
+    make("alive", Some(std::process::id()));
+    make("orphan", None);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string();
+    let out = h.ok(
+        &[
+            "gc",
+            &h.root(),
+            &now,
+            "604800",
+            "3600",
+            "259200",
+            "apply",
+            "",
+            "",
+        ],
+        b"",
+    );
+    let line = |name: &str| {
+        out.lines()
+            .find(|l| l.ends_with(name))
+            .unwrap_or("")
+            .to_owned()
+    };
+    assert!(line("alive").starts_with("keep\t"), "{out}");
+    assert!(line("orphan").starts_with("remove\t"), "{out}");
+    assert!(h.root.join("work/alive").exists());
+    assert!(!h.root.join("work/orphan").exists());
+}
+
+// frob:ticket 01M43AS3TM0HGV1Q866V4A27S6
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
+#[test]
+fn a_windows_job_holds_a_keep_awake_request_for_exactly_its_lifetime() {
+    // The request is the job's own thread's, so it can only be checked in the source:
+    // set just before the job starts and cleared in a `finally` right after it ends.
+    let s = remote::SCRIPT_PS;
+    assert!(s.contains("SetThreadExecutionState(on ? 0x80000001u : 0x80000000u)"));
+    let on = s
+        .find("[GowayNative]::KeepAwake($true)")
+        .expect("set before the job");
+    let job = s.find("else { $rc = Run-Job").expect("the job runs");
+    let off = s
+        .find("[GowayNative]::KeepAwake($false)")
+        .expect("cleared after it");
+    assert!(on < job && job < off);
+    assert!(s[job..off].contains("finally"));
+}
