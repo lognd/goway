@@ -27,6 +27,7 @@ pub(crate) enum Op {
     SetAcl(PathBuf, String),
     CreateResource(ResourceKind, String, String),
     DeleteResource(ResourceKind, String),
+    RestoreResource(ResourceKind, String, String),
 }
 
 /// What happened to one entry during revert.
@@ -72,6 +73,7 @@ pub(crate) fn run(sys: &mut (impl System + ?Sized), ops: &[Op]) -> Result<(), Jo
             Op::SetAcl(p, s) => sys.set_acl(p, s)?,
             Op::CreateResource(k, n, s) => sys.resource_create(*k, n, s)?,
             Op::DeleteResource(k, n) => sys.resource_delete(*k, n)?,
+            Op::RestoreResource(k, n, s) => sys.resource_restore(*k, n, s)?,
         }
     }
     Ok(())
@@ -252,7 +254,17 @@ pub(crate) fn plan_apply(
         }
         Change::EnsureResource { kind, name, spec } => {
             if sys.resource_exists(*kind, name)? {
-                return Ok(noop());
+                // An outdated resource is replaced, and its snapshot journaled so undo restores it.
+                return match sys.resource_outdated(*kind, name)? {
+                    Some(previous) => Ok((
+                        Prior::ResourceReplaced { previous },
+                        vec![
+                            Op::DeleteResource(*kind, name.clone()),
+                            Op::CreateResource(*kind, name.clone(), spec.clone()),
+                        ],
+                    )),
+                    None => Ok(noop()),
+                };
             }
             Ok((
                 Prior::ResourceCreated,
@@ -445,6 +457,15 @@ pub(crate) fn plan_revert(
                 return left("resource is gone");
             }
             restore(vec![Op::DeleteResource(*kind, name.clone())])
+        }
+        (Change::EnsureResource { kind, name, .. }, Prior::ResourceReplaced { previous }) => {
+            if !sys.resource_exists(*kind, name)? {
+                return left("resource is gone");
+            }
+            restore(vec![
+                Op::DeleteResource(*kind, name.clone()),
+                Op::RestoreResource(*kind, name.clone(), previous.clone()),
+            ])
         }
         (change, prior) => Err(invalid(format!(
             "entry prior {prior:?} does not match change {change:?}"

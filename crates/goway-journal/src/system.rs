@@ -62,6 +62,21 @@ pub trait System {
     fn resource_exists(&self, kind: ResourceKind, name: &str) -> SysResult<bool>;
     /// Create a named external resource from an opaque spec.
     fn resource_create(&mut self, kind: ResourceKind, name: &str, spec: &str) -> SysResult<()>;
+    /// For an existing resource that is out of date and should be replaced by a fresh creation,
+    /// a snapshot of it from which [`System::resource_restore`] can rebuild it exactly; `None`
+    /// when it is absent or current. The default never replaces anything.
+    fn resource_outdated(&self, _kind: ResourceKind, _name: &str) -> SysResult<Option<String>> {
+        Ok(None)
+    }
+    /// Re-create a resource from a snapshot taken by [`System::resource_outdated`].
+    fn resource_restore(
+        &mut self,
+        _kind: ResourceKind,
+        _name: &str,
+        _snapshot: &str,
+    ) -> SysResult<()> {
+        Err(SystemError::Unsupported("restoring resources"))
+    }
     /// Delete a named external resource; absent is success.
     fn resource_delete(&mut self, kind: ResourceKind, name: &str) -> SysResult<()>;
 }
