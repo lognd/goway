@@ -733,9 +733,6 @@ fn same_size_edit_within_the_same_second_reaches_the_slot() {
 // which makes the warm check depend on timestamp precision, not on goway).
 const STAMP_BUILD: &str = "if (-not (Test-Path out) -or ((Get-Item src.txt).LastWriteTimeUtc -gt (Get-Item out).LastWriteTimeUtc)) { Get-Content src.txt | Set-Content out; 'rebuilt' }; Get-Content out";
 
-/// Prints the compared times and the host's culture, for CI diagnostics.
-const STAMP_DIAG: &str = "$s = (Get-Item src.txt).LastWriteTimeUtc; $o = (Get-Item out).LastWriteTimeUtc; \"src=$($s.Ticks) out=$($o.Ticks) now=$([DateTime]::UtcNow.Ticks) culture=$((Get-Culture).Name) tz=$((Get-TimeZone).Id) ps=$($PSVersionTable.PSVersion)\"";
-
 #[test]
 fn changed_files_are_stamped_newer_than_the_slots_outputs() {
     let h = host!();
@@ -766,17 +763,7 @@ fn changed_files_are_stamped_newer_than_the_slots_outputs() {
         "the build saw B's source"
     );
     // Nothing changed: the warm build stays warm.
-    let stats_s2 = h.stats(0);
-    let s3_out = h.jobrun("s3", STAMP_BUILD);
-    let s3 = lines(&s3_out);
-    let diag = text(&h.jobrun("s4", STAMP_DIAG).stdout);
-    assert_eq!(
-        s3,
-        ["from B"],
-        "stats after s2: {stats_s2}; after s3: {}; times: {diag}; stderr: {}",
-        h.stats(0),
-        text(&s3_out.stderr)
-    );
+    assert_eq!(lines(&h.jobrun("s3", STAMP_BUILD)), ["from B"]);
     assert_eq!(h.stats(0), "written=0 removed=0");
 }
 
