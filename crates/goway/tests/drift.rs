@@ -205,16 +205,7 @@ fn the_run_report_records_the_tool_versions_doctor_saw_on_that_host() {
         "[toolchain]\ntools = [\"git\"]\n",
     )
     .unwrap();
-    assert!(w.run(&["run", "--", "true"]).status.success());
-    let before = w.root.join("before.json");
-    w.run(&["run", "--report", before.to_str().unwrap(), "--", "true"]);
-    let json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&before).unwrap()).unwrap();
-    assert!(
-        json.get("tool_versions").is_none(),
-        "nothing cached yet: {json}"
-    );
-    w.run(&["doctor"]);
+    // A first run needs no doctor: it asks its probe for the project's tools.
     let after = w.root.join("after.json");
     let out = w.run(&["run", "--report", after.to_str().unwrap(), "--", "true"]);
     assert!(out.status.success());

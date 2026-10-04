@@ -203,6 +203,65 @@ pub struct ForRun {
     pub record: Option<Record>,
 }
 
+/// Whether any of `hosts` lacks a cache of `repo_id`'s tool versions younger than a day.
+pub fn any_stale(state: &State, hosts: &[String], repo_id: &str, now: u64) -> bool {
+    hosts.iter().any(|h| {
+        state
+            .tool_versions
+            .get(&h.to_ascii_lowercase())
+            .is_none_or(|c| {
+                c.repo != repo_id || now.saturating_sub(c.captured) >= crate::state::TOOLS_MAX_AGE
+            })
+    })
+}
+
+/// Make the probes of this run ask for the project's tool versions where the
+/// cache is stale. `tools` is only called (it reads project files) when
+/// some host needs it; no tools or no repository id asks for nothing.
+// frob:ticket 01M43AFK9N84ZE45CY5T8B9HQV
+pub fn ask_where_stale(
+    state: &mut State,
+    hosts: &[String],
+    repo_id: &str,
+    now: u64,
+    tools: impl FnOnce() -> Vec<String>,
+) {
+    if repo_id.is_empty() || !any_stale(state, hosts, repo_id, now) {
+        return;
+    }
+    let tools = tools();
+    if tools.is_empty() {
+        return;
+    }
+    tracing::debug!(?tools, "stale tool versions: the probes will ask for them");
+    state.want_tools = Some((repo_id.to_owned(), tools));
+}
+
+/// Record what the chosen `host` reported for the tools its probe was asked
+/// about; true when the cache changed. A probe that was not asked, or a host
+/// that reported nothing (an older helper), leaves the cache alone.
+// frob:ticket 01M43AFK9N84ZE45CY5T8B9HQV
+pub fn record_probed(
+    state: &mut State,
+    host: &str,
+    now: u64,
+    reported: &BTreeMap<String, String>,
+) -> bool {
+    let Some((repo_id, _)) = state.want_tools.clone() else {
+        return false;
+    };
+    if reported.is_empty() || state.tools_to_probe(host, now).is_empty() {
+        return false;
+    }
+    tracing::info!(
+        host,
+        tools = reported.len(),
+        "tool versions refreshed by a run"
+    );
+    state.record_tools(host, &repo_id, now, reported.clone());
+    true
+}
+
 /// Seconds as a short age: `3d`, `5h`, `12m`.
 fn age(secs: u64) -> String {
     match secs {
@@ -261,5 +320,113 @@ pub fn for_run(state: &State, host: &str, repo_id: &str, now: u64) -> ForRun {
             age(now.saturating_sub(mine.captured))
         )),
         record,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    const NOW: u64 = 1_000_000;
+
+    fn names(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    fn cached(state: &mut State, host: &str, repo: &str, at: u64) {
+        state.record_tools(
+            host,
+            repo,
+            at,
+            BTreeMap::from([("cc".to_owned(), "cc 12".to_owned())]),
+        );
+    }
+
+    // frob:tests crates/goway/src/drift.rs::ask_where_stale
+    // frob:tests crates/goway/src/state.rs::State.tools_to_probe
+    #[test]
+    fn a_missing_or_day_old_cache_makes_the_probe_ask_and_a_fresh_one_does_not() {
+        let hosts = names(&["helios"]);
+        let mut empty = State::default();
+        ask_where_stale(&mut empty, &hosts, "r1", NOW, || names(&["cc", "make"]));
+        assert_eq!(empty.tools_to_probe("Helios", NOW), ["cc", "make"]);
+
+        let mut aged = State::default();
+        cached(&mut aged, "helios", "r1", NOW - 90_000);
+        ask_where_stale(&mut aged, &hosts, "r1", NOW, || names(&["cc"]));
+        assert_eq!(aged.tools_to_probe("helios", NOW), ["cc"]);
+
+        let mut other_repo = State::default();
+        cached(&mut other_repo, "helios", "r2", NOW - 10);
+        ask_where_stale(&mut other_repo, &hosts, "r1", NOW, || names(&["cc"]));
+        assert_eq!(other_repo.tools_to_probe("helios", NOW), ["cc"]);
+
+        let mut fresh = State::default();
+        cached(&mut fresh, "helios", "r1", NOW - 3_600);
+        ask_where_stale(&mut fresh, &hosts, "r1", NOW, || {
+            panic!("must not read the project")
+        });
+        assert!(fresh.tools_to_probe("helios", NOW).is_empty());
+        let mut no_repo = State::default();
+        ask_where_stale(&mut no_repo, &hosts, "", NOW, || panic!("no repository"));
+        assert!(no_repo.want_tools.is_none());
+    }
+
+    // frob:tests crates/goway/src/pool.rs::probe_call
+    #[test]
+    fn the_probe_word_carries_only_safe_tool_names() {
+        let config = Config::default();
+        let args = |t: &[&str]| crate::pool::probe_call(&config, false, false, &names(t)).args;
+        assert!(args(&[]).iter().all(|a| !a.starts_with("tools:")));
+        let a = args(&["cc", "g++", "bad name", "x;rm", "cargo-nextest"]);
+        assert!(
+            a.contains(&"tools:cc,g++,cargo-nextest".to_owned()),
+            "{a:?}"
+        );
+    }
+
+    // frob:tests crates/goway/src/drift.rs::record_probed
+    #[test]
+    fn a_run_records_what_its_probe_reported_only_when_it_asked() {
+        let hosts = names(&["helios"]);
+        let reported = BTreeMap::from([("cc".to_owned(), "cc 13.2".to_owned())]);
+        let mut state = State::default();
+        assert!(
+            !record_probed(&mut state, "helios", NOW, &reported),
+            "not asked"
+        );
+        ask_where_stale(&mut state, &hosts, "r1", NOW, || names(&["cc"]));
+        assert!(
+            !record_probed(&mut state, "helios", NOW, &BTreeMap::new()),
+            "silent host"
+        );
+        assert!(state.tool_versions.is_empty());
+        assert!(record_probed(&mut state, "helios", NOW, &reported));
+        let got = for_run(&state, "helios", "r1", NOW + 5);
+        let rec = got.record.unwrap();
+        assert_eq!((rec.captured, rec.versions), (NOW, reported));
+        assert!(
+            !record_probed(
+                &mut state,
+                "helios",
+                NOW,
+                &BTreeMap::from([("cc".to_owned(), "x".to_owned())])
+            ),
+            "fresh now: not asked again"
+        );
+    }
+
+    // frob:tests crates/goway/src/facts.rs::parse_live
+    #[test]
+    fn the_probe_parser_keeps_reported_tool_versions_and_drops_missing_ones() {
+        let p = crate::pool::parse_probe(
+            "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\njobs=0\nwant.cc=gcc 13.2\nwant.make=\n",
+        )
+        .unwrap();
+        assert_eq!(
+            p.facts.tools,
+            BTreeMap::from([("cc".to_owned(), "gcc 13.2".to_owned())])
+        );
     }
 }

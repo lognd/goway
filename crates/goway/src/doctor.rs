@@ -1116,7 +1116,7 @@ fn show_applied(renderer: Renderer, host: &HostConfig, applied: &Applied) {
 
 /// What the project in the current directory needs (nothing detected when
 /// the directory is not in a git project: goway's own Rust-first checks).
-fn project_needs() -> Result<projneeds::Needs> {
+pub(crate) fn project_needs() -> Result<projneeds::Needs> {
     let Ok(cwd) = std::env::current_dir() else {
         return Ok(projneeds::Needs::default());
     };
