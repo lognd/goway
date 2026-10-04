@@ -23,8 +23,27 @@ What differs from Linux:
   no `/proc/self/fd`).
 - GPU, CPU-flag and KVM facts are not probed.
 
-Known gaps (the macOS CI job skips these tests): framework shard detection
-(GoogleTest and Catch2 binaries), nested goway runs (`GOWAY_DEPTH`) and the
-copy-verification rerun path, and the slot cleanup of leftover directories are not yet confirmed on macOS; the five
-`sync.rs` protocol tests are still ignored there. Tests that assume Linux
-facts (`os=linux`, `nice`) are skipped. Report anything else you hit.
+The macOS CI job runs the whole suite on a Mac, repeated several times for
+the tests that start many helper calls at once, with no retries. Only the
+PowerShell contract tests (`remote_ps1`) are left out: a Mac has no
+PowerShell. Tests that assume Linux facts derive them from the host (`os`,
+the config directory), so they run here too.
+
+Things a Mac helper needed that Linux did not:
+
+- goway runs helper calls from several threads at once. Rust creates a
+  pipe and marks it close-on-exec in two steps on macOS, so a child started
+  by another thread in between inherited the pipe, and a call's answer then
+  waited for an unrelated job to exit (the copy-verification verdict and
+  nested runs stalled for minutes). All such spawns now go through one lock
+  (`spawn.rs`).
+- bash 3.2 mishandles `IFS=$'\001'` in `read`, which broke the detection of
+  dependency directories to keep in a slot; the script splits on `\037`.
+- test binaries are Mach-O, not ELF: framework detection accepts both.
+- the core count comes from `sysctl -n hw.ncpu`.
+- goway's config directory is `~/Library/Application Support/goway` here
+  (not `~/.config/goway`) unless `GOWAY_CONFIG_DIR` is set.
+- Apple's `make` (3.81) compares whole seconds, so two builds inside one
+  second can look equal; use `gmake` or Ninja for fast edit-build loops.
+
+Report anything else you hit.

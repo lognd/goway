@@ -268,6 +268,12 @@ fn write_dated(file: &Path, content: &str, ago: u64) {
         .unwrap();
 }
 
+/// Apple's bash 3.2 (`-nt`) and make 3.81 compare whole seconds only: let
+/// the next write fall in a later second than what was just built.
+fn next_second() {
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+}
+
 /// Build A in a slot, then run a worktree state B whose changed source has
 /// an older mtime than A's output: the build must still see B's source.
 const STAMP_BUILD: &str =
@@ -281,6 +287,7 @@ fn changed_files_are_stamped_newer_than_the_slots_outputs() {
     write_dated(&src, "from A\n", 0);
     assert_eq!(sh(&w, STAMP_BUILD), "rebuilt\nfrom A\n");
     // An older branch: different content, a much older mtime.
+    next_second();
     write_dated(&src, "from B\n", 3600);
     assert_eq!(
         sh(&w, STAMP_BUILD),
@@ -302,8 +309,7 @@ fn make_rebuilds_when_an_older_branch_reuses_the_slot() {
     std::fs::write(w.repo.join(".gitignore"), "out\n").unwrap();
     write_dated(&w.repo.join("src.txt"), "from A\n", 0);
     assert_eq!(sh(&w, "make -s && cat out"), "from A\n");
-    // Apple's make 3.81 compares whole seconds only: B's stamp must fall in a later second than A's output.
-    std::thread::sleep(std::time::Duration::from_millis(1100));
+    next_second();
     write_dated(&w.repo.join("src.txt"), "from B\n", 3600);
     assert_eq!(sh(&w, "make -s && cat out"), "from B\n");
 }
