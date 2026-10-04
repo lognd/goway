@@ -355,6 +355,12 @@ by 0.5 (about half a core of load per core), so a preferred host wins unless
 it is much busier; a host that lacks a preference is never excluded. Both
 flags repeat or take comma-separated terms.
 
+Minimums (`cores`, `mem`, `gpu-mem`, `disk`, `cuda`) can be written
+`cores:8`, `mem:2G` or `cuda:12.1`, which mean the same as `cores>=8` and
+need no quoting. An unquoted `cores>=8` is read by the shell as the word
+`cores` plus a redirect into a file named `=8`; goway then sees a bare
+`cores`, says so, and names that file so you can delete it.
+
 | Term | Meaning |
 |---|---|
 | `gpu`, `gpu=cuda`, `gpu=rocm` | a GPU (any, NVIDIA, AMD) visible on the host |

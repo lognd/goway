@@ -36,6 +36,9 @@ pub const KEYS: [&str; 12] = [
 /// The keys that are not in [`KEYS`]'s first twelve entries (`disk`, `label`).
 const MORE_KEYS: [&str; 2] = ["disk>=SIZE", "label=NAME"];
 
+/// Keys that are minimums, so `key:value` is accepted as `key>=value`.
+const MINIMUM_KEYS: [&str; 5] = ["cores", "mem", "gpu-mem", "disk", "cuda"];
+
 /// The largest size a term may name: 2^60 bytes.
 const MAX_BYTES: f64 = 1_152_921_504_606_846_976.0;
 
@@ -88,6 +91,19 @@ fn all_keys() -> String {
         .copied()
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// The error for a minimum key with no value: usually an unquoted `>=` the shell took as a redirect.
+fn bare_minimum(term: &str, key: &str) -> Error {
+    bad(
+        term,
+        format!(
+            "`{key}` needs a value. If you typed `{key}>=N` without quotes, the shell read \
+             `>=N` as a redirect and probably created a file named `=N` (for example `=8`) in \
+             the current directory; delete it. Write `{key}:N` (no quoting needed) or quote \
+             it: '{key}>=N'"
+        ),
+    )
 }
 
 fn bad(term: &str, why: impl fmt::Display) -> Error {
@@ -154,6 +170,12 @@ impl Term {
             (k.trim(), Some(">="), v.trim())
         } else if let Some((k, v)) = t.split_once('=') {
             (k.trim(), Some("="), v.trim())
+        } else if let Some((k, v)) = t
+            .split_once(':')
+            .filter(|(k, _)| MINIMUM_KEYS.contains(&k.trim().to_ascii_lowercase().as_str()))
+        {
+            // `cores:8` is the shell-safe spelling of `cores>=8`.
+            (k.trim(), Some(">="), v.trim())
         } else {
             (t, None, "")
         };
@@ -226,9 +248,11 @@ impl Term {
                 text,
                 format!("`{key}` takes no `>=` value (only `gpu=cuda` and `gpu=rocm` exist)"),
             )),
-            ("gpu-mem" | "mem" | "disk" | "cuda" | "cores", _) => {
-                Err(bad(text, format!("`{key}` is a minimum: write {key}>=N")))
-            }
+            ("gpu-mem" | "mem" | "disk" | "cuda" | "cores", None) => Err(bare_minimum(text, &key)),
+            ("gpu-mem" | "mem" | "disk" | "cuda" | "cores", _) => Err(bad(
+                text,
+                format!("`{key}` is a minimum: write {key}:N or '{key}>=N'"),
+            )),
             ("arch" | "os" | "cpu" | "label", _) => {
                 Err(bad(text, format!("`{key}` needs `=`, like {key}=NAME")))
             }
@@ -614,6 +638,32 @@ mod tests {
                 hw_age: Some(0),
                 ..Facts::default()
             },
+        }
+    }
+
+    // frob:ticket WCBRFMA
+    #[test]
+    fn colon_form_equals_ge_form() {
+        for (a, b) in [
+            ("cores:8", "cores>=8"),
+            ("mem:2G", "mem>=2G"),
+            ("gpu-mem:8G", "gpu-mem>=8G"),
+            ("disk:50G", "disk>=50G"),
+            ("cuda:12.1", "cuda>=12.1"),
+        ] {
+            assert_eq!(Term::parse(a).unwrap(), Term::parse(b).unwrap(), "{a}");
+        }
+    }
+
+    // frob:ticket WCBRFMA
+    #[test]
+    fn bare_minimum_key_explains_redirect() {
+        for key in ["cores", "mem", "disk", "gpu-mem", "cuda"] {
+            let msg = Term::parse(key).unwrap_err().to_string();
+            assert!(msg.contains("redirect"), "{msg}");
+            assert!(msg.contains("`=8`"), "{msg}");
+            assert!(msg.contains(&format!("{key}:N")), "{msg}");
+            assert!(msg.contains(&format!("'{key}>=N'")), "{msg}");
         }
     }
 
