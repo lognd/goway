@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T22:50:30Z"
+digest = "d9c7e066913f8779e32b37757e5468e581f8c6d96c047c22bcd5290634ffbae3"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 75193046-dcb3-49c6-b8c1-ecb0a94e014b with nextest profile: default
+    Starting 2 tests across 75 binaries (845 tests skipped)
+        PASS [   3.810s] goway::client_loss a_sigkilled_client_leaves_no_process_of_its_job_without_a_scope
+        PASS [   3.955s] goway::client_loss a_finished_run_leaves_no_background_process_without_a_scope
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   3.961s] 2 tests run: 2 passed, 845 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_sigkilled_client_leaves_no_process_of_its_job_without_a_scope) | test(a_finished_run_leaves_no_background_process_without_a_scope)'"
+size = 682
+status = "measured"
+tests = ["a_sigkilled_client_leaves_no_process_of_its_job_without_a_scope", "a_finished_run_leaves_no_background_process_without_a_scope"]
+at = "2026-10-04T22:50:30Z"
+actor = "lognd"
+rev = 1
