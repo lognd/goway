@@ -7,7 +7,7 @@ priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T22:33:20Z"
-updated = "2026-10-04T22:52:44Z"
+updated = "2026-10-04T22:52:45Z"
 scope = ["crates/goway-setup/src/ps.rs", "crates/goway-setup/tests/host_plan.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/hostsys.rs", "crates/goway-journal/src/system.rs", "crates/goway-journal/src/plan.rs", "crates/goway-journal/src/journal.rs", "crates/goway-journal/src/model.rs", "crates/goway-setup/src/host.rs", "crates/goway-journal/tests/scenarios.rs", "docs/install-windows.md"]
 
 [[acceptance]]
