@@ -2,13 +2,13 @@
 id = "01M43EA8EVNNKP6PV8B1K7C6WG"
 title = "Windows CI: two remote_ps1 tests fail (a gc test sees young work dirs; the auto-gc summary test used a far-future now)"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 1
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T12:30:42Z"
-updated = "2026-10-04T12:30:42Z"
+updated = "2026-10-04T12:30:50Z"
 scope = ["crates/goway/tests/remote_ps1.rs"]
 
 [[acceptance]]
