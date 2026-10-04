@@ -641,7 +641,7 @@ mod tests {
         }
     }
 
-    // frob:ticket WCBRFMA
+    // frob:ticket 01M42FC4N6TYP7M8A4QWCBRFMA
     #[test]
     fn colon_form_equals_ge_form() {
         for (a, b) in [
@@ -655,7 +655,7 @@ mod tests {
         }
     }
 
-    // frob:ticket WCBRFMA
+    // frob:ticket 01M42FC4N6TYP7M8A4QWCBRFMA
     #[test]
     fn bare_minimum_key_explains_redirect() {
         for key in ["cores", "mem", "disk", "gpu-mem", "cuda"] {
