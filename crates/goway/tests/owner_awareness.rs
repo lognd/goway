@@ -123,7 +123,7 @@ fn an_unreadable_state_is_unknown_and_changes_nothing() {
     assert!(out(&status).contains("owner"), "{}", out(&status));
 }
 
-// frob:tests crates/goway/src/remote.sh::cap_parallelism
+// frob:tests crates/goway/src/pool.rs::owner_note
 #[test]
 fn settings_the_user_made_stay_theirs() {
     let w = common::world();
