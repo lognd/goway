@@ -402,6 +402,8 @@ fn a_helper_that_refuses_passwords_gets_the_key_by_hand_without_a_terminal() {
         "newbox",
         "--address",
         "127.0.0.1",
+        "--user",
+        "tester",
         "--fingerprint",
         &fp,
     ];
@@ -411,14 +413,13 @@ fn a_helper_that_refuses_passwords_gets_the_key_by_hand_without_a_terminal() {
         String::from_utf8_lossy(&out.stderr).into_owned(),
     );
     assert_eq!(out.status.code(), Some(125), "{stderr}");
-    for cause in [
-        "passwd -S",
-        "faillock --user",
-        "fail2ban-client",
-        "AllowUsers",
-    ] {
-        assert!(stderr.contains(cause), "{cause} in {stderr}");
-    }
+    // A friendly turn, not a wall of text: one likely cause, a pointer to the rest.
+    assert!(
+        stderr.contains("That password did not work on newbox."),
+        "{stderr}"
+    );
+    assert!(stderr.contains("docs/troubleshooting.md"), "{stderr}");
+    assert!(stderr.contains("Let's do it the other way:"), "{stderr}");
     assert!(stderr.contains("rerun"), "{stderr}");
     let commands = printed_commands(&stdout);
     assert!(
@@ -478,20 +479,48 @@ fn no_password_never_tries_a_password_login() {
     );
 }
 
-// frob:tests crates/goway/src/sshsetup.rs::HandInstall
-#[test]
-fn on_a_terminal_goway_waits_for_enter_then_carries_on() {
+/// A transcript with colors, carriage returns, tracing lines and per-run values removed, so a
+/// wording change shows up as a diff and nothing else does.
+fn normalize(raw: &str, s: &Setup) -> String {
+    let mut text = String::new();
+    let mut chars = raw.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' && chars.peek() == Some(&'[') {
+            for d in chars.by_ref() {
+                if d.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else if c != '\r' {
+            text.push(c);
+        }
+    }
+    let config = s.w.config.display().to_string();
+    text.lines()
+        .filter(|l| !l.contains(" WARN ") && !l.contains(" INFO "))
+        .map(|l| {
+            if l.starts_with("echo 'no-agent-forwarding") {
+                "echo '<restricted key line>' >> ~/.ssh/authorized_keys".to_owned()
+            } else {
+                l.replace(&config, "<config>")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Run `goway ssh setup newbox ...` on a pty (so stdin is a terminal), typing each `send` once
+/// its `wait` text has appeared; returns the exit status and the normalized transcript.
+fn on_a_pty(s: &Setup, steps: &[(&str, &str)]) -> Option<(std::process::ExitStatus, String)> {
     use std::io::{Read as _, Write as _};
     use std::process::Stdio;
     use std::sync::{Arc, Mutex};
     if !std::path::Path::new("/usr/bin/script").exists() {
-        return; // no pty helper on this machine
+        return None; // no pty helper on this machine
     }
-    let s = setup_world();
-    std::fs::write(s.w.root.join("no-password"), "").unwrap();
     let fp = fake_fingerprint();
     let line = format!(
-        "{} ssh setup newbox --address 127.0.0.1 --fingerprint {fp}",
+        "{} ssh setup newbox --address 127.0.0.1 --user tester --fingerprint {fp}",
         env!("CARGO_BIN_EXE_goway")
     );
     let probe = s.w.goway(&["--version"]);
@@ -503,7 +532,9 @@ fn on_a_terminal_goway_waits_for_enter_then_carries_on() {
             None => cmd.env_remove(k),
         };
     }
-    cmd.env("HOME", &s.home).env_remove("SSH_AUTH_SOCK");
+    cmd.env("HOME", &s.home)
+        .env("NO_COLOR", "1")
+        .env_remove("SSH_AUTH_SOCK");
     let mut child = cmd
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -524,16 +555,147 @@ fn on_a_terminal_goway_waits_for_enter_then_carries_on() {
                 .push_str(&String::from_utf8_lossy(&chunk[..n]));
         }
     });
-    common::wait_for("the Enter prompt", || {
-        seen.lock()
+    let mut from = 0;
+    for (wait, send) in steps {
+        common::wait_for(wait, || seen.lock().unwrap()[from..].contains(wait));
+        let text = seen.lock().unwrap().clone();
+        from = text.rfind(wait).unwrap() + wait.len();
+        if send.starts_with("PASTE") {
+            run_on_helper(s, &printed_commands(&text));
+        }
+        child
+            .stdin
+            .as_mut()
             .unwrap()
-            .contains("press Enter once you have done this")
-    });
-    let text = seen.lock().unwrap().clone();
-    run_on_helper(&s, &printed_commands(&text));
-    child.stdin.as_mut().unwrap().write_all(b"\n").unwrap();
+            .write_all(if send.starts_with("PASTE") {
+                b"\n"
+            } else {
+                send.as_bytes()
+            })
+            .unwrap();
+    }
     let status = child.wait().unwrap();
     let text = seen.lock().unwrap().clone();
-    assert!(status.success(), "{text}");
-    assert!(text.contains("key login to newbox works"), "{text}");
+    Some((status, normalize(&text, s)))
 }
+
+const ASK: &str = "Do you know the password of tester on newbox? [Y/n]";
+const PRESS: &str = "Then press Enter here (Ctrl-C to stop).";
+
+// frob:tests crates/goway/src/sshsetup.rs::knows_password
+#[test]
+fn golden_yes_with_a_good_password() {
+    let s = setup_world();
+    let Some((status, text)) = on_a_pty(&s, &[(ASK, "y\n")]) else {
+        return;
+    };
+    assert!(status.success(), "{text}");
+    assert_eq!(text, GOLDEN_GOOD_PASSWORD.trim_matches('\n'));
+}
+
+// frob:tests crates/goway/src/sshsetup.rs::HandInstall
+#[test]
+fn golden_yes_with_a_bad_password_then_paste() {
+    let s = setup_world();
+    std::fs::write(s.w.root.join("no-password"), "").unwrap();
+    let Some((status, text)) = on_a_pty(&s, &[(ASK, "y\n"), (PRESS, "PASTE")]) else {
+        return;
+    };
+    assert!(status.success(), "{text}");
+    assert_eq!(text, GOLDEN_BAD_PASSWORD.trim_matches('\n'));
+}
+
+// frob:tests crates/goway/src/sshsetup.rs::knows_password
+#[test]
+fn golden_no_then_paste_never_tries_a_password() {
+    let s = setup_world();
+    let Some((status, text)) = on_a_pty(&s, &[(ASK, "n\n"), (PRESS, "PASTE")]) else {
+        return;
+    };
+    assert!(status.success(), "{text}");
+    assert!(!s.w.root.join("password-login-happened").exists());
+    assert_eq!(text, GOLDEN_NO_PASSWORD.trim_matches('\n'));
+}
+
+// frob:tests crates/goway/src/sshsetup.rs::HandInstall
+#[test]
+fn golden_no_terminal_prints_the_paste_block_and_stops() {
+    let s = setup_world();
+    std::fs::write(s.w.root.join("no-password"), "").unwrap();
+    let fp = fake_fingerprint();
+    let out = s.run(&[
+        "ssh",
+        "setup",
+        "newbox",
+        "--address",
+        "127.0.0.1",
+        "--user",
+        "tester",
+        "--fingerprint",
+        &fp,
+    ]);
+    let stderr = normalize(&String::from_utf8_lossy(&out.stderr), &s);
+    let stdout = normalize(&String::from_utf8_lossy(&out.stdout), &s);
+    assert_eq!(out.status.code(), Some(125));
+    assert_eq!(stderr, GOLDEN_NO_TTY_STDERR.trim_matches('\n'));
+    assert_eq!(stdout, GOLDEN_NO_TTY_STDOUT);
+}
+
+const GOLDEN_GOOD_PASSWORD: &str = r"
+goway: info: newbox at 127.0.0.1:2222 answers but refuses key login; setting it up
+goway: note: created goway's own key <config>/id_ed25519
+goway: note: To let this laptop log in to newbox without a password from now on, goway puts a key on newbox once.
+goway: note: (If tester has no password, or you are not sure, answer n: goway shows three lines to paste on newbox instead.)
+goway: Do you know the password of tester on newbox? [Y/n] y
+goway: note: ssh now asks for tester's password on newbox (typing is hidden; goway never sees or stores it).
+goway: done: key login to newbox works; undo with `goway ssh setup newbox --undo`
+";
+const GOLDEN_BAD_PASSWORD: &str = r#"
+goway: info: newbox at 127.0.0.1:2222 answers but refuses key login; setting it up
+goway: note: created goway's own key <config>/id_ed25519
+goway: note: To let this laptop log in to newbox without a password from now on, goway puts a key on newbox once.
+goway: note: (If tester has no password, or you are not sure, answer n: goway shows three lines to paste on newbox instead.)
+goway: Do you know the password of tester on newbox? [Y/n] y
+goway: note: ssh now asks for tester's password on newbox (typing is hidden; goway never sees or stores it).
+goway: warning: That password did not work on newbox.
+goway: note: Most likely tester has no password set (common with automatic login) or newbox only allows key logins; other causes are in docs/troubleshooting.md, "goway add says Permission denied".
+goway: info: Let's do it the other way:
+goway: info: On newbox, open a terminal and paste these three lines:
+
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo '<restricted key line>' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+
+goway: Then press Enter here (Ctrl-C to stop). 
+goway: done: Key works. newbox is ready.
+goway: done: key login to newbox works; undo with `goway ssh setup newbox --undo`
+"#;
+const GOLDEN_NO_PASSWORD: &str = r"
+goway: info: newbox at 127.0.0.1:2222 answers but refuses key login; setting it up
+goway: note: created goway's own key <config>/id_ed25519
+goway: note: To let this laptop log in to newbox without a password from now on, goway puts a key on newbox once.
+goway: note: (If tester has no password, or you are not sure, answer n: goway shows three lines to paste on newbox instead.)
+goway: Do you know the password of tester on newbox? [Y/n] n
+goway: note: No password: goway will show you what to paste on newbox instead.
+goway: info: On newbox, open a terminal and paste these three lines:
+
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo '<restricted key line>' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+
+goway: Then press Enter here (Ctrl-C to stop). 
+goway: done: Key works. newbox is ready.
+goway: done: key login to newbox works; undo with `goway ssh setup newbox --undo`
+";
+const GOLDEN_NO_TTY_STDERR: &str = r#"
+goway: info: newbox at 127.0.0.1:2222 answers but refuses key login; setting it up
+goway: note: created goway's own key <config>/id_ed25519
+goway: note: ssh now asks for tester's password on newbox (typing is hidden; goway never sees or stores it).
+goway: warning: That password did not work on newbox.
+goway: note: Most likely tester has no password set (common with automatic login) or newbox only allows key logins; other causes are in docs/troubleshooting.md, "goway add says Permission denied".
+goway: info: Let's do it the other way:
+goway: info: On newbox, open a terminal and paste these three lines:
+goway: next: run the lines above on newbox, then rerun the same `goway add newbox` command
+goway: error: cannot add host `newbox`: goway's key is not installed there yet, and there is no terminal to wait on
+"#;
+const GOLDEN_NO_TTY_STDOUT: &str = "\nmkdir -p ~/.ssh && chmod 700 ~/.ssh\necho '<restricted key line>' >> ~/.ssh/authorized_keys\nchmod 600 ~/.ssh/authorized_keys\n";
