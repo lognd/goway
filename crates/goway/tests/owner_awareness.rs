@@ -48,6 +48,14 @@ fn err(o: &std::process::Output) -> String {
 
 const SHOW: &str = "nice; echo \"jobs=${CARGO_BUILD_JOBS-unset} make=${MAKEFLAGS-unset} cmake=${CMAKE_BUILD_PARALLEL_LEVEL-unset} nextest=${NEXTEST_TEST_THREADS-unset}\"";
 
+/// The niceness a job gets at the default priority: this process's own plus 10, at most 19
+/// (the suite itself may run niced when goway runs it on a helper).
+fn low_nice() -> i32 {
+    let n = std::process::Command::new("nice").output().unwrap();
+    let base: i32 = String::from_utf8_lossy(&n.stdout).trim().parse().unwrap();
+    (base + 10).min(19)
+}
+
 fn half_the_cores() -> u32 {
     let n = std::process::Command::new("nproc").output().unwrap();
     let cores: u32 = String::from_utf8_lossy(&n.stdout).trim().parse().unwrap();
@@ -86,7 +94,10 @@ fn a_helper_on_mains_runs_at_the_normal_polite_priority_with_no_caps() {
     let o = run(&w, &dir, &[], SHOW);
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
     let text = out(&o);
-    assert!(text.starts_with("10\n"), "nice 10: {text}");
+    assert!(
+        text.starts_with(&format!("{}\n", low_nice())),
+        "nice 10: {text}"
+    );
     assert!(
         text.contains("jobs=unset make=unset cmake=unset nextest=unset"),
         "{text}"
@@ -100,7 +111,11 @@ fn an_unreadable_state_is_unknown_and_changes_nothing() {
     let w = common::world();
     let o = run(&w, &w.root.join("no-such-dir"), &[], SHOW);
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
-    assert!(out(&o).starts_with("10\n"), "{}", out(&o));
+    assert!(
+        out(&o).starts_with(&format!("{}\n", low_nice())),
+        "{}",
+        out(&o)
+    );
     assert!(!err(&o).contains("extra nicely"), "{}", err(&o));
     let status = with_power(&w, &["status"], &w.root.join("no-such-dir"))
         .output()
@@ -150,7 +165,11 @@ fn a_zero_idle_window_switches_the_awareness_off() {
     let dir = supplies(&w, "Discharging", false);
     let o = run(&w, &dir, &[], SHOW);
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
-    assert!(out(&o).starts_with("10\n"), "{}", out(&o));
+    assert!(
+        out(&o).starts_with(&format!("{}\n", low_nice())),
+        "{}",
+        out(&o)
+    );
 }
 
 /// Make the world's `powershell.exe` answer the idle-time query with `secs`.
@@ -178,5 +197,10 @@ fn a_user_at_the_keyboard_within_the_window_counts_as_in_use_and_a_long_idle_one
     assert!(err(&o).contains("extra nicely"), "{}", err(&o));
     windows_idle(&w, 9000);
     let o = run(&w, &none, &[], SHOW);
-    assert!(out(&o).starts_with("10\n"), "{}{}", out(&o), err(&o));
+    assert!(
+        out(&o).starts_with(&format!("{}\n", low_nice())),
+        "{}{}",
+        out(&o),
+        err(&o)
+    );
 }
