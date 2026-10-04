@@ -2,13 +2,13 @@
 id = "01M42BHTN4T6FJ9DDR3E51QN55"
 title = "Toolchains that only appear in login shells, and helpers behind an HTTP proxy"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T02:23:09Z"
-updated = "2026-10-04T05:51:30Z"
+updated = "2026-10-04T05:51:32Z"
 scope = ["crates/goway/src/remote.sh", "docs/troubleshooting.md", "crates/goway/tests/user_tool_path.rs"]
 
 [[acceptance]]
