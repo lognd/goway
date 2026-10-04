@@ -206,6 +206,19 @@ pub fn run_each_os(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<
     fan_out(env, renderer, args, Fan::EachOs)
 }
 
+/// The OS a host reported (`linux`, `darwin`, `windows`), else the one its config says.
+fn os_of(found: &crate::resolve::Found, probe: &pool::Probe) -> String {
+    reported_os(found.kind.os().as_str(), probe)
+}
+
+fn reported_os(configured: &str, probe: &pool::Probe) -> String {
+    probe
+        .facts
+        .os
+        .as_deref()
+        .map_or_else(|| configured.to_owned(), str::to_ascii_lowercase)
+}
+
 /// How a run is spread over hosts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Fan {
@@ -345,14 +358,14 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
             );
         }
     }
-    let label_of = |h: &crate::config::HostConfig, f: &crate::resolve::Found| {
+    let label_of = |h: &crate::config::HostConfig, f: &crate::resolve::Found, p: &pool::Probe| {
         if each_os {
-            format!("{} {}", h.name, f.kind.os().as_str())
+            format!("{} {}", h.name, os_of(f, p))
         } else {
             h.name.clone()
         }
     };
-    let labels: Vec<String> = hosts.iter().map(|(h, f, _)| label_of(h, f)).collect();
+    let labels: Vec<String> = hosts.iter().map(|(h, f, p)| label_of(h, f, p)).collect();
     renderer.headline(format_args!(
         "{} {} {}: {}",
         if each_os { "running" } else { "sharding" },
@@ -586,7 +599,7 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                         shard: index,
                         host: host.name.clone(),
                         address: found.target.address.clone(),
-                        os: found.kind.os().as_str().to_owned(),
+                        os: os_of(found, probe),
                         arch: probe.arch.clone(),
                         hostname: probe.hostname.clone(),
                         command,
@@ -774,5 +787,19 @@ mod tests {
             out.extend_from_slice(b);
         });
         assert_eq!(out, b"[h1] hello\n[h1] world\n");
+    }
+
+    // frob:ticket 01M439YZ808PY91MXTGS4SAKKH
+    // frob:tests crates/goway/src/shard.rs::os_of
+    #[test]
+    fn the_os_a_host_reported_beats_the_configured_one() {
+        let probe = |os: &str| {
+            pool::parse_probe(&format!(
+                "arch=x86_64\nhostname=h\ncores=1\nload1=0\nload5=0\nload15=0\njobs=0\n{os}"
+            ))
+            .unwrap()
+        };
+        assert_eq!(reported_os("linux", &probe("os=Darwin\n")), "darwin");
+        assert_eq!(reported_os("linux", &probe("")), "linux");
     }
 }
