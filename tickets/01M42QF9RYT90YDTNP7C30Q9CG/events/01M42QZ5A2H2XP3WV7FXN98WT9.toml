@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T06:00:09Z"
+digest = "5ba577905dcc30b83d1f52e2323a0dce1ea6118dc67f18027aa9d7fbf144d5dd"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 205fbc55-56c9-450b-bf2c-dbc53d845f38 with nextest profile: default
+    Starting 1 test across 62 binaries (724 tests skipped)
+        PASS [   0.006s] goway doctor::tests::proxy_variable_names_are_shown_and_a_host_without_any_says_nothing
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.009s] 1 test run: 1 passed, 724 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "proxy_variable_names_are_shown"
+size = 766
+status = "measured"
+tests = ["doctor::tests::proxy_variable_names_are_shown_and_a_host_without_any_says_nothing"]
+at = "2026-10-04T06:00:09Z"
+actor = "lognd"
+rev = 1

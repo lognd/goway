@@ -8,12 +8,12 @@ points = 1
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T05:51:30Z"
-updated = "2026-10-04T05:57:05Z"
+updated = "2026-10-04T06:00:09Z"
 scope = ["crates/goway/src/doctor.rs", "docs/usage.md"]
 
 [[acceptance]]
 text = "Given a helper whose environment sets HTTPS_PROXY or similar, when goway doctor checks it, then it names the proxy variables set (from the proxy_vars host fact) and never prints their values"
-bound = false
+bound = true
 +++
 
 Split from ~E51QN55: the remote.sh proxy_vars fact lands there; this shows it in doctor.
