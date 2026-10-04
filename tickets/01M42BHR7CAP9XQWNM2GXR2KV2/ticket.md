@@ -8,7 +8,7 @@ points = 2
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T02:23:07Z"
-updated = "2026-10-04T02:35:26Z"
+updated = "2026-10-04T02:35:27Z"
 scope = ["crates/goway/src/error.rs", "crates/goway/src/hosts.rs", "crates/goway/src/add.rs", "crates/goway/tests/host_add.rs", "docs/troubleshooting.md", "crates/goway/src/cli.rs", "crates/goway/src/sshsetup.rs", "crates/goway/tests/ssh_setup.rs", "README.md", "docs/ssh-setup.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a helper account with no password at all (passwd -S shows NP, common with automatic login; sshd never accepts empty passwords, found live on 2026-10-03), when goway add's password login is refused, then the hint names this case first among the causes with the check (passwd -S USER) and the two fixes: add goway's public key line to ~/.ssh/authorized_keys on the helper (goway prints the exact line and commands), or set a password with passwd"
-bound = false
+bound = true
 +++
