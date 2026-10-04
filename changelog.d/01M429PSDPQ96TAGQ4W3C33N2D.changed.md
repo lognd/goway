@@ -1,0 +1,1 @@
+The whole test suite now passes on macOS with no skips (shard detection, nested runs, copy verification, slot cleanup, sync protocol), after fixing a pipe-inheritance race that made helper calls wait for unrelated jobs on macOS.
