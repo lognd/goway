@@ -8,7 +8,7 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T03:34:48Z"
-updated = "2026-10-04T12:19:31Z"
+updated = "2026-10-04T12:19:55Z"
 scope = ["crates/goway/src/translate.rs", "crates/goway/src/runners.rs", "crates/goway/src/project.rs", "crates/goway/src/run.rs", "crates/goway/src/remote.ps1", "crates/goway/src/remote.sh", "crates/goway/tests/translate.rs", "docs/config.md", "docs/design.md", "crates/goway/src/shard.rs", "crates/goway/src/lib.rs"]
 
 [[links]]
@@ -29,7 +29,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a command goway can translate, when cross-OS rules apply (~EDPP8DN), then it counts as cross-platform (the same-OS default, the loud hint, --any-os, cross_os and --each-os all apply to it)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given any doubt (no candidate, several plausible candidates, a candidate that is a Store stub or a reparse point, a probe that fails or times out, an internal error), when goway would translate, then it does not translate: an unpinned run stays on the laptop's OS, and a run pinned to another OS stops before running anything with what was looked for and why; a wrong or guessed program is never run (false negatives over false positives)"

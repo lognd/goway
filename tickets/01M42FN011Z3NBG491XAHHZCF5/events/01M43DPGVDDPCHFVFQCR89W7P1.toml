@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-04T12:19:55Z"
+digest = "689809f714e394653dbb36ba85a6693ef586f7330b1a5ed2e6acac5f4c728502"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 217f864e-6a0e-4b8d-a256-9910577e4626 with nextest profile: default
+    Starting 1 test across 68 binaries (799 tests skipped)
+        PASS [  22.931s] goway::translate a_translatable_program_counts_as_cross_platform_for_the_cross_os_hint
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  22.935s] 1 test run: 1 passed, 799 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/a_translatable_program_counts_as_cross_platform/)'"
+size = 580
+status = "measured"
+tests = ["a_translatable_program_counts_as_cross_platform_for_the_cross_os_hint"]
+at = "2026-10-04T12:19:55Z"
+actor = "lognd"
+rev = 1
