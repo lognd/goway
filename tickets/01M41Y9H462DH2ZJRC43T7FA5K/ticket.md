@@ -2,13 +2,13 @@
 id = "01M41Y9H462DH2ZJRC43T7FA5K"
 title = "Fleet drift: doctor shows a host-by-tool version table, flags missing or too-old tools as errors and disagreements as drift, and runs record the versions they used"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 5
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T22:31:26Z"
-updated = "2026-10-04T04:07:45Z"
+updated = "2026-10-04T04:11:17Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/drift.rs", "docs/usage.md", "crates/goway/src/state.rs", "crates/goway/src/cli.rs", "crates/goway/tests/doctor_output.rs", "crates/goway/tests/drift.rs", "crates/goway/src/lib.rs", "crates/goway/src/doctor/projneeds.rs"]
 
 [[links]]
