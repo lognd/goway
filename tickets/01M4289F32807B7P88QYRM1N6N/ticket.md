@@ -2,12 +2,12 @@
 id = "01M4289F32807B7P88QYRM1N6N"
 title = "Windows PowerShell 5.1 on CI: a slot with nothing changed rebuilds (stamp test still fails at the warm step)"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-04T01:26:10Z"
-updated = "2026-10-04T01:26:10Z"
+updated = "2026-10-04T01:26:12Z"
 scope = ["crates/goway/tests/remote_ps1.rs", "crates/goway/src/remote.ps1"]
 
 [[acceptance]]
