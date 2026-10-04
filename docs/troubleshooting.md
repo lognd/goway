@@ -86,7 +86,8 @@ person, at the top of the helper's `~/.bashrc`:
 
 or print only on a terminal: `[ -t 1 ] && echo ...`. If a startup file
 makes goway's output differ from what you expect, `goway -v` logs how many
-bytes of startup text it ignored for each call.
+bytes of startup text it ignored for each call. `goway doctor` warns about a helper whose startup files print text,
+showing the first line, and names the guard to add.
 </details>
 
 <details><summary>goway add says Permission denied</summary>

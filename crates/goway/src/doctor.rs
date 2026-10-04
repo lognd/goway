@@ -503,9 +503,24 @@ fn toolchain_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     out
 }
 
+/// The warning for a helper whose shell startup files print text for non-interactive ssh.
+fn startup_noise_check(facts: &BTreeMap<String, String>) -> Option<Check> {
+    let sample = facts.get("startup_noise")?;
+    Some(Check {
+        name: "shell startup".to_owned(),
+        explain: None,
+        level: Level::Warn,
+        detail: format!(
+            "the helper's shell startup files print text for non-interactive ssh (first line: \"{sample}\"); goway ignores it, \
+             but it is printed on every call. Guard it at the top of ~/.bashrc: case $- in *i*) ;; *) return ;; esac"
+        ),
+        fix: None,
+    })
+}
+
 /// Disk and sshd hardening.
 fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
-    let mut out = Vec::new();
+    let mut out: Vec<Check> = startup_noise_check(facts).into_iter().collect();
     let mut push = |name: &str, level, detail: String, fix| {
         out.push(Check {
             name: name.to_owned(),

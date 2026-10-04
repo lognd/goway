@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T04:42:56Z"
+digest = "36b0e08f665976745d33fd78c06b1bec856b67954c15df95014df7f995b0c911"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 47.86s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9294588b-6518-4b6c-8c64-659127811e8d with nextest profile: default
+    Starting 1 test across 56 binaries (657 tests skipped)
+        PASS [   2.861s] goway::owner_awareness a_helper_on_battery_is_still_used_but_extra_nicely_with_half_the_cores
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   2.864s] 1 test run: 1 passed, 657 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_helper_on_battery_is_still_used"
+size = 772
+status = "measured"
+tests = ["a_helper_on_battery_is_still_used_but_extra_nicely_with_half_the_cores"]
+at = "2026-10-04T04:42:56Z"
+actor = "lognd"
+rev = 1
