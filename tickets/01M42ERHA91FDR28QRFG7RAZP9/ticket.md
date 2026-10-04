@@ -8,8 +8,8 @@ points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:19:15Z"
-updated = "2026-10-04T04:26:02Z"
-scope = ["crates/goway/src/doctor.rs", "crates/goway/src/resolve.rs", "crates/goway/tests/shell_noise.rs"]
+updated = "2026-10-04T04:30:33Z"
+scope = ["crates/goway/src/doctor.rs", "crates/goway/src/resolve.rs", "crates/goway/tests/shell_noise.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
 text = "Given a helper whose startup files print text for non-interactive ssh, when goway doctor runs, then it warns with the first noise line and the guard to add (case $- in *i*) ;; *) return ;; esac) in the helper's ~/.bashrc"
