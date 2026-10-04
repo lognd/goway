@@ -8,8 +8,8 @@ points = 2
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T02:43:17Z"
-updated = "2026-10-04T02:50:33Z"
-scope = ["crates/goway/src/add.rs", "crates/goway/src/sshsetup.rs", "crates/goway/src/ssh.rs", "crates/goway/tests/ssh_setup.rs", "docs/troubleshooting.md", "crates/goway/src/remotesys.rs"]
+updated = "2026-10-04T02:56:21Z"
+scope = ["crates/goway/src/add.rs", "crates/goway/src/sshsetup.rs", "crates/goway/src/ssh.rs", "crates/goway/tests/ssh_setup.rs", "docs/troubleshooting.md", "crates/goway/src/remotesys.rs", "docs/ssh-setup.md"]
 
 [[acceptance]]
 text = "Given goway add on a terminal for a helper without goway's key, when the key must be installed, then goway first asks 'Do you know the password of USER on HOST? [Y/n]' (no flag needed); n goes straight to the by-hand key path; --no-password and --yes keep working for scripts"
