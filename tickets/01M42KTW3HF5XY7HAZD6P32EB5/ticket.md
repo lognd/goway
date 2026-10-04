@@ -8,8 +8,8 @@ points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-04T04:47:54Z"
-updated = "2026-10-04T05:31:30Z"
-scope = ["crates/goway/src/project.rs", "crates/goway/src/doctor.rs", "crates/goway/src/doctor/projneeds.rs", "crates/goway/tests/doctor_project.rs", "docs/config.md", "docs/usage.md"]
+updated = "2026-10-04T05:38:03Z"
+scope = ["crates/goway/src/project.rs", "crates/goway/src/doctor.rs", "crates/goway/src/doctor/projneeds.rs", "crates/goway/tests/doctor_project.rs", "docs/config.md", "docs/usage.md", "crates/goway/src/doctor/prereq.rs", "crates/goway/src/doctor/output.rs"]
 
 [[acceptance]]
 text = """Given goway.toml [toolchain] with rust_targets = ["x86_64-pc-windows-gnu"], tools = ["x86_64-w64-mingw32-gcc"] and packages = { apt = ["gcc-mingw-w64-x86-64"], dnf = [...], pacman = [...] }, when goway doctor runs in that project, then it checks each on every host of the project's OS (targets for the toolchain the project pins), and --fix installs rust targets user-level (rustup target add for that toolchain) and packages through --rsudo for the host's package manager"""
