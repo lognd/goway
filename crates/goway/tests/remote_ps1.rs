@@ -767,6 +767,72 @@ fn changed_files_are_stamped_newer_than_the_slots_outputs() {
     assert_eq!(h.stats(0), "written=0 removed=0");
 }
 
+// frob:ticket 01M43CCF1E0CQW22RXDYS01CGE
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
+#[test]
+fn a_file_dated_an_hour_ahead_gets_the_hosts_time_and_never_rebuilds() {
+    let h = host!();
+    h.put(".gitignore", "out\n", 1_700_000_000);
+    let ahead = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    h.put("src.txt", "from the laptop\n", ahead);
+    assert!(
+        h.sync(&[".gitignore", "src.txt"], &[], None, false)
+            .status
+            .success()
+    );
+    let lines = |o: &Output| {
+        text(&o.stdout)
+            .lines()
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    };
+    let first = h.jobrun("f1", STAMP_BUILD);
+    assert_eq!(lines(&first), ["rebuilt", "from the laptop"]);
+    // The slot's copy carries this host's time, not the laptop's future.
+    let copy = h.cache_dir().join("tree-0").join("src.txt");
+    let copied = std::fs::metadata(&copy).unwrap().modified().unwrap();
+    assert!(
+        copied < std::time::SystemTime::now() + Duration::from_secs(60),
+        "the slot copy kept the laptop's future date"
+    );
+    let second = h.jobrun("f2", STAMP_BUILD);
+    assert_eq!(
+        lines(&second),
+        ["from the laptop"],
+        "the second run rebuilt"
+    );
+    assert_eq!(h.stats(0), "written=0 removed=0");
+}
+
+// frob:ticket 01M43CCF1E0CQW22RXDYS01CGE
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
+#[cfg(unix)]
+#[test]
+fn a_work_dir_that_cannot_be_removed_never_changes_the_exit_code() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let h = host!();
+    h.put("a.txt", "a", 1_700_000_000);
+    assert!(h.sync(&["a.txt"], &[], Some("rm1"), false).status.success());
+    // The job leaves an unremovable directory in its own work dir.
+    let root = h.root().replace('\'', "''");
+    let job = h.job(&format!(
+        "$w = '{root}/work/' + $env:GOWAY_RUN_ID; New-Item -ItemType Directory \"$w/d\" | Out-Null; Set-Content \"$w/d/f\" x; chmod 555 \"$w/d\"; exit 7"
+    ));
+    let refs: Vec<&str> = job.iter().map(String::as_str).collect();
+    let out = h.run_snapshot("rm1", false, &[], &refs, &[]);
+    for dir in h.work_dirs() {
+        let stuck = h.root.join("work").join(dir).join("d");
+        let _ = std::fs::set_permissions(stuck, std::fs::Permissions::from_mode(0o755));
+    }
+    let err = text(&out.stderr);
+    assert_eq!(out.status.code(), Some(7), "{err}");
+    assert!(err.contains("gc will collect it"), "{err}");
+}
+
 #[test]
 fn concurrent_runs_use_different_slots_and_a_worktree_prefers_its_last_slot() {
     let h = host!();

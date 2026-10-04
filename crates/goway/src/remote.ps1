@@ -479,6 +479,18 @@ function Remove-EmptyDirs([string]$Dir, [bool]$Self) {
   }
 }
 
+# Best-effort removal of a finished run's work dir (as remote.sh remove_work): it
+# never throws and never changes the command's exit code. A job's detached child, a
+# virus scanner or a concurrent gc may still hold something there, so it retries a
+# few times and otherwise leaves the directory for gc (any unlocked work dir past its
+# orphan age).
+function Remove-Work([string]$Dir) {
+  for ($n = 1; $n -le 5; $n++) {
+    try { Remove-Tree $Dir; return } catch { Start-Sleep -Milliseconds 200 }
+  }
+  Write-Err "goway: note: could not remove the work dir of this run; gc will collect it`n"
+}
+
 function Remove-Tree([string]$Path) {
   if ([IO.Directory]::Exists($Path)) {
     try { [IO.Directory]::Delete($Path, $true) } catch {
@@ -2397,7 +2409,7 @@ function Verb-run([string[]]$A) {
   foreach ($m in @('born', 'creator')) { $f = P $work @($m); if ([IO.File]::Exists($f)) { try { [IO.File]::Delete($f) } catch { } } }
   Write-Text (P $work @('runner')) ("{0}`n" -f $PID)
   # The client's lifeline gave up on this run while it was starting: clean up and go.
-  if ([IO.File]::Exists((P $work @('lost')))) { Unlock-Key 'work'; try { Remove-Tree $work } catch { }; exit 143 }
+  if ([IO.File]::Exists((P $work @('lost')))) { Unlock-Key 'work'; Remove-Work $work; exit 143 }
   $meta = P $cache @('meta.json')
   if (-not [IO.File]::Exists($meta)) { [IO.File]::WriteAllBytes($meta, [Convert]::FromBase64String($cacheMeta)) }
   [IO.File]::SetLastWriteTimeUtc($meta, [DateTime]::UtcNow)
@@ -2462,7 +2474,7 @@ function Verb-run([string[]]$A) {
   }
   [void](Sync-Slot (P $work @('tree')) $rundir $work $keepIgnored $keepB64 $seedKeyFull $target)
   # The snapshot has done its job; its links hold no data of their own.
-  Remove-Tree (P $work @('tree'))
+  try { Remove-Tree (P $work @('tree')) } catch { }
   # Copy integrity, before the command may start.
   $failed = $false
   if ($verify) {
@@ -2492,7 +2504,7 @@ function Verb-run([string[]]$A) {
   [Environment]::SetEnvironmentVariable('GOWAY_RUN_ID', $runId)
   [Environment]::SetEnvironmentVariable('GOWAY_HOST', [Environment]::MachineName)
 
-  if ([IO.File]::Exists((P $work @('lost')))) { Unlock-Key 'slot'; Unlock-Key 'work'; try { Remove-Tree $work } catch { }; exit 143 }
+  if ([IO.File]::Exists((P $work @('lost')))) { Unlock-Key 'slot'; Unlock-Key 'work'; Remove-Work $work; exit 143 }
   $pidFile = P $work @('pid')
   [IO.File]::WriteAllBytes($pidFile, @())
   $rc = 0
@@ -2520,7 +2532,7 @@ function Verb-run([string[]]$A) {
   }
   if ($keep -eq '1') { Copy-Dir $rundir (P $work @('tree')) }
   Unlock-Key 'work'
-  if ($keep -ne '1') { try { Remove-Tree $work } catch { } }
+  if ($keep -ne '1') { Remove-Work $work }
   # Cheap automatic gc of expired entries, detached.
   # With a disk budget it always starts (usage is checked there, not here).
   if ($ttls -and (($ttls.Split(':').Length -ge 5) -or (Test-GcDue $rootArg $ttls))) { Start-AutoGc $rootArg $ttls }
@@ -2534,7 +2546,7 @@ function Fail-Verify([int]$Phase, [int]$Slot, [string]$Cache, [string]$SeedKey, 
   Unlock-Key 'slot'
   Wipe-Slot $Slot $Cache $SeedKey $Root
   Unlock-Key 'work'
-  try { Remove-Tree $Work } catch { }
+  Remove-Work $Work
   exit 125
 }
 

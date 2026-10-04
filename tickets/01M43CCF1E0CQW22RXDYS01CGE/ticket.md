@@ -2,13 +2,14 @@
 id = "01M43CCF1E0CQW22RXDYS01CGE"
 title = "remote.ps1 parity, part 3: future-mtime clamping and best-effort work dir cleanup"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T11:56:57Z"
-updated = "2026-10-04T12:54:51Z"
+updated = "2026-10-04T13:22:20Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/tests/remote_ps1.rs"]
 
 [[acceptance]]
