@@ -253,6 +253,10 @@ pub fn describe_fix(name: &str, fix: &Fix) -> String {
     }
     match name {
         "sshd password login" => "turn off ssh password login (keys only)".to_owned(),
+        "msvc build tools" => {
+            "install the Visual C++ Build Tools with winget (Windows asks for administrator rights)"
+                .to_owned()
+        }
         "cuda toolkit" => "install NVIDIA's CUDA toolkit (administrator rights)".to_owned(),
         name if fix.root => format!("change {name} (administrator rights)"),
         name => format!("set up {name} for your user (pinned, checksum-verified downloads)"),

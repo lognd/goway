@@ -16,6 +16,7 @@ mod logout;
 pub mod output;
 mod prereq;
 mod projneeds;
+mod windows;
 
 pub use prereq::Packages;
 pub use projneeds::{Needs, Toolchain, first_version};
@@ -32,6 +33,7 @@ use crate::run;
 use crate::ssh::{self, KeyPolicy};
 use crate::sshenv;
 use crate::state::State;
+use crate::transport::Kind;
 
 /// How bad a finding is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -280,6 +282,40 @@ pub fn assess(facts: &BTreeMap<String, String>) -> Vec<Check> {
     out.extend(toolchain_checks(facts));
     out.extend(host_checks(facts));
     out
+}
+
+/// [`assess_project`] for a host of `kind`: a Windows host gets the Windows
+/// checks (Build Tools, rustup with msvc, nextest, system drive).
+fn assess_for(
+    kind: Kind,
+    facts: &BTreeMap<String, String>,
+    needs: &projneeds::Needs,
+) -> Vec<Check> {
+    match kind {
+        Kind::Unix => assess_project(facts, needs),
+        Kind::WindowsSsh | Kind::WindowsInterop => windows::assess_project(kind, facts, needs),
+    }
+}
+
+/// Find `host` and read its doctor facts: a Unix host through the raw
+/// command `cmd` (with the project's wrappers), any other kind through the
+/// `doctor` verb in its own language (the transport `run` uses), plus the
+/// Windows-only extra facts.
+fn probe_host(
+    config: &Config,
+    host: &HostConfig,
+    state: &mut State,
+    lookup: &dyn Lookup,
+    prober: &dyn Prober,
+    (cmd, call): (&str, &remote::Call),
+) -> Result<Found> {
+    if Kind::of(host) == Kind::Unix {
+        return resolve::resolve(config, host, state, lookup, prober, KeyPolicy::Strict, cmd);
+    }
+    let mut found =
+        resolve::resolve_call(config, host, state, lookup, prober, KeyPolicy::Strict, call)?;
+    windows::add_extra_facts(&mut found, prober);
+    Ok(found)
 }
 
 /// Checks for one project: goway's own system tools, the Rust toolchain
@@ -1113,7 +1149,7 @@ struct FixCtx<'a> {
     prober: &'a (dyn Prober + Sync),
     settings: &'a ssh::Settings,
     needs: &'a projneeds::Needs,
-    cmd: &'a str,
+    cmd: (&'a str, &'a remote::Call),
     state: &'a State,
 }
 
@@ -1203,16 +1239,10 @@ fn fix_host(ctx: &FixCtx<'_>, probed: &mut Probed<'_>) -> bool {
     // Re-check after fixing; each root fix is judged by it.
     let mut fixed: Vec<String> = applied.done.clone();
     let mut local = ctx.state.clone();
-    let after = resolve::resolve(
-        ctx.config,
-        host,
-        &mut local,
-        ctx.lookup,
-        ctx.prober,
-        KeyPolicy::Strict,
-        ctx.cmd,
+    let after = probe_host(
+        ctx.config, host, &mut local, ctx.lookup, ctx.prober, ctx.cmd,
     )
-    .map(|f| assess_project(&parse_facts(&f.output), ctx.needs));
+    .map(|f| assess_for(f.kind, &parse_facts(&f.output), ctx.needs));
     if let Ok(after) = &after {
         let (ok, bad) = judge_root(&applied.root_ran, after);
         for (name, fix) in &ok {
@@ -1278,8 +1308,14 @@ fn collect<'a>(
             }
         };
         let facts = parse_facts(&found.output);
-        let mut checks = assess_project(&facts, needs);
-        for finding in sshenv::check(&found.target.address, found.target.port) {
+        let mut checks = assess_for(found.kind, &facts, needs);
+        // An interop host has no ssh setup to check.
+        let ssh_findings = if found.kind.uses_ssh() {
+            sshenv::check(&found.target.address, found.target.port)
+        } else {
+            Vec::new()
+        };
+        for finding in ssh_findings {
             checks.push(Check {
                 name: "local ssh".to_owned(),
                 explain: None,
@@ -1344,17 +1380,10 @@ pub fn doctor(
         &needs.prereqs.wrap(&remote::invocation("doctor", &cmd_args)),
         &config.defaults.remote_root,
     );
+    let call = remote::Call::new("doctor", &cmd_args);
     let mut state = State::load(&paths.state_file())?;
     let results = pool::on_hosts(&hosts, &mut state, |host, local| {
-        resolve::resolve(
-            &config,
-            host,
-            local,
-            lookup,
-            prober,
-            KeyPolicy::Strict,
-            &cmd,
-        )
+        probe_host(&config, host, local, lookup, prober, (&cmd, &call))
     });
     if let Err(e) = state.save(&paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
@@ -1415,7 +1444,7 @@ pub fn doctor(
             prober,
             settings,
             needs: &needs,
-            cmd: &cmd,
+            cmd: (&cmd, &call),
             state: &state,
         };
         let mut changed = false;

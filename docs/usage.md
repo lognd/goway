@@ -125,6 +125,18 @@ only changed crates recompile. Idle caches expire like on any other host
 (`cache_ttl`), and `goway gc` removes them on demand. The command's exit
 code is goway's exit code.
 
+#### Checking a Windows host
+
+`goway doctor NAME` works on a Windows host the same way it does on any
+helper, over the same transport `goway run` uses (ssh to the Windows OpenSSH
+server, or `powershell.exe` through WSL interop for the Windows side of this
+machine). It checks how goway reaches the host, the Visual C++ Build Tools
+(msvc linker), rustup, rustup's `windows-msvc` target, cargo-nextest (also
+when it is only a bare file in the cargo `bin` directory, copied there by
+hand) and the free space of the system drive. Each problem names the exact
+PowerShell command that fixes it (`goway doctor NAME --explain CHECK`). Only
+problems are listed unless you pass `--all`.
+
 #### Running a Windows test suite from WSL
 
 With an interop host in your config (`transport = "interop"`, `os = "windows"`),
