@@ -2,13 +2,13 @@
 id = "01M42BHSGD4HSJY1GQXVCXDFW2"
 title = "Never trip fail2ban or sshguard: bound login attempts per host and back off"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T02:23:08Z"
-updated = "2026-10-04T02:23:08Z"
+updated = "2026-10-04T04:53:11Z"
 scope = ["crates/goway/src/resolve.rs", "crates/goway/src/ssh.rs", "crates/goway/src/hosts.rs", "crates/goway/tests/host_add.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
