@@ -621,7 +621,7 @@ If a run fails while the helper's disk is (nearly) full, goway says so in
 plain words after the command's own error: that the host ran out of disk, how
 much the repository needs at least and what is free, what the disk budget
 freed afterwards, and to rerun with `--needs disk>=SIZE` or on another host.
-The peak is a high-water mark: it never shrinks, and a failure at a full disk
+The disk peak is a high-water mark: it never shrinks, and a failure at a full disk
 records only what was written before it ran out.
 
 ### Memory: a repository's peak
@@ -639,7 +639,25 @@ while the helper's available memory (less what runs still starting will
 take) is below it, like for disk (`h1: 1.2 GiB of memory free, this
 repository needs about 3.4 GiB`). If every helper is too small, the error says
 so. A repository never seen on a helper is not held back (`job_mem` still
-applies), and `--host NAME` pins a host and skips the check.
+applies). Peaks never lock a run out:
+
+- `--host NAME` always runs there; if the recorded peak or footprint says it
+  may not fit, a warning names it and the run goes ahead.
+- `--ignore-footprint` (or `--needs mem>=0`) skips the memory and disk
+  checks for one run.
+- When no helper could ever fit the peak (every one is too small in total, or
+  every eligible one is idle and short of disk even after eviction), the run
+  goes to the largest (roomiest) helper with a warning instead of failing.
+
+The recorded peak is the largest of the last five runs, not of all time, so
+one inflated run (an OOM-killed run is recorded a quarter higher) ages out.
+Where goway cannot use the kernel's `memory.peak`, the sampling counts each
+process's proportional set size (`smaps_rollup` Pss, shared pages split
+between their users) rather than the plain resident size, which counts the
+shared pages of parallel compiler processes once per process.
+`goway status` lists the recorded peaks per helper; `goway gc --repo ID`
+forgets one repository's peaks (and `goway gc --all` every one) on the
+hosts it reaches.
 
 When the kernel's OOM killer kills a process of the job (the scope's
 `memory.events` `oom_kill` count, or exit 137 with an OOM kill in the kernel

@@ -199,7 +199,8 @@ impl Term {
             ("gpu-mem" | "mem" | "disk", Some(">=")) => {
                 need_value("16G")?;
                 let bytes = parse_size(value)
-                    .filter(|b| *b > 0)
+                    // `mem>=0` is the one zero allowed: it switches the footprint checks off.
+                    .filter(|b| *b > 0 || key == "mem")
                     .ok_or_else(|| bad(text, format!("`{value}` is not a size like 8G")))?;
                 Ok(match key.as_str() {
                     "gpu-mem" => Self::GpuMem(bytes),
@@ -495,6 +496,12 @@ pub struct Selection {
     pub pool_os: Option<String>,
     /// The repository the run is for, so hosts without disk room for its footprint wait (not a need).
     pub repo_id: Option<String>,
+    /// Skip the recorded memory and disk footprint checks for this run (`--ignore-footprint`,
+    /// or `--needs mem>=0`).
+    pub ignore_footprint: bool,
+    /// When no host could ever fit the repository's footprint: the one host (by name) the run
+    /// falls back to, with the footprint checks waived there and every other host left out.
+    pub only_host: Option<String>,
 }
 
 impl Selection {
@@ -516,6 +523,8 @@ impl Selection {
             prefers: terms(prefers)?,
             pool_os: None,
             repo_id: None,
+            ignore_footprint: false,
+            only_host: None,
         })
     }
 
@@ -539,6 +548,29 @@ impl Selection {
         let want = self.pool_os.as_deref()?;
         let have = probe.facts.os.as_deref()?;
         (!have.eq_ignore_ascii_case(want)).then(|| have.to_owned())
+    }
+
+    /// Whether the footprint checks are off: asked for outright, or `mem>=0` (a floor of zero
+    /// asks for no memory judgement at all).
+    pub fn footprint_ignored(&self) -> bool {
+        self.ignore_footprint || self.needs.iter().any(|t| matches!(t, Term::Mem(0)))
+    }
+
+    /// This selection with the footprint checks waived and the run confined to `host`.
+    #[must_use]
+    pub fn relaxed_to(&self, host: &str) -> Self {
+        Self {
+            ignore_footprint: true,
+            only_host: Some(host.to_owned()),
+            ..self.clone()
+        }
+    }
+
+    /// Whether the footprint fallback has ruled `host` out (another host was chosen).
+    pub fn excludes(&self, host: &str) -> bool {
+        self.only_host
+            .as_deref()
+            .is_some_and(|o| !o.eq_ignore_ascii_case(host))
     }
 
     /// Whether nothing is asked for.
@@ -728,7 +760,6 @@ mod tests {
             "mem=16G",
             "mem>=",
             "mem>=lots",
-            "mem>=0",
             "gpu>=1",
             "gpu=intel",
             "cuda>=twelve",
@@ -742,6 +773,7 @@ mod tests {
             "os>=linux",
             "docker>=1",
             "disk>=1X",
+            "cores>=0",
         ] {
             let err = Term::parse(t).unwrap_err().to_string();
             assert!(err.contains("valid terms"), "{t}: {err}");

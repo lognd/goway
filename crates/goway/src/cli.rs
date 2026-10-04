@@ -114,6 +114,10 @@ pub struct RunArgs {
     /// family does); also `cross_os = true` in goway.toml.
     #[arg(long, conflicts_with = "each_os")]
     pub any_os: bool,
+    /// Skip the recorded memory and disk footprint checks for this run (also
+    /// `--needs mem>=0`): a stale or inflated record never holds a run back.
+    #[arg(long)]
+    pub ignore_footprint: bool,
     /// Run the command once on one host of each OS in the pool, in
     /// parallel, with `[host os]` output prefixes and a per-OS summary.
     #[arg(long, conflicts_with_all = ["host", "shard"])]

@@ -444,6 +444,7 @@ pub fn selection_for(
         prefers: merged(&rule.prefers, &cli.prefers),
         pool_os: None,
         repo_id: None,
+        ..Selection::default()
     };
     Ok((default_os(selection), Some(applied)))
 }

@@ -198,6 +198,7 @@ fn run_command(paths: &Paths, renderer: Renderer, args: &cli::RunArgs) -> Result
         report: args.report.clone(),
         shard: args.shard,
         any_os: args.any_os,
+        ignore_footprint: args.ignore_footprint,
         each_os: args.each_os,
         output: args.output,
         needs: args.needs.clone(),

@@ -314,6 +314,7 @@ fn run_picked(
         renderer.note(r.describe());
     }
     selection.repo_id = Some(repo.id.clone());
+    selection.ignore_footprint = args.ignore_footprint;
     if own_os_only {
         selection = selection.with_default_os(needs::laptop_os());
     }

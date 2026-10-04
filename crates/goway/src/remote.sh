@@ -666,6 +666,17 @@ mem_cgroup() {
   return 0
 }
 
+# mem_pss SID: the summed proportional set size, in bytes, of the processes of session SID
+# (nothing when no process exposes /proc/PID/smaps_rollup).
+mem_pss() {
+  local pids
+  pids=$(ps -A -o sid= -o pid= 2>/dev/null | awk -v s="$1" '$1 == s {printf "%s/smaps_rollup ", $2}' || true)
+  [ -n "$pids" ] || return 0
+  # shellcheck disable=SC2086 # the list is words by construction
+  { cd /proc 2>/dev/null && cat $pids 2>/dev/null || true; } | awk '/^Pss:/ {t += $2} END {if (t > 0) print t * 1024}'
+  return 0
+}
+
 # mem_sample PID DIR: raise DIR/mempeak to the job's memory now and note in
 # DIR/oom when the kernel's OOM killer has killed one of its processes. The
 # peak is the scope's own memory.peak when the job has a scope (exact, kernel
@@ -682,7 +693,13 @@ mem_sample() {
     # sums the process group.
     local col=sid
     [ "$IS_DARWIN" = 1 ] && col=pgid
-    v=$(ps -A -o "$col=" -o rss= 2>/dev/null | awk -v s="$pid" '$1 == s {t += $2} END {print t * 1024}' || true)
+    # Linux: the proportional set size (shared pages split between their users), so parallel
+    # rustc processes sharing the same libraries are not counted once each; the plain
+    # resident size (which does) only where smaps_rollup is unreadable and on macOS.
+    [ "$IS_DARWIN" != 1 ] && v=$(mem_pss "$pid" || true)
+    case "$v" in "" | 0 | *[!0-9]*)
+      v=$(ps -A -o "$col=" -o rss= 2>/dev/null | awk -v s="$pid" '$1 == s {t += $2} END {print t * 1024}' || true) ;;
+    esac
   fi
   case "$v" in "" | *[!0-9]*) return 0 ;; esac
   old=$(cat "$dir/mempeak" 2>/dev/null || echo 0)
@@ -1746,8 +1763,8 @@ probe_mempeaks() {
   local f v
   for f in "$1"/mempeaks/*; do
     [ -f "$f" ] || continue
-    v=$({ cat "$f" 2>/dev/null || true; } | head -1)
-    case "$v" in "" | *[!0-9]*) continue ;; esac
+    v=$(mempeak_of "$f")
+    [ "$v" -gt 0 ] || continue
     printf 'mempeak.%s=%s\n' "${f##*/}" "$v"
   done
 }
@@ -1976,19 +1993,26 @@ footprint_record() {
 # memory is below it plus a margin, and waits while less is available).
 mempeak_file() { printf '%s/mempeaks/%s' "$1" "$2"; }
 
-# mempeak_record ROOT REPO_ID BYTES: keep the larger of BYTES and the recorded peak.
+# mempeak_record ROOT REPO_ID BYTES: append BYTES to the repository's recent runs, keeping the
+# last MEMPEAK_RUNS lines (the file is that history, newest last; the probe reports the largest, so one
+# inflated run, such as an OOM-killed run's quarter more, ages out after a few runs).
+MEMPEAK_RUNS=5
 mempeak_record() {
-  local f old=0
+  local f
   case "$2" in "" | *[!A-Za-z0-9._-]*) return 0 ;; esac
   case "$3" in "" | *[!0-9]*) return 0 ;; esac
   [ "$3" -gt 0 ] || return 0
   f=$(mempeak_file "$1" "$2")
-  old=$({ cat "$f" 2>/dev/null || true; } | head -1)
-  case "$old" in "" | *[!0-9]*) old=0 ;; esac
-  [ "$3" -gt "$old" ] || return 0
   mkdir -p "${f%/*}" 2>/dev/null || return 0
-  printf '%s\n' "$3" >"$f.tmp.$$" 2>/dev/null && mv -f "$f.tmp.$$" "$f" 2>/dev/null || rm -f "$f.tmp.$$"
+  { { cat "$f" 2>/dev/null || true; printf '%s\n' "$3"; } | grep -E '^[0-9]+$' | tail -n "$MEMPEAK_RUNS" >"$f.tmp.$$" 2>/dev/null && mv -f "$f.tmp.$$" "$f" 2>/dev/null; } || rm -f "$f.tmp.$$"
   return 0
+}
+
+# mempeak_of FILE: the largest recorded peak in FILE, 0 when none.
+mempeak_of() {
+  local v
+  v=$({ grep -E '^[0-9]+$' "$1" 2>/dev/null || true; } | sort -n | tail -1)
+  printf '%s' "${v:-0}"
 }
 
 # oom_in_dmesg: whether the kernel log's recent lines show an OOM kill
@@ -2211,6 +2235,21 @@ gc() {
     find "$root/seed" -mindepth 1 -maxdepth 1 -type d -empty -delete 2>/dev/null || true
   fi
   if [ -n "$min_free" ]; then evict "$root" "$now" "$mode" "$repo" "${max_disk:-0}" "$min_free" "${11:-}"; fi
+  mempeaks_reset "$root" "$mode" "$repo" "$older"
+}
+
+# mempeaks_reset ROOT MODE REPO OLDER_THAN: forget the recorded memory peaks of repository id REPO
+# (gc --repo ID), or of every repository with gc --all (OLDER_THAN 0), so a bad record cannot hold
+# a repository back; nothing on a dry run.
+mempeaks_reset() {
+  [ "$2" = apply ] || return 0
+  if [ -n "$3" ]; then
+    case "$3" in *[!A-Za-z0-9._-]*) return 0 ;; esac
+    rm -f "$1/mempeaks/$3" 2>/dev/null || true
+  elif [ "$4" = 0 ]; then
+    rm -f "$1"/mempeaks/* 2>/dev/null || true
+  fi
+  return 0
 }
 
 # doctor ROOT: key=value facts about the toolchain and host for `goway doctor`.

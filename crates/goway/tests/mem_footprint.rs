@@ -18,7 +18,11 @@ fn mempeak_files(root: &Path) -> Vec<std::path::PathBuf> {
 
 fn recorded(root: &Path) -> Option<u64> {
     let f = mempeak_files(root).into_iter().next()?;
-    std::fs::read_to_string(f).ok()?.trim().parse().ok()
+    std::fs::read_to_string(f)
+        .ok()?
+        .lines()
+        .filter_map(|l| l.trim().parse::<u64>().ok())
+        .max()
 }
 
 /// A `dmesg` that prints `text`.
@@ -112,4 +116,39 @@ fn a_job_in_its_own_scope_gets_its_command_line_untouched() {
     let out = w.run(&["run", "--", "sh", "-c", "echo pid=$$ pct=%h"]);
     let text = String::from_utf8_lossy(&out.stdout).into_owned();
     assert!(text.contains("pct=%h") && !text.contains("pid=$"), "{text}");
+}
+
+// frob:ticket 01M43Z0NPW4WH9YNZGXAW0DHW0
+// frob:tests crates/goway/src/footprint.rs::parse_mem_peaks
+#[test]
+fn an_inflated_peak_ages_out_after_a_few_runs_and_gc_forgets_it() {
+    let w = common::world();
+    let cmd = [
+        "run",
+        "--",
+        "sh",
+        "-c",
+        "x=$(head -c 20000000 /dev/zero | tr '\\0' a); sleep 2; echo ${#x}",
+    ];
+    assert!(w.run(&cmd).status.success());
+    common::wait_for("the memory record", || recorded(&w.remote).is_some());
+    let file = mempeak_files(&w.remote).remove(0);
+    let name = file.file_name().unwrap().to_string_lossy().into_owned();
+    // One run on record was wildly inflated (say an OOM-killed run's quarter more).
+    let small = std::fs::read_to_string(&file).unwrap();
+    std::fs::write(&file, format!("99999999999\n{small}")).unwrap();
+    assert!(probe(&w).contains("mempeak.") && probe(&w).contains("=99999999999"));
+    // Each new run pushes it toward the oldest end of the five kept.
+    for _ in 0..4 {
+        assert!(w.run(&cmd).status.success());
+    }
+    common::wait_for("the inflated run to age out", || {
+        recorded(&w.remote).is_some_and(|p| p < 99_999_999_999)
+    });
+    let lines = std::fs::read_to_string(&file).unwrap().lines().count();
+    assert!(lines <= 5, "{lines} runs kept");
+    // gc --repo forgets the record outright.
+    let out = w.run(&["gc", "--repo", &name]);
+    assert!(out.status.success(), "{out:?}");
+    assert!(!file.exists(), "gc --repo forgets the peak");
 }

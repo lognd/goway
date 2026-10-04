@@ -230,6 +230,9 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
         .enumerate()
         .filter_map(|(i, p)| {
             let (_, probe) = p.result.as_ref().ok()?;
+            if selection.excludes(&p.host.name) {
+                return None;
+            }
             let limit = p.host.job_limit(probe.cores);
             if probe.jobs >= limit {
                 tracing::info!(host = %p.host.name, jobs = probe.jobs, limit, "host at its job limit; skipped");
@@ -676,7 +679,14 @@ pub fn choose(
     }
     let local_host = local::host(config);
     let mut results = probe_pool(config, &local_host, selection, state, jobs, lookup, prober);
-    match pick_for(config, selection, &results) {
+    let mut pick = pick_for(config, selection, &results);
+    if pick.is_none()
+        && let Some((host, warning)) = footprint_fallback(selection, &results)
+    {
+        tracing::warn!(%host, %warning, "footprint fallback");
+        pick = pick_for(config, &selection.relaxed_to(&host), &results);
+    }
+    match pick {
         Some(i) => {
             let chosen = results.swap_remove(i);
             let (found, probe) = chosen.result?;
@@ -684,6 +694,20 @@ pub fn choose(
         }
         None => no_pick(config, selection, state, jobs, &results),
     }
+}
+
+/// A warning for a pinned host whose recorded footprint says the run may not fit (the run goes
+/// there regardless: a pin is never refused for it).
+pub fn pinned_footprint_warning(selection: &Selection, probe: &Probe) -> Option<String> {
+    let id = selection
+        .repo_id
+        .as_deref()
+        .filter(|_| !selection.footprint_ignored())?;
+    let why = crate::footprint::mem_short_text(crate::footprint::assess_mem(probe, id))
+        .or_else(|| room_shortage(selection, probe))?;
+    Some(format!(
+        "this repository's recorded footprint may not fit here ({why}); running anyway because the host is pinned. `goway gc --repo {id}` forgets stale records, `--ignore-footprint` silences this"
+    ))
 }
 
 /// Probe every helper (and this machine when it is pooled).
@@ -795,7 +819,10 @@ fn apply_pending(config: &Config, snap: &Snapshot, results: &mut [Probed<'_>]) {
 /// Why `probe`'s host has no disk room for the run's repository, when it lacks it
 /// (free plus evictable space below the repository's footprint plus margin).
 fn room_shortage(selection: &Selection, probe: &Probe) -> Option<String> {
-    let id = selection.repo_id.as_deref()?;
+    let id = selection
+        .repo_id
+        .as_deref()
+        .filter(|_| !selection.footprint_ignored())?;
     match crate::footprint::assess(probe, id) {
         crate::footprint::Room::Short {
             free,
@@ -811,6 +838,7 @@ fn mem_room(selection: &Selection, probe: &Probe) -> crate::footprint::MemRoom {
     selection
         .repo_id
         .as_deref()
+        .filter(|_| !selection.footprint_ignored())
         .map_or(crate::footprint::MemRoom::Unknown, |id| {
             crate::footprint::assess_mem(probe, id)
         })
@@ -828,7 +856,8 @@ fn eligible_hosts(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> 
         .iter()
         .filter(|p| {
             p.result.as_ref().is_ok_and(|(_, probe)| {
-                selection.outside_pool(probe).is_none()
+                !selection.excludes(&p.host.name)
+                    && selection.outside_pool(probe).is_none()
                     && selection.assess(p.host, probe).qualifies()
                     && !matches!(
                         mem_room(selection, probe),
@@ -838,6 +867,70 @@ fn eligible_hosts(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> 
         })
         .map(|p| p.host.name.clone())
         .collect()
+}
+
+/// When the footprint rules leave no host that could ever take the run, the host to run on
+/// anyway and the warning to give: never lock a run out. Fires when every host that meets the
+/// needs is too small in total for the repository's memory peak (the largest is chosen), or
+/// when every eligible host is idle yet short of disk even after evicting (the roomiest is
+/// chosen). `None` when the checks are off, a fallback is already set, or nothing is stuck.
+pub fn footprint_fallback(
+    selection: &Selection,
+    results: &[Probed<'_>],
+) -> Option<(String, String)> {
+    let id = selection.repo_id.as_deref()?;
+    if selection.footprint_ignored() || selection.only_host.is_some() {
+        return None;
+    }
+    let eligible = eligible_hosts(selection, results);
+    let reachable = || {
+        results.iter().filter_map(|p| {
+            let (_, probe) = p.result.as_ref().ok()?;
+            Some((p, probe))
+        })
+    };
+    if eligible.is_empty() {
+        let (p, probe) = reachable()
+            .filter(|(p, probe)| {
+                selection.outside_pool(probe).is_none()
+                    && selection.assess(p.host, probe).qualifies()
+            })
+            .max_by_key(|(_, probe)| probe.facts.mem_total.unwrap_or(0))?;
+        let warning = format!(
+            "no helper has the memory this repository's recorded peak asks for ({}; the largest, {}, has {}); running there anyway. The peak may be stale: `goway gc --repo {id}` forgets it, `--ignore-footprint` skips the check",
+            crate::status::human_bytes(probe.mem_peaks.get(id).copied().unwrap_or(0)),
+            p.host.name,
+            crate::status::human_bytes(probe.facts.mem_total.unwrap_or(0)),
+        );
+        return Some((p.host.name.clone(), warning));
+    }
+    // Every eligible host idle and still short of disk after eviction: waiting frees nothing.
+    let mut roomiest: Option<(&Probed<'_>, u64, u64)> = None;
+    for (p, probe) in reachable().filter(|(p, _)| eligible.contains(&p.host.name)) {
+        let crate::footprint::Room::Short {
+            free,
+            evictable,
+            need,
+        } = crate::footprint::assess(probe, id)
+        else {
+            return None;
+        };
+        if probe.jobs > 0 {
+            return None;
+        }
+        let has = free.saturating_add(evictable);
+        if roomiest.is_none_or(|(_, best, _)| has > best) {
+            roomiest = Some((p, has, need));
+        }
+    }
+    let (p, has, need) = roomiest?;
+    let warning = format!(
+        "no helper has disk room for this repository's recorded footprint (about {}; the roomiest, {}, can free {}); running there anyway. The record may be stale: `goway gc --repo {id}` forgets it, `--ignore-footprint` skips the check",
+        crate::status::human_bytes(need),
+        p.host.name,
+        crate::status::human_bytes(has),
+    );
+    Some((p.host.name.clone(), warning))
 }
 
 /// One line per eligible host saying what it lacks room for.
@@ -916,6 +1009,14 @@ fn decide_round(
     wait.queue.decide(|| {
         let snap = wait.queue.snapshot(ticket);
         apply_pending(config, &snap, results);
+        let mut selection = selection;
+        let relaxed;
+        let mut fallback_warning = None;
+        if let Some((host, warning)) = footprint_fallback(selection, results) {
+            relaxed = selection.relaxed_to(&host);
+            selection = &relaxed;
+            fallback_warning = Some(warning);
+        }
         let eligible = eligible_hosts(selection, results);
         if eligible.is_empty() {
             return Ok(Decision::Hopeless);
@@ -928,6 +1029,9 @@ fn decide_round(
             .find(|&i| !snap.held_for_earlier(&results[i].host.name));
         match pick {
             Some(i) => {
+                if let Some(w) = &fallback_warning {
+                    (wait.note)(w);
+                }
                 let short = skipped_for_room(selection, results);
                 if !short.is_empty() {
                     (wait.note)(&format!(
@@ -971,6 +1075,9 @@ pub fn choose_queued(
 ) -> Result<(HostConfig, Found, Probe, Option<Claim>)> {
     if wanted.is_some() {
         let (host, found, probe) = choose(config, selection, state, jobs, lookup, prober, wanted)?;
+        if let Some(w) = pinned_footprint_warning(selection, &probe) {
+            (wait.note)(&w);
+        }
         let claim = wait.queue.claim(&host.name, selection.repo_id.as_deref())?;
         return Ok((host, found, probe, Some(claim)));
     }
@@ -2088,5 +2195,101 @@ mod tests {
         // Linux: the idler of the two (small); Windows: its only host (idle). OS-name order.
         let names: Vec<&str> = hosts.iter().map(|h| h.0.name.as_str()).collect();
         assert_eq!(names, ["small", "idle"]);
+    }
+
+    /// Two hosts of `total` GiB memory each (one bigger), a peak of `peak` GiB recorded on both.
+    fn peaked(totals: &[u64], peak: u64) -> Vec<Probe> {
+        let gib = 1u64 << 30;
+        totals
+            .iter()
+            .map(|t| {
+                let mut p = probe(8, 0.0, 0);
+                p.mem_peaks.insert("r".to_owned(), peak * gib);
+                p.facts.mem_total = Some(t * gib);
+                p.facts.mem_avail = Some(t * gib);
+                p
+            })
+            .collect()
+    }
+
+    fn repo_selection() -> Selection {
+        Selection {
+            repo_id: Some("r".to_owned()),
+            ..Selection::default()
+        }
+    }
+
+    // frob:ticket 01M43Z0NPW4WH9YNZGXAW0DHW0
+    // frob:tests crates/goway/src/pool.rs::footprint_fallback
+    #[test]
+    fn a_peak_no_helper_could_hold_runs_on_the_largest_with_a_warning() {
+        let hosts = [host("small", None), host("large", None)];
+        let peaks_a = peaked(&[4, 8], 8);
+        let probed: Vec<Probed<'_>> = hosts
+            .iter()
+            .zip(peaks_a)
+            .map(|(h, p)| Probed {
+                host: h,
+                result: Ok((found(&h.name), p)),
+            })
+            .collect();
+        let sel = repo_selection();
+        assert!(
+            eligible_hosts(&sel, &probed).is_empty(),
+            "locked out as before"
+        );
+        let (name, warning) = footprint_fallback(&sel, &probed).expect("a fallback");
+        assert_eq!(name, "large");
+        assert!(
+            warning.contains("8.0 GiB") && warning.contains("--ignore-footprint"),
+            "{warning}"
+        );
+        let relaxed = sel.relaxed_to(&name);
+        assert_eq!(pick_for(&Config::default(), &relaxed, &probed), Some(1));
+        // A host that does fit keeps the normal path: no fallback.
+        let peaks_b = peaked(&[4, 16], 7);
+        let roomy: Vec<Probed<'_>> = hosts
+            .iter()
+            .zip(peaks_b)
+            .map(|(h, p)| Probed {
+                host: h,
+                result: Ok((found(&h.name), p)),
+            })
+            .collect();
+        assert!(footprint_fallback(&sel, &roomy).is_none());
+    }
+
+    // frob:ticket 01M43Z0NPW4WH9YNZGXAW0DHW0
+    // frob:tests crates/goway/src/needs.rs::footprint_ignored
+    #[test]
+    fn ignore_footprint_and_mem_zero_switch_the_checks_off() {
+        let h = host("only", None);
+        let probed = vec![Probed {
+            host: &h,
+            result: Ok((found("only"), peaked(&[4], 7).remove(0))),
+        }];
+        let mut sel = repo_selection();
+        assert!(ranked_for(&Config::default(), &sel, &probed).is_empty());
+        sel.ignore_footprint = true;
+        assert_eq!(ranked_for(&Config::default(), &sel, &probed), [0]);
+        let mut zero = Selection::parse(&["mem>=0".to_owned()], &[]).unwrap();
+        zero.repo_id = Some("r".to_owned());
+        assert_eq!(ranked_for(&Config::default(), &zero, &probed), [0]);
+    }
+
+    // frob:ticket 01M43Z0NPW4WH9YNZGXAW0DHW0
+    // frob:tests crates/goway/src/pool.rs::pinned_footprint_warning
+    #[test]
+    fn a_pinned_host_is_warned_about_the_peak_never_refused() {
+        let p = peaked(&[4], 7).remove(0);
+        let sel = repo_selection();
+        let w = pinned_footprint_warning(&sel, &p).expect("a warning");
+        assert!(
+            w.contains("pinned") && w.contains("goway gc --repo r"),
+            "{w}"
+        );
+        let mut off = sel.clone();
+        off.ignore_footprint = true;
+        assert!(pinned_footprint_warning(&off, &p).is_none());
     }
 }

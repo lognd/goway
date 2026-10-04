@@ -157,6 +157,34 @@ pub fn rows(
     rows
 }
 
+/// One line per host that has recorded memory peaks: each repository id with its peak
+/// (against the host's total memory), so a peak too big for the host is easy to spot.
+pub fn peak_lines(probed: &[Probed<'_>]) -> Vec<String> {
+    probed
+        .iter()
+        .filter_map(|p| {
+            let (_, probe) = p.result.as_ref().ok()?;
+            if probe.mem_peaks.is_empty() {
+                return None;
+            }
+            let peaks: Vec<String> = probe
+                .mem_peaks
+                .iter()
+                .map(|(id, peak)| format!("{id} {}", human_bytes(*peak)))
+                .collect();
+            let total = probe
+                .facts
+                .mem_total
+                .map_or_else(String::new, |t| format!(" (host has {})", human_bytes(t)));
+            Some(format!(
+                "{}: recorded memory peaks{total}: {}",
+                p.host.name,
+                peaks.join(", ")
+            ))
+        })
+        .collect()
+}
+
 /// `goway status`. Exits 0 even when hosts are unreachable (it reports).
 pub fn status(
     paths: &Paths,
@@ -203,6 +231,15 @@ pub fn status(
     ));
     for line in clock_warnings(&results) {
         renderer.warn(line);
+    }
+    let peaks = peak_lines(&results);
+    for line in &peaks {
+        renderer.note(line);
+    }
+    if !peaks.is_empty() {
+        renderer.note(
+            "a stale peak holds a repository back: `goway gc --repo ID` forgets it (`goway gc --all` forgets every one), `goway run --ignore-footprint` skips the check for one run",
+        );
     }
     for p in &results {
         match &p.result {
@@ -379,5 +416,42 @@ mod tests {
         assert_eq!(human_bytes(512), "512 B");
         assert_eq!(human_bytes(1536), "1.5 KiB");
         assert_eq!(human_bytes(3 * 1024 * 1024 * 1024), "3.0 GiB");
+    }
+
+    // frob:ticket 01M43Z0NPW4WH9YNZGXAW0DHW0
+    // frob:tests crates/goway/src/status.rs::peak_lines
+    #[test]
+    fn recorded_peaks_are_listed_per_host() {
+        let mut p = crate::pool::parse_probe(
+            "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\njobs=0\nmempeak.abc=7838315315\n",
+        )
+        .unwrap();
+        p.facts.mem_total = Some(8 << 30);
+        let h = crate::config::HostConfig::default();
+        let probed = vec![Probed {
+            host: &h,
+            result: Ok((
+                crate::resolve::Found {
+                    kind: crate::transport::Kind::Unix,
+                    target: crate::ssh::Target {
+                        name: "h".to_owned(),
+                        address: "192.0.2.1".to_owned(),
+                        port: 22,
+                        user: None,
+                        identity: None,
+                    },
+                    source: crate::resolve::Source::Cached,
+                    output: String::new(),
+                },
+                p,
+            )),
+        }];
+        let lines = peak_lines(&probed);
+        assert_eq!(lines.len(), 1);
+        assert!(
+            lines[0].contains("abc 7.3 GiB") && lines[0].contains("host has 8.0 GiB"),
+            "{}",
+            lines[0]
+        );
     }
 }
