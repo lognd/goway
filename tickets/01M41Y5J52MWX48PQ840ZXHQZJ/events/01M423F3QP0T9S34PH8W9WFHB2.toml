@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T00:01:52Z"
+digest = "69dab6125b475b3ad161257b22f7f5bad0d21bbc8dbc95e44cbb715cda9513f9"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID bef3fe11-58a5-4f4d-a846-49585758b1bd with nextest profile: default
+    Starting 4 tests across 3 binaries (184 tests and 38 binaries skipped)
+        PASS [   0.007s] goway gc::tests::parses_gc_lines
+        PASS [   0.008s] goway status::tests::disk_cell_shows_use_against_budget
+        PASS [   0.009s] goway gc::tests::ttl_overrides
+        PASS [   0.299s] goway::disk_budget dry_run_lists_what_eviction_would_remove_and_removes_nothing
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.302s] 4 tests run: 4 passed, 184 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E '(binary(disk_budget) & test(dry_run_lists)) | (binary(goway) & (test(disk_cell_shows) | test(parses_gc_lines) | test(ttl_overrides)))'"
+size = 785
+status = "measured"
+tests = ["gc::tests::parses_gc_lines", "status::tests::disk_cell_shows_use_against_budget", "gc::tests::ttl_overrides", "dry_run_lists_what_eviction_would_remove_and_removes_nothing"]
+at = "2026-10-04T00:01:52Z"
+actor = "lognd"
+rev = 1

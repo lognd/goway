@@ -2,14 +2,14 @@
 id = "01M41Q6D3QBJ6N93Q2HPG3XK9R"
 title = "remote.ps1: the Windows side of goway's remote protocol, at parity with remote.sh"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 8
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-03T20:34:37Z"
-scope = ["crates/goway/src/remote.ps1", "crates/goway/src/remote.rs", "crates/goway/tests/**", ".github/workflows/ci.yml"]
+updated = "2026-10-04T00:00:39Z"
+scope = ["crates/goway/src/remote.ps1", "crates/goway/src/remote.rs", ".github/workflows/ci.yml", "crates/goway/tests/remote_ps1.rs", "docs/design.md", "docs/hosts.md"]
 
 [[links]]
 kind = "blocked-by"

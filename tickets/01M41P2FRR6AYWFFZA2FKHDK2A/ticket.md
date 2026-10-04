@@ -8,8 +8,8 @@ points = 5
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-03T20:07:47Z"
-scope = ["crates/goway/src/remote.sh", "crates/goway/src/doctor.rs", "crates/goway/src/pool.rs", "crates/goway/tests/**", ".github/workflows/ci.yml"]
+updated = "2026-10-03T23:53:07Z"
+scope = ["crates/goway/src/remote.sh", "crates/goway/src/doctor.rs", "crates/goway/src/pool.rs", ".github/workflows/ci.yml"]
 
 [[acceptance]]
 text = "Given a macOS helper with Homebrew coreutils, findutils, flock and util-linux, when goway syncs and runs a command there, then it works like on Linux (CI runs the full suite on macOS)"

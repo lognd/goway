@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T00:01:50Z"
+digest = "e1fcad92a2306ff56a1ff6ce573b9d5c0583c21b10b8a195c6b57a8b2ad8e853"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID fc3cc6af-954a-41b8-8014-c720b524675e with nextest profile: default
+    Starting 3 tests across 1 binary (1 test and 40 binaries skipped)
+        PASS [   0.181s] goway::disk_budget eviction_removes_the_least_recently_used_slot_first_and_reports_it
+        PASS [   0.244s] goway::disk_budget dry_run_lists_what_eviction_would_remove_and_removes_nothing
+        LEAK [   0.414s] goway::disk_budget eviction_keeps_a_locked_slot_and_takes_the_next_oldest
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.415s] 3 tests run: 3 passed (1 leaky), 1 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(disk_budget) & (test(eviction_) | test(dry_run_lists))'"
+size = 803
+status = "measured"
+tests = ["eviction_removes_the_least_recently_used_slot_first_and_reports_it", "dry_run_lists_what_eviction_would_remove_and_removes_nothing", "eviction_keeps_a_locked_slot_and_takes_the_next_oldest"]
+at = "2026-10-04T00:01:50Z"
+actor = "lognd"
+rev = 1

@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-03T23:56:29Z"
+digest = "a072915e65c1d19acbafee90f8f6abcf3398d82e0b954d93684638e83c1ed9ff"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID adb0a231-d1c8-4dec-922d-f9b86cd43bf5 with nextest profile: default
+    Starting 1 test across 40 binaries (469 tests skipped)
+        PASS [   0.008s] goway::publishing releases_trigger_on_goway_v_tags_and_check_the_tag_against_the_cargo_version
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.013s] 1 test run: 1 passed, 469 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(releases_trigger_on_goway_v_tags_and_check_the_tag_against_the_cargo_version)'"
+size = 588
+status = "measured"
+tests = ["releases_trigger_on_goway_v_tags_and_check_the_tag_against_the_cargo_version"]
+at = "2026-10-03T23:56:29Z"
+actor = "lognd"
+rev = 1

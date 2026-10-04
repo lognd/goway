@@ -1,9 +1,17 @@
 # Releases
 
 A release is built by `.github/workflows/release.yml` when a version tag
-is pushed:
+of the form `goway-vX.Y.Z` is pushed:
 
-    git tag -a v0.1.0 -m "goway 0.1.0" && git push origin v0.1.0
+    git tag -a goway-v0.1.0 -m "goway 0.1.0" && git push origin goway-v0.1.0
+
+The `version-tag` job first checks that the tag names the version in
+`Cargo.toml` (`[workspace.package] version`); a mismatch stops the
+release before anything is published. Then the GitHub release is created,
+and after it the `crates-io` and `pypi` jobs run independently of each
+other, so a problem with one registry never blocks the other. Both run in
+protected GitHub environments of the same names, which accept only
+`goway-v*` tags; plain `v*` tags do not start a release at all.
 
 ## Dry run
 
@@ -13,8 +21,8 @@ installer, wheel and the sdist, writes `SHA256SUMS` and `install.sh`,
 and uploads all of them as workflow artifacts (`release-assets` holds the
 GitHub release files, `pypi-*` the wheels and sdist). The three
 publishing jobs (`publish`, `crates-io`, `pypi`) each carry
-`if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'`,
-so they run only for a pushed `v*` tag and never from a dry run; a test
+`if: startsWith(github.ref, 'refs/tags/goway-v') && github.event_name == 'push'`,
+so they run only for a pushed `goway-v*` tag and never from a dry run; a test
 (`publishing.rs`) fails if one loses that guard. All actions in the
 workflows run on Node 24.
 

@@ -129,8 +129,8 @@ fn release_job(name: &str) -> String {
 
 #[test]
 fn every_publishing_job_runs_only_on_a_version_tag_push() {
-    let guard = "if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'";
-    for job in ["publish", "crates-io", "pypi"] {
+    let guard = "if: startsWith(github.ref, 'refs/tags/goway-v') && github.event_name == 'push'";
+    for job in ["version-tag", "publish", "crates-io", "pypi"] {
         assert!(
             release_job(job).contains(guard),
             "{job} lacks the tag guard"
@@ -151,5 +151,37 @@ fn only_the_publishing_jobs_publish_and_a_dry_run_is_possible() {
         ] {
             assert!(!text.contains(needle), "{job} must not publish");
         }
+    }
+}
+
+#[test]
+fn releases_trigger_on_goway_v_tags_and_check_the_tag_against_the_cargo_version() {
+    let workflow = read(".github/workflows/release.yml");
+    assert!(
+        workflow.contains("tags: [\"goway-v*\"]"),
+        "trigger must be goway-v* tags"
+    );
+    assert!(
+        !workflow.contains("tags: [\"v*\"]"),
+        "plain v* tags must not release"
+    );
+    let check = release_job("version-tag");
+    assert!(check.contains("${GITHUB_REF_NAME#goway-v}"), "{check}");
+    assert!(check.contains("workspace.package"), "{check}");
+    assert!(check.contains("exit 1"), "{check}");
+    assert!(
+        release_job("publish").contains("needs: [checksums, version-tag]"),
+        "publishing must wait for the version check"
+    );
+    for job in ["crates-io", "pypi"] {
+        let body = release_job(job);
+        assert!(
+            body.contains("needs: [publish"),
+            "{job} must follow the GitHub release"
+        );
+        assert!(
+            body.contains(&format!("environment: {job}")),
+            "{job} must use its protected environment"
+        );
     }
 }
