@@ -362,7 +362,11 @@ better than a false positive (running a guessed program).
   candidates, a failed check, a probe that fails or times out, any internal
   error. The run then stops before the command starts and says what was
   looked for (the host was chosen, possibly pinned, to run it; goway never
-  runs a program it guessed).
+  runs a program it guessed). The one exception is an unpinned run that may
+  land on any OS (`--any-os`, `cross_os = true`; no `--host`, no `os=` need):
+  goway removes the doubtful host's synced work dir (the `discard` verb) and
+  picks again among the hosts of this machine's OS, with one note, instead of
+  stopping. A pinned run, or one that named an OS, still stops.
 - **`[translate]` in goway.toml** adds entries or replaces a built-in one
   (`mytool = { windows = "mytool.cmd", linux = "mytool" }`); targets are bare
   program names (PATH rules above) or work-tree paths, and an unknown OS key

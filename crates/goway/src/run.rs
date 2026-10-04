@@ -200,13 +200,48 @@ pub struct Env<'a> {
     pub cwd: &'a Path,
 }
 
-/// `goway run`.
+/// `goway run`: one pick of a host, then (only when an unpinned run that may land on any OS
+/// meets a host whose translation of the command is in doubt) a second pick among the hosts
+/// of this machine's own OS, with one note, instead of stopping.
 ///
 /// # Panics
 ///
 /// Only if the copy-verification thread panics, which is a bug.
-#[allow(clippy::too_many_lines)] // one sequence: choose, sync, run, report
 pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
+    match run_picked(env, renderer, args, false) {
+        Err(Error::TranslationDoubt {
+            requested,
+            os,
+            why,
+            repickable: true,
+        }) => {
+            tracing::info!(%requested, os, %why, "translation in doubt; re-picking among this machine's own OS");
+            renderer.note(format_args!(
+                "`{requested}` has no certain equivalent on the {os} host ({why}); \
+                 running on a host of this machine's OS instead"
+            ));
+            run_picked(env, renderer, args, true)
+        }
+        other => other,
+    }
+}
+
+/// Remove the synced work dir `run_id` on `found`, a run that will not start (best effort:
+/// whatever stays is collected by gc).
+fn discard_work(env: &Env<'_>, found: &Found, remote_root: &str, run_id: &str) {
+    let transport = SshTransport::of(found, env.settings);
+    match sync::Transport::output(&transport, &Call::new("discard", &[remote_root, run_id])) {
+        Ok(_) => tracing::info!(run_id, "discarded the work dir of a run that did not start"),
+        Err(e) => {
+            tracing::warn!(run_id, error = %e, "cannot discard the work dir; gc will collect it");
+        }
+    }
+}
+
+/// One attempt of `goway run`; `own_os_only` limits the pool to this machine's OS (the
+/// second pick after a translation in doubt).
+#[allow(clippy::too_many_lines)] // one sequence: choose, sync, run, report
+fn run_picked(env: &Env<'_>, renderer: Renderer, args: &RunArgs, own_os_only: bool) -> Result<u8> {
     if args.each_os {
         return crate::shard::run_each_os(env, renderer, args);
     }
@@ -228,7 +263,10 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         renderer.note(r.describe());
     }
     selection.repo_id = Some(repo.id.clone());
-    if args.host.is_none() {
+    if own_os_only {
+        selection = selection.with_default_os(needs::laptop_os());
+    }
+    if args.host.is_none() && !own_os_only {
         project::warn_cross_os(
             renderer,
             &config,
@@ -348,7 +386,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         ));
         report_withheld(renderer, &synced);
         send_env(env, &config, &found, &run_id, &env_bytes)?;
-        let (command, translated) = translated_command(
+        let (command, translated) = match translated_command(
             env,
             &found,
             &probe,
@@ -356,7 +394,20 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
             &run_id,
             &args.command,
             &overrides,
-        )?;
+        ) {
+            Err(Error::TranslationDoubt {
+                requested, os, why, ..
+            }) => {
+                discard_work(env, &found, remote_root, &run_id);
+                return Err(Error::TranslationDoubt {
+                    requested,
+                    os,
+                    why,
+                    repickable: args.host.is_none() && selection.is_any_os(),
+                });
+            }
+            other => other?,
+        };
         if let Some(t) = &translated
             && translation.is_none()
         {
@@ -563,7 +614,7 @@ pub struct RemoteReport {
 ///
 /// # Errors
 ///
-/// [`Error::Usage`] (exit 125) when the host cannot say for certain: goway never runs a guess.
+/// [`Error::TranslationDoubt`] (exit 125) when the host cannot say for certain: goway never runs a guess.
 pub(crate) fn translated_command(
     env: &Env<'_>,
     found: &Found,
@@ -605,12 +656,12 @@ pub(crate) fn translated_command(
             };
             Ok((translate::apply(command, &program, &args), Some(t)))
         }
-        Outcome::Doubt(why) => Err(Error::Usage(format!(
-            "`{}` has no certain equivalent on this {} host ({why}); goway does not run a guess. \
-             Name a program that host has, add a [translate] entry to goway.toml, or run on a host of this machine's OS",
-            plan.requested,
-            target.key()
-        ))),
+        Outcome::Doubt(why) => Err(Error::TranslationDoubt {
+            requested: plan.requested.clone(),
+            os: target.key(),
+            why,
+            repickable: false,
+        }),
     }
 }
 

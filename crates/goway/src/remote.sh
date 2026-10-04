@@ -811,6 +811,16 @@ resolve() {
   printf 'none;nothing found on PATH\n'
 }
 
+# discard ROOT RUN_ID: remove the synced work dir of a run that will not start (goway
+# found the command has no certain equivalent on this host and re-picked another one).
+# Best effort like the end of a run: it never fails; gc collects what it cannot remove.
+discard() {
+  local root
+  root=$(root_dir "$1")
+  case "$2" in *[!A-Za-z0-9-]* | "") die "discard: bad run id" ;; esac
+  remove_work "$root/work/$2"
+}
+
 # envfile ROOT RUN_ID: store the run's --env values (NUL-separated on
 # stdin, never in argv) in its work dir, readable by the owner only.
 envfile() {
@@ -2351,6 +2361,7 @@ case "$verb" in
   purge) purge "$@" ;;
   lifeline) lifeline "$@" ;;
   resolve) resolve "$@" ;;
+  discard) discard "$@" ;;
   ping) printf 'goway-remote ok\n' ;;
   *) die "unknown verb: $verb" ;;
 esac
