@@ -2,11 +2,11 @@
 id = "01M4256TBME68EPWC1PWXVMJKT"
 title = "Remote watchdog stops a job whose client vanished without a hangup (heartbeat)"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 reporter = "lognd"
 created = "2026-10-04T00:32:17Z"
-updated = "2026-10-04T02:30:22Z"
+updated = "2026-10-04T05:21:56Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/tests/client_loss.rs", "docs/design.md"]
 
 [[acceptance]]
