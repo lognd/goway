@@ -18,7 +18,7 @@ use crate::error::{Error, Result};
 use crate::facts::{self, Facts};
 use crate::local;
 use crate::needs::Selection;
-use crate::remote;
+use crate::remote::Call;
 use crate::resolve::{self, Found, Lookup, Prober, Source};
 use crate::ssh::KeyPolicy;
 use crate::state::State;
@@ -275,8 +275,13 @@ pub fn choose_many(
         .collect()
 }
 
-/// The remote command that probes a host.
+/// The remote command line that probes a Unix host (also this machine).
 pub fn probe_command(config: &Config, disk: bool, statics: bool) -> String {
+    probe_call(config, disk, statics).bash()
+}
+
+/// The call that probes a host, whatever it speaks.
+pub fn probe_call(config: &Config, disk: bool, statics: bool) -> Call {
     let root = config.defaults.remote_root.as_str();
     let mut args = vec![root];
     let budget;
@@ -289,7 +294,7 @@ pub fn probe_command(config: &Config, disk: bool, statics: bool) -> String {
     if statics {
         args.push("static");
     }
-    remote::invocation("probe", &args)
+    Call::new("probe", &args)
 }
 
 /// Resolve and probe one host.
@@ -304,14 +309,14 @@ pub fn probe_one(
     let key = host.name.to_ascii_lowercase();
     let now = crate::state::now_secs();
     let statics = state.refresh_facts || facts::stale(state.facts.get(&key), now);
-    let found = resolve::resolve(
+    let found = resolve::resolve_call(
         config,
         host,
         state,
         lookup,
         prober,
         KeyPolicy::Strict,
-        &probe_command(config, disk, statics),
+        &probe_call(config, disk, statics),
     )?;
     let probe = complete_probe(&host.name, &found.output, state, now)?;
     Ok((found, probe))
@@ -535,6 +540,7 @@ mod tests {
 
     fn found(name: &str) -> Found {
         Found {
+            kind: crate::transport::Kind::Unix,
             target: Target {
                 name: name.to_owned(),
                 address: "10.0.0.1".to_owned(),

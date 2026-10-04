@@ -15,7 +15,7 @@ use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
 use crate::paths::Paths;
 use crate::pool;
-use crate::remote;
+use crate::remote::Call;
 use crate::render::Renderer;
 use crate::resolve::{self, Lookup, Prober};
 use crate::ssh::KeyPolicy;
@@ -97,8 +97,8 @@ pub fn override_ttl(args: &GcArgs) -> Result<Option<Duration>> {
         .transpose()
 }
 
-/// The remote gc invocation.
-pub fn command(config: &Config, args: &GcArgs, now: u64) -> Result<String> {
+/// The remote gc call.
+pub fn command(config: &Config, args: &GcArgs, now: u64) -> Result<Call> {
     let d = &config.defaults;
     let (max_disk, min_free, _) = d.budget_bytes();
     let older = override_ttl(args)?.map(|t| t.as_secs().to_string());
@@ -115,7 +115,7 @@ pub fn command(config: &Config, args: &GcArgs, now: u64) -> Result<String> {
         min_free.to_string(),
     ];
     let refs: Vec<&str> = words.iter().map(String::as_str).collect();
-    Ok(remote::invocation("gc", &refs))
+    Ok(Call::new("gc", &refs))
 }
 
 fn human_age(secs: u64) -> String {
@@ -164,7 +164,7 @@ pub fn gc(
     let cmd = command(&config, args, crate::state::now_secs())?;
     let mut state = State::load(&paths.state_file())?;
     let results = pool::on_hosts(&hosts, &mut state, |host, local| {
-        resolve::resolve(
+        resolve::resolve_call(
             &config,
             host,
             local,
@@ -300,7 +300,7 @@ mod tests {
             ..args()
         };
         assert!(override_ttl(&bad).is_err());
-        let cmd = command(&Config::default(), &older, 100).unwrap();
+        let cmd = command(&Config::default(), &older, 100).unwrap().bash();
         assert!(cmd.contains(" 43200"));
         // The budget (automatic max, 10 GiB free) follows the filter words.
         assert!(cmd.contains(" 43200 0 10737418240"), "{cmd}");

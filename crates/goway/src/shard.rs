@@ -25,7 +25,7 @@ use crate::render::{self, Renderer};
 use crate::repo::Repo;
 use crate::run::{self, Env};
 use crate::runners;
-use crate::ssh::{self, KeyPolicy};
+use crate::ssh;
 use crate::state::State;
 use crate::termfilter;
 
@@ -54,7 +54,9 @@ pub struct ShardReport {
     pub host: String,
     /// Address used.
     pub address: String,
-    /// `uname -m`.
+    /// The host's operating system (`linux` or `windows`).
+    pub os: String,
+    /// `uname -m`, or the Windows processor architecture.
     pub arch: String,
     /// `uname -n`.
     pub hostname: String,
@@ -362,7 +364,8 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                                 &extra,
                                 &command,
                             );
-                            ssh::command(&found.target, env.settings, KeyPolicy::Strict, &cmd)
+                            crate::sync::SshTransport::of(found, env.settings)
+                                .command(&cmd)?
                                 .stdin(Stdio::null())
                                 .stdout(Stdio::piped())
                                 .stderr(Stdio::piped())
@@ -383,10 +386,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                         );
                         let mut result_line = None;
                         let gate = manifest.as_ref().map(|manifest| run::Gate {
-                            transport: crate::sync::SshTransport {
-                                target: &found.target,
-                                settings: env.settings,
-                            },
+                            transport: crate::sync::SshTransport::of(found, env.settings),
                             remote_root: config.defaults.remote_root.as_str(),
                             run_id: &run_id,
                             repo_root: &repo.root,
@@ -479,6 +479,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                         shard: index,
                         host: host.name.clone(),
                         address: found.target.address.clone(),
+                        os: found.kind.os().as_str().to_owned(),
                         arch: probe.arch.clone(),
                         hostname: probe.hostname.clone(),
                         command,

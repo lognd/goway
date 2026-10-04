@@ -183,6 +183,7 @@ mod tests {
             ..HostConfig::default()
         };
         let found = Found {
+            kind: crate::transport::Kind::Unix,
             target: Target {
                 name: "helios".to_owned(),
                 address: "192.0.2.1".to_owned(),
