@@ -47,10 +47,57 @@ pub fn command_line(args: &[String]) -> String {
         .join(" ")
 }
 
-/// Whether Windows could show a UAC prompt: only interactive desktop sessions set `SESSIONNAME`
-/// (`Console`, `RDP-Tcp#n`); OpenSSH and service sessions do not, and a prompt there would hang.
+/// Whether a process in session `own` can get a UAC prompt, given the active console session
+/// and whether `SESSIONNAME` is set.
+///
+/// Session 0 (services, scheduled boot tasks) never has a desktop. Any other session can show the
+/// prompt when it is the console session (a process started through WSL interop, which does not
+/// inherit `SESSIONNAME`, still runs there) or is a named interactive session (`Console`,
+/// `RDP-Tcp#n`). An OpenSSH session of another account has neither.
+pub fn desktop_session(own: Option<u32>, console: Option<u32>, session_name: bool) -> bool {
+    match own {
+        None | Some(0) => false,
+        Some(own) => console == Some(own) || session_name,
+    }
+}
+
+/// Whether Windows could show a UAC prompt to this process (see [`desktop_session`]); an
+/// elevation prompt shown where nobody can click it would hang.
 pub fn can_prompt() -> bool {
-    std::env::var_os("SESSIONNAME").is_some_and(|v| !v.is_empty())
+    let (own, console) = session_ids();
+    let name = std::env::var_os("SESSIONNAME").is_some_and(|v| !v.is_empty());
+    let ok = desktop_session(own, console, name);
+    tracing::debug!(?own, ?console, name, ok, "can the UAC prompt be shown");
+    ok
+}
+
+#[cfg(windows)]
+#[allow(unsafe_code)] // session id FFI; see SAFETY
+/// This process's session id and the active console session id (`None` when Windows will not say).
+fn session_ids() -> (Option<u32>, Option<u32>) {
+    use windows_sys::Win32::System::RemoteDesktop::{
+        ProcessIdToSessionId, WTSGetActiveConsoleSessionId,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+    let mut own = 0u32;
+    // SAFETY: `own` is a valid out-pointer; both other calls take no pointers.
+    let (ok, console) = unsafe {
+        (
+            ProcessIdToSessionId(GetCurrentProcessId(), &raw mut own),
+            WTSGetActiveConsoleSessionId(),
+        )
+    };
+    (
+        (ok != 0).then_some(own),
+        // 0xFFFFFFFF: no session is attached to the console.
+        (console != u32::MAX).then_some(console),
+    )
+}
+
+#[cfg(not(windows))]
+/// Session ids (unknown off Windows, where `SESSIONNAME` alone decides).
+fn session_ids() -> (Option<u32>, Option<u32>) {
+    (Some(1), None)
 }
 
 #[cfg(windows)]

@@ -2,7 +2,9 @@
 
 use std::path::Path;
 
-use goway_setup::elevate::{can_prompt, command_line, is_elevated, quote_arg, run_elevated};
+use goway_setup::elevate::{
+    can_prompt, command_line, desktop_session, is_elevated, quote_arg, run_elevated,
+};
 
 // frob:tests crates/goway-setup/src/elevate.rs::quote_arg
 #[test]
@@ -70,4 +72,19 @@ fn output_redirection_and_dll_restriction_are_harmless_off_windows() {
         let file = std::fs::File::create(tmp.path().join("log")).unwrap();
         assert!(goway_setup::elevate::redirect_output(file).is_err());
     }
+}
+
+// frob:tests crates/goway-setup/src/elevate.rs::desktop_session
+#[test]
+fn the_desktop_is_found_by_session_id_not_by_an_environment_variable() {
+    // Started through WSL interop: no SESSIONNAME, but in the active console session 1.
+    assert!(desktop_session(Some(1), Some(1), false));
+    // A named interactive session (remote desktop) can prompt too.
+    assert!(desktop_session(Some(2), Some(1), true));
+    // Session 0 never has a desktop, whatever the environment says.
+    assert!(!desktop_session(Some(0), Some(0), true));
+    // Another account's ssh session (not the console, no name) is told to use an elevated terminal.
+    assert!(!desktop_session(Some(3), Some(1), false));
+    assert!(!desktop_session(Some(1), None, false));
+    assert!(!desktop_session(None, Some(1), true));
 }

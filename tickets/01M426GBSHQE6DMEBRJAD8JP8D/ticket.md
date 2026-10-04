@@ -2,13 +2,14 @@
 id = "01M426GBSHQE6DMEBRJAD8JP8D"
 title = "Windows elevation: detect a desktop session by session id (not SESSIONNAME), and --rsudo/--lsudo elevate Windows-side steps through an admin OpenSSH session or UAC, never with a stored password"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T00:54:59Z"
-updated = "2026-10-04T02:13:31Z"
+updated = "2026-10-04T02:15:47Z"
 scope = ["crates/goway-setup/src/elevate.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/elevate.rs", "docs/install-windows.md", "crates/goway-setup/Cargo.toml"]
 
 [[acceptance]]
