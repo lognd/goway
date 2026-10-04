@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T17:42:08Z"
-updated = "2026-10-04T04:15:36Z"
+updated = "2026-10-04T04:15:51Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/config.rs", "crates/goway/src/status.rs", "crates/goway/src/remote.sh", "crates/goway/tests/owner_awareness.rs", "crates/goway/src/facts.rs", "docs/config.md", "crates/goway/src/needs.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a helper where activity or power cannot be read (interop disabled, macOS without the tool, a probe timeout), when goway decides, then it treats the state as unknown, which neither blocks nor penalises, and status shows it"
-bound = false
+bound = true
 +++
