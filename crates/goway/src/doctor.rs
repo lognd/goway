@@ -304,19 +304,25 @@ fn system_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     };
     let present = |name: &str| tool(facts, name).map(str::to_owned);
     if is_darwin(facts) {
-        out.extend(darwin_checks(facts));
         // The package-manager fixes below are Linux's; a Mac has no
         // missing curl and its compiler comes with the Xcode tools.
-        match present("cc") {
-            Some(v) => push("cc (linker)", Level::Ok, v, None),
-            None => push(
-                "cc (linker)",
-                Level::Fail,
-                "missing; run `xcode-select --install` on the Mac (it opens a dialog)".to_owned(),
-                None,
-            ),
-        }
-        return out;
+        let mut checks = darwin_checks(facts);
+        checks.push(match present("cc") {
+            Some(v) => Check {
+                name: "cc (linker)".to_owned(),
+                level: Level::Ok,
+                detail: v,
+                fix: None,
+            },
+            None => Check {
+                name: "cc (linker)".to_owned(),
+                level: Level::Fail,
+                detail: "missing; run `xcode-select --install` on the Mac (it opens a dialog)"
+                    .to_owned(),
+                fix: None,
+            },
+        });
+        return checks;
     }
     for t in ["bash", "tar", "flock", "setsid"] {
         match present(t) {
