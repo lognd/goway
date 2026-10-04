@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T05:20:02Z"
+digest = "1be01dac4d510f04797423948839a1ed6be40c53d092ae019cf125a215dcd613"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c981354f-de21-4dc3-ab95-f162a78680c6 with nextest profile: default
+    Starting 1 test across 58 binaries (687 tests skipped)
+        PASS [   0.069s] goway cmakeapi::tests::the_replies_of_the_real_fetchcontent_project_name_compilers_and_fetched_dependencies
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.072s] 1 test run: 1 passed, 687 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "the_replies_of_the_real_fetchcontent_project"
+size = 601
+status = "measured"
+tests = ["cmakeapi::tests::the_replies_of_the_real_fetchcontent_project_name_compilers_and_fetched_dependencies"]
+at = "2026-10-04T05:20:02Z"
+actor = "lognd"
+rev = 1
