@@ -2,14 +2,14 @@
 id = "01M41S2W66SJ4YS2C57HRP0QGJ"
 title = "NAT relay task runs elevated in the user's environment: scrub runtime-injection variables (COR_PROFILER and friends)"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T21:00:25Z"
-updated = "2026-10-03T21:00:25Z"
-scope = ["crates/goway-setup/**"]
+updated = "2026-10-04T00:32:15Z"
+scope = ["crates/goway-setup/src/relay.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/tests/relay.rs", "docs/install-windows.md"]
 
 [[acceptance]]
 text = "Given a user-level COR_PROFILER variable, when the relay refresh task runs, then no code from it is loaded into the elevated process"

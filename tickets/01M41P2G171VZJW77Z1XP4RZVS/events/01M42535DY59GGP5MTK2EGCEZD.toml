@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T00:30:18Z"
+digest = "9ef2430b1667d84f8490aa32ae3494cb817dc92a89a785afa1959fc972edc3c3"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c10827b1-9e56-47b9-8248-65bc18d3f1da with nextest profile: default
+    Starting 2 tests across 44 binaries (523 tests skipped)
+        PASS [   0.009s] goway doctor::projneeds::tests::a_cpp_project_is_never_asked_for_cargo_or_node
+        PASS [   0.824s] goway::doctor_project a_cmake_project_is_checked_for_cmake_and_a_compiler_and_never_for_cargo
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.828s] 2 tests run: 2 passed, 523 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_cmake_project_is_checked_for_cmake_and_a_compiler_and_never_for_cargo) | test(a_cpp_project_is_never_asked_for_cargo_or_node)'"
+size = 693
+status = "measured"
+tests = ["doctor::projneeds::tests::a_cpp_project_is_never_asked_for_cargo_or_node", "a_cmake_project_is_checked_for_cmake_and_a_compiler_and_never_for_cargo"]
+at = "2026-10-04T00:30:18Z"
+actor = "lognd"
+rev = 1

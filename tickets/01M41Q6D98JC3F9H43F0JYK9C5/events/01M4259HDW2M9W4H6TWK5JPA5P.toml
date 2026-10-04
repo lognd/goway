@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T00:33:46Z"
+digest = "e2b00e566d391f3fdb49571f592bfd6f551aa85a6f138cc5d87915a6f6162cd1"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 80f41d38-2307-4af3-92a8-daaf3f8d13eb with nextest profile: default
+    Starting 2 tests across 43 binaries (516 tests skipped)
+        PASS [   0.471s] goway sync::tests::a_windows_host_syncs_incrementally_and_deletes_only_inside_its_own_directory
+        PASS [   0.473s] goway::remote_ps1 sync_round_trips_files_modes_and_hashes_like_remote_sh
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.481s] 2 tests run: 2 passed, 516 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_windows_host_syncs_incrementally_and_deletes_only_inside_its_own_directory) | test(sync_round_trips_files_modes_and_hashes_like_remote_sh)'"
+size = 689
+status = "measured"
+tests = ["sync::tests::a_windows_host_syncs_incrementally_and_deletes_only_inside_its_own_directory", "sync_round_trips_files_modes_and_hashes_like_remote_sh"]
+at = "2026-10-04T00:33:46Z"
+actor = "lognd"
+rev = 1

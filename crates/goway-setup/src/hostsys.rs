@@ -20,6 +20,9 @@ use goway_journal::{LocalSystem, RegValue, ResourceKind, SysResult, System, Syst
 
 use crate::helper::{HOST_KEY_FILE, WslProbe, parse_fingerprint};
 use crate::host::{FirewallSpec, HostFacts, HyperVSpec, TaskSpec};
+use crate::native::{
+    self, BuiltinRule, KeyAccount, NativeFacts, ScopeSpec, ServiceSpec, StartType,
+};
 use crate::ps;
 use crate::relay::{self, AdapterAddr, PortProxyRule, PortProxySpec, RelayTaskSpec};
 use crate::sysapi::{Tool, tool_path};
@@ -130,7 +133,11 @@ fn to_output(out: std::process::Output) -> Output {
 fn reject_wildcard(kind: ResourceKind, name: &str) -> SysResult<()> {
     let powershell = matches!(
         kind,
-        ResourceKind::FirewallRule | ResourceKind::HyperVFirewallRule | ResourceKind::ScheduledTask
+        ResourceKind::FirewallRule
+            | ResourceKind::HyperVFirewallRule
+            | ResourceKind::ScheduledTask
+            | ResourceKind::FirewallScope
+            | ResourceKind::WindowsCapability
     );
     if powershell && crate::host::has_wildcard(name) {
         tracing::error!(
@@ -314,6 +321,35 @@ impl<R: Runner> HostSystem<R> {
             .map_err(|e| SystemError::InvalidState(format!("bad {kind:?} spec for {name}: {e}")))
     }
 
+    /// The sshd service resource's spec from its name; refuses any other service.
+    fn sshd_spec(name: &str) -> SysResult<ServiceSpec> {
+        ServiceSpec::from_resource_name(name).ok_or(SystemError::Unsupported(
+            "services other than the sshd resource goway makes",
+        ))
+    }
+
+    /// Refuse every capability but the OpenSSH Server.
+    fn only_capability(name: &str) -> SysResult<()> {
+        if name == native::CAPABILITY {
+            Ok(())
+        } else {
+            Err(SystemError::InvalidState(format!(
+                "{name:?} is not the capability goway installs"
+            )))
+        }
+    }
+
+    /// Refuse every firewall rule but sshd's built-in one.
+    fn only_builtin_rule(name: &str) -> SysResult<()> {
+        if name == native::BUILTIN_RULE {
+            Ok(())
+        } else {
+            Err(SystemError::InvalidState(format!(
+                "{name:?} is not the built-in rule goway narrows"
+            )))
+        }
+    }
+
     /// Parse a portproxy resource name (`<listen address>:<port>`).
     fn relay_name(name: &str) -> SysResult<(std::net::Ipv4Addr, u16)> {
         relay::parse_relay_name(name)
@@ -488,6 +524,24 @@ impl<R: Runner> HostSystem<R> {
         Ok(facts)
     }
 
+    /// Probe the native OpenSSH setup and the invoking account (read-only; needs an elevated
+    /// token for the capability query).
+    pub fn probe_native(&self) -> SysResult<(NativeFacts, KeyAccount)> {
+        let out = self.powershell("probe the native OpenSSH setup", &ps::native_probe())?;
+        let parsed = parse_native_probe(&out.text()).map_err(SystemError::InvalidState)?;
+        tracing::info!(facts = ?parsed.0, account = ?parsed.1, "probed native host");
+        Ok(parsed)
+    }
+
+    /// sshd's ed25519 host public key (the line in its `.pub` file), when it exists yet.
+    pub fn host_public_key(&self, path: &Path) -> SysResult<Option<String>> {
+        Ok(self
+            .local
+            .read_file(path)?
+            .and_then(|t| t.lines().next().map(|l| l.trim().to_owned()))
+            .filter(|l| !l.is_empty()))
+    }
+
     /// TCP ports with a listener in the distro's network namespace.
     pub fn listening_ports(&self) -> SysResult<BTreeSet<u16>> {
         let out = self.wsl(&["ss", "-Hltn"])?;
@@ -642,6 +696,60 @@ pub fn parse_listening_ports(text: &str) -> BTreeSet<u16> {
             local.rsplit_once(':')?.1.parse().ok()
         })
         .collect()
+}
+
+/// Parse the `key=value` lines of [`ps::native_probe`].
+pub fn parse_native_probe(text: &str) -> Result<(NativeFacts, KeyAccount), String> {
+    let get = |key: &str| {
+        text.lines()
+            .filter_map(|l| l.trim().split_once('='))
+            .find(|(k, _)| *k == key)
+            .map(|(_, v)| v.trim().to_owned())
+    };
+    let need = |key: &str| {
+        get(key)
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| format!("the probe did not report {key}"))
+    };
+    let account = KeyAccount {
+        name: need("account")?,
+        sid: need("sid")?,
+        admin: need("admin")? == "1",
+        profile_dir: need("profile")?.into(),
+    };
+    account.validate()?;
+    let service = match (get("service_start"), get("service_running")) {
+        (Some(start), Some(running)) => StartType::parse(&start).map(|s| (s, running == "1")),
+        _ => None,
+    };
+    let builtin_rule = match get("builtin_rule").as_deref() {
+        Some("open") => BuiltinRule::Open,
+        Some("scoped") => BuiltinRule::Scoped,
+        _ => BuiltinRule::Absent,
+    };
+    let facts = NativeFacts {
+        capability_installed: need("capability")? == "1",
+        service,
+        default_shell: get("default_shell").filter(|v| !v.is_empty()),
+        builtin_rule,
+    };
+    Ok((facts, account))
+}
+
+/// A DACL in the form goway writes it: the auto-inheritance control flags (`AI`, `AR`) that
+/// Windows adds when reading a descriptor back are dropped, so a read and a write compare equal.
+pub fn normalize_sddl(sddl: &str) -> String {
+    let Some(start) = sddl.find("D:") else {
+        return sddl.to_owned();
+    };
+    let flags_start = start + 2;
+    let flags_end = sddl[flags_start..]
+        .find('(')
+        .map_or(sddl.len(), |i| flags_start + i);
+    let flags = sddl[flags_start..flags_end]
+        .replace("AI", "")
+        .replace("AR", "");
+    format!("{}{flags}{}", &sddl[..flags_start], &sddl[flags_end..])
 }
 
 impl<R: Runner> System for HostSystem<R> {
@@ -823,11 +931,22 @@ impl<R: Runner> System for HostSystem<R> {
     }
 
     fn get_acl(&self, path: &Path) -> SysResult<String> {
-        self.local.get_acl(path)
+        if is_wsl_path(path) {
+            return Err(SystemError::Unsupported("ACLs inside the distro"));
+        }
+        let p = path.display().to_string();
+        let out = self.powershell("read a file's ACL", &ps::acl_get(&p))?;
+        Ok(normalize_sddl(&out.text()))
     }
 
     fn set_acl(&mut self, path: &Path, sddl: &str) -> SysResult<()> {
-        self.local.set_acl(path, sddl)
+        if is_wsl_path(path) {
+            return Err(SystemError::Unsupported("ACLs inside the distro"));
+        }
+        let p = path.display().to_string();
+        tracing::info!(path = %p, sddl, "setting a file's ACL");
+        self.powershell("set a file's ACL", &ps::acl_set(&p, sddl))
+            .map(drop)
     }
 
     fn resource_exists(&self, kind: ResourceKind, name: &str) -> SysResult<bool> {
@@ -861,7 +980,24 @@ impl<R: Runner> System for HostSystem<R> {
                     _ => !self.unit_exists(name)?,
                 })
             }
-            ResourceKind::Service => Err(SystemError::Unsupported("generic services")),
+            ResourceKind::Service => {
+                Self::sshd_spec(name)?;
+                self.ps_flag("query sshd", &ps::sshd_exists())
+            }
+            ResourceKind::WindowsCapability => {
+                Self::only_capability(name)?;
+                self.ps_flag(
+                    "query the OpenSSH Server capability",
+                    &ps::capability_exists(name),
+                )
+            }
+            ResourceKind::FirewallScope => {
+                Self::only_builtin_rule(name)?;
+                self.ps_flag(
+                    "query the built-in firewall rule",
+                    &ps::firewall_scope_exists(name),
+                )
+            }
             ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
         }
     }
@@ -937,7 +1073,33 @@ impl<R: Runner> System for HostSystem<R> {
                 .map(drop)
             }
             ResourceKind::WslUnit => self.wsl(&["systemctl", "enable", name]).map(drop),
-            ResourceKind::Service => Err(SystemError::Unsupported("generic services")),
+            ResourceKind::Service => {
+                Self::sshd_spec(name)?;
+                self.powershell("enable and start sshd", &ps::sshd_enable())
+                    .map(drop)
+            }
+            ResourceKind::WindowsCapability => {
+                Self::only_capability(name)?;
+                let out = self.powershell(
+                    "install the OpenSSH Server capability",
+                    &ps::capability_add(name),
+                )?;
+                if out.text().contains("restart") {
+                    tracing::warn!(
+                        "Windows asks for a restart to finish the OpenSSH Server install"
+                    );
+                }
+                Ok(())
+            }
+            ResourceKind::FirewallScope => {
+                Self::only_builtin_rule(name)?;
+                let s: ScopeSpec = Self::spec(kind, name, spec)?;
+                self.powershell(
+                    "limit the built-in firewall rule",
+                    &ps::firewall_scope_set(name, &s.scope),
+                )
+                .map(drop)
+            }
             ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
         }
     }
@@ -994,7 +1156,27 @@ impl<R: Runner> System for HostSystem<R> {
                 .map(drop)
             }
             ResourceKind::WslUnit => self.wsl(&["systemctl", "disable", name]).map(drop),
-            ResourceKind::Service => Err(SystemError::Unsupported("generic services")),
+            ResourceKind::Service => {
+                let spec = Self::sshd_spec(name)?;
+                self.powershell("restore sshd", &ps::sshd_restore(&spec))
+                    .map(drop)
+            }
+            ResourceKind::WindowsCapability => {
+                Self::only_capability(name)?;
+                self.powershell(
+                    "remove the OpenSSH Server capability",
+                    &ps::capability_remove(name),
+                )
+                .map(drop)
+            }
+            ResourceKind::FirewallScope => {
+                Self::only_builtin_rule(name)?;
+                self.powershell(
+                    "restore the built-in firewall rule",
+                    &ps::firewall_scope_restore(name),
+                )
+                .map(drop)
+            }
             ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
         }
     }

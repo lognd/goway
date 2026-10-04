@@ -11,6 +11,10 @@
 use std::collections::BTreeMap;
 use std::process::Stdio;
 
+mod projneeds;
+
+pub use projneeds::Toolchain;
+
 use crate::cli::DoctorArgs;
 use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
@@ -189,6 +193,28 @@ pub fn assess(facts: &BTreeMap<String, String>) -> Vec<Check> {
     let mut out = system_checks(facts);
     out.extend(toolchain_checks(facts));
     out.extend(host_checks(facts));
+    out
+}
+
+/// Checks for one project: goway's own system tools, the Rust toolchain
+/// only when the project is Rust (or nothing was detected), the host checks,
+/// and every tool the project's files and `goway.toml` ask for.
+pub fn assess_project(facts: &BTreeMap<String, String>, needs: &projneeds::Needs) -> Vec<Check> {
+    let mut out = system_checks(facts);
+    if !needs.wants_rust() {
+        // cargo links through cc, but only Rust and C/C++ projects need one.
+        let cc_wanted = needs.ecosystems.contains(&projneeds::Eco::Cpp);
+        out.retain(|c| c.name != "cc (linker)" || cc_wanted);
+    }
+    if needs.wants_rust() {
+        out.extend(toolchain_checks(facts));
+    }
+    out.extend(host_checks(facts));
+    let mut have: Vec<String> = out.iter().map(|c| c.name.clone()).collect();
+    if have.iter().any(|n| n == "cc (linker)") {
+        have.push("cc".to_owned());
+    }
+    out.extend(projneeds::checks(needs, facts, &have));
     out
 }
 
@@ -574,7 +600,8 @@ impl Installed {
         if let Some((command, root)) = undo_of(&self.check) {
             return Undo::Run { command, root };
         }
-        if PACKAGE_CHECKS.contains(&self.check.as_str()) {
+        if PACKAGE_CHECKS.contains(&self.check.as_str()) || projneeds::is_package_check(&self.check)
+        {
             Undo::KeepPackage
         } else {
             Undo::Unknown
@@ -601,7 +628,7 @@ pub fn undo_of(check: &str) -> Option<(String, bool)> {
             false,
         )),
         "sshd password login" => Some((format!("rm -f {SSHD_DROPIN} && {RELOAD_SSHD}"), true)),
-        _ => None,
+        other => projneeds::undo_of(other),
     }
 }
 
@@ -690,6 +717,22 @@ fn show_applied(renderer: Renderer, host: &HostConfig, applied: &Applied) {
     }
 }
 
+/// What the project in the current directory needs (nothing detected when
+/// the directory is not in a git project: goway's own Rust-first checks).
+fn project_needs() -> Result<projneeds::Needs> {
+    let Ok(cwd) = std::env::current_dir() else {
+        return Ok(projneeds::Needs::default());
+    };
+    let Ok(repo) = crate::repo::Repo::discover(&cwd) else {
+        tracing::debug!("not in a git project; no project needs");
+        return Ok(projneeds::Needs::default());
+    };
+    let toolchain = crate::project::Rules::load(&repo.root)?
+        .map(|r| r.toolchain)
+        .unwrap_or_default();
+    projneeds::analyse(&repo.root, &toolchain)
+}
+
 /// `goway doctor`.
 pub fn doctor(
     paths: &Paths,
@@ -714,7 +757,12 @@ pub fn doctor(
         renderer.note("no hosts configured; add one with `goway host add NAME`");
         return Ok(1);
     }
-    let cmd = remote::invocation("doctor", &[config.defaults.remote_root.as_str()]);
+    let needs = project_needs()?;
+    renderer.note(format_args!("{}", needs.summary()));
+    let names = needs.probe_names();
+    let mut cmd_args = vec![config.defaults.remote_root.as_str()];
+    cmd_args.extend(names.iter().map(String::as_str));
+    let cmd = remote::invocation("doctor", &cmd_args);
     let mut state = State::load(&paths.state_file())?;
     let results = pool::on_hosts(&hosts, &mut state, |host, local| {
         resolve::resolve(
@@ -747,7 +795,7 @@ pub fn doctor(
             }
         };
         let facts = parse_facts(&found.output);
-        let mut checks = assess(&facts);
+        let mut checks = assess_project(&facts, &needs);
         for finding in sshenv::check(&found.target.address, found.target.port) {
             checks.push(Check {
                 name: "local ssh".to_owned(),
@@ -783,7 +831,7 @@ pub fn doctor(
                     KeyPolicy::Strict,
                     &cmd,
                 )
-                .map(|f| assess(&parse_facts(&f.output)));
+                .map(|f| assess_project(&parse_facts(&f.output), &needs));
                 checks = after.unwrap_or(checks);
                 renderer.note(format_args!("{}: after fixes:", host.name));
                 report(renderer, host, &found, &facts, &checks);

@@ -75,7 +75,7 @@ replaced, so `uninstall` replays the journal backwards and restores the machine.
 
 <details><summary>Details</summary>
 
-    goway-setup install [--client] [--host] [--profile NAME] [--dry-run]
+    goway-setup install [--client] [--host] [--native [--authorized-key KEY]] [--profile NAME] [--dry-run]
                         [--port N] [--distro NAME] [--keepalive logon|boot] [--no-harden]
                         [--allow-from CIDR]... [--allow-wide] [--no-activate] [--no-elevate] [--yes]
     goway-setup uninstall [--client] [--host] [--profile NAME] [--no-activate] [--no-elevate]
@@ -197,6 +197,60 @@ terminal. The interactive UAC path is built but was not exercised end to end (th
 only reachable over SSH). How the elevated step is kept safe is described next.
 
 </details>
+
+## A helper without WSL (`install --host --native`)
+
+A Windows laptop that has no WSL can be a helper through Windows' own OpenSSH Server. Run, in a
+terminal on that laptop:
+
+    goway-setup.exe install --host --native --authorized-key C:\path\to\main-laptop.pub
+
+Windows asks permission once (the administrator prompt). `--authorized-key` takes one ssh public key
+line or the path of a `.pub` file (it is read with your own rights before the prompt and passed on as a
+validated line); without it no key is authorized and the printed block says so. The installer
+prints the same hand-over block as the WSL install: the name, the host key fingerprint and the one
+`goway add NAME --fingerprint SHA256:... --user USER --port 22` line to run on the main laptop.
+`status --host` prints it again, and `uninstall --host` reverts every change below.
+
+What it changes (each entry is journaled in `%ProgramData%\goway\P\host-journal.json` with the
+state it replaced; the journal is replayed backwards on uninstall):
+
+| What | Where | Revert |
+|---|---|---|
+| Add/Remove Programs entry | `HKLM\...\Uninstall\P-host` | removed (reverted last) |
+| OpenSSH Server capability | `OpenSSH.Server~~~~0.0.1` (`Add-WindowsCapability`) | removed **only if the install added it**: a capability already present records nothing and stays |
+| the capability's own firewall rule | `OpenSSH-Server-In-TCP`, which Windows creates open to every address and profile | narrowed to Private and Domain networks and the local subnet (plus `--allow-from`), only when the install caused the rule to exist; restored to Windows' own default on uninstall. A rule that was already there is the user's: it is not touched, and the installer warns if it admits every address |
+| a firewall rule of goway's | `OpenSSH SSH 22` (`P OpenSSH SSH 22` for a test profile), inbound TCP 22, Private and Domain profiles, local subnet only | deleted |
+| default shell | `HKLM\SOFTWARE\OpenSSH\DefaultShell` = Windows PowerShell 5.1 by absolute path | the previous value (or none) is put back; the installer says when it replaces another shell |
+| the key | one line tagged `# goway-setup P` in `%ProgramData%\ssh\administrators_authorized_keys` for an administrator account (DACL `D:P(A;;FA;;;SY)(A;;FA;;;BA)`, SYSTEM and Administrators only), or in `%USERPROFILE%\.ssh\authorized_keys` for a standard account (the user and SYSTEM only) | only that line is removed, the file is deleted only if the install created it, and the DACL before the install is restored (a key file the user already had keeps its other keys) |
+| the sshd service | automatic start, running | stopped and set back to its previous startup type only if it was not running or not automatic before; a service that was already automatic and running is left as it was |
+
+Native installs keep sshd on port 22: `--port` must be 22 or absent, because moving the port means
+editing the user's `sshd_config`, which goway does not do.
+
+Safety notes:
+
+- Nothing is restarted: an sshd that already runs is left running (the install only changes what is
+  missing), and WSL is not touched at all.
+- The elevated uninstall rebuilds the set of changes the install could have made from
+  `host-settings.json` (the key, the account and the profile) and refuses a journal entry outside it, as
+  for the WSL host: a planted entry cannot make an elevated uninstall edit another file, service or
+  firewall rule.
+- Only the capability named above, the service `sshd` and the rule `OpenSSH-Server-In-TCP` can be
+  acted on; any other name is refused before PowerShell runs. The sshd resource's name carries what to
+  restore (`sshd:Manual:stopped`), because removal is given the name only.
+- The DACL is read back and written as a DACL only (the owner is not changed). Windows adds the
+  auto-inheritance flags `AI` and `AR` when it reads a DACL; goway drops them when it compares and records,
+  so a restored DACL is the same entries and protection but without those two flags.
+
+What was and was not proven: the plan, the journal, the exact reversal on a model machine (with a
+pre-existing capability, sshd, shell and key file), the journal check the elevated uninstall applies and every
+PowerShell script (through a scripted fake) are tested on any machine (`crates/goway-setup/tests/native.rs`).
+The PowerShell scripts themselves have **not** been run on a real Windows machine yet: the one test
+helper has a hand-made Windows OpenSSH on port 22 that its owner uses, and a native install would change
+that sshd (a second sshd on another port would need its own configuration, which this version
+does not create), so it was not tried there. Before relying on it, run it on a machine you can spare,
+in a test profile (`--profile goway-test`), and compare what `uninstall` leaves with what you had.
 
 ## Hardening notes (elevation, relay, user names)
 

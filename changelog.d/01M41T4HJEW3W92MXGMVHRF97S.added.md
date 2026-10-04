@@ -1,0 +1,1 @@
+goway-setup install --host --native sets up a Windows helper without WSL through Windows' own OpenSSH Server, with every change journaled and reverted exactly (capability only if it added it); the live roundtrip on a real machine is still to be proven.

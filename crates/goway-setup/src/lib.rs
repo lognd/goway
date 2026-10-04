@@ -13,6 +13,7 @@ pub mod helper;
 pub mod host;
 pub mod hostsys;
 pub mod layout;
+pub mod native;
 pub mod plan;
 pub mod ps;
 pub mod relay;

@@ -46,6 +46,7 @@ fn settings(network: NetworkMode) -> HostSettings {
         port: PORT,
         allow_from: Vec::new(),
         network,
+        native: None,
     }
 }
 
