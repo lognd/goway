@@ -96,10 +96,7 @@ pub fn rows(probed: &[Probed<'_>], local_in_pool: bool) -> Vec<Vec<String>> {
                     "{:.2} {:.2} {:.2}",
                     probe.load[0], probe.load[1], probe.load[2]
                 ),
-                match p.host.max_jobs {
-                    Some(max) => format!("{}/{max}", probe.jobs),
-                    None => probe.jobs.to_string(),
-                },
+                format!("{}/{}", probe.jobs, p.host.job_limit(probe.cores)),
                 disk_cell(probe.disk_used, probe.disk_max),
                 probe.disk_free.map_or_else(|| "-".to_owned(), human_bytes),
                 crate::facts::age_summary(probe.facts.hw_age),
