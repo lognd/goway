@@ -2,13 +2,13 @@
 id = "01M44CSWKAG8P7C4S2GG2SFE3P"
 title = "Audit3 M3: the release publish job runs in a protected environment and only for commits on main"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T21:23:31Z"
-updated = "2026-10-04T21:23:31Z"
+updated = "2026-10-04T21:23:33Z"
 labels = ["security"]
 scope = [".github/workflows/release.yml", "docs/release.md", "crates/goway/tests/publishing.rs"]
 
