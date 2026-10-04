@@ -678,12 +678,6 @@ impl<'a> SshTransport<'a> {
     }
 
     fn fail(&self, message: String) -> Error {
-        // The interop transport has no ssh; say which transport failed.
-        let message = if self.kind == HostKind::WindowsInterop {
-            format!("WSL interop: {message}")
-        } else {
-            message
-        };
         Error::Ssh {
             host: self.target.name.clone(),
             message,
