@@ -425,7 +425,13 @@ fn run_picked(env: &Env<'_>, renderer: Renderer, args: &RunArgs, own_os_only: bo
             renderer.note(format_args!("{note}"));
         }
         let cmd = run_invocation_with(
-            &config, priority, &repo, &run_id, args.keep, &extra, &command,
+            &config.for_host(&host),
+            priority,
+            &repo,
+            &run_id,
+            args.keep,
+            &extra,
+            &command,
         );
 
         renderer.headline(format_args!(

@@ -462,20 +462,26 @@ pub fn choose_many(
 
 /// The remote command line that probes a Unix host (also this machine).
 pub fn probe_command(config: &Config, disk: bool, statics: bool) -> String {
-    probe_call(config, disk, statics, &[]).bash()
+    probe_call(config, None, disk, statics, &[]).bash()
 }
 
 /// The call that probes a host, whatever it speaks.
 ///
 /// A non-empty `tools` adds the word `tools:A,B`: the host also reports the
 /// versions of those tools (names with other characters are left out).
-pub fn probe_call(config: &Config, disk: bool, statics: bool, tools: &[String]) -> Call {
+pub fn probe_call(
+    config: &Config,
+    host: Option<&HostConfig>,
+    disk: bool,
+    statics: bool,
+    tools: &[String],
+) -> Call {
     let root = config.defaults.remote_root.as_str();
     let mut args = vec![root];
     let budget;
     if disk {
         args.push("disk");
-        let (max_disk, min_free, _) = config.defaults.budget_bytes();
+        let (max_disk, min_free, _) = config.budget_of(host);
         budget = format!("budget:{max_disk}:{min_free}");
         args.push(&budget);
     }
@@ -514,7 +520,13 @@ pub fn probe_one(
     let key = host.name.to_ascii_lowercase();
     let now = crate::state::now_secs();
     let statics = state.refresh_facts || facts::stale(state.facts.get(&key), now);
-    let call = probe_call(config, disk, statics, state.tools_to_probe(&host.name, now));
+    let call = probe_call(
+        config,
+        Some(host),
+        disk,
+        statics,
+        state.tools_to_probe(&host.name, now),
+    );
     let (found, sent, rtt) = crate::facts::clock::timed(|| {
         resolve::resolve_call(
             config,
@@ -1253,13 +1265,13 @@ mod tests {
     fn the_probe_asks_for_the_owner_state_unless_it_is_switched_off() {
         let mut config = Config::default();
         assert!(
-            probe_call(&config, false, false, &[])
+            probe_call(&config, None, false, false, &[])
                 .args
                 .contains(&"owner".to_owned())
         );
         config.defaults.owner_idle = std::time::Duration::ZERO;
         assert!(
-            !probe_call(&config, false, false, &[])
+            !probe_call(&config, None, false, false, &[])
                 .args
                 .contains(&"owner".to_owned())
         );

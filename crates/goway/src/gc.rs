@@ -98,9 +98,14 @@ pub fn override_ttl(args: &GcArgs) -> Result<Option<Duration>> {
 }
 
 /// The remote gc call.
-pub fn command(config: &Config, args: &GcArgs, now: u64) -> Result<Call> {
+pub fn command(
+    config: &Config,
+    host: Option<&HostConfig>,
+    args: &GcArgs,
+    now: u64,
+) -> Result<Call> {
     let d = &config.defaults;
-    let (max_disk, min_free, _) = d.budget_bytes();
+    let (max_disk, min_free, _) = config.budget_of(host);
     let older = override_ttl(args)?.map(|t| t.as_secs().to_string());
     let words = [
         d.remote_root.clone(),
@@ -161,9 +166,12 @@ pub fn gc(
         Some(name) => vec![config.host(name)?],
         None => config.hosts.iter().collect(),
     };
-    let cmd = command(&config, args, crate::state::now_secs())?;
+    let now = crate::state::now_secs();
+    // Fail on a bad flag before any host is asked.
+    command(&config, None, args, now)?;
     let mut state = State::load(&paths.state_file())?;
     let results = pool::on_hosts(&hosts, &mut state, |host, local| {
+        let cmd = command(&config, Some(host), args, now)?;
         resolve::resolve_call(
             &config,
             host,
@@ -300,7 +308,7 @@ mod tests {
             ..args()
         };
         assert!(override_ttl(&bad).is_err());
-        let cmd = command(&Config::default(), &older, 100)
+        let cmd = command(&Config::default(), None, &older, 100)
             .unwrap()
             .args
             .join(" ");

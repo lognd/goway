@@ -65,6 +65,9 @@ name = "my-helper"             # the helper's computer name; also tried as my-he
 # priority = "normal"          # override defaults.priority for this host
 # max_load = 0.5               # override defaults.max_load for this host
 # gpu_jobs = 2                 # override defaults.gpu_jobs for this host
+# max_disk = "30G"             # override defaults.max_disk for this host (a small disk keeps a small budget)
+# min_free = "20G"             # override defaults.min_free for this host
+# cache_size = "1G"            # override defaults.cache_size for this host
 # labels = ["gpu-box"]         # names `--needs label=gpu-box` can ask for
 # identity = "/home/me/.config/goway/id_ed25519"   # private key to offer (see below)
 # os = "windows"               # "linux" (default; WSL helpers) or "windows" (PowerShell side)

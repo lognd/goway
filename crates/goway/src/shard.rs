@@ -490,7 +490,7 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                                 renderer.note(format_args!("{note}"));
                             }
                             let cmd = run::run_invocation_with(
-                                config,
+                                &config.for_host(host),
                                 priority,
                                 repo,
                                 &run_id,

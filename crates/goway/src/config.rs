@@ -274,6 +274,15 @@ pub struct HostConfig {
     /// Free RAM one job needs on this host (default: `defaults.job_mem`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job_mem: Option<String>,
+    /// Most disk goway may use on this host (default: `defaults.max_disk`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_disk: Option<String>,
+    /// Free space goway keeps on this host's disk (default: `defaults.min_free`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_free: Option<String>,
+    /// Size cap of each repository's compiler caches here (default: `defaults.cache_size`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_size: Option<String>,
     /// The host's operating system (default: linux, which includes WSL).
     #[serde(default, skip_serializing_if = "Os::is_default")]
     pub os: Os,
@@ -441,6 +450,25 @@ impl Config {
                 });
             }
         }
+        for h in &self.hosts {
+            for (key, text) in [
+                ("max_disk", &h.max_disk),
+                ("min_free", &h.min_free),
+                ("cache_size", &h.cache_size),
+            ] {
+                if let Some(t) = text
+                    && crate::needs::parse_size(t).is_none()
+                {
+                    return Err(Error::Config {
+                        path: origin.to_owned(),
+                        message: format!(
+                            "host `{}`: {key} `{t}` is not a size such as 20G",
+                            h.name
+                        ),
+                    });
+                }
+            }
+        }
         if let Some(l) = &self.local {
             if !(1..=1024).contains(&l.max_jobs) {
                 return Err(Error::Config {
@@ -536,6 +564,30 @@ impl Config {
             || self.defaults.job_mem_bytes(),
             |t| crate::needs::parse_size(t).unwrap_or(0),
         )
+    }
+
+    /// The disk budget `(max_disk, min_free, cache_size)` in bytes for `host` (or the
+    /// defaults when there is no host entry): each value the host sets overrides `[defaults]`.
+    pub fn budget_of(&self, host: Option<&HostConfig>) -> (u64, u64, u64) {
+        host.map_or_else(
+            || self.defaults.budget_bytes(),
+            |h| self.for_host(h).defaults.budget_bytes(),
+        )
+    }
+
+    /// This config with `host`'s disk budget in `[defaults]`, for code that reads the budget
+    /// from the defaults (the remote `run` call).
+    #[must_use]
+    pub fn for_host(&self, host: &HostConfig) -> Self {
+        let mut config = self.clone();
+        let d = &mut config.defaults;
+        d.max_disk = host.max_disk.clone().or_else(|| d.max_disk.take());
+        d.min_free = host.min_free.clone().unwrap_or_else(|| d.min_free.clone());
+        d.cache_size = host
+            .cache_size
+            .clone()
+            .unwrap_or_else(|| d.cache_size.clone());
+        config
     }
 
     /// The effective load ceiling of `host`.
@@ -753,6 +805,44 @@ user = "user"
         assert_eq!(c.port_of(q), 2222);
         assert_eq!(c.port_of(c.host("orion-notebook").unwrap()), 22);
         assert_eq!(q.key_alias(), "goway-helios");
+    }
+
+    // frob:ticket 01M43JBGHCD68QDZVMDMG5P4GS
+    // frob:tests crates/goway/src/config.rs::Config::budget_of
+    #[test]
+    fn a_hosts_disk_budget_overrides_the_defaults_value_by_value() {
+        let c = Config::parse(
+            "[defaults]\nmax_disk = \"300G\"\nmin_free = \"10G\"\n\n\
+             [[host]]\nname = \"small\"\nmax_disk = \"30G\"\ncache_size = \"1G\"\n\n\
+             [[host]]\nname = \"big\"\n",
+            Path::new("c.toml"),
+        )
+        .unwrap();
+        assert_eq!(
+            c.budget_of(c.host("small").ok()),
+            (30 << 30, 10 << 30, 1 << 30)
+        );
+        assert_eq!(
+            c.budget_of(c.host("big").ok()),
+            (300 << 30, 10 << 30, 2 << 30)
+        );
+        assert_eq!(c.budget_of(None), (300 << 30, 10 << 30, 2 << 30));
+        // The remote run call reads the same values from the host's view of the config.
+        assert_eq!(
+            c.for_host(c.host("small").unwrap()).defaults.budget_bytes(),
+            (30 << 30, 10 << 30, 1 << 30)
+        );
+        // A bad size on a host is a config error naming the host.
+        let err = Config::parse(
+            "[[host]]\nname = \"x\"\nmin_free = \"lots\"\n",
+            Path::new("c.toml"),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("host `x`") && err.contains("min_free"),
+            "{err}"
+        );
     }
 
     #[test]
