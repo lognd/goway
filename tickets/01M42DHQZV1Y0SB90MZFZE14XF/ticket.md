@@ -2,13 +2,13 @@
 id = "01M42DHQZV1Y0SB90MZFZE14XF"
 title = "Default max_jobs is every core of the helper (not half); niceness and owner awareness keep it polite"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:58:04Z"
-updated = "2026-10-04T03:50:59Z"
+updated = "2026-10-04T03:51:00Z"
 scope = ["crates/goway/src/config.rs", "crates/goway/src/pool.rs", "docs/config.md"]
 
 [[acceptance]]
