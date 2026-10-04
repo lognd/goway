@@ -2,13 +2,13 @@
 id = "01M43Z0NPW4WH9YNZGXAW0DHW0"
 title = "Memory footprint can lock a repository out of every helper: inflated peaks, no override, pinned hosts refused"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T17:22:33Z"
-updated = "2026-10-04T17:22:33Z"
+updated = "2026-10-04T17:22:49Z"
 scope = ["crates/goway/src/footprint.rs", "crates/goway/src/pool.rs", "crates/goway/src/remote.sh", "crates/goway/src/cli.rs", "crates/goway/tests/mem_footprint.rs", "docs/usage.md"]
 
 [[acceptance]]
