@@ -2,12 +2,12 @@
 id = "01M43YEHCZ9GFBARCGJGDQV589"
 title = "macOS: bash 3.2 prints 'Terminated' for the killed watchdog on a run's stderr; footprint making_room test flakes"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T17:12:39Z"
-updated = "2026-10-04T17:12:39Z"
+updated = "2026-10-04T21:49:42Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/footprint.rs"]
 
 [[acceptance]]
