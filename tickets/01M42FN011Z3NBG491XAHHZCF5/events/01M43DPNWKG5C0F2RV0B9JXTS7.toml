@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [5]
+captured_at = "2026-10-04T12:20:00Z"
+digest = "c27c3434783fbcc8b833222aa9c69d88f731c2f0d1dd782d1389b1cfdc729bfe"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 34324c51-f53a-4980-a5e3-51d9457aa3c4 with nextest profile: default
+    Starting 3 tests across 68 binaries (797 tests skipped)
+        PASS [   0.006s] goway translate::tests::answers_are_parsed_strictly_and_anything_odd_is_doubt
+        PASS [   0.169s] goway::translate doubt_means_no_translation_and_the_first_certain_tier_wins
+        PASS [   1.712s] goway::translate a_run_with_no_certain_equivalent_stops_before_the_command_starts
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.715s] 3 tests run: 3 passed, 797 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/a_run_with_no_certain_equivalent_stops_before_the_command_starts|doubt_means_no_translation_and_the_first_certain_tier_wins|answers_are_parsed_strictly/)'"
+size = 781
+status = "measured"
+tests = ["translate::tests::answers_are_parsed_strictly_and_anything_odd_is_doubt", "doubt_means_no_translation_and_the_first_certain_tier_wins", "a_run_with_no_certain_equivalent_stops_before_the_command_starts"]
+at = "2026-10-04T12:20:00Z"
+actor = "lognd"
+rev = 1

@@ -8,7 +8,7 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T03:34:48Z"
-updated = "2026-10-04T12:19:55Z"
+updated = "2026-10-04T12:20:00Z"
 scope = ["crates/goway/src/translate.rs", "crates/goway/src/runners.rs", "crates/goway/src/project.rs", "crates/goway/src/run.rs", "crates/goway/src/remote.ps1", "crates/goway/src/remote.sh", "crates/goway/tests/translate.rs", "docs/config.md", "docs/design.md", "crates/goway/src/shard.rs", "crates/goway/src/lib.rs"]
 
 [[links]]
@@ -33,7 +33,7 @@ bound = true
 
 [[acceptance]]
 text = "Given any doubt (no candidate, several plausible candidates, a candidate that is a Store stub or a reparse point, a probe that fails or times out, an internal error), when goway would translate, then it does not translate: an unpinned run stays on the laptop's OS, and a run pinned to another OS stops before running anything with what was looked for and why; a wrong or guessed program is never run (false negatives over false positives)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given program resolution on a host, when a candidate is looked up, then only PATH directories are searched (never the current directory and never any path inside the synced work tree), so a repository cannot ship its own python.exe or gradlew.bat look-alike that a bare name resolves to; the resolved absolute path is what runs and what the report records"
