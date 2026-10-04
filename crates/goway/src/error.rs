@@ -100,7 +100,7 @@ pub enum Error {
 fn render_misses(misses: &[crate::resolve::Miss]) -> String {
     use crate::ssh::Failure;
     if misses.is_empty() {
-        return ": no address found for it (no cached address, no `address` in the config, and neither the name nor NAME.local resolved)\n  next: is it switched on, awake and on the same network? check with `goway status`".to_owned();
+        return ": no address found for it (no cached address, no `address` in the config, and neither the name nor NAME.local resolved)\n  next: is it switched on, awake and on the same network? check with `goway status`\n  next: if it is on and nearby, this network may block name discovery (mDNS) between devices; give its address in the config (`address = \"192.0.2.10\"`) or use a network where devices can see each other (details in docs/troubleshooting.md, \"A network that hides the helpers\")".to_owned();
     }
     let mut out = String::from("; tried:");
     for m in misses {
@@ -127,6 +127,48 @@ fn render_misses(misses: &[crate::resolve::Miss]) -> String {
     }
     if misses.iter().all(|m| m.failure == Failure::Unreachable) {
         out.push_str("\n  next: is it switched on, awake and on the same network, with WSL running? check with `goway status`");
+    }
+    out.push_str(&network_hints(misses));
+    out
+}
+
+/// Hints for the two network-shaped failures: a name that resolves to an
+/// address nothing answers on, and two machines answering for one name.
+fn network_hints(misses: &[crate::resolve::Miss]) -> String {
+    use crate::resolve::Source;
+    use crate::ssh::Failure;
+    use std::fmt::Write as _;
+    let looked_up = |m: &&crate::resolve::Miss| {
+        matches!(m.source, Source::Name | Source::Mdns | Source::WindowsMdns)
+    };
+    let mut out = String::new();
+    let hidden = misses
+        .iter()
+        .filter(looked_up)
+        .any(|m| m.failure == Failure::Unreachable);
+    if hidden {
+        out.push_str("\n  next: the name resolved but nothing answered at that address: this looks like a network that isolates devices from each other (guest Wi-Fi client isolation) or a VPN that routes only some addresses; join a network where devices can see each other, or leave the VPN's full-tunnel mode, or put a reachable address in the config (`address = \"192.0.2.10\"`)");
+    }
+    let mut answering: Vec<&str> = misses
+        .iter()
+        .filter(looked_up)
+        .filter(|m| {
+            matches!(
+                m.failure,
+                Failure::HostKeyMismatch | Failure::HostKeyUnknown
+            )
+        })
+        .map(|m| m.address.as_str())
+        .collect();
+    answering.sort_unstable();
+    answering.dedup();
+    if answering.len() >= 2 {
+        let _ = write!(
+            out,
+            "\n  next: {} different machines answered for this name without its pinned key ({}); goway never uses an address whose key it has not confirmed. Rename one machine so the names differ, or put the right address in the config (`address = \"192.0.2.10\"`)",
+            answering.len(),
+            answering.join(", ")
+        );
     }
     out
 }
@@ -185,6 +227,31 @@ mod tests {
         ] {
             assert!(hint.contains(needle), "missing {needle}: {hint}");
         }
+    }
+
+    // frob:ticket 01M42BHTGMABJE3ZAPBZQETW47
+    // frob:tests crates/goway/src/error.rs::network_hints
+    #[test]
+    fn hidden_helpers_and_duplicate_names_get_their_own_hint() {
+        use crate::resolve::{Miss, Source};
+        use crate::ssh::Failure;
+        let miss = |address: &str, source, failure| Miss {
+            address: address.to_owned(),
+            source,
+            failure,
+            detail: String::new(),
+        };
+        let isolated = render_misses(&[miss("192.0.2.5", Source::Mdns, Failure::Unreachable)]);
+        assert!(isolated.contains("isolates devices"), "{isolated}");
+        let cached_only = render_misses(&[miss("192.0.2.5", Source::Cached, Failure::Unreachable)]);
+        assert!(!cached_only.contains("isolates devices"), "{cached_only}");
+        let twins = render_misses(&[
+            miss("192.0.2.5", Source::Name, Failure::HostKeyMismatch),
+            miss("192.0.2.6", Source::Mdns, Failure::HostKeyUnknown),
+        ]);
+        assert!(twins.contains("2 different machines"), "{twins}");
+        assert!(twins.contains("never uses an address"), "{twins}");
+        assert!(render_misses(&[]).contains("may block name discovery"));
     }
 
     #[test]

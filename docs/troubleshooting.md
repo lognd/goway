@@ -315,3 +315,26 @@ slept: its clock stops with the VM. Fix it from Windows with
 only as exact as the round trip is symmetric; it is a warning, never a
 reason for goway to refuse a run.
 </details>
+
+## A network that hides the helpers
+
+goway finds a helper by name (DNS, then mDNS) and confirms it by its
+pinned ssh key. Some networks defeat that. The error says which case
+it looks like; each has the same two exits: use a network where your
+devices can see each other, or put a reachable address in the config
+(`address = "192.0.2.10"` on the host's entry).
+
+- **Client isolation** (guest Wi-Fi, some hotel and office networks):
+  the name resolves but nothing answers at the address. The error says
+  the network "isolates devices from each other". Another network
+  fixes it; so does a VPN or tunnel that both machines join.
+- **A VPN that routes only some addresses**: the same symptom. Leave
+  split-tunnel mode, or add a route for the helper's subnet.
+- **Blocked mDNS**: no address is found at all. The error says the
+  network "may block name discovery". Give the helper's address in the
+  config, or reserve a fixed address for it in the router.
+- **Two machines answering for one name**: the error lists the
+  addresses and says that several machines answered without the pinned
+  key. goway never uses an address whose key it has not confirmed, so
+  it will not run on the wrong machine. Rename one machine so the names
+  differ, or give the right address in the config.

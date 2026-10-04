@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T11:59:13Z"
+digest = "e92b3e14cd10e674a543cf3f6413542a0f809b8236d22258fedc8aac4a301338"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1dcaabd0-c3a3-4f78-9d0d-8be57418e11f with nextest profile: default
+    Starting 2 tests across 67 binaries (780 tests skipped)
+        PASS [   0.126s] goway::remote_ps1 a_starting_runs_work_dir_survives_gc_by_liveness_not_by_age
+        PASS [   0.188s] goway::remote_ps1 probe_reports_the_clock_and_asked_for_tools
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.195s] 2 tests run: 2 passed, 780 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/probe_reports_the_clock_and_asked_for_tools|a_starting_runs_work_dir_survives_gc/)'"
+size = 660
+status = "measured"
+tests = ["a_starting_runs_work_dir_survives_gc_by_liveness_not_by_age", "probe_reports_the_clock_and_asked_for_tools"]
+at = "2026-10-04T11:59:13Z"
+actor = "lognd"
+rev = 1

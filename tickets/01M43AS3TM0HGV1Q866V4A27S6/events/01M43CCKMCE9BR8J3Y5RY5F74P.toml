@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["Given remote.sh's lifeline verb (stops the job's group when stdin ends or is silent for 30s), runner file, done marker and SIGTERM handling, when a Windows helper runs a job, then remote.ps1 has the same lifeline (stops the job object), writes the done file, and the client starts it for Windows hosts too", "Given a Windows helper that would sleep on idle, when a goway job runs there, then remote.ps1 holds SetThreadExecutionState ES_SYSTEM_REQUIRED from the job's own process for exactly the job's lifetime"]
+new = ["Given remote.sh's lifeline verb (stops the job's group when stdin ends or is silent for 30s), runner file, done marker and SIGTERM handling, when a Windows helper runs a job, then remote.ps1 has the same lifeline (stops the job object), writes the done file, and the client starts it for Windows hosts too", "Given a Windows helper that would sleep on idle, when a goway job runs there, then remote.ps1 holds SetThreadExecutionState ES_SYSTEM_REQUIRED from the job's own process for exactly the job's lifetime", "Given the probe and doctor verbs and remote.sh's clock offset and liveness-not-age protection, when remote.ps1 runs them, then probe and doctor report epoch=, probe takes tools:A,B and prints want.TOOL lines, and a starting run's work dir is protected from gc by its creator process or the monotonic clock, not by wall-clock age"]
+moved = [1, 2]
+at = "2026-10-04T11:57:01Z"
+actor = "lognd"
+rev = 1

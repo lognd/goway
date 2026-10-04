@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T11:51:28Z"
+digest = "5899392654ed33cf3dd8cbb1f0d6b80e317589d1d4ccec6d537a8d332327138f"
+exit_code = 0
+inline = '''
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 44s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9f05e50c-a7bf-406d-984b-96dbf93a54ed with nextest profile: default
+    Starting 1 test across 67 binaries (778 tests skipped)
+        PASS [   4.930s] goway::run_local sccache_server_survives_the_removal_of_the_run_that_started_it
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   4.941s] 1 test run: 1 passed, 778 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(sccache_server_survives_the_removal_of_the_run_that_started_it)'"
+size = 758
+status = "measured"
+tests = ["sccache_server_survives_the_removal_of_the_run_that_started_it"]
+at = "2026-10-04T11:51:29Z"
+actor = "lognd"
+rev = 1
