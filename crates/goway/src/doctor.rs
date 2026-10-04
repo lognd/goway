@@ -533,9 +533,91 @@ fn startup_noise_check(facts: &BTreeMap<String, String>) -> Option<Check> {
     })
 }
 
+/// File systems whose locking, permissions or speed make builds unreliable.
+const NETWORK_FS: &[&str] = &[
+    "nfs",
+    "nfs4",
+    "cifs",
+    "smb",
+    "smb2",
+    "smb3",
+    "smbfs",
+    "9p",
+    "drvfs",
+    "afs",
+    "ceph",
+    "glusterfs",
+    "lustre",
+    "vboxsf",
+    "fuse.sshfs",
+    "fuse.s3fs",
+    "fuseblk",
+];
+
+/// A tmp smaller than this is not trusted with build scratch space (3.9 GiB tmpfs seen live).
+const SMALL_TMP: u64 = 8 << 30;
+
+/// The file system of goway's remote root and of the helper's temp directory.
+fn filesystem_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
+    let mut out = Vec::new();
+    let mut push = |name: &str, level, detail: String| {
+        out.push(Check {
+            name: name.to_owned(),
+            explain: None,
+            level,
+            detail,
+            fix: None,
+        });
+    };
+    let num = |k: &str| facts.get(k).and_then(|v| v.parse::<u64>().ok());
+    let flag = |k: &str| facts.get(k).is_some_and(|v| v == "1");
+    if let Some(fs) = facts.get("root_fs") {
+        let free = num("root_free").map_or_else(String::new, |f| {
+            format!(", {} free", crate::status::human_bytes(f))
+        });
+        let (level, note) = if flag("root_noexec") {
+            (
+                Level::Fail,
+                " and mounted noexec, so builds cannot run programs there: set remote_root to a directory on another file system".to_owned(),
+            )
+        } else if flag("root_case_insensitive") {
+            (
+                Level::Warn,
+                " and it ignores case: goway refuses repositories with paths that differ only in case; use a case-sensitive remote_root for those".to_owned(),
+            )
+        } else if NETWORK_FS.contains(&fs.as_str()) {
+            (
+                Level::Warn,
+                " is a network or translated file system: builds are slow and file locks may not hold; set remote_root on a local disk".to_owned(),
+            )
+        } else {
+            (Level::Ok, String::new())
+        };
+        push("goway root", level, format!("file system {fs}{free}{note}"));
+    }
+    let small = num("tmp_size").is_some_and(|s| s < SMALL_TMP);
+    if flag("tmp_noexec") || small {
+        let fs = facts.get("tmp_fs").map_or("unknown", String::as_str);
+        let why = if flag("tmp_noexec") {
+            "mounted noexec"
+        } else {
+            "small"
+        };
+        push(
+            "temp dir",
+            Level::Ok,
+            format!(
+                "the helper's temp directory ({fs}) is {why}; goway keeps its scratch files in its own root instead"
+            ),
+        );
+    }
+    out
+}
+
 /// Disk and sshd hardening.
 fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     let mut out: Vec<Check> = startup_noise_check(facts).into_iter().collect();
+    out.extend(filesystem_checks(facts));
     let mut push = |name: &str, level, detail: String, fix| {
         out.push(Check {
             name: name.to_owned(),
@@ -1965,5 +2047,48 @@ mod tests {
                 .as_ref()
                 .is_some_and(|x| x.command.contains("aarch64-unknown-linux-gnu"))
         }));
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::filesystem_checks
+    #[test]
+    fn doctor_reports_the_root_file_system_and_unusual_temp_dirs() {
+        let mut f = facts(&[]);
+        f.insert("root_fs".to_owned(), "ext4".to_owned());
+        f.insert("root_free".to_owned(), (50u64 << 30).to_string());
+        f.insert("tmp_fs".to_owned(), "tmpfs".to_owned());
+        f.insert("tmp_size".to_owned(), (4u64 << 30).to_string());
+        f.insert("tmp_noexec".to_owned(), "1".to_owned());
+        let checks = filesystem_checks(&f);
+        let root = checks.iter().find(|c| c.name == "goway root").unwrap();
+        assert_eq!(root.level, Level::Ok);
+        assert!(
+            root.detail.contains("ext4") && root.detail.contains("50.0 GiB"),
+            "{}",
+            root.detail
+        );
+        let tmp = checks.iter().find(|c| c.name == "temp dir").unwrap();
+        assert!(
+            tmp.detail.contains("noexec") && tmp.detail.contains("its own root"),
+            "{}",
+            tmp.detail
+        );
+
+        f.insert("root_case_insensitive".to_owned(), "1".to_owned());
+        let c = filesystem_checks(&f);
+        assert!(c.iter().any(|c| c.name == "goway root"
+            && c.level == Level::Warn
+            && c.detail.contains("ignores case")));
+        f.insert("root_noexec".to_owned(), "1".to_owned());
+        assert!(
+            filesystem_checks(&f)
+                .iter()
+                .any(|c| c.name == "goway root" && c.level == Level::Fail)
+        );
+        f.insert("root_noexec".to_owned(), "0".to_owned());
+        f.insert("root_case_insensitive".to_owned(), "0".to_owned());
+        f.insert("root_fs".to_owned(), "nfs4".to_owned());
+        assert!(filesystem_checks(&f).iter().any(|c| c.name == "goway root"
+            && c.level == Level::Warn
+            && c.detail.contains("network")));
     }
 }

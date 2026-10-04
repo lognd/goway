@@ -140,6 +140,22 @@ Caps, all on the laptop side:
 
 Durations use humantime syntax: `90s`, `30m`, `12h`, `7d`.
 
+## Unusual temp and home file systems
+
+goway never uses a helper's `/tmp`: a run's `TMPDIR` is a directory in its
+own work dir under `remote_root` (removed with the work dir), so a small
+tmpfs or a `noexec` `/tmp` cannot break builds. Pass `--env TMPDIR=...` to
+choose another place. `goway doctor` prints the file system type and free
+space of `remote_root`, and says when the helper's temp directory is small
+or `noexec`.
+
+It warns when `remote_root` is on a network or translated file system
+(NFS, SMB, 9p), fails when it is mounted `noexec`, and warns when it ignores
+case (macOS by default). On such a host goway refuses a repository that has
+paths differing only in case, naming each clashing pair, instead of letting
+one file silently overwrite the other. Put `remote_root` on a case-sensitive
+file system to run that repository.
+
 ## Environment variables
 
 | Variable | Effect |

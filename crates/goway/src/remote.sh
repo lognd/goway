@@ -120,6 +120,41 @@ seed_from_sibling() {
   exec 6>&-
 }
 
+# nearest_dir PATH: PATH, or its closest existing ancestor.
+nearest_dir() {
+  local d=$1
+  while [ ! -d "$d" ] && [ "$d" != / ] && [ "$d" != . ]; do d=$(dirname "$d"); done
+  printf '%s' "$d"
+}
+
+# case_insensitive DIR: succeed when the file system under DIR ignores case
+# (macOS APFS by default, exFAT, a Windows drive under WSL, ext4 casefold).
+# GOWAY_ASSUME_CASE_INSENSITIVE=1 forces it (a test hook).
+case_insensitive() {
+  local d probe
+  [ "${GOWAY_ASSUME_CASE_INSENSITIVE:-0}" = 1 ] && return 0
+  d=$(nearest_dir "$1")
+  probe="$d/.goway-Case-$$"
+  : >"$probe" 2>/dev/null || return 1
+  if [ -e "$d/.goway-case-$$" ]; then rm -f "$probe"; return 0; fi
+  rm -f "$probe"
+  return 1
+}
+
+# case_clashes LIST TREE [DELETIONS]: read tar member names from LIST plus
+# the names under TREE (less the NUL-separated paths in DELETIONS, which the
+# sync removes first); print each pair of distinct paths that differ only
+# in case.
+case_clashes() {
+  local gone=/dev/null
+  [ -n "${3:-}" ] && [ -f "$3" ] && { gone=$(mktemp "$(dirname "$2")/gone.XXXXXX"); tr '\0' '\n' <"$3" >"$gone"; }
+  { cat "$1"
+    (cd "$2" 2>/dev/null && find . -mindepth 1 \( -type f -o -type l \) -print | sed 's|^\./||' | { grep -vxF -f "$gone" || true; }); } |
+    sed 's|/$||' | sort -u |
+    awk '{ k = tolower($0); if ((k in seen) && seen[k] != $0) print "  " seen[k] "  and  " $0; else seen[k] = $0 }'
+  [ "$gone" = /dev/null ] || rm -f "$gone"
+}
+
 # manifest ROOT SEED: print the seed tree as NUL-terminated records
 #   type TAB size TAB mtime TAB mode TAB linktarget TAB path
 manifest() {
@@ -202,6 +237,22 @@ receive() {
     mkdir -p "$seed/tree"
     new_generation >"$seed/generation"
   fi
+  # On a case-insensitive file system two paths that differ only in case
+  # would silently become one file: refuse, naming them, before touching
+  # anything. The stream is spooled to a file so it can be listed first.
+  local tarsrc=-
+  if case_insensitive "$root"; then
+    tarsrc="$seed/incoming.tar"
+    cat >"$tarsrc"
+    local clash
+    clash=$(tar -tf "$tarsrc" | case_clashes /dev/stdin "$seed/tree" "$seed/deletions.$attempt")
+    if [ -n "$clash" ]; then
+      rm -f "$tarsrc" "$seed"/deletions.* "$seed"/changes.*
+      printf 'goway-remote: this repository has paths that differ only in case, and this host'"'"'s file system ignores case:\n%s\n' "$clash" >&2
+      printf 'goway-remote: next: use a host with a case-sensitive file system (set remote_root there), or rename one of each pair\n' >&2
+      exit 76
+    fi
+  fi
   printf '%s' "$3" | base64 -d >"$seed/meta.json"
   if [ -n "$attempt" ] && [ -f "$seed/deletions.$attempt" ]; then
     (cd "$seed/tree" && xargs -0 -r rm -f -- <"$seed/deletions.$attempt")
@@ -221,7 +272,8 @@ receive() {
   fi
   rm -f "$seed"/changes.*
   rm -f "$seed/fresh"
-  tar -x --unlink-first --recursive-unlink --no-same-owner -C "$seed/tree" -f -
+  tar -x --unlink-first --recursive-unlink --no-same-owner -C "$seed/tree" -f "$tarsrc"
+  if [ "$tarsrc" != - ]; then rm -f "$tarsrc"; fi
   find "$seed/tree" -mindepth 1 -depth -type d -empty -delete
   if [ -n "${5:-}" ]; then
     work="$root/work/$5"
@@ -873,7 +925,7 @@ cmake_configure() {
   printf '@@rc %s\n' "$rc"
   for f in stderr:cfg.err trace.jsonl:trace.json; do
     local name=${f%%:*} file="$work/${f#*:}" body
-    body=$(mktemp)
+    body=$(mktemp "$work/body.XXXXXX")
     case "$name" in
       stderr) tail -c 65536 "$file" >"$body" 2>/dev/null || true ;;
       *) grep -E '^\{"version"|"cmd":"(cmake_minimum_required|project|find_package|FetchContent_Declare|FetchContent_MakeAvailable|FetchContent_Populate|pkg_check_modules|pkg_search_module|CPMAddPackage|CPMFindPackage|CPMDeclarePackage|add_subdirectory)"' "$file" 2>/dev/null | head -c "$CMAKE_MAX_FILE" >"$body" || true ;;
@@ -1079,10 +1131,19 @@ run() {
   # Settings that already exist win over goway's defaults: first the
   # remote environment and ~/.cargo/env, then the user's --env values;
   # goway only fills in what is still unset.
+  # Scratch files (compilers, test harnesses, build scripts) go under the
+  # run's own work dir, never to the helper's /tmp: that may be a small
+  # tmpfs, or mounted noexec so that build scripts cannot run. Only an
+  # explicit --env TMPDIR=... wins; the helper's own TMPDIR does not.
+  unset TMPDIR
   if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; fi
   if [ -f "$work/env" ]; then
     while IFS= read -r -d '' kv; do export "$kv"; done <"$work/env"
     rm -f "$work/env"
+  fi
+  if [ -z "${TMPDIR:-}" ]; then
+    mkdir -p "$work/tmp"
+    export TMPDIR="$work/tmp"
   fi
 
   # A GPU run holds one GPU slot until this shell ends (fd 5). It waits for
@@ -1709,8 +1770,27 @@ want_version() {
 # needs, names checked here as well as by the client) is reported as
 # want.TOOL=<version line>, empty when missing. User-level installs that
 # goway's fixes make (~/.local/bin) count.
+# fs_facts PREFIX DIR: print PREFIX_fs (file system type), PREFIX_free and
+# PREFIX_size (bytes) and PREFIX_noexec (1 when a script placed there will
+# not run) for DIR, or its nearest existing ancestor.
+fs_facts() {
+  local d probe type free size noexec=0
+  d=$(nearest_dir "$2")
+  type=$(df -T "$d" 2>/dev/null | tail -1 | awk '{print $2}' || true)
+  free=$(df -B1 --output=avail "$d" 2>/dev/null | tail -1 | tr -d ' ' || true)
+  size=$(df -B1 --output=size "$d" 2>/dev/null | tail -1 | tr -d ' ' || true)
+  probe="$d/.goway-exec-$$"
+  if printf '#!/bin/sh\nexit 0\n' >"$probe" 2>/dev/null; then
+    chmod +x "$probe" 2>/dev/null || true
+    "$probe" >/dev/null 2>&1 || noexec=1
+    rm -f "$probe"
+  fi
+  printf '%s_fs=%s\n%s_free=%s\n%s_size=%s\n%s_noexec=%s\n' "$1" "${type:-unknown}" "$1" "${free:-}" "$1" "${size:-}" "$1" "$noexec"
+}
+
 doctor() {
-  local t v pa out
+  local t v pa out root
+  root=$(root_dir "$1")
   shift
   PATH="$HOME/.local/bin:$PATH"
   if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; printf 'cargo_env=yes\n'; else printf 'cargo_env=no\n'; fi
@@ -1758,6 +1838,9 @@ doctor() {
   fi
   printf 'password_auth=%s\n' "${pa:-default-yes}"
   printf 'home=%s\n' "$HOME"
+  fs_facts root "$root"
+  fs_facts tmp "${TMPDIR:-/tmp}"
+  if case_insensitive "$root"; then printf 'root_case_insensitive=1\n'; else printf 'root_case_insensitive=0\n'; fi
   static_facts
   # Whether a cargo home existed before any goway fix (so uninstall never removes it).
   if [ -e "${CARGO_HOME:-$HOME/.cargo}" ]; then printf 'cargo_home=1\n'; else printf 'cargo_home=0\n'; fi
