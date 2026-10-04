@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T05:55:31Z"
+digest = "abbc79da02e659885dadf59ab71462f0e8f69d741150e660fd4e55015cf94586"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 37.58s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1073f18c-9566-4d67-b3d8-b044a5452d35 with nextest profile: default
+    Starting 1 test across 62 binaries (720 tests skipped)
+        PASS [   5.940s] goway::user_tool_path user_level_tool_directories_are_found_without_startup_files
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   5.944s] 1 test run: 1 passed, 720 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "user_level_tool_directories_are_found"
+size = 760
+status = "measured"
+tests = ["user_level_tool_directories_are_found_without_startup_files"]
+at = "2026-10-04T05:55:31Z"
+actor = "lognd"
+rev = 1
