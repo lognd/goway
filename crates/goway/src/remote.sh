@@ -52,7 +52,7 @@ mark_root() {
   for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
     [ -e "$e" ] || [ -L "$e" ] || continue
     case "${e##*/}" in
-      work | seed | cache | gpu | gc.lock | evicted.log | .goway-root) ;;
+      work | seed | cache | gpu | footprints | gc.lock | evicted.log | .goway-root) ;;
       *) die "$1 exists, is not empty and is not goway state; pick a dedicated remote_root" ;;
     esac
   done
@@ -1112,11 +1112,12 @@ run() {
   shift 10
   # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
   # framework detection of the command's program (see shard_run).
-  local detect="" gpu_per="" verify="" fresh=0 attempt=1 level=changed
+  local detect="" gpu_per="" verify="" fresh=0 attempt=1 level=changed room=""
   while [ $# -gt 0 ] && [ "$1" != "--" ]; do
     case "$1" in
       shard-detect:[0-9]*:[0-9]*:[A-Za-z0-9]*) detect=${1#shard-detect:} ;;
       gpu-slots:[0-9]*) gpu_per=${1#gpu-slots:} ;;
+      room:[0-9]*:[0-9]*) room=${1#room:} ;;
       verify:[12]:changed | verify:[12]:all | verify:[12]:changed:fresh | verify:[12]:all:fresh)
         # The attempt number is goway's explicit argument, never read from
         # the environment or from anything the helper reports.
@@ -1223,6 +1224,7 @@ run() {
     slot_wipe "$slot" "$cache"
     printf 'goway: building slot %s from scratch (attempt %s)\n' "$slot" "$attempt" >&2
   fi
+  make_room "$root" "$cache" "$slot" "$repo_id" "$room" "$t_max"
   sync_slot "$work/tree" "$rundir" "$work" "$keepignored" "$keepb64" "$(cat "$work/seed" 2>/dev/null || true)" "$cache/target-$slot"
   # The snapshot has done its job; its links hold no data of their own.
   rm -rf "$work/tree"
@@ -1338,6 +1340,7 @@ run() {
     comm -z -12 "$work/all.lnk" "$work/untouched" >"$work/after.lnk"
     verify_gate "$work" 2 "$rundir" "$work/after.reg" "$work/after.lnk" || verify_failed 2
   fi
+  if [ "$rc" -ne 0 ] && [ -n "$ttls" ]; then disk_full_note "$root" "$cache" "$slot" "$repo_id" "$room" "$t_max" "$t_minfree"; fi
   if [ "$keep" = 1 ]; then cp -a --reflink=auto "$rundir" "$work/tree"; fi
   if [ "$keep" != 1 ]; then remove_work "$work"; fi
   # Cheap automatic gc of expired entries, detached so it never delays
@@ -1345,7 +1348,8 @@ run() {
   if [ -n "$ttls" ]; then
     # At most one automatic gc per root (gc.lock); it only ever removes
     # files and never starts a goway run.
-    (trap '' HUP; flock -n 8 || exit 0
+    (trap '' HUP; footprint_record "$root" "$repo_id" "$(footprint_measure "$cache" "$slot")"
+     flock -n 8 || exit 0
      gc "$root_arg" "$(date +%s)" "$t_cache" "$t_orphan" "$t_kept" apply "" "" "$t_max" "$t_minfree" log) \
       8>"$root/gc.lock" </dev/null >/dev/null 2>&1 5>&- 7>&- 9>&- &
   fi
@@ -1509,15 +1513,16 @@ idle_secs() {
   return 0
 }
 
-# probe ROOT [disk] [budget:MAX:MIN_FREE] [static] [owner]: key=value facts for scheduling and status.
+# probe ROOT [disk] [budget:MAX:MIN_FREE] [static] [owner] [tools:A,B]: key=value facts for scheduling and status.
+# "tools:A,B" adds want.TOOL=<version line> for each tool (a run refreshing its version cache).
 # RAM is always reported; "static" adds the rarely changing hardware facts;
 # "owner" adds power= and idle_secs= when they can be read (absent: unknown).
 probe() {
-  local root jobs=0 l a want_disk=0 want_static=0 want_owner=0 budget=""
+  local root jobs=0 l a want_disk=0 want_static=0 want_owner=0 budget="" tools="" room=1073741824:10
   root=$(root_dir "$1")
   shift
   for a in "$@"; do
-    case "$a" in disk) want_disk=1 ;; static) want_static=1 ;; owner) want_owner=1 ;; budget:[0-9]*:[0-9]*) budget=${a#budget:} ;; esac
+    case "$a" in room:[0-9]*:[0-9]*) room=${a#room:} ;; disk) want_disk=1 ;; static) want_static=1 ;; owner) want_owner=1 ;; budget:[0-9]*:[0-9]*) budget=${a#budget:} ;; tools:*) tools=${a#tools:} ;; esac
   done
   if [ "$IS_DARWIN" = 1 ]; then
     mem_darwin
@@ -1527,6 +1532,8 @@ probe() {
   if [ "$want_static" = 1 ]; then static_facts; fi
   printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(machine)" "$(uname -n)" "$(cores)"
   printf 'os=%s\n' "$(uname -s | tr '[:upper:]' '[:lower:]')"
+  # The host's wall clock in whole seconds; goway computes the clock offset from it.
+  printf 'epoch=%s\n' "$(date +%s)"
   if [ "$IS_DARWIN" = 1 ]; then
     # "{ 1.23 1.45 1.67 }"
     read -r _ l1 l5 l15 _ < <(sysctl -n vm.loadavg)
@@ -1542,11 +1549,40 @@ probe() {
   fi
   printf 'jobs=%s\n' "$jobs"
   if [ "$want_owner" = 1 ]; then power_state; idle_secs; fi
+  probe_footprints "$root" "$room" "$want_disk"
+  if [ -n "$tools" ]; then
+    # shellcheck disable=SC2086 # the comma-separated names are split on purpose
+    (IFS=,; want_facts $tools)
+  fi
   if [ "$want_disk" = 1 ]; then
     printf 'disk_used=%s\n' "$(du -sb "$root" 2>/dev/null | cut -f1 || true)"
     printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
     if [ -n "$budget" ]; then
       printf 'disk_max=%s\ndisk_min_free=%s\n' "$(budget_max "$HOME" "${budget%%:*}")" "${budget#*:}"
+    fi
+  fi
+}
+
+# probe_footprints ROOT ROOM WANT_DISK: the recorded footprints as
+# footprint.ID=BYTES. When any exist, also the free space (unless the probe
+# prints it anyway) and, only when the biggest footprint plus margin does not
+# fit in it, the bytes goway holds (the most eviction could free).
+probe_footprints() {
+  local f v max=0 free
+  for f in "$1"/footprints/*; do
+    [ -f "$f" ] || continue
+    v=$({ cat "$f" 2>/dev/null || true; } | head -1)
+    case "$v" in "" | *[!0-9]*) continue ;; esac
+    printf 'footprint.%s=%s\n' "${f##*/}" "$v"
+    if [ "$v" -gt "$max" ]; then max=$v; fi
+  done
+  [ "$max" -gt 0 ] || return 0
+  free=$(df -B1 --output=avail "$(nearest_dir "$1")" 2>/dev/null | tail -1 | tr -d ' ')
+  [ -n "$free" ] || return 0
+  if [ "$3" != 1 ]; then
+    printf 'disk_free=%s\n' "$free"
+    if [ "$free" -lt $((max + $(room_margin "$2" "$max"))) ]; then
+      printf 'disk_used=%s\n' "$(du -sb "$1" 2>/dev/null | cut -f1 || true)"
     fi
   fi
 }
@@ -1687,6 +1723,95 @@ budget_max() {
   if [ $((total / 5)) -lt 53687091200 ]; then printf '%s' $((total / 5)); else printf '%s' 53687091200; fi
 }
 
+# Footprints: the peak bytes a repository has occupied on this host (slot
+# tree, target dir and the shared compiler caches), kept in one small file per
+# repository id under footprints/ (neither gc nor eviction lists it). The probe reports them; goway's
+# scheduler skips a host that cannot hold the next run, and `run` makes room
+# first. ROOM is "FLOOR:PERCENT" (goway's margin rule: the larger of FLOOR
+# bytes and PERCENT of the footprint).
+footprint_file() { printf '%s/footprints/%s' "$1" "$2"; }
+
+# footprint_of ROOT REPO_ID: the recorded peak, 0 when none.
+footprint_of() {
+  local v
+  v=$({ cat "$(footprint_file "$1" "$2")" 2>/dev/null || true; } | head -1)
+  case "$v" in "" | *[!0-9]*) v=0 ;; esac
+  printf '%s' "$v"
+}
+
+# footprint_measure CACHE SLOT: bytes of the slot's tree and target dir and of
+# the repository's shared compiler caches (0 when none exist).
+footprint_measure() {
+  local d list=()
+  for d in "$1/tree-$2" "${CARGO_TARGET_DIR:-$1/target-$2}" "$1/sccache" "$1/ccache" "$1/cpm"; do
+    if [ -e "$d" ]; then list+=("$d"); fi
+  done
+  if [ ${#list[@]} -eq 0 ]; then printf 0; return 0; fi
+  { du -sbc "${list[@]}" 2>/dev/null || true; } | tail -1 | cut -f1
+}
+
+# footprint_record ROOT REPO_ID BYTES: keep the larger of BYTES and the recorded peak.
+footprint_record() {
+  local f old
+  case "$2" in "" | *[!A-Za-z0-9._-]*) return 0 ;; esac
+  case "$3" in "" | *[!0-9]*) return 0 ;; esac
+  [ "$3" -gt 0 ] || return 0
+  old=$(footprint_of "$1" "$2")
+  [ "$3" -gt "$old" ] || return 0
+  f=$(footprint_file "$1" "$2")
+  mkdir -p "${f%/*}" 2>/dev/null || return 0
+  printf '%s\n' "$3" >"$f.tmp.$$" 2>/dev/null && mv -f "$f.tmp.$$" "$f" 2>/dev/null || rm -f "$f.tmp.$$"
+  return 0
+}
+
+# room_margin ROOM BYTES: the margin to keep free on top of a footprint of BYTES.
+room_margin() {
+  local floor=${1%%:*} pct=${1#*:} m
+  m=$(($2 * pct / 100))
+  if [ "$m" -lt "$floor" ]; then m=$floor; fi
+  printf '%s' "$m"
+}
+
+# make_room ROOT CACHE SLOT REPO_ID ROOM MAX_DISK: before the command starts,
+# when the disk has less free than this repository's footprint plus margin
+# (less what its slot already holds), evict least recently used unlocked
+# entries to make it, and say so.
+make_room() {
+  local root=$1 cache=$2 slot=$3 repo_id=$4 room=$5 fp own need free before
+  [ -n "$room" ] || return 0
+  fp=$(footprint_of "$root" "$repo_id")
+  [ "$fp" -gt 0 ] || return 0
+  own=$(footprint_measure "$cache" "$slot")
+  need=$((fp + $(room_margin "$room" "$fp") - own))
+  [ "$need" -gt 0 ] || return 0
+  free=$(df -B1 --output=avail "$root" 2>/dev/null | tail -1 | tr -d ' ')
+  [ "${free:-0}" -lt "$need" ] || return 0
+  before=$GC_FREED
+  evict "$root" "$(date +%s)" apply "" "${6:-0}" "$need" "" exact
+  printf 'goway: this repository needs about %s on this host and %s was free; the disk budget freed %s first\n' \
+    "$(human "$need")" "$(human "${free:-0}")" "$(human $((GC_FREED - before)))" >&2
+}
+
+# disk_full_note ROOT CACHE SLOT REPO_ID ROOM MAX_DISK MIN_FREE: after a failed
+# command, when the disk is (nearly) full, say so in plain words: what the
+# repository needs and what is free, what the disk budget freed, and what to
+# ask for instead of the compiler's or linker's own error.
+disk_full_note() {
+  local root=$1 cache=$2 slot=$3 repo_id=$4 room=$5 free total fp need before freed gib=1073741824
+  free=$(df -B1 --output=avail "$root" 2>/dev/null | tail -1 | tr -d ' ')
+  total=$(df -B1 --output=size "$root" 2>/dev/null | tail -1 | tr -d ' ')
+  [ -n "$free" ] && [ -n "$total" ] || return 0
+  if [ "$free" -ge "$gib" ] && [ $((free * 50)) -ge "$total" ]; then return 0; fi
+  footprint_record "$root" "$repo_id" "$(footprint_measure "$cache" "$slot")"
+  fp=$(footprint_of "$root" "$repo_id")
+  need=$((fp + $(room_margin "${room:-1073741824:10}" "$fp")))
+  before=$GC_FREED
+  evict "$root" "$(date +%s)" apply "" "${6:-0}" "${7:-0}" ""
+  freed=$((GC_FREED - before))
+  printf 'goway: this host ran out of disk (%s free of %s). This repository needs at least %s here; the disk budget freed %s afterwards. Run it again with --needs disk>=%sG, or on another host.\n' \
+    "$(human "$free")" "$(human "$total")" "$(human "$need")" "$(human "$freed")" "$(((need + gib - 1) / gib))" >&2
+}
+
 # evict_slot CACHE_DIR K NOW MODE REPO: evict one build slot (its tree-K and
 # target-K) of a per-repository cache when its lock is free. The slot's age
 # is its lock file's mtime, read after the lock is held.
@@ -1718,7 +1843,7 @@ evict_slot() {
   exec 20>&-
 }
 
-# evict ROOT NOW MODE REPO MAX_DISK MIN_FREE [log]: when goway's root is over
+# evict ROOT NOW MODE REPO MAX_DISK MIN_FREE [log [exact]]: when goway's root is over
 # its budget (MAX_DISK bytes, 0 = auto) or the disk has less than MIN_FREE
 # bytes free, evict unlocked entries, least recently used first (build slots,
 # then work dirs, seeds, whole repository caches at the same age), until both
@@ -1740,7 +1865,8 @@ evict() {
   # and would empty goway's root after every run: cap it at a quarter of the disk.
   total=$(df -B1 --output=size "$root" 2>/dev/null | tail -1 | tr -d ' ')
   minfree=$6
-  if [ $((${total:-0} / 4)) -lt "$minfree" ]; then minfree=$((${total:-0} / 4)); fi
+  # "exact" (a run making room for itself) keeps the whole figure.
+  if [ "${8:-}" != exact ] && [ $((${total:-0} / 4)) -lt "$minfree" ]; then minfree=$((${total:-0} / 4)); fi
   need=$((used - max))
   if [ $((minfree - free)) -gt "$need" ]; then need=$((minfree - free)); fi
   [ "$need" -gt 0 ] || return 0
@@ -1862,6 +1988,19 @@ fs_facts() {
   printf '%s_fs=%s\n%s_free=%s\n%s_size=%s\n%s_noexec=%s\n' "$1" "${type:-unknown}" "$1" "${free:-}" "$1" "${size:-}" "$1" "$noexec"
 }
 
+# want_facts TOOL...: want.TOOL=<version line> for each safe tool name, empty when missing.
+want_facts() {
+  local t
+  for t in "$@"; do
+    case "$t" in '' | *[!A-Za-z0-9._+-]*) continue ;; esac
+    if command -v "$t" >/dev/null 2>&1; then
+      printf 'want.%s=%s\n' "$t" "$(want_version "$t")"
+    else
+      printf 'want.%s=\n' "$t"
+    fi
+  done
+}
+
 doctor() {
   local t v pa out root
   root=$(root_dir "$1")
@@ -1871,6 +2010,7 @@ doctor() {
   # Names only: a proxy URL may carry credentials, so values never leave the host.
   printf 'proxy_vars=%s\n' "$({ env | sed -n 's/=.*//p' | grep -iE '^(https?|all|no)_proxy$' | sort -u | paste -sd, - ; } 2>/dev/null || true)"
   printf 'kernel=%s\n' "$(uname -s)"
+  printf 'epoch=%s\n' "$(date +%s)"
   if [ "$IS_DARWIN" = 1 ]; then
     # Which tools still resolve to the BSD versions (no --version, or not GNU).
     v=""
@@ -1892,14 +2032,7 @@ doctor() {
       printf 'tool.%s=\n' "$t"
     fi
   done
-  for t in "$@"; do
-    case "$t" in '' | *[!A-Za-z0-9._+-]*) continue ;; esac
-    if command -v "$t" >/dev/null 2>&1; then
-      printf 'want.%s=%s\n' "$t" "$(want_version "$t")"
-    else
-      printf 'want.%s=\n' "$t"
-    fi
-  done
+  want_facts "$@"
   if [ "$IS_DARWIN" != 1 ]; then
     printf 'os=%s\n' "$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}")"
   fi
@@ -1959,7 +2092,7 @@ purge() {
     SCCACHE_SERVER_UDS="$s" sccache --stop-server >/dev/null 2>&1 || true
   done
   # Only goway's own entries: a root that also holds foreign files keeps them.
-  rm -rf "$root/work" "$root/seed" "$root/cache" "$root/gpu" "$root/gc.lock" "$root/evicted.log"
+  rm -rf "$root/work" "$root/seed" "$root/cache" "$root/gpu" "$root/footprints" "$root/gc.lock" "$root/evicted.log"
   rm -f "$root/.goway-root"
   rmdir "$root" 2>/dev/null || true
   printf 'removed\n'

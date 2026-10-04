@@ -1,0 +1,12 @@
+kind = "create"
+title = "The probe verb reports the host epoch"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 1
+scope = ["crates/goway/src/remote.sh"]
+acceptance = ["Given the probe verb, when it runs on a Linux or macOS host, then it prints epoch=SECONDS since the Unix epoch"]
+body = "Split from ~TGZTRVF because remote.sh was leased. Adds epoch=SECONDS to the probe output; remote.ps1 mirrors it (lane A)."
+at = "2026-10-04T06:42:54Z"
+actor = "lognd"
+rev = 1

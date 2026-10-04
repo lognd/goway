@@ -285,3 +285,33 @@ connections per helper (a few runs each). When all are busy, a run
 connects on its own, quietly. A leftover socket from a connection that
 ended is removed and replaced automatically. Nothing to do.
 </details>
+
+<details><summary>"selinux" or "apparmor" warning in `goway doctor`</summary>
+
+A security module on the helper denied one of the programs goway runs
+jobs with (`setsid`, `flock`, the shell or goway itself). The run then
+fails with a plain "Permission denied". doctor reads the latest matching
+denial from the audit log (`ausearch`) or the kernel log (`dmesg`), names
+the denied program and domain or profile, and prints the change to make:
+`restorecon` or a reviewed `audit2allow` policy module for SELinux, a
+local override plus `apparmor_parser -r` for AppArmor. Both logs need
+root on many systems, so no warning does not prove there is no denial;
+run the printed `ausearch` command with sudo to be sure. goway never
+changes a security policy itself.
+</details>
+
+<details><summary>"clock is N s ahead of / behind this machine"</summary>
+
+The helper's wall clock differs from your main laptop's by more than two
+seconds. goway measures this on every probe: the helper reports its time,
+and goway subtracts your own time at the midpoint of the round trip.
+`goway status` and `goway doctor` warn about offsets over 2 s. A skewed
+clock makes build tools see files as newer or older than they are
+(endless rebuilds, or stale results). The usual cause is a WSL helper that
+slept: its clock stops with the VM. Fix it from Windows with
+`wsl --shutdown` (WSL restarts on next use), or on the helper with
+`sudo hwclock -s`. On a Windows helper, resync the time (Settings, Time
+& language, Sync now, or `w32tm /resync` as administrator). The offset is
+only as exact as the round trip is symmetric; it is a warning, never a
+reason for goway to refuse a run.
+</details>

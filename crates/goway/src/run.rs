@@ -217,7 +217,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     let env_bytes = encode_env(&args.env)?;
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
-    let (selection, rule) = project::selection_for(
+    let (mut selection, rule) = project::selection_for(
         &repo.root,
         &args.command,
         &args.needs,
@@ -227,6 +227,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     if let Some(r) = &rule {
         renderer.note(r.describe());
     }
+    selection.repo_id = Some(repo.id.clone());
     if args.host.is_none() {
         project::warn_cross_os(
             renderer,
@@ -238,7 +239,31 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     }
     let with_git = args.with_git || project::wants_git(&repo.root)?;
     let mut state = State::load(&env.paths.state_file())?;
-    let (host, found, probe) = pool::choose(
+    let queue = crate::queue::Queue::new(env.paths);
+    let wait = pool::Wait {
+        queue: &queue,
+        limit: args.wait,
+        poll: pool::DEFAULT_POLL,
+        note: &|line| renderer.note(line),
+    };
+    crate::drift::ask_where_stale(
+        &mut state,
+        &config
+            .hosts
+            .iter()
+            .map(|h| h.name.clone())
+            .collect::<Vec<_>>(),
+        &repo.id,
+        crate::state::now_secs(),
+        || match crate::doctor::project_needs() {
+            Ok(needs) => needs.probe_names(),
+            Err(e) => {
+                tracing::debug!(error = %e, "cannot read the project needs; no versions asked");
+                Vec::new()
+            }
+        },
+    );
+    let (host, found, probe, claim) = pool::choose_queued(
         &config,
         &selection,
         &mut state,
@@ -246,11 +271,21 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         env.lookup,
         env.prober,
         args.host.as_deref(),
+        &wait,
     )?;
+    crate::drift::record_probed(
+        &mut state,
+        &host.name,
+        crate::state::now_secs(),
+        &probe.facts.tools,
+    );
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host address");
     }
     if found.is_local() {
+        if let Some(c) = &claim {
+            c.started();
+        }
         return local::run_here(
             env,
             renderer,
@@ -275,7 +310,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
 
     let remote_root = config.defaults.remote_root.as_str();
     let now = crate::state::now_secs();
-    // From goway doctor's cache; never probed, so a run never waits for it.
+    // From the cache (goway doctor, or this run's own probe when it was stale); never probed separately.
     let versions = crate::drift::for_run(&state, &host.name, &repo.id, now);
     if let Some(note) = &versions.note {
         renderer.note(note);
@@ -313,6 +348,9 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
 
         let mut extra = gpu_words(&selection, &config, &host);
         extra.push(verify.word());
+        if found.kind == crate::transport::Kind::Unix {
+            extra.push(crate::footprint::room_word());
+        }
         let priority = pool::priority_word(&config, &host, &found, &probe);
         if let Some(note) = pool::owner_note(&host.name, &probe, priority) {
             renderer.note(format_args!("{note}"));
@@ -351,6 +389,9 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
             manifest: &synced.manifest,
             git_overlay: synced.git_overlay.as_deref(),
         };
+        if let Some(c) = &claim {
+            c.started();
+        }
         let done = std::sync::atomic::AtomicBool::new(false);
         let (streamed, gate_report) = std::thread::scope(|s| {
             let watcher = s.spawn(|| gate.drive(&done));

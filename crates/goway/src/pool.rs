@@ -12,12 +12,14 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
 use crate::facts::{self, Facts};
 use crate::local;
 use crate::needs::Selection;
+use crate::queue::{Claim, Queue, Snapshot, Ticket};
 use crate::remote::Call;
 use crate::resolve::{self, Found, Lookup, Prober, Source};
 use crate::ssh::KeyPolicy;
@@ -42,6 +44,8 @@ pub struct Probe {
     pub disk_free: Option<u64>,
     /// The host's disk budget for goway in bytes (status only).
     pub disk_max: Option<u64>,
+    /// Peak disk footprint of each repository built there, by repository id (see [`crate::footprint`]).
+    pub footprints: BTreeMap<String, u64>,
     /// RAM, GPUs and other facts (see [`crate::facts`]).
     pub facts: Facts,
 }
@@ -77,6 +81,7 @@ pub fn parse_probe(text: &str) -> Option<Probe> {
         disk_used: kv.get("disk_used").and_then(|v| v.parse().ok()),
         disk_free: kv.get("disk_free").and_then(|v| v.parse().ok()),
         disk_max: kv.get("disk_max").and_then(|v| v.parse().ok()),
+        footprints: crate::footprint::parse(&kv),
         facts: facts::parse_live(
             &kv.iter()
                 .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
@@ -225,6 +230,15 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
             let limit = p.host.job_limit(probe.cores);
             if probe.jobs >= limit {
                 tracing::info!(host = %p.host.name, jobs = probe.jobs, limit, "host at its job limit; skipped");
+                return None;
+            }
+            let reserve = config.job_mem_of(p.host);
+            if reserve > 0 && probe.facts.mem_avail.is_some_and(|a| a < reserve) {
+                tracing::info!(host = %p.host.name, avail = ?probe.facts.mem_avail, reserve, "host has less free memory than one job reserves; skipped");
+                return None;
+            }
+            if let Some(why) = room_shortage(selection, probe) {
+                tracing::info!(host = %p.host.name, %why, "host has no disk room for this repository; skipped");
                 return None;
             }
             let per_core = probe.load[0] / f64::from(probe.cores.max(1));
@@ -430,11 +444,14 @@ pub fn choose_many(
 
 /// The remote command line that probes a Unix host (also this machine).
 pub fn probe_command(config: &Config, disk: bool, statics: bool) -> String {
-    probe_call(config, disk, statics).bash()
+    probe_call(config, disk, statics, &[]).bash()
 }
 
 /// The call that probes a host, whatever it speaks.
-pub fn probe_call(config: &Config, disk: bool, statics: bool) -> Call {
+///
+/// A non-empty `tools` adds the word `tools:A,B`: the host also reports the
+/// versions of those tools (names with other characters are left out).
+pub fn probe_call(config: &Config, disk: bool, statics: bool, tools: &[String]) -> Call {
     let root = config.defaults.remote_root.as_str();
     let mut args = vec![root];
     let budget;
@@ -449,6 +466,20 @@ pub fn probe_call(config: &Config, disk: bool, statics: bool) -> Call {
     }
     if !config.defaults.owner_idle.is_zero() {
         args.push("owner");
+    }
+    let wanted = tools
+        .iter()
+        .filter(|t| {
+            !t.is_empty()
+                && t.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "._+-".contains(c))
+        })
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join(",");
+    let wanted = format!("tools:{wanted}");
+    if wanted.len() > "tools:".len() {
+        args.push(&wanted);
     }
     Call::new("probe", &args)
 }
@@ -465,16 +496,22 @@ pub fn probe_one(
     let key = host.name.to_ascii_lowercase();
     let now = crate::state::now_secs();
     let statics = state.refresh_facts || facts::stale(state.facts.get(&key), now);
-    let found = resolve::resolve_call(
-        config,
-        host,
-        state,
-        lookup,
-        prober,
-        KeyPolicy::Strict,
-        &probe_call(config, disk, statics),
-    )?;
-    let probe = complete_probe(&host.name, &found.output, state, now)?;
+    let call = probe_call(config, disk, statics, state.tools_to_probe(&host.name, now));
+    let (found, sent, rtt) = crate::facts::clock::timed(|| {
+        resolve::resolve_call(
+            config,
+            host,
+            state,
+            lookup,
+            prober,
+            KeyPolicy::Strict,
+            &call,
+        )
+    });
+    let found = found?;
+    let mut probe = complete_probe(&host.name, &found.output, state, now)?;
+    // frob:ticket 01M42TD5V6H043JYBGK591BBA2
+    probe.facts.clock_offset_ms = crate::facts::clock::measure(&found.output, sent, rtt);
     Ok((found, probe))
 }
 
@@ -608,28 +645,329 @@ pub fn choose(
         ));
     }
     let local_host = local::host(config);
-    let mut results = probe_all(config, state, lookup, prober, selection.wants_disk());
-    if config.local_in_pool() {
-        push_local(config, &local_host, jobs, state, selection, &mut results);
-    }
+    let mut results = probe_pool(config, &local_host, selection, state, jobs, lookup, prober);
     match pick_for(config, selection, &results) {
         Some(i) => {
             let chosen = results.swap_remove(i);
             let (found, probe) = chosen.result?;
             Ok((chosen.host.clone(), found, probe))
         }
-        None if config.local_fallback() && results.iter().all(|p| p.result.is_err()) => {
-            tracing::warn!("no helper is reachable; falling back to this machine");
-            let chosen = local::candidate(
-                config,
-                jobs,
-                state,
-                selection.wants_disk(),
-                Source::Fallback,
-            )?;
-            needs_met(selection, chosen)
+        None => no_pick(config, selection, state, jobs, &results),
+    }
+}
+
+/// Probe every helper (and this machine when it is pooled).
+fn probe_pool<'a>(
+    config: &'a Config,
+    local_host: &'a HostConfig,
+    selection: &Selection,
+    state: &mut State,
+    jobs: &Path,
+    lookup: &(dyn Lookup + Sync),
+    prober: &(dyn Prober + Sync),
+) -> Vec<Probed<'a>> {
+    let mut results = probe_all(config, state, lookup, prober, selection.wants_disk());
+    if config.local_in_pool() {
+        push_local(config, local_host, jobs, state, selection, &mut results);
+    }
+    results
+}
+
+/// What to do when no host can take the run: fall back to this machine when
+/// no helper answers at all and `[local] fallback` is on, else the error.
+fn no_pick(
+    config: &Config,
+    selection: &Selection,
+    state: &mut State,
+    jobs: &Path,
+    results: &[Probed<'_>],
+) -> Result<(HostConfig, Found, Probe)> {
+    if config.local_fallback() && results.iter().all(|p| p.result.is_err()) {
+        tracing::warn!("no helper is reachable; falling back to this machine");
+        let chosen = local::candidate(
+            config,
+            jobs,
+            state,
+            selection.wants_disk(),
+            Source::Fallback,
+        )?;
+        return needs_met(selection, chosen);
+    }
+    Err(none_usable(selection, results))
+}
+
+/// How a run waits for a host that has no room yet (see [`crate::queue`]).
+pub struct Wait<'a> {
+    /// The local queue of runs.
+    pub queue: &'a Queue,
+    /// The longest to wait for a host to qualify; zero fails at once.
+    pub limit: Duration,
+    /// How often a waiter near the front probes the hosts again.
+    pub poll: Duration,
+    /// Where progress notes go (one line each).
+    pub note: &'a dyn Fn(&str),
+}
+
+/// The default `--wait`: five minutes.
+pub const DEFAULT_WAIT: Duration = Duration::from_mins(5);
+
+/// The default time between probe rounds of a waiting run.
+pub const DEFAULT_POLL: Duration = Duration::from_secs(5);
+
+/// Only this many waiters at the front of the queue probe the hosts, so the
+/// probe rate stays bounded however large the wave is.
+pub const PROBING_WAITERS: usize = 3;
+
+/// How often a waiter looks at the local queue (no ssh involved).
+const LOCAL_POLL: Duration = Duration::from_millis(250);
+
+/// Count the claims not yet visible in a probe as jobs and as memory spoken for.
+fn apply_pending(config: &Config, pending: &BTreeMap<String, u32>, results: &mut [Probed<'_>]) {
+    for p in results {
+        let reserve = config.job_mem_of(p.host);
+        let Some(n) = pending.get(&p.host.name.to_ascii_lowercase()).copied() else {
+            continue;
+        };
+        if let Ok((_, probe)) = &mut p.result {
+            probe.jobs += n;
+            if let Some(avail) = probe.facts.mem_avail.as_mut() {
+                *avail = avail.saturating_sub(u64::from(n) * reserve);
+            }
         }
-        None => Err(none_usable(selection, &results)),
+    }
+}
+
+/// Why `probe`'s host has no disk room for the run's repository, when it lacks it
+/// (free plus evictable space below the repository's footprint plus margin).
+fn room_shortage(selection: &Selection, probe: &Probe) -> Option<String> {
+    let id = selection.repo_id.as_deref()?;
+    match crate::footprint::assess(probe, id) {
+        crate::footprint::Room::Short {
+            free,
+            evictable,
+            need,
+        } => Some(crate::footprint::short_text(free, evictable, need)),
+        _ => None,
+    }
+}
+
+/// The hosts that could ever take the run: reachable, in the pool, meeting every need.
+fn eligible_hosts(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> {
+    results
+        .iter()
+        .filter(|p| {
+            p.result.as_ref().is_ok_and(|(_, probe)| {
+                selection.outside_pool(probe).is_none()
+                    && selection.assess(p.host, probe).qualifies()
+            })
+        })
+        .map(|p| p.host.name.clone())
+        .collect()
+}
+
+/// One line per eligible host saying what it lacks room for.
+fn busy_lines(
+    config: &Config,
+    selection: &Selection,
+    results: &[Probed<'_>],
+    snap: &Snapshot,
+) -> Vec<String> {
+    let eligible = eligible_hosts(selection, results);
+    results
+        .iter()
+        .filter(|p| eligible.contains(&p.host.name))
+        .filter_map(|p| {
+            let (_, probe) = p.result.as_ref().ok()?;
+            let limit = p.host.job_limit(probe.cores);
+            let name = &p.host.name;
+            let reserve = config.job_mem_of(p.host);
+            Some(if probe.jobs >= limit {
+                format!("{name}: {} of {limit} job slots in use", probe.jobs)
+            } else if reserve > 0 && probe.facts.mem_avail.is_some_and(|a| a < reserve) {
+                format!(
+                    "{name}: {:.1} GiB free, {:.1} GiB needed per job",
+                    gib(probe.facts.mem_avail.unwrap_or(0)),
+                    gib(reserve)
+                )
+            } else if let Some(why) = room_shortage(selection, probe) {
+                format!("{name}: {why}")
+            } else if snap.held_for_earlier(name) {
+                format!("{name}: reserved for runs ahead in the queue")
+            } else {
+                format!("{name}: busy")
+            })
+        })
+        .collect()
+}
+
+#[allow(clippy::cast_precision_loss)] // display only
+fn gib(bytes: u64) -> f64 {
+    bytes as f64 / (1024.0 * 1024.0 * 1024.0)
+}
+
+/// One `host: why` per eligible host that has no disk room for the run's repository.
+fn skipped_for_room(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> {
+    results
+        .iter()
+        .filter_map(|p| {
+            let (_, probe) = p.result.as_ref().ok()?;
+            let why = room_shortage(selection, probe)?;
+            Some(format!("{}: {why}", p.host.name))
+        })
+        .collect()
+}
+
+/// What one probe round decided.
+enum Decision {
+    /// Run on this index of the results, holding this claim.
+    Taken(usize, Claim),
+    /// Nothing qualifies, ever (unreachable or failing a need).
+    Hopeless,
+    /// Some host qualifies but has no room now.
+    NoRoom(Vec<String>),
+}
+
+/// Judge one probe round under the queue's decision lock, so that reading
+/// the queue and claiming a host are one step across processes.
+fn decide_round(
+    config: &Config,
+    selection: &Selection,
+    wait: &Wait<'_>,
+    ticket: Option<&Ticket>,
+    results: &mut [Probed<'_>],
+) -> Result<Decision> {
+    wait.queue.decide(|| {
+        let snap = wait.queue.snapshot(ticket);
+        apply_pending(config, &snap.pending, results);
+        let eligible = eligible_hosts(selection, results);
+        if eligible.is_empty() {
+            return Ok(Decision::Hopeless);
+        }
+        if let Some(t) = ticket {
+            t.set_eligible(&eligible)?;
+        }
+        let pick = ranked_for(config, selection, results)
+            .into_iter()
+            .find(|&i| !snap.held_for_earlier(&results[i].host.name));
+        match pick {
+            Some(i) => {
+                let short = skipped_for_room(selection, results);
+                if !short.is_empty() {
+                    (wait.note)(&format!(
+                        "skipped for disk room: {}; using {}",
+                        short.join("; "),
+                        results[i].host.name
+                    ));
+                }
+                let claim = wait.queue.claim(&results[i].host.name)?;
+                tracing::info!(host = %results[i].host.name, position = snap.position(), "picked");
+                Ok(Decision::Taken(i, claim))
+            }
+            None => Ok(Decision::NoRoom(busy_lines(
+                config, selection, results, &snap,
+            ))),
+        }
+    })?
+}
+
+/// [`choose`] for a run that may have to wait: with a free host it claims it
+/// at once; otherwise it joins the local first-come-first-served queue and
+/// re-probes (only while among the first [`PROBING_WAITERS`]) until a host
+/// has a job slot and memory for one more job, or `wait.limit` runs out.
+///
+/// # Errors
+///
+/// [`Error::NoHost`] when the wait ran out (naming how long and what for),
+/// the errors of [`choose`], and [`Error::Io`] for queue files.
+#[allow(clippy::too_many_arguments)] // the context of `choose`, plus how to wait
+pub fn choose_queued(
+    config: &Config,
+    selection: &Selection,
+    state: &mut State,
+    jobs: &Path,
+    lookup: &(dyn Lookup + Sync),
+    prober: &(dyn Prober + Sync),
+    wanted: Option<&str>,
+    wait: &Wait<'_>,
+) -> Result<(HostConfig, Found, Probe, Option<Claim>)> {
+    if wanted.is_some() {
+        let (host, found, probe) = choose(config, selection, state, jobs, lookup, prober, wanted)?;
+        let claim = wait.queue.claim(&host.name)?;
+        return Ok((host, found, probe, Some(claim)));
+    }
+    if config.hosts.is_empty() && !config.local_fallback() && !config.local_in_pool() {
+        // The one error `choose` words for this.
+        return choose(config, selection, state, jobs, lookup, prober, None)
+            .map(|(h, f, p)| (h, f, p, None));
+    }
+    let local_host = local::host(config);
+    let ticket = (!wait.limit.is_zero())
+        .then(|| wait.queue.enter())
+        .transpose()?;
+    let began = Instant::now();
+    let mut last_probe: Option<Instant> = None;
+    let mut last_pos = usize::MAX;
+    let mut noted_pos = usize::MAX;
+    let mut lines: Vec<String> = Vec::new();
+    loop {
+        let pos = wait.queue.snapshot(ticket.as_ref()).position();
+        let due = last_probe.is_none_or(|t| t.elapsed() >= wait.poll) || pos < last_pos;
+        last_pos = pos;
+        if ticket.is_none() || pos < PROBING_WAITERS {
+            if due {
+                let mut results =
+                    probe_pool(config, &local_host, selection, state, jobs, lookup, prober);
+                last_probe = Some(Instant::now());
+                match decide_round(config, selection, wait, ticket.as_ref(), &mut results)? {
+                    Decision::Taken(i, claim) => {
+                        let chosen = results.swap_remove(i);
+                        let (found, probe) = chosen.result?;
+                        return Ok((chosen.host.clone(), found, probe, Some(claim)));
+                    }
+                    Decision::Hopeless => {
+                        let (h, f, p) = no_pick(config, selection, state, jobs, &results)?;
+                        return Ok((h, f, p, None));
+                    }
+                    Decision::NoRoom(why) => {
+                        if wait.limit.is_zero() {
+                            return Err(none_usable(selection, &results));
+                        }
+                        let changed = why != lines;
+                        lines.clone_from(&why);
+                        if pos != noted_pos || changed {
+                            noted_pos = pos;
+                            (wait.note)(&format!(
+                                "no host has room yet ({}); queued at position {}, waiting up to {}",
+                                why.join("; "),
+                                pos + 1,
+                                humantime::format_duration(Duration::from_secs(
+                                    wait.limit.as_secs()
+                                ))
+                            ));
+                        }
+                    }
+                }
+            }
+        } else if pos != noted_pos {
+            noted_pos = pos;
+            (wait.note)(&format!(
+                "queued at position {} behind other runs, waiting up to {}",
+                pos + 1,
+                humantime::format_duration(Duration::from_secs(wait.limit.as_secs()))
+            ));
+        }
+        let elapsed = began.elapsed();
+        if elapsed >= wait.limit {
+            tracing::warn!(?elapsed, "gave up waiting for a host");
+            let mut out = vec![format!(
+                "waited {} in the queue (position {}) for a host with a free job slot, memory and disk for one more job",
+                humantime::format_duration(Duration::from_secs(elapsed.as_secs())),
+                pos + 1
+            )];
+            out.append(&mut lines);
+            return Err(Error::NoHost(out));
+        }
+        std::thread::sleep(LOCAL_POLL.min(wait.limit.saturating_sub(elapsed)));
     }
 }
 
@@ -682,6 +1020,7 @@ mod tests {
             disk_used: None,
             disk_free: None,
             disk_max: None,
+            footprints: std::collections::BTreeMap::new(),
             facts: Facts::default(),
         }
     }
@@ -846,13 +1185,13 @@ mod tests {
     fn the_probe_asks_for_the_owner_state_unless_it_is_switched_off() {
         let mut config = Config::default();
         assert!(
-            probe_call(&config, false, false)
+            probe_call(&config, false, false, &[])
                 .args
                 .contains(&"owner".to_owned())
         );
         config.defaults.owner_idle = std::time::Duration::ZERO;
         assert!(
-            !probe_call(&config, false, false)
+            !probe_call(&config, false, false, &[])
                 .args
                 .contains(&"owner".to_owned())
         );
@@ -943,6 +1282,97 @@ mod tests {
         ];
         assert_eq!(pick(&Config::default(), &probed), Some(1));
         assert_eq!(pick(&Config::default(), &probed[..1]), Some(0));
+    }
+
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn a_host_without_disk_room_for_the_repositorys_footprint_is_held_back() {
+        let gib = 1024u64 * 1024 * 1024;
+        let mut small = probe(16, 0.0, 0);
+        small.disk_free = Some(3 * gib);
+        small.disk_used = Some(2 * gib);
+        small.footprints.insert("repo1".to_owned(), 20 * gib);
+        let mut evictable = probe(16, 4.0, 0);
+        evictable.disk_free = Some(3 * gib);
+        evictable.disk_used = Some(30 * gib);
+        evictable.footprints.insert("repo1".to_owned(), 20 * gib);
+        let hosts = [host("small", None), host("evictable", None)];
+        let probed = vec![
+            Probed {
+                host: &hosts[0],
+                result: Ok((found("small"), small)),
+            },
+            Probed {
+                host: &hosts[1],
+                result: Ok((found("evictable"), evictable)),
+            },
+        ];
+        let config = Config::default();
+        let mut sel = Selection {
+            repo_id: Some("repo1".to_owned()),
+            ..Selection::default()
+        };
+        assert_eq!(
+            ranked_for(&config, &sel, &probed),
+            [1],
+            "5 GiB cannot hold 20 GiB plus its margin; 33 GiB with eviction can"
+        );
+        let why = room_shortage(&sel, &probed[0].result.as_ref().unwrap().1);
+        assert!(why.unwrap().contains("needs about 22.0 GiB"));
+        assert_eq!(skipped_for_room(&sel, &probed).len(), 1);
+        sel.repo_id = Some("other".to_owned());
+        assert_eq!(
+            ranked_for(&config, &sel, &probed).len(),
+            2,
+            "unknown repository"
+        );
+    }
+
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn a_host_with_less_free_memory_than_one_jobs_reserve_gets_no_further_job() {
+        let gib = 1024u64 * 1024 * 1024;
+        let mut tight = probe(16, 0.0, 6);
+        tight.facts.mem_avail = Some(gib * 7 / 10);
+        let mut roomy = probe(16, 4.0, 0);
+        roomy.facts.mem_avail = Some(8 * gib);
+        let hosts = [host("tight", Some(16)), host("roomy", None)];
+        let probed = vec![
+            Probed {
+                host: &hosts[0],
+                result: Ok((found("tight"), tight)),
+            },
+            Probed {
+                host: &hosts[1],
+                result: Ok((found("roomy"), roomy)),
+            },
+        ];
+        let config = Config::default();
+        assert_eq!(config.defaults.job_mem_bytes(), gib * 3 / 2);
+        assert_eq!(
+            ranked(&config, &probed),
+            [1],
+            "0.7 GiB free is below the 1.5 GiB reserve"
+        );
+        // The reserve is configurable, per host too (0 turns it off).
+        let mut off = Config::default();
+        off.defaults.job_mem = "0".to_owned();
+        assert_eq!(ranked(&off, &probed).len(), 2);
+        let mut small = hosts.clone();
+        small[0].job_mem = Some("512M".to_owned());
+        let probed: Vec<Probed<'_>> = probed
+            .into_iter()
+            .zip(small.iter())
+            .map(|(p, h)| Probed {
+                host: h,
+                result: p.result,
+            })
+            .collect();
+        assert_eq!(
+            ranked(&config, &probed).len(),
+            2,
+            "512M reserve fits in 0.7 GiB"
+        );
     }
 
     #[test]
@@ -1098,6 +1528,43 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    /// A host whose clock runs `ahead` seconds fast (and `None`: it reports no epoch).
+    struct Clocked(Option<i64>);
+    impl Prober for Clocked {
+        fn probe(&self, _: &Target, _: KeyPolicy, _: &str) -> resolve::ProbeResult {
+            let epoch = self.0.map_or_else(String::new, |a| {
+                let now = i64::try_from(crate::state::now_secs()).unwrap();
+                format!("epoch={}\n", now + a)
+            });
+            Ok(format!(
+                "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\njobs=0\n{epoch}"
+            ))
+        }
+    }
+
+    // frob:tests crates/goway/src/pool.rs::probe_one
+    #[test]
+    fn probe_one_measures_the_helper_clock_offset() {
+        let mut h = host("h", None);
+        h.address = Some("10.0.0.9".to_owned());
+        let mut config = Config::default();
+        config.hosts.push(h.clone());
+        let offset = |ahead| {
+            let mut state = State::default();
+            probe_one(&config, &h, &mut state, &NoLookup, &Clocked(ahead), false)
+                .unwrap()
+                .1
+                .facts
+                .clock_offset_ms
+        };
+        let ms = offset(Some(3600)).unwrap();
+        assert!((3_595_000..=3_605_000).contains(&ms), "{ms}");
+        let ms = offset(Some(-90)).unwrap();
+        assert!((-95_000..=-85_000).contains(&ms), "{ms}");
+        assert!(offset(Some(0)).unwrap().abs() < 2_000);
+        assert_eq!(offset(None), None);
     }
 
     /// Answers every address like a different machine: only `10.0.0.2` has a GPU.

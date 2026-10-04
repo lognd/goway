@@ -134,6 +134,11 @@ pub struct RunArgs {
     /// a host that lacks it is still used when it is the best otherwise.
     #[arg(long, value_name = "TERM", value_delimiter = ',')]
     pub prefers: Vec<String>,
+    /// How long to wait in goway's local queue when every host that fits is
+    /// at its job limit or short of memory for one more job (such as 90s,
+    /// 5m); `0s` fails at once with exit 125.
+    #[arg(long, value_name = "DURATION", default_value = "5m", value_parser = wait_duration)]
+    pub wait: std::time::Duration,
     /// Skip the extra copy verification a repository gets after a proven
     /// mismatch, for this run only (changed files are still checked).
     #[arg(long)]
@@ -369,6 +374,12 @@ pub struct SshSetupArgs {
 pub enum ConfigCommand {
     /// Print the config, state and `known_hosts` paths.
     Path,
+}
+
+/// Parse `--wait` (`90s`, `5m`, `0s`).
+fn wait_duration(text: &str) -> std::result::Result<std::time::Duration, String> {
+    humantime::parse_duration(text)
+        .map_err(|e| format!("`{text}` is not a duration like 90s or 5m: {e}"))
 }
 
 #[cfg(test)]

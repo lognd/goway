@@ -1,0 +1,30 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T11:18:16Z"
+digest = "753ef698bde82ef144145e9eae435432350ba0e14b06db23a8edd1aaef7a84bb"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.69s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID fe0e45f5-6bb2-4101-8547-182016e95ad3 with nextest profile: default
+    Starting 5 tests across 65 binaries (757 tests skipped)
+        PASS [   0.004s] goway footprint::tests::the_margin_is_a_gibibyte_or_a_tenth
+        PASS [   0.005s] goway footprint::tests::only_well_formed_footprint_lines_are_read
+        PASS [   0.005s] goway pool::tests::a_host_without_disk_room_for_the_repositorys_footprint_is_held_back
+        PASS [   8.173s] goway::footprint a_tight_disk_makes_the_probe_report_what_goway_holds
+        PASS [   8.632s] goway::footprint a_run_records_the_peak_footprint_and_the_probe_reports_it
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   8.635s] 5 tests run: 5 passed, 757 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/a_host_without_disk_room/) | test(/footprint::tests/) | test(/a_run_records_the_peak/) | test(/a_tight_disk/)'"
+size = 1138
+status = "measured"
+tests = ["footprint::tests::the_margin_is_a_gibibyte_or_a_tenth", "footprint::tests::only_well_formed_footprint_lines_are_read", "pool::tests::a_host_without_disk_room_for_the_repositorys_footprint_is_held_back", "a_tight_disk_makes_the_probe_report_what_goway_holds", "a_run_records_the_peak_footprint_and_the_probe_reports_it"]
+at = "2026-10-04T11:18:16Z"
+actor = "lognd"
+rev = 1

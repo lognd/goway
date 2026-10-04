@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T06:45:34Z"
+digest = "4034180372fb45a7046a3c5cadafe9fcb4c8bbe0df5759f8d78e8dd75c84bf5e"
+exit_code = 0
+inline = '''
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.58s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e10c1914-c3e9-45b5-a4ba-c20f2bd3cd87 with nextest profile: default
+    Starting 1 test across 64 binaries (754 tests skipped)
+        PASS [   0.004s] goway pool::tests::a_host_with_less_free_memory_than_one_jobs_reserve_gets_no_further_job
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 754 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_host_with_less_free_memory_than_one_jobs_reserve_gets_no_further_job)'"
+size = 636
+status = "measured"
+tests = ["pool::tests::a_host_with_less_free_memory_than_one_jobs_reserve_gets_no_further_job"]
+at = "2026-10-04T06:45:34Z"
+actor = "lognd"
+rev = 1

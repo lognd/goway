@@ -6,6 +6,8 @@
 //! Everything a host reports about itself is parsed defensively with
 //! bounds, like the scheduling probe.
 
+pub mod clock;
+
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
@@ -125,6 +127,10 @@ pub struct Facts {
     pub on_battery: Option<bool>,
     /// Seconds since its user last used the keyboard or mouse (`None`: unknown).
     pub idle_secs: Option<u64>,
+    /// Milliseconds the host's clock is ahead of this machine's (negative: behind); see [`clock`].
+    pub clock_offset_ms: Option<i64>,
+    /// Tool name to version line, for the tools a probe was asked about (`want.TOOL`).
+    pub tools: BTreeMap<String, String>,
 }
 
 /// Longest idle time accepted (ten years): anything above is a broken answer.
@@ -177,6 +183,13 @@ pub fn parse_live(map: &BTreeMap<String, String>) -> Facts {
         hw_age: None,
         on_battery,
         idle_secs,
+        clock_offset_ms: None,
+        tools: map
+            .iter()
+            .filter_map(|(k, v)| Some((k.strip_prefix("want.")?, v)))
+            .filter(|(_, v)| !v.is_empty())
+            .map(|(k, v)| (k.to_owned(), crate::render::clean(v)))
+            .collect(),
     }
 }
 

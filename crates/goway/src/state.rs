@@ -89,7 +89,13 @@ pub struct State {
     /// Probe static facts on the next probe regardless of age (not saved).
     #[serde(skip)]
     pub refresh_facts: bool,
+    /// The repository id and tools a run wants versions of when its cache is stale (not saved).
+    #[serde(skip)]
+    pub want_tools: Option<(String, Vec<String>)>,
 }
+
+/// Cached tool versions older than this are probed again by a run (one day).
+pub const TOOLS_MAX_AGE: u64 = 24 * 60 * 60;
 
 impl State {
     /// Load from `path`; a missing file is empty state.
@@ -175,6 +181,21 @@ impl State {
         self.hosts.remove(&name.to_ascii_lowercase());
         self.facts.remove(&name.to_ascii_lowercase());
         self.tool_versions.remove(&name.to_ascii_lowercase());
+    }
+
+    /// The tools a probe of `host` should report at `now`: those a run asked
+    /// for ([`State::want_tools`]) when the cached versions for that
+    /// repository are missing or over a day old, else none.
+    // frob:ticket 01M43AFK9N84ZE45CY5T8B9HQV
+    pub fn tools_to_probe(&self, host: &str, now: u64) -> &[String] {
+        let Some((repo, tools)) = &self.want_tools else {
+            return &[];
+        };
+        let fresh = self
+            .tool_versions
+            .get(&host.to_ascii_lowercase())
+            .is_some_and(|c| &c.repo == repo && now.saturating_sub(c.captured) < TOOLS_MAX_AGE);
+        if fresh { &[] } else { tools }
     }
 
     /// Remember the tool versions doctor saw on `host` at `now` for the

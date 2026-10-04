@@ -1,0 +1,7 @@
+kind = "transition"
+from = "in-progress"
+to = "todo"
+reason = "blocked on ~TGZTRVF (clock::measure not on main) and ~C77Y6CE (probe epoch)"
+at = "2026-10-04T06:46:49Z"
+actor = "lognd"
+rev = 1

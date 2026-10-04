@@ -174,6 +174,20 @@ impl<R: std::io::Read> std::io::Read for Framed<R> {
     }
 }
 
+/// `script` with every whole-line comment blanked (not removed, so error line numbers still
+/// match the source): the comments are a third of the script and the line limit is tight.
+/// The script has no heredocs or multi-line strings, so no content line starts with `#`.
+fn without_comments(script: &str) -> String {
+    let mut out = String::with_capacity(script.len());
+    for line in script.lines() {
+        if !line.trim_start().starts_with('#') {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+    out
+}
+
 /// The most the remote command line may be: a single argument is capped at
 /// 128 KiB by Linux, and the encoded script is the bulk of the line.
 pub const MAX_LINE: usize = 120_000;
@@ -190,8 +204,9 @@ pub fn invocation(verb: &str, args: &[&str]) -> String {
     let mut words = vec![verb];
     words.extend_from_slice(args);
     let payload = format!(
-        "printf '\\001goway-frame\\n'\nset -- {}\n{SCRIPT}",
-        shell_join(&words)
+        "printf '\\001goway-frame\\n'\nset -- {}\n{}",
+        shell_join(&words),
+        without_comments(SCRIPT)
     );
     let b64 = base64::engine::general_purpose::STANDARD.encode(payload);
     format!("bash -c 'eval \"$(printf %s {b64} | base64 -d)\"' goway")

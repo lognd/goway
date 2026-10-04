@@ -493,6 +493,8 @@ pub struct Selection {
     /// The OS family the default pool is limited to (the laptop's); `None` for no limit.
     /// Set only when no `os=` need is given; a pinned host ignores it.
     pub pool_os: Option<String>,
+    /// The repository the run is for, so hosts without disk room for its footprint wait (not a need).
+    pub repo_id: Option<String>,
 }
 
 impl Selection {
@@ -513,6 +515,7 @@ impl Selection {
             needs: terms(needs)?,
             prefers: terms(prefers)?,
             pool_os: None,
+            repo_id: None,
         })
     }
 
@@ -618,6 +621,7 @@ mod tests {
             disk_used: None,
             disk_free: Some(100 * gib),
             disk_max: None,
+            footprints: std::collections::BTreeMap::new(),
             facts: Facts {
                 mem_total: Some(32 * gib),
                 mem_avail: Some(30 * gib),
