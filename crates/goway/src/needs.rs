@@ -565,6 +565,7 @@ mod tests {
             jobs: 0,
             disk_used: None,
             disk_free: Some(100 * gib),
+            disk_max: None,
             facts: Facts {
                 mem_total: Some(32 * gib),
                 mem_avail: Some(30 * gib),

@@ -40,6 +40,16 @@ fn gpu_summary(f: &crate::facts::Facts) -> String {
     }
 }
 
+/// goway's disk use against its budget: `1.2 GiB / 20.0 GiB`, `(over)` past it.
+fn disk_cell(used: Option<u64>, max: Option<u64>) -> String {
+    match (used, max) {
+        (Some(u), Some(m)) if u > m => format!("{} / {} (over)", human_bytes(u), human_bytes(m)),
+        (Some(u), Some(m)) => format!("{} / {}", human_bytes(u), human_bytes(m)),
+        (Some(u), None) => human_bytes(u),
+        _ => "-".to_owned(),
+    }
+}
+
 /// The status table rows (header first); pure so it can be tested.
 pub fn rows(probed: &[Probed<'_>], local_in_pool: bool) -> Vec<Vec<String>> {
     let mut rows = vec![
@@ -90,7 +100,7 @@ pub fn rows(probed: &[Probed<'_>], local_in_pool: bool) -> Vec<Vec<String>> {
                     Some(max) => format!("{}/{max}", probe.jobs),
                     None => probe.jobs.to_string(),
                 },
-                probe.disk_used.map_or_else(|| "-".to_owned(), human_bytes),
+                disk_cell(probe.disk_used, probe.disk_max),
                 probe.disk_free.map_or_else(|| "-".to_owned(), human_bytes),
                 crate::facts::age_summary(probe.facts.hw_age),
             ]),
@@ -195,6 +205,7 @@ mod tests {
             jobs: 0,
             disk_used: None,
             disk_free: None,
+            disk_max: None,
             facts: Facts {
                 os: Some("linux".to_owned()),
                 mem_total: Some(16 * gib),
@@ -231,6 +242,18 @@ mod tests {
         assert!(line.contains("RTX 4090 24 GiB cuda 12.5"), "{line}");
         assert!(line.contains("avx2 kvm"), "{line}");
         assert!(line.contains("2h ago"), "{line}");
+    }
+
+    #[test]
+    fn disk_cell_shows_use_against_budget() {
+        let gib = 1u64 << 30;
+        assert_eq!(disk_cell(Some(gib), Some(20 * gib)), "1.0 GiB / 20.0 GiB");
+        assert_eq!(
+            disk_cell(Some(21 * gib), Some(20 * gib)),
+            "21.0 GiB / 20.0 GiB (over)"
+        );
+        assert_eq!(disk_cell(Some(gib), None), "1.0 GiB");
+        assert_eq!(disk_cell(None, None), "-");
     }
 
     #[test]

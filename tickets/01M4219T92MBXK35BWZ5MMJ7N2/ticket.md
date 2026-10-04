@@ -2,12 +2,12 @@
 id = "01M4219T92MBXK35BWZ5MMJ7N2"
 title = "Apply HostConfig::job_limit in the pool and status (default max_jobs = cores/2)"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-03T23:24:01Z"
-updated = "2026-10-03T23:53:07Z"
+updated = "2026-10-04T00:13:23Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/status.rs"]
 
 [[acceptance]]

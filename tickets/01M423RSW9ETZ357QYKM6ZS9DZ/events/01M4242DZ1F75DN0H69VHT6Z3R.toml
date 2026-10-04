@@ -1,0 +1,8 @@
+kind = "transition"
+from = "in-progress"
+to = "done"
+outcome = "done"
+reason = "lint fix in a test, no user-visible change"
+at = "2026-10-04T00:12:25Z"
+actor = "lognd"
+rev = 1

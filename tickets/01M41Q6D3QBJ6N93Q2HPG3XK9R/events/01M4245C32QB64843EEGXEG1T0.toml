@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T00:14:01Z"
+digest = "f054d88e52b3ede8ad8492ad5a672d3fdc2c91d6dbf2adb35fdce388938db4e9"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID cee70b07-f45a-4353-8b11-9db4ef38f1a9 with nextest profile: default
+    Starting 1 test across 41 binaries (497 tests skipped)
+        PASS [  25.552s] goway::remote_ps1 every_argument_reaches_the_script_exactly
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  25.556s] 1 test run: 1 passed, 497 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(every_argument_reaches_the_script_exactly)'"
+size = 553
+status = "measured"
+tests = ["every_argument_reaches_the_script_exactly"]
+at = "2026-10-04T00:14:01Z"
+actor = "lognd"
+rev = 1

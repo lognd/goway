@@ -1,0 +1,7 @@
+kind = "transition"
+from = "todo"
+to = "in-progress"
+reason = "lease: lognd in goway-wt/VHRF97S; scope: crates/goway-setup/src/native.rs, crates/goway-setup/src/cli.rs, crates/goway-setup/src/host.rs, crates/goway-setup/src/helper.rs, crates/goway-journal/src/change.rs, scripts/windows/roundtrip-host.sh, docs/install-windows.md, crates/goway-setup/tests/native.rs, crates/goway-setup/src/lib.rs, crates/goway-setup/src/hostsys.rs, crates/goway-setup/src/ps.rs, crates/goway-setup/src/sysapi.rs, crates/goway-setup/src/render.rs, crates/goway-setup/src/app.rs; ttl 7200s"
+at = "2026-10-04T00:16:33Z"
+actor = "lognd"
+rev = 1
