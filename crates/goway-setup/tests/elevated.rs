@@ -617,3 +617,53 @@ fn a_planted_prior_is_refused_before_anything_is_reverted() {
         .is_ok()
     );
 }
+
+// frob:tests crates/goway-setup/src/host.rs::validate_journal
+// frob:tests crates/goway-setup/src/app.rs::record_action
+#[test]
+fn recorded_actions_of_the_install_are_accepted_and_reported_by_undo_not_replayed() {
+    use goway_journal::{ActionKind, Outcome};
+    let tmp = tempfile::tempdir().unwrap();
+    let (layout, mut sys, journal) = installed(tmp.path());
+    let task = host::created_tasks(&journal)[0].to_owned();
+    let path = &layout.host_journal_path;
+    app::record_action(path, ActionKind::ActivateSshd, "2299", "activate").unwrap();
+    app::record_action(path, ActionKind::StartScheduledTask, &task, "start").unwrap();
+    let before = machine();
+    let report = app::uninstall_checked(&mut sys, &layout.host_view(), Retry::ONCE, check(&layout))
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        sys, before,
+        "undo restored the machine; actions changed nothing"
+    );
+    let not_undone = report
+        .outcomes
+        .iter()
+        .filter(|(_, o)| matches!(o, Outcome::NotReversible(_)))
+        .count();
+    assert_eq!(not_undone, 2, "{:?}", report.outcomes);
+}
+
+// frob:tests crates/goway-setup/src/host.rs::validate_journal
+#[test]
+fn a_planted_action_the_install_never_takes_is_refused() {
+    use goway_journal::ActionKind;
+    let tmp = tempfile::tempdir().unwrap();
+    let (layout, mut sys, _) = installed(tmp.path());
+    let path = &layout.host_journal_path;
+    app::record_action(path, ActionKind::StartScheduledTask, "Some Other Task", "x").unwrap();
+    let result = app::uninstall_checked(&mut sys, &layout.host_view(), Retry::ONCE, check(&layout));
+    assert!(refused(&result), "{result:?}");
+    let tmp = tempfile::tempdir().unwrap();
+    let (layout, mut sys, _) = installed(tmp.path());
+    app::record_action(
+        &layout.host_journal_path,
+        ActionKind::RunFix,
+        "rm -rf /",
+        "x",
+    )
+    .unwrap();
+    let result = app::uninstall_checked(&mut sys, &layout.host_view(), Retry::ONCE, check(&layout));
+    assert!(refused(&result), "{result:?}");
+}

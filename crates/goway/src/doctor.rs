@@ -898,10 +898,34 @@ pub fn apply_fixes(
 pub(crate) struct SshFixRunner<'a> {
     pub(crate) found: &'a Found,
     pub(crate) settings: &'a ssh::Settings,
+    /// The config directory whose change log records each command before it runs; `None` for
+    /// an undo, which takes earlier changes back and is not a new change.
+    pub(crate) record_in: Option<&'a std::path::Path>,
 }
+
+/// How a person takes back what `doctor --fix` ran, for the change log.
+pub(crate) const FIX_UNDO_HINT: &str = "`goway uninstall` takes back what doctor --fix installed";
 
 impl FixRunner for SshFixRunner<'_> {
     fn run(&self, command: &str, sudo: bool) -> bool {
+        if let Some(dir) = self.record_in {
+            let reason = if sudo {
+                "doctor --fix, as root"
+            } else {
+                "doctor --fix"
+            };
+            if let Err(e) = crate::changelog::record_action(
+                dir,
+                goway_journal::ActionKind::RunFix,
+                command,
+                &self.found.target.name,
+                reason,
+                Some(FIX_UNDO_HINT),
+            ) {
+                tracing::error!(error = %e, "could not record the fix; not running it");
+                return false;
+            }
+        }
         let script = if sudo {
             Fix {
                 command: command.to_owned(),
@@ -1250,6 +1274,7 @@ fn fix_host(ctx: &FixCtx<'_>, probed: &mut Probed<'_>) -> bool {
     let runner = SshFixRunner {
         found: &probed.found,
         settings: ctx.settings,
+        record_in: Some(&ctx.paths.config_dir),
     };
     let (hard, tools): (Vec<Check>, Vec<Check>) = probed
         .checks
@@ -1322,6 +1347,7 @@ fn fix_windows_host(ctx: &FixCtx<'_>, probed: &mut Probed<'_>) -> bool {
         found: &probed.found,
         settings: ctx.settings,
         admin_user: args.windows_admin.as_deref(),
+        record_in: &ctx.paths.config_dir,
     };
     let confirm = |steps: &[windows::Step]| {
         for line in output::windows_plan_lines(&host.name, steps, args.rsudo) {
@@ -1672,6 +1698,64 @@ fn exit_code(reports: &[output::HostReport]) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// A fix runner pointed at a host that cannot be reached, recording into `dir`.
+    fn recording_runner<'a>(
+        found: &'a Found,
+        settings: &'a ssh::Settings,
+        dir: &'a std::path::Path,
+    ) -> SshFixRunner<'a> {
+        SshFixRunner {
+            found,
+            settings,
+            record_in: Some(dir),
+        }
+    }
+
+    fn unreachable_found() -> (Found, ssh::Settings) {
+        let found = Found {
+            kind: crate::transport::Kind::Unix,
+            target: ssh::Target {
+                name: "helios".to_owned(),
+                address: "192.0.2.1".to_owned(),
+                port: 22,
+                user: None,
+                identity: None,
+            },
+            source: crate::resolve::Source::Cached,
+            output: String::new(),
+        };
+        let settings = ssh::Settings {
+            known_hosts: std::path::PathBuf::from("/nonexistent/known_hosts"),
+            control_dir: None,
+            connect_timeout_secs: 1,
+        };
+        (found, settings)
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::SshFixRunner
+    #[test]
+    fn a_fix_is_recorded_in_the_change_log_before_it_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let (found, settings) = unreachable_found();
+        let runner = recording_runner(&found, &settings, dir.path());
+        // The host is unreachable, so the fix fails; the record is there all the same.
+        let _ = runner.run("true", false);
+        let rows = crate::changelog::rows(dir.path()).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].what.contains("helios") && rows[0].what.contains("doctor --fix"));
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::SshFixRunner
+    #[test]
+    fn a_fix_that_cannot_be_recorded_does_not_run() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join(crate::changelog::FILE_NAME)).unwrap();
+        let (found, settings) = unreachable_found();
+        let runner = recording_runner(&found, &settings, dir.path());
+        // The early return is the guard: a failed record is an error log and a `false`.
+        assert!(!runner.run("touch /tmp/never", false));
+    }
+
     use std::cell::RefCell;
 
     // frob:tests crates/goway/src/doctor.rs::clock_check

@@ -481,6 +481,7 @@ pub fn setup_with(
             elevate: args.rsudo.then_some(Elevate {
                 admin: args.windows_admin.as_deref(),
                 yes: assume_yes,
+                record_in: &paths.config_dir,
             }),
         }
         .run(&account_name(&target))?;
@@ -778,6 +779,8 @@ struct Elevate<'a> {
     admin: Option<&'a str>,
     /// Do not ask before running the step.
     yes: bool,
+    /// The config directory whose change log records the step before it runs.
+    record_in: &'a Path,
 }
 
 /// How many times the user may press Enter before goway gives up waiting for the key.
@@ -833,6 +836,22 @@ impl HandInstall<'_> {
         if !approved {
             self.renderer
                 .note("not elevating; showing the command instead");
+            return false;
+        }
+        // Recorded before it runs; the elevated goway-setup also journals what it changes on the host.
+        if let Err(e) = crate::changelog::record_action(
+            want.record_in,
+            goway_journal::ActionKind::RunFix,
+            &step.command,
+            name,
+            "authorize goway's key on a native Windows helper (--rsudo)",
+            Some(
+                "`goway ssh setup NAME --undo`, then `goway-setup uninstall --host` on the helper",
+            ),
+        ) {
+            self.renderer.warn(format_args!(
+                "not elevating: the change could not be recorded ({e})"
+            ));
             return false;
         }
         let runner = SshWinRunner {

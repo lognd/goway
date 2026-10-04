@@ -39,6 +39,7 @@ pub fn local_files(paths: &Paths) -> Vec<PathBuf> {
         "config.toml",
         "known_hosts",
         "known_hosts.old",
+        crate::changelog::FILE_NAME,
         "id_ed25519",
         "id_ed25519.pub",
     ];
@@ -647,6 +648,7 @@ fn clean_host(
     let runner = doctor::SshFixRunner {
         found: &found,
         settings,
+        record_in: None,
     };
     let items = doctor::load_installed(paths, &host.name);
     let mut root_undos = Vec::new();

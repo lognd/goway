@@ -41,6 +41,9 @@ pub enum Outcome {
     AlreadyReverted,
     /// The target no longer holds what goway wrote (or is gone); left untouched.
     LeftAlone(String),
+    /// The entry recorded an action that cannot be inverted; the text says what was done and
+    /// how a person can take it back, when there is a way.
+    NotReversible(String),
 }
 
 /// Run ops against a system.
@@ -271,6 +274,12 @@ pub(crate) fn plan_apply(
                 vec![Op::CreateResource(*kind, name.clone(), spec.clone())],
             ))
         }
+        Change::Action { .. } => Ok((
+            Prior::Action {
+                at_unix_secs: crate::journal::now_secs(),
+            },
+            Vec::new(),
+        )),
     }
 }
 
@@ -346,6 +355,28 @@ pub(crate) fn plan_revert(
     let restore = |ops| Ok((Outcome::Restored, ops));
     match (&entry.change, &entry.prior) {
         (_, Prior::Noop) => Ok((Outcome::Noop, Vec::new())),
+        (
+            Change::Action {
+                kind,
+                target,
+                host,
+                reason,
+                undo,
+            },
+            Prior::Action { .. },
+        ) => {
+            let how = undo.as_deref().map_or_else(
+                || "it cannot be undone".to_owned(),
+                |u| format!("to take it back: {u}"),
+            );
+            Ok((
+                Outcome::NotReversible(format!(
+                    "{} on {host} ({target}; {reason}): {how}",
+                    kind.describe()
+                )),
+                Vec::new(),
+            ))
+        }
         (Change::WriteFile { path, contents }, Prior::File { contents: before }) => {
             if sys.read_file(path)?.as_deref() != Some(contents) {
                 return left("file no longer holds the written contents");
@@ -572,5 +603,7 @@ pub fn still_applied(change: &Change, sys: &(impl System + ?Sized)) -> Result<bo
         Change::SetUnixMode { path, mode } => sys.get_mode(path).ok() == Some(*mode),
         Change::SetAcl { path, sddl } => sys.get_acl(path).ok().as_deref() == Some(sddl.as_str()),
         Change::EnsureResource { kind, name, .. } => sys.resource_exists(*kind, name)?,
+        // It happened and nothing can un-happen it, so it always "holds".
+        Change::Action { .. } => true,
     })
 }

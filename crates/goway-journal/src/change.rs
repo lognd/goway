@@ -57,6 +57,39 @@ pub enum ListPosition {
     Back,
 }
 
+/// The kind of an action that changes a machine but cannot be inverted.
+///
+/// An action is recorded before it runs, so the journal is complete; undoing it reports
+/// [`crate::Outcome::NotReversible`] instead of skipping it silently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ActionKind {
+    /// A scheduled task was started now; `target` is the task name.
+    StartScheduledTask,
+    /// All of WSL was shut down (`wsl --shutdown`); `target` is empty.
+    ShutdownWsl,
+    /// One WSL distro was terminated (`wsl --terminate`); `target` is the distro.
+    TerminateWslDistro,
+    /// The distro's sshd was reloaded or restarted so a new configuration is live; `target` is the port.
+    ActivateSshd,
+    /// A fix command ran on a machine (a package install, a service change, `loginctl
+    /// enable-linger`); `target` is the command, `undo` names how it is taken back.
+    RunFix,
+}
+
+impl ActionKind {
+    /// A short phrase for lists and reports.
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::StartScheduledTask => "started a scheduled task",
+            Self::ShutdownWsl => "shut down WSL",
+            Self::TerminateWslDistro => "terminated a WSL distro",
+            Self::ActivateSshd => "reloaded or restarted sshd",
+            Self::RunFix => "ran a fix command",
+        }
+    }
+}
+
 /// One desired change; applying it records the prior state so it can be inverted.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "change", rename_all = "snake_case")]
@@ -149,5 +182,22 @@ pub enum Change {
         name: String,
         /// Opaque creation spec, interpreted by the `System` implementation.
         spec: String,
+    },
+    /// Record an action that cannot be inverted (starting a task, restarting WSL, a fix command).
+    ///
+    /// Applying it records time, host and reason and does nothing else: the caller performs the
+    /// action after the entry is saved (write-ahead). Undo reports it as not reversible.
+    Action {
+        /// What kind of action.
+        kind: ActionKind,
+        /// What it acted on (task name, distro, port or command).
+        target: String,
+        /// The machine it ran on (a host name, or `localhost`).
+        host: String,
+        /// Why it was done.
+        reason: String,
+        /// How a person can take it back by hand, when there is a way.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        undo: Option<String>,
     },
 }

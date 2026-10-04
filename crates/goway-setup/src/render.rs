@@ -61,6 +61,13 @@ pub fn describe(change: &Change) -> String {
         Change::EnsureResource { kind, name, .. } => {
             format!("ensure {} {name}", describe_kind(*kind))
         }
+        Change::Action {
+            kind,
+            target,
+            host,
+            reason,
+            ..
+        } => format!("{} {target} on {host} ({reason})", kind.describe()),
     }
 }
 
@@ -241,6 +248,7 @@ impl Renderer {
                 Outcome::Noop => (DIM, "unchanged", " (was already in place)".to_owned()),
                 Outcome::AlreadyReverted => (DIM, "done", String::new()),
                 Outcome::LeftAlone(why) => (WARN, "kept", format!(" ({why})")),
+                Outcome::NotReversible(what) => (WARN, "not undone", format!(" ({what})")),
             };
             self.line(style, tag, &format!("{}{extra}", describe(change)));
         }
