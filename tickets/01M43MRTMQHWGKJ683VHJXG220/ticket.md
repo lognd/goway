@@ -2,7 +2,8 @@
 id = "01M43MRTMQHWGKJ683VHJXG220"
 title = "macOS CI: the queue arrival-order test is out of order by up to five places on a loaded runner"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
