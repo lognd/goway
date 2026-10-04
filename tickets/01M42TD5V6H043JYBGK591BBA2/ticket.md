@@ -7,8 +7,8 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T06:42:46Z"
-updated = "2026-10-04T11:17:36Z"
-scope = ["crates/goway/src/pool.rs", "crates/goway/tests/clock.rs"]
+updated = "2026-10-04T11:22:03Z"
+scope = ["crates/goway/src/pool.rs"]
 
 [[acceptance]]
 text = "Given a probe_one call, when the host reports epoch, then Probe.facts.clock_offset_ms is the measured offset"
