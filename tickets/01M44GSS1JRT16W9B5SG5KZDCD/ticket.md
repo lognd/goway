@@ -7,7 +7,7 @@ priority = "high"
 points = 3
 reporter = "lognd"
 created = "2026-10-04T22:33:22Z"
-updated = "2026-10-04T23:17:25Z"
+updated = "2026-10-04T23:18:01Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/doctor/wsl_down.rs", "crates/goway/tests/doctor_wsl_down.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
