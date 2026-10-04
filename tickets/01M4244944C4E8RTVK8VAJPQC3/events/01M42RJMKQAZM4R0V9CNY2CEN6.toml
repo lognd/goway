@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T06:10:48Z"
+digest = "dd2153905b781d01d4c4c942ab293b0ed0dabb7e0a7685c24d7834c1b283425e"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 39096d20-511b-4496-89af-c372d910c970 with nextest profile: default
+    Starting 1 test across 63 binaries (727 tests skipped)
+        PASS [   1.211s] goway::clock files_dated_an_hour_ahead_neither_warn_nor_rebuild_on_the_second_run
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.213s] 1 test run: 1 passed, 727 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(files_dated_an_hour_ahead_neither_warn_nor_rebuild_on_the_second_run)'"
+size = 575
+status = "measured"
+tests = ["files_dated_an_hour_ahead_neither_warn_nor_rebuild_on_the_second_run"]
+at = "2026-10-04T06:10:48Z"
+actor = "lognd"
+rev = 1
