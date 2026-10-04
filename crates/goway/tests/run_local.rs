@@ -691,6 +691,31 @@ fn sccache_socket_path_fits_a_unix_address_under_a_deep_remote_root() {
 }
 
 #[test]
+fn sccache_server_survives_the_removal_of_the_run_that_started_it() {
+    let have = |c: &str| Command::new(c).arg("--version").output().is_ok();
+    if !have("sccache") || !have("cc") {
+        return;
+    }
+    let w = world();
+    // Run 1 starts the repository's server; its work dir (and TMPDIR) go away.
+    let first = w.run(&["run", "--", "sh", "-c", "sccache --show-stats >/dev/null"]);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let second = w.run(&[
+        "run",
+        "--",
+        "sh",
+        "-c",
+        "echo 'int main(void){return 0;}' > t.c && sccache cc -c t.c -o t.o 2>&1 && echo compiled",
+    ]);
+    let text = String::from_utf8_lossy(&second.stdout).into_owned();
+    assert!(text.contains("compiled"), "{text}");
+}
+
+#[test]
 fn outside_a_git_project_the_error_says_what_to_do() {
     let w = world();
     let elsewhere = w.root.join("not-a-project");
