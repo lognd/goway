@@ -1121,6 +1121,10 @@ fn gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones(
         ),
     )
     .unwrap();
+    // A run that has started removed its starting-run markers; this dir stands for one.
+    for marker in ["creator", "born"] {
+        let _ = std::fs::remove_file(h.root.join("work/old-kept").join(marker));
+    }
     backdate(&h.root.join("work/old-kept/meta.json"), 4); // past kept_ttl (3d)
     backdate(&h.root.join("seed/r1/w1/meta.json"), 8); // past cache_ttl (7d)
     backdate(&h.cache_dir().join("meta.json"), 1); // fresh enough: kept
@@ -1610,7 +1614,13 @@ fn a_dry_run_lists_what_eviction_would_remove_and_removes_nothing() {
 fn the_automatic_gc_leaves_a_summary_and_probe_reports_the_budget() {
     let Some(h) = Host::new() else { return };
     budget_root(&h, &[("alpha", &[3000, 5000])]);
-    let now = "4102444800"; // far future: nothing is expired by age, the budget decides
+    // Nothing is expired by age (ten-year TTLs); the budget decides.
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string();
+    let now = now.as_str();
     h.ok(
         &[
             "auto-gc",
