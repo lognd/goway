@@ -2,13 +2,13 @@
 id = "01M43FHS0TS6TTT9VF8QK28058"
 title = "queue test: waiters never wait when the stagger is wider than the jobs, so the wait-note assertion fails"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T12:52:17Z"
-updated = "2026-10-04T12:52:17Z"
+updated = "2026-10-04T12:52:21Z"
 scope = ["crates/goway/tests/queue.rs"]
 
 [[acceptance]]
