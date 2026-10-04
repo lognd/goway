@@ -2,12 +2,12 @@
 id = "01M43GX33SPA3ED3YC2MJX7FJR"
 title = "The creator-pid gc test fails on a host that booted under two minutes ago"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T13:15:56Z"
-updated = "2026-10-04T13:15:56Z"
+updated = "2026-10-04T13:15:59Z"
 scope = ["crates/goway/tests/clock.rs"]
 
 [[acceptance]]
