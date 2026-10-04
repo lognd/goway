@@ -2,7 +2,8 @@
 id = "01M43EG3SHVE0BBZHEQGDD7F0D"
 title = "Detect and restart a broken shared sccache server before a run uses it (a server left over from an older goway keeps failing every build)"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "critical"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
