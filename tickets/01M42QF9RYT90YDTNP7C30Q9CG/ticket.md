@@ -2,13 +2,13 @@
 id = "01M42QF9RYT90YDTNP7C30Q9CG"
 title = "Doctor names the proxy variables set on a helper, never their values"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T05:51:30Z"
-updated = "2026-10-04T05:51:30Z"
+updated = "2026-10-04T05:56:35Z"
 scope = ["crates/goway/src/doctor.rs"]
 
 [[acceptance]]
