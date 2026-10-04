@@ -8,7 +8,7 @@ points = 8
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-04T00:00:39Z"
+updated = "2026-10-04T00:13:33Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/src/remote.rs", ".github/workflows/ci.yml", "crates/goway/tests/remote_ps1.rs", "docs/design.md", "docs/hosts.md"]
 
 [[links]]
@@ -17,7 +17,7 @@ target = "01M41P2FZ22KC8PJVR9RY6QS01"
 
 [[acceptance]]
 text = "Given remote.ps1, when the contract tests drive manifest, hashes, deletions, receive, envfile, run, probe, gc, doctor and purge, then they behave as remote.sh does (generation checks, labelled entries, marker-guarded purge, slots and locks), on Windows CI and under pwsh on Linux"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a command line, when it reaches PowerShell, then every argument arrives exactly as given (no re-splitting, quotes and dollar signs preserved), proven by a round-trip test over hostile arguments"
