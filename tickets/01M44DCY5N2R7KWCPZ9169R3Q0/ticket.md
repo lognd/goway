@@ -2,13 +2,13 @@
 id = "01M44DCY5N2R7KWCPZ9169R3Q0"
 title = "Audit3 M2 and L1: one PowerShell quoter that handles curly quotes, and printed admin commands without expansion"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T21:33:55Z"
-updated = "2026-10-04T21:33:55Z"
+updated = "2026-10-04T21:33:58Z"
 labels = ["security"]
 scope = ["crates/goway-journal/src/lib.rs", "crates/goway-journal/src/psquote.rs", "crates/goway/src/transport.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/src/helper.rs", "crates/goway/src/sshsetup.rs", "crates/goway/tests/ps_quote.rs", "crates/goway-setup/tests/hostsys.rs", "docs/design.md"]
 
