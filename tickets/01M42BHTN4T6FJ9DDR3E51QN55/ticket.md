@@ -2,7 +2,8 @@
 id = "01M42BHTN4T6FJ9DDR3E51QN55"
 title = "Toolchains that only appear in login shells, and helpers behind an HTTP proxy"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
