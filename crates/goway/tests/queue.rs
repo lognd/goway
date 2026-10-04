@@ -119,7 +119,7 @@ fn twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound(
             let (queue, cluster, config, order, peak, note) =
                 (&queue, &cluster, &config, &order, &peak, &note);
             s.spawn(move || {
-                std::thread::sleep(Duration::from_millis(20 * n));
+                std::thread::sleep(Duration::from_millis(60 * n));
                 let mut state = State::default();
                 let w = wait(queue, Duration::from_secs(60), note);
                 let (host, _, _, claim) = pool::choose_queued(
