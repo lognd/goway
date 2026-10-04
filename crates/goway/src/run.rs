@@ -275,6 +275,11 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
 
     let remote_root = config.defaults.remote_root.as_str();
     let now = crate::state::now_secs();
+    // From goway doctor's cache; never probed, so a run never waits for it.
+    let versions = crate::drift::for_run(&state, &host.name, &repo.id, now);
+    if let Some(note) = &versions.note {
+        renderer.note(note);
+    }
     let distrusted = !args.trust_copy && state.distrusted(&host.name, &repo.id, now);
     if distrusted {
         renderer.note(format_args!(
@@ -419,6 +424,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
                             rule: rule.clone(),
                         },
                         attempts: attempts.clone(),
+                        tool_versions: versions.record.clone(),
                     },
                 )?;
             }
@@ -472,6 +478,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
                     rule,
                 },
                 attempts,
+                tool_versions: versions.record,
             },
         )?;
     }
@@ -486,6 +493,10 @@ pub struct RemoteReport {
     pub base: Report,
     /// Every attempt, the first marked invalid when it was rerun.
     pub attempts: Vec<AttemptRecord>,
+    /// The versions of the project's tools on this host, from goway
+    /// doctor's cache (absent when doctor has not seen this project there).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_versions: Option<crate::drift::Record>,
 }
 
 /// Sync the work tree to `found` and snapshot it as work dir `run_id`; with
