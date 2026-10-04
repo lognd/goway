@@ -156,3 +156,34 @@ fn a_run_short_of_room_evicts_idle_caches_first_and_says_so() {
     assert!(err.contains("the disk budget freed"), "{err}");
     assert!(!idle.join("tree-0").exists(), "{err}");
 }
+
+// frob:ticket 01M43CZG0V20SHCRVJ75YX9H8Q
+// frob:tests crates/goway/src/footprint.rs::required
+#[test]
+fn making_room_never_evicts_the_runs_own_seed() {
+    let w = common::world();
+    let out = w.run(&[
+        "run",
+        "--",
+        "sh",
+        "-c",
+        "mkdir -p \"$CARGO_TARGET_DIR\" && truncate -s 3M \"$CARGO_TARGET_DIR/big\"",
+    ]);
+    assert!(out.status.success(), "{out:?}");
+    common::wait_for("the footprint record", || recorded(&w.remote).is_some());
+    // The seed of this repository and worktree is the only thing that could be evicted.
+    fake_df(&w, 100 * MIB, 10 * GIB);
+    let out = w.run(&["run", "--host", "local", "--", "true"]);
+    let err = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(out.status.success(), "{err}");
+    let seeds: Vec<_> = std::fs::read_dir(w.remote.join("seed"))
+        .unwrap()
+        .flatten()
+        .flat_map(|r| std::fs::read_dir(r.path()).unwrap().flatten())
+        .collect();
+    assert!(!seeds.is_empty(), "the run's seed was kept: {err}");
+    assert!(
+        seeds.iter().all(|s| s.path().join("tree").exists()),
+        "{err}"
+    );
+}

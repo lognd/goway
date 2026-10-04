@@ -76,6 +76,9 @@ pub struct ShardReport {
     /// What the helper's test-binary detection did, when it was asked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detection: Option<Detection>,
+    /// What the host ran in place of argv[0], when the program was translated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translation: Option<crate::translate::Translation>,
     /// Seconds including sync.
     pub duration_secs: f64,
 }
@@ -206,6 +209,19 @@ pub fn run_each_os(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<
     fan_out(env, renderer, args, Fan::EachOs)
 }
 
+/// The OS a host reported (`linux`, `darwin`, `windows`), else the one its config says.
+fn os_of(found: &crate::resolve::Found, probe: &pool::Probe) -> String {
+    reported_os(found.kind.os().as_str(), probe)
+}
+
+fn reported_os(configured: &str, probe: &pool::Probe) -> String {
+    probe
+        .facts
+        .os
+        .as_deref()
+        .map_or_else(|| configured.to_owned(), str::to_ascii_lowercase)
+}
+
 /// How a run is spread over hosts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Fan {
@@ -243,9 +259,11 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
             &args.command,
             &selection,
             project::cross_os_setting(&repo.root)?,
+            &project::translate_overrides(&repo.root)?,
         );
     }
     let with_git = args.with_git || project::wants_git(&repo.root)?;
+    let overrides = project::translate_overrides(&repo.root)?;
     let project = runners::project_for(&args.command, &args.env, &repo.root)?;
     let mut state = State::load(&env.paths.state_file())?;
     // Plan every shard first, so a command that cannot be split is refused before any host is touched.
@@ -345,14 +363,14 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
             );
         }
     }
-    let label_of = |h: &crate::config::HostConfig, f: &crate::resolve::Found| {
+    let label_of = |h: &crate::config::HostConfig, f: &crate::resolve::Found, p: &pool::Probe| {
         if each_os {
-            format!("{} {}", h.name, f.kind.os().as_str())
+            format!("{} {}", h.name, os_of(f, p))
         } else {
             h.name.clone()
         }
     };
-    let labels: Vec<String> = hosts.iter().map(|(h, f, _)| label_of(h, f)).collect();
+    let labels: Vec<String> = hosts.iter().map(|(h, f, p)| label_of(h, f, p)).collect();
     renderer.headline(format_args!(
         "{} {} {}: {}",
         if each_os { "running" } else { "sharding" },
@@ -382,6 +400,7 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                 let capacities = &capacities;
                 let weights = &weights;
                 let repo = &repo;
+                let overrides = &overrides;
                 let interrupted = &interrupted;
                 let plan = &plans[i];
                 let distrusted = distrusted[i];
@@ -401,6 +420,7 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                     // Held until this shard ends (only a local shard takes one).
                     let mut _slot = None;
                     let mut verify = run::Verify::first(distrusted);
+                    let mut translation: Option<crate::translate::Translation> = None;
                     let mut attempts: Vec<run::AttemptRecord> = Vec::new();
                     let (code, detection) = loop {
                         let run_id = if verify.attempt == 1 {
@@ -443,6 +463,21 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                             git_overlay = synced.git_overlay;
                             manifest = Some(synced.manifest);
                             run::send_env(env, config, found, &run_id, &run::encode_env(&pairs)?)?;
+                            let (run_command, translated) = run::translated_command(
+                                env,
+                                found,
+                                probe,
+                                &config.defaults.remote_root,
+                                &run_id,
+                                &command,
+                                overrides,
+                            )?;
+                            if let Some(t) = &translated
+                                && translation.is_none()
+                            {
+                                renderer.note(format_args!("{}: {}", host.name, t.describe()));
+                            }
+                            translation = translated;
                             let mut extra = run::gpu_words(selection, config, host);
                             if plan.detect {
                                 extra.push(detect::request_word(index, count, &nonce));
@@ -455,7 +490,13 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                                 renderer.note(format_args!("{note}"));
                             }
                             let cmd = run::run_invocation_with(
-                                config, priority, repo, &run_id, args.keep, &extra, &command,
+                                config,
+                                priority,
+                                repo,
+                                &run_id,
+                                args.keep,
+                                &extra,
+                                &run_command,
                             );
                             crate::sync::SshTransport::of(found, env.settings)
                                 .command(&cmd)?
@@ -586,13 +627,14 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                         shard: index,
                         host: host.name.clone(),
                         address: found.target.address.clone(),
-                        os: found.kind.os().as_str().to_owned(),
+                        os: os_of(found, probe),
                         arch: probe.arch.clone(),
                         hostname: probe.hostname.clone(),
                         command,
                         exit_code: code,
                         attempts,
                         detection,
+                        translation,
                         duration_secs: shard_started.elapsed().as_secs_f64(),
                     })
                 })
@@ -774,5 +816,19 @@ mod tests {
             out.extend_from_slice(b);
         });
         assert_eq!(out, b"[h1] hello\n[h1] world\n");
+    }
+
+    // frob:ticket 01M439YZ808PY91MXTGS4SAKKH
+    // frob:tests crates/goway/src/shard.rs::os_of
+    #[test]
+    fn the_os_a_host_reported_beats_the_configured_one() {
+        let probe = |os: &str| {
+            pool::parse_probe(&format!(
+                "arch=x86_64\nhostname=h\ncores=1\nload1=0\nload5=0\nload15=0\njobs=0\n{os}"
+            ))
+            .unwrap()
+        };
+        assert_eq!(reported_os("linux", &probe("os=Darwin\n")), "darwin");
+        assert_eq!(reported_os("linux", &probe("")), "linux");
     }
 }

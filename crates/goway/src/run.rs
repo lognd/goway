@@ -235,6 +235,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
             &args.command,
             &selection,
             project::cross_os_setting(&repo.root)?,
+            &project::translate_overrides(&repo.root)?,
         );
     }
     let with_git = args.with_git || project::wants_git(&repo.root)?;
@@ -324,6 +325,8 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     }
     let mut verify = Verify::first(distrusted);
     let mut attempts: Vec<AttemptRecord> = Vec::new();
+    let overrides = project::translate_overrides(&repo.root)?;
+    let mut translation: Option<crate::translate::Translation> = None;
     let (run_id, code, interrupted) = loop {
         let run_id = if verify.attempt == 1 {
             new_run_id()
@@ -345,6 +348,21 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         ));
         report_withheld(renderer, &synced);
         send_env(env, &config, &found, &run_id, &env_bytes)?;
+        let (command, translated) = translated_command(
+            env,
+            &found,
+            &probe,
+            remote_root,
+            &run_id,
+            &args.command,
+            &overrides,
+        )?;
+        if let Some(t) = &translated
+            && translation.is_none()
+        {
+            renderer.note(format_args!("{}: {}", host.name, t.describe()));
+        }
+        translation = translated;
 
         let mut extra = gpu_words(&selection, &config, &host);
         extra.push(verify.word());
@@ -356,13 +374,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
             renderer.note(format_args!("{note}"));
         }
         let cmd = run_invocation_with(
-            &config,
-            priority,
-            &repo,
-            &run_id,
-            args.keep,
-            &extra,
-            &args.command,
+            &config, priority, &repo, &run_id, args.keep, &extra, &command,
         );
 
         renderer.headline(format_args!(
@@ -466,6 +478,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
                         },
                         attempts: attempts.clone(),
                         tool_versions: versions.record.clone(),
+                        translation: translation.clone(),
                     },
                 )?;
             }
@@ -520,6 +533,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
                 },
                 attempts,
                 tool_versions: versions.record,
+                translation,
             },
         )?;
     }
@@ -538,6 +552,66 @@ pub struct RemoteReport {
     /// doctor's cache (absent when doctor has not seen this project there).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_versions: Option<crate::drift::Record>,
+    /// What the host ran in place of argv[0], when the program was translated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translation: Option<crate::translate::Translation>,
+}
+
+/// The command to run on `found` after portable translation (see [`crate::translate`]): the
+/// host resolves argv[0]'s candidates (PATH only), and only argv[0] changes. Without an entry
+/// for the program the command is returned untouched and nothing is asked of the host.
+///
+/// # Errors
+///
+/// [`Error::Usage`] (exit 125) when the host cannot say for certain: goway never runs a guess.
+pub(crate) fn translated_command(
+    env: &Env<'_>,
+    found: &Found,
+    probe: &pool::Probe,
+    remote_root: &str,
+    run_id: &str,
+    command: &[String],
+    overrides: &crate::translate::Overrides,
+) -> Result<(Vec<String>, Option<crate::translate::Translation>)> {
+    use crate::translate::{self, Outcome, Target};
+    let os = probe
+        .facts
+        .os
+        .clone()
+        .unwrap_or_else(|| found.kind.os().as_str().to_owned());
+    let target = Target::of(&os);
+    let Some(plan) = translate::plan(command, target, overrides) else {
+        return Ok((command.to_vec(), None));
+    };
+    let transport = SshTransport::of(found, env.settings);
+    let answer = sync::Transport::exchange(
+        &transport,
+        &Call::new("resolve", &[remote_root, run_id]),
+        plan.spec().as_bytes(),
+    )
+    .map(|b| String::from_utf8_lossy(&b).into_owned());
+    let outcome = answer.map_or_else(
+        |e| Outcome::Doubt(format!("the host could not be asked: {e}")),
+        |text| translate::parse_answer(&text),
+    );
+    tracing::info!(requested = %plan.requested, ?outcome, "command translation");
+    match outcome {
+        Outcome::Unchanged => Ok((command.to_vec(), None)),
+        Outcome::Translated { program, args } => {
+            let t = translate::Translation {
+                requested: plan.requested.clone(),
+                actual: program.clone(),
+                args: args.clone(),
+            };
+            Ok((translate::apply(command, &program, &args), Some(t)))
+        }
+        Outcome::Doubt(why) => Err(Error::Usage(format!(
+            "`{}` has no certain equivalent on this {} host ({why}); goway does not run a guess. \
+             Name a program that host has, add a [translate] entry to goway.toml, or run on a host of this machine's OS",
+            plan.requested,
+            target.key()
+        ))),
+    }
 }
 
 /// Sync the work tree to `found` and snapshot it as work dir `run_id`; with
@@ -974,8 +1048,8 @@ const HEARTBEAT_SECS: u64 = 5;
 /// byte on its stdin every [`HEARTBEAT_SECS`]. When goway dies, even by
 /// SIGKILL, the pipe's write end closes and the helper stops the job; when
 /// the machine sleeps or the network drops, the bytes stop and it stops the
-/// job after its timeout. Only for Unix helpers (the Windows helper script
-/// has no lifeline verb). Never fails the run: without it the run is only as
+/// job after its timeout. Every helper kind has the verb (`remote.sh` and
+/// `remote.ps1`). Never fails the run: without it the run is only as
 /// protected as before.
 struct Beat {
     child: std::process::Child,
@@ -985,9 +1059,6 @@ struct Beat {
 
 impl Beat {
     fn start(found: &Found, settings: &ssh::Settings, life: &Lifeline<'_>) -> Option<Self> {
-        if found.kind != crate::transport::Kind::Unix {
-            return None;
-        }
         let call = Call::new("lifeline", &[life.remote_root, life.run_id]);
         let mut command = match SshTransport::of(found, settings).command(&call) {
             Ok(c) => c,

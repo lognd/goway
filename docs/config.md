@@ -81,6 +81,16 @@ rules as every other host. See docs/hosts.md.
 project's `goway.toml` (see [usage.md](usage.md)); they are 1-63 letters,
 digits, `-` or `_`. Labels live only in this file, never in a project.
 
+A project's own `goway.toml` `[translate]` section maps a program that differs by OS
+to its replacement per OS (`windows`, `linux`, `macos`), for example
+`mytool = { windows = "mytool.cmd", linux = "mytool" }`. A target is a bare program
+name, looked up on PATH directories only (never the current directory or the synced
+tree), or a path inside the work tree. A project entry replaces the built-in one
+(`python3` becomes `py -3` on Windows, `./gradlew` becomes `gradlew.bat`, ...); only
+argv[0] ever changes, and when the helper cannot say for certain goway stops before
+running anything. goway.toml is part of your repository, so these entries have the
+repository's own trust level. See docs/design.md ("Portable command translation").
+
 A project's own `goway.toml` `[toolchain]` section (not this file) can also
 list `rust_targets` and `packages = { apt, dnf, pacman }` that `goway doctor`
 checks and installs on the helpers; packages are root installs that need

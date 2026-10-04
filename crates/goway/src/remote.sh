@@ -685,6 +685,71 @@ lifeline() {
   kill -TERM "$runner" 2>/dev/null || true
 }
 
+# path_find NAME ROOT: the absolute path of the executable NAME on a PATH directory, else
+# fail. Only absolute directories outside ROOT (goway's own state, where the synced work
+# tree lives) are searched: never the current directory, never a relative entry, so a
+# repository cannot ship a look-alike. A symlink that leads into ROOT does not count.
+path_find() {
+  local d full real hit="" IFS=:
+  set -f
+  for d in $PATH; do
+    case "$d" in /*) ;; *) continue ;; esac
+    full=$(cd "$d" 2>/dev/null && pwd -P) || continue
+    case "$full/" in "$2"/*) continue ;; esac
+    [ -f "$full/$1" ] && [ -x "$full/$1" ] || continue
+    real=$(readlink -f "$full/$1" 2>/dev/null || true)
+    case "$real/" in "$2"/*) continue ;; esac
+    hit="$full/$1"
+    break
+  done
+  set +f
+  [ -n "$hit" ] || return 1
+  printf '%s' "$hit"
+}
+
+# resolve ROOT RUN_ID: for portable command translation. stdin holds candidate lines
+# `tier;kind;name;args;check` (kind same|bare|tree; args and check comma-joined). The first
+# tier with a usable candidate wins; two in one tier, or none, is doubt. Prints one line:
+# `same` (the program as given is there), `ok;PROGRAM;ARGS` (PROGRAM absolute) or
+# `none;WHY`. A candidate's check (arguments) must exit 0 within 15 seconds. The `tree`
+# kind (a Windows convention) never matches here. Total: any trouble is `none`.
+resolve() {
+  local root rootc line tier kind name args check tiers t hits=0 prog="" pargs="" a n=0
+  root=$(root_dir "$1")
+  case "$2" in *[!A-Za-z0-9-]* | "") die "resolve: bad run id" ;; esac
+  rootc=$(cd "$root" 2>/dev/null && pwd -P || printf '%s' "$root")
+  local lines=()
+  while IFS= read -r line && [ "$n" -lt 16 ]; do lines+=("$line"); n=$((n + 1)); done
+  tiers=$(for line in ${lines[@]+"${lines[@]}"}; do printf '%s\n' "${line%%;*}"; done | { grep -E '^[0-9]+$' || true; } | sort -un)
+  for t in $tiers; do
+    hits=0; prog=""; pargs=""
+    for line in ${lines[@]+"${lines[@]}"}; do
+      IFS=';' read -r tier kind name args check <<<"$line"
+      [ "$tier" = "$t" ] || continue
+      case "$name" in "" | *[!A-Za-z0-9._+-]*) continue ;; esac
+      case "$kind" in same | bare) ;; *) continue ;; esac
+      a=$(path_find "$name" "$rootc") || continue
+      if [ -n "$check" ]; then
+        local words=()
+        IFS=',' read -r -a words <<<"$check"
+        bounded_for 15 "$a" "${words[@]}" >/dev/null 2>&1 </dev/null || continue
+      fi
+      hits=$((hits + 1))
+      if [ "$kind" = same ]; then prog=same; else prog=$a; pargs=$args; fi
+    done
+    if [ "$hits" -gt 1 ]; then printf 'none;several candidates match\n'; return 0; fi
+    if [ "$hits" -eq 1 ]; then
+      case "$prog" in
+        same) printf 'same\n' ;;
+        *';'* | *','*) printf 'none;unsafe path\n' ;;
+        *) printf 'ok;%s;%s\n' "$prog" "$pargs" ;;
+      esac
+      return 0
+    fi
+  done
+  printf 'none;nothing found on PATH\n'
+}
+
 # envfile ROOT RUN_ID: store the run's --env values (NUL-separated on
 # stdin, never in argv) in its work dir, readable by the owner only.
 envfile() {
@@ -1224,6 +1289,9 @@ run() {
     slot_wipe "$slot" "$cache"
     printf 'goway: building slot %s from scratch (attempt %s)\n' "$slot" "$attempt" >&2
   fi
+  # Nothing this run uses may be evicted to make room for it: its work dir,
+  # the seed it was synced from, and its cache (see evict).
+  GC_PROTECT="|$work|$root/seed/$(cat "$work/seed" 2>/dev/null || true)|$cache|"
   make_room "$root" "$cache" "$slot" "$repo_id" "$room" "$t_max"
   sync_slot "$work/tree" "$rundir" "$work" "$keepignored" "$keepb64" "$(cat "$work/seed" 2>/dev/null || true)" "$cache/target-$slot"
   # The snapshot has done its job; its links hold no data of their own.
@@ -1645,6 +1713,8 @@ GC_ACTION=""
 GC_BYTES=0
 GC_FREED=0
 GC_GONE=""
+# Paths evict must never remove (the current run's own entries), as |path|| items.
+GC_PROTECT=""
 
 # Decide one entry: print "action TAB kind TAB age TAB bytes TAB repo TAB id TAB path"
 # and remove it when the action is "remove" and MODE is apply. The entry's
@@ -1901,6 +1971,7 @@ evict() {
     [ -n "$kind" ] || continue
     [ "$freed" -lt "$need" ] || break
     case "$GC_GONE" in *"|$path|"*) continue ;; esac
+    case "$GC_PROTECT" in *"|$path|"*) continue ;; esac
     case "$kind" in
       slot) evict_slot "$path" "$k" "$now" "$mode" "$repo" ;;
       *) gc_entry "$kind" "$path" 0 "$now" "$mode" "$repo" evict ;;
@@ -2118,6 +2189,7 @@ case "$verb" in
   doctor) doctor "$@" ;;
   purge) purge "$@" ;;
   lifeline) lifeline "$@" ;;
+  resolve) resolve "$@" ;;
   ping) printf 'goway-remote ok\n' ;;
   *) die "unknown verb: $verb" ;;
 esac

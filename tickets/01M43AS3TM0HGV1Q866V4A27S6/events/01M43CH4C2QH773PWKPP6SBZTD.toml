@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T11:59:30Z"
+digest = "2c966f57e67a0a0fb1f1e6fab061cf8d100303ef3e5875ec8a7c108b0b7133db"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.93s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 98b089bb-f060-4aee-ac99-f4ed173e01ab with nextest profile: default
+    Starting 1 test across 67 binaries (782 tests skipped)
+        PASS [   0.028s] goway::remote_ps1 a_windows_job_holds_a_keep_awake_request_for_exactly_its_lifetime
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.046s] 1 test run: 1 passed, 782 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/a_windows_job_holds_a_keep_awake_request/)'"
+size = 733
+status = "measured"
+tests = ["a_windows_job_holds_a_keep_awake_request_for_exactly_its_lifetime"]
+at = "2026-10-04T11:59:30Z"
+actor = "lognd"
+rev = 1

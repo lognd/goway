@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T12:24:37Z"
+digest = "ee9bcdf12e42f05f0378ebc7c0b265c3f36417376469cc41615c6e132599e06d"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 35a36b5a-aeba-415d-af64-6f19f67f8aa2 with nextest profile: default
+    Starting 2 tests across 67 binaries (781 tests skipped)
+        PASS [   0.057s] goway pool::tests::a_pending_claim_of_the_repository_takes_its_footprint_from_free_disk
+        PASS [   1.823s] goway queue::tests::a_claim_remembers_its_repository_until_dropped
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.826s] 2 tests run: 2 passed, 781 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_pending_claim_of_the_repository_takes_its_footprint_from_free_disk) | test(a_claim_remembers_its_repository_until_dropped)'"
+size = 860
+status = "measured"
+tests = ["pool::tests::a_pending_claim_of_the_repository_takes_its_footprint_from_free_disk", "queue::tests::a_claim_remembers_its_repository_until_dropped"]
+at = "2026-10-04T12:24:37Z"
+actor = "lognd"
+rev = 1
