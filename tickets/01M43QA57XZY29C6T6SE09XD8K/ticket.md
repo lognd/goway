@@ -7,7 +7,7 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T15:07:56Z"
-updated = "2026-10-04T17:12:39Z"
+updated = "2026-10-04T17:12:58Z"
 scope = ["crates/goway/src/spawn.rs", "crates/goway/src/run.rs", "crates/goway/src/local.rs", "crates/goway/src/session.rs", "crates/goway/src/remotesys.rs", "crates/goway/src/ecotools.rs", "crates/goway/src/gitmeta.rs", "crates/goway/src/hosts.rs", "crates/goway/src/sshenv.rs", "crates/goway/src/lib.rs", "crates/goway/src/repo.rs", "crates/goway/src/runners.rs", "crates/goway/src/interop.rs", "crates/goway/src/add.rs", "crates/goway/src/resolve.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/slot_trees.rs", "docs/macos.md", "crates/goway/src/doctor.rs", "crates/goway/src/sshsetup.rs", "crates/goway/src/uninstall.rs", "crates/goway/src/winadmin.rs"]
 
 [[acceptance]]
