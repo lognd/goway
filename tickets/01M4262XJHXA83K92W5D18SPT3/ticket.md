@@ -2,7 +2,8 @@
 id = "01M4262XJHXA83K92W5D18SPT3"
 title = "goway add installs the key itself on a native Windows host (goway-setup --authorized-key)"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
