@@ -2,26 +2,27 @@
 id = "01M42DTSTPRJRVKFED406S3H6W"
 title = "doctor --fix: per-fix results, one apt-get update per session, and a pinned user-level mold where no package exists"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:03:01Z"
-updated = "2026-10-04T03:03:05Z"
+updated = "2026-10-04T03:09:33Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/doctor/projneeds.rs"]
 
 [[acceptance]]
 text = "Given several root fixes in one sudo session and one of them fails (mold is not packaged on Ubuntu 20.04), when doctor reports, then each fix is reported with its own result (the others are not blamed), the session continues past a failing step and says what ran and what did not, and nothing is recorded for uninstall except what was verified fixed"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a distro without a package for a tool (mold before Ubuntu 22.04 and Debian 12), when doctor plans the fix, then it offers the upstream release as a pinned, sha256-verified user-level install under ~/.local/opt with links in ~/.local/bin (mold and ld.mold), recorded for uninstall by check name, while distros that package it still get the package"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given several apt installs in one root session, when the script is built, then apt-get update runs once for the session, not once per package"
-bound = false
+bound = true
 +++
 
 From the owner live run on a 20.04 host, relayed by the coordinator. mold 2.42.1 sha256 x86_64 6ff270c9bf07d2bec5c98aa324eb7c4daf6a1a4d815c05ff1708049616047855, aarch64 16b025652d3d7456689e6025a77e1903bb2a15e7630877c26cc133f5df95b9c6 (both hashed by download).

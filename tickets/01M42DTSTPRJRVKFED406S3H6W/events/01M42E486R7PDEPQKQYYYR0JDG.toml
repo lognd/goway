@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T03:08:10Z"
+digest = "e11708b42d3fdcdc633d1e18c09c457b7e983dad577b3fe93a02441a3ce32409"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 34495c5d-e11f-4a60-86c4-01bda64c09ea with nextest profile: default
+    Starting 2 tests across 48 binaries (593 tests skipped)
+        PASS [   0.009s] goway doctor::tests::mold_is_a_package_where_one_exists_and_a_pinned_user_install_where_not
+        PASS [   0.011s] goway doctor::projneeds::tests::every_pin_is_hashed_for_both_architectures_and_the_arch_never_reaches_the_command
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.014s] 2 tests run: 2 passed, 593 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(mold_is_a_package_where_one_exists_and_a_pinned_user_install_where_not) | test(every_pin_is_hashed_for_both_architectures_and_the_arch_never_reaches_the_command)'"
+size = 882
+status = "measured"
+tests = ["doctor::tests::mold_is_a_package_where_one_exists_and_a_pinned_user_install_where_not", "doctor::projneeds::tests::every_pin_is_hashed_for_both_architectures_and_the_arch_never_reaches_the_command"]
+at = "2026-10-04T03:08:10Z"
+actor = "lognd"
+rev = 1

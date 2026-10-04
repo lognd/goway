@@ -449,6 +449,40 @@ pub fn setup_with(
         (key, Some(private.to_string_lossy().into_owned()))
     };
 
+    // A native Windows host takes its key from `goway-setup`, run there once
+    // (administrator): no password login, no shell script.
+    if host.os == config::Os::Windows {
+        let key_target = Target {
+            identity: identity.as_ref().map(PathBuf::from),
+            ..target.clone()
+        };
+        HandInstall {
+            renderer,
+            name,
+            public_key: &public_key,
+            target: &key_target,
+            settings: &settings,
+            windows: true,
+        }
+        .run(&account_name(&target))?;
+        return finish_setup(
+            paths,
+            renderer,
+            &Finish {
+                name,
+                record_file: &record_file,
+                target: &target,
+                settings: &settings,
+                identity,
+                local,
+                remote: Journal::generate(),
+                configured: configured.is_some(),
+                host: &host,
+                scratch: &scratch,
+            },
+        );
+    }
+
     // 2. One password login (or the key added by hand): check the machine,
     // then authorize the key.
     let facts_script = "uname -s; uname -n; printf '%s\\n' \"$HOME\"; cat ~/.ssh/authorized_keys 2>/dev/null || true";
@@ -462,6 +496,7 @@ pub fn setup_with(
         public_key: &public_key,
         target: &key_target,
         settings: &settings,
+        windows: false,
     };
     let user = account_name(&target);
     let try_password = !args.no_password && knows_password(renderer, name, &user, assume_yes);
@@ -563,17 +598,66 @@ pub fn setup_with(
         }
     };
 
+    finish_setup(
+        paths,
+        renderer,
+        &Finish {
+            name,
+            record_file: &record_file,
+            target: &target,
+            settings: &settings,
+            identity,
+            local,
+            remote,
+            configured: configured.is_some(),
+            host: &host,
+            scratch: &scratch,
+        },
+    )
+}
+
+/// What the end of a setup needs: verify key-only login, record the
+/// config changes, write the record `--undo` reads.
+struct Finish<'a> {
+    name: &'a str,
+    record_file: &'a Path,
+    target: &'a Target,
+    settings: &'a ssh::Settings,
+    identity: Option<String>,
+    local: Journal,
+    remote: Journal,
+    configured: bool,
+    host: &'a HostConfig,
+    scratch: &'a Path,
+}
+
+/// Steps 3 and 4 of a setup: check that key-only login works, store the
+/// identity and pool membership, and write the undo record.
+fn finish_setup(paths: &Paths, renderer: Renderer, f: &Finish<'_>) -> Result<u8> {
+    let Finish {
+        name,
+        record_file,
+        target,
+        settings,
+        identity,
+        local,
+        remote,
+        configured,
+        host,
+        scratch,
+    } = f;
+    let (name, configured) = (*name, *configured);
     // 3. Verify key-only login.
     let check_target = Target {
         identity: identity.as_ref().map(PathBuf::from),
-        ..target.clone()
+        ..(*target).clone()
     };
     // A fresh connection: the password login's multiplexed master must not
     // make the key-only check pass.
     let verified = SshProber {
         settings: ssh::Settings {
             control_dir: None,
-            ..settings.clone()
+            ..(*settings).clone()
         },
     }
     .probe(&check_target, KeyPolicy::Strict, "true")
@@ -586,24 +670,24 @@ pub fn setup_with(
         port: target.port,
         user: target.user.clone(),
         identity: identity.clone(),
-        local,
-        remote,
+        local: local.clone(),
+        remote: remote.clone(),
         identity_set: false,
         host_added: false,
     };
-    if configured.is_none() {
-        let mut stored = host.clone();
-        stored.identity.clone_from(&identity);
+    if !configured {
+        let mut stored = (*host).clone();
+        stored.identity.clone_from(identity);
         // Pin the key confirmed above: no second trust-on-first-use round.
-        hosts::register(paths, &stored, &target.address, target.port, &scratch)?;
+        hosts::register(paths, &stored, &target.address, target.port, scratch)?;
         record.host_added = true;
     } else if identity.is_some() {
         config::set_host_identity(&paths.config_file(), name, identity.as_deref())?;
         record.identity_set = true;
     }
-    let _ = std::fs::remove_file(&scratch);
+    let _ = std::fs::remove_file(scratch);
     let text = serde_json::to_string_pretty(&record).map_err(|e| sys_err(name, e))?;
-    config::write_atomic(&record_file, text.as_bytes())?;
+    config::write_atomic(record_file, text.as_bytes())?;
     if verified {
         renderer.ok(format_args!(
             "key login to {name} works; undo with `goway ssh setup {name} --undo`"
@@ -626,6 +710,21 @@ struct HandInstall<'a> {
     /// The target with goway's own key as identity, so a key-only login offers it.
     target: &'a Target,
     settings: &'a ssh::Settings,
+    /// A native Windows host: one `goway-setup` command instead of shell lines.
+    windows: bool,
+}
+
+/// The command to run in an administrator PowerShell on a native Windows
+/// host so it authorizes `public_key` (goway-setup records it for its own
+/// uninstall).
+pub fn native_setup_command(public_key: &str) -> String {
+    let key: String = public_key
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .replace('"', "");
+    format!("goway-setup install --host --native --authorized-key \"{key}\"")
 }
 
 /// How many times the user may press Enter before goway gives up waiting for the key.
@@ -634,9 +733,12 @@ const HAND_ATTEMPTS: u32 = 3;
 impl HandInstall<'_> {
     /// The commands to run on the helper: the key line is the same restricted one the password
     /// path installs, from the `.pub` text only.
-    fn commands(&self) -> [String; 3] {
+    fn commands(&self) -> Vec<String> {
+        if self.windows {
+            return vec![native_setup_command(self.public_key)];
+        }
         let line = format!("{KEY_OPTIONS} {} goway:{}", self.public_key, local_marker());
-        [
+        vec![
             "mkdir -p ~/.ssh && chmod 700 ~/.ssh".to_owned(),
             format!("echo {} >> ~/.ssh/authorized_keys", ssh::shell_quote(&line)),
             "chmod 600 ~/.ssh/authorized_keys".to_owned(),
@@ -664,9 +766,15 @@ impl HandInstall<'_> {
                 .ok(format_args!("goway's key already works on {name}"));
             return Ok(());
         }
-        self.renderer.headline(format_args!(
-            "On {name}, open a terminal and paste these three lines:"
-        ));
+        if self.windows {
+            self.renderer.headline(format_args!(
+                "On {name}, open PowerShell as Administrator and run this (goway-setup is the installer you used for {name}):"
+            ));
+        } else {
+            self.renderer.headline(format_args!(
+                "On {name}, open a terminal and paste these three lines:"
+            ));
+        }
         // Blank lines around the block and nothing else on its lines, so it copies cleanly.
         self.renderer.line("");
         for command in self.commands() {
@@ -676,7 +784,8 @@ impl HandInstall<'_> {
         for attempt in 1..=HAND_ATTEMPTS {
             let Some(_) = crate::render::ask("Then press Enter here (Ctrl-C to stop). ") else {
                 self.renderer.next(format_args!(
-                    "run the lines above on {name}, then rerun the same `goway add {name}` command"
+                    "run the {} above on {name}, then rerun the same `goway add {name}` command",
+                    if self.windows { "command" } else { "lines" }
                 ));
                 return Err(setup_err(
                     name,
@@ -820,6 +929,18 @@ mod tests {
         let junk = dir.path().join("junk.pub");
         std::fs::write(&junk, "hello").unwrap();
         assert!(read_public_key("h", &junk).is_err());
+    }
+
+    // frob:tests crates/goway/src/sshsetup.rs::native_setup_command
+    #[test]
+    fn a_native_windows_host_gets_one_goway_setup_command_with_the_key_line() {
+        let cmd = native_setup_command("ssh-ed25519 AAAAC3Nza placeholder@laptop\n");
+        assert_eq!(
+            cmd,
+            "goway-setup install --host --native --authorized-key \"ssh-ed25519 AAAAC3Nza placeholder@laptop\""
+        );
+        // A quote in a comment can never break out of the argument.
+        assert!(!native_setup_command("ssh-ed25519 AAAA a\"b").contains("a\"b"));
     }
 
     #[test]
