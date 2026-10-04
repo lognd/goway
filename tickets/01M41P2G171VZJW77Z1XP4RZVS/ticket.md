@@ -2,13 +2,13 @@
 id = "01M41P2G171VZJW77Z1XP4RZVS"
 title = "doctor checks exactly what a project needs on every host: build tools, CMake, test frameworks and libraries, language toolchains; nothing it does not need"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 13
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-03T22:48:25Z"
+updated = "2026-10-04T00:20:43Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/remote.sh", "crates/goway/tests/**", "docs/usage.md"]
 
 [[acceptance]]
