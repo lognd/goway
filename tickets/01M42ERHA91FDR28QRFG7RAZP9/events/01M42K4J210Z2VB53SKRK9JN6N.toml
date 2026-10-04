@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T04:35:43Z"
+digest = "914cf1ad68d591339b3594d1dcbacedd2f0b6a161394d16fe0679e29a6e079a6"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 22s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d179d147-954f-4cb3-b893-f28271e8d9f0 with nextest profile: default
+    Starting 1 test across 56 binaries (658 tests skipped)
+        PASS [   5.966s] goway::shell_noise doctor_warns_about_noisy_startup_files_with_the_guard_to_add
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   5.973s] 1 test run: 1 passed, 658 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(doctor_warns_about_noisy_startup_files_with_the_guard_to_add)'"
+size = 758
+status = "measured"
+tests = ["doctor_warns_about_noisy_startup_files_with_the_guard_to_add"]
+at = "2026-10-04T04:35:43Z"
+actor = "lognd"
+rev = 1
