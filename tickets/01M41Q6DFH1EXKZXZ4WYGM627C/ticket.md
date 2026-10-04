@@ -2,7 +2,8 @@
 id = "01M41Q6DFH1EXKZXZ4WYGM627C"
 title = "Rust on Windows hosts: per-repository CARGO_TARGET_DIR, msvc target, warm reruns"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
