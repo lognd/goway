@@ -6,7 +6,7 @@ category = "in-progress"
 priority = "high"
 reporter = "lognd"
 created = "2026-10-04T00:16:58Z"
-updated = "2026-10-04T02:12:52Z"
+updated = "2026-10-04T02:17:05Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/remote_cleanup.rs"]
 
 [[acceptance]]
