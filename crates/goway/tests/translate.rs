@@ -42,6 +42,25 @@ fn resolve(home: &Path, cwd: &Path, path: &str, spec: &str) -> String {
     String::from_utf8(out.stdout).unwrap().trim().to_owned()
 }
 
+/// A temp dir addressed by its real path (macOS keeps `/var` as a symlink to `/private/var`,
+/// and `resolve` answers with real paths on purpose).
+struct RealTemp {
+    _dir: tempfile::TempDir,
+    path: PathBuf,
+}
+
+impl RealTemp {
+    fn new() -> Self {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().canonicalize().unwrap();
+        Self { _dir: dir, path }
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
 fn system_path() -> String {
     "/usr/bin:/bin".to_owned()
 }
@@ -50,7 +69,7 @@ fn system_path() -> String {
 // frob:tests crates/goway/src/remote.rs::SCRIPT_PS
 #[test]
 fn resolution_searches_absolute_path_directories_only_never_the_cwd_or_the_work_tree() {
-    let t = tempfile::tempdir().unwrap();
+    let t = RealTemp::new();
     let home = t.path().join("home");
     let cwd = t.path().join("cwd");
     let bin = t.path().join("bin");
@@ -85,7 +104,7 @@ fn resolution_searches_absolute_path_directories_only_never_the_cwd_or_the_work_
 // frob:tests crates/goway/src/remote.rs::SCRIPT_PS
 #[test]
 fn doubt_means_no_translation_and_the_first_certain_tier_wins() {
-    let t = tempfile::tempdir().unwrap();
+    let t = RealTemp::new();
     let home = t.path().join("home");
     let bin = t.path().join("bin");
     exe(&bin, "a-tool", "exit 0");
@@ -213,7 +232,13 @@ fn pwsh() -> Option<PathBuf> {
     if let Some(p) = std::env::var_os("GOWAY_PWSH") {
         candidates.push(PathBuf::from(p));
     }
-    candidates.push(PathBuf::from("pwsh"));
+    // By absolute path: the tests run it under a PATH of their own, which may not hold it.
+    let on_path = std::env::var_os("PATH")
+        .into_iter()
+        .flat_map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+        .map(|d| d.join("pwsh"))
+        .find(|p| p.is_file());
+    candidates.extend(on_path);
     candidates.into_iter().find(|c| {
         Command::new(c)
             .args(["-NoProfile", "-Command", "exit 0"])
@@ -254,7 +279,7 @@ fn resolve_ps(ps: &Path, script: &Path, root: &Path, path: &str, spec: &str) -> 
 #[test]
 fn powershell_resolves_the_same_way_path_only_tree_files_and_doubt() {
     let Some(ps) = pwsh() else { return };
-    let t = tempfile::tempdir().unwrap();
+    let t = RealTemp::new();
     let script = t.path().join("remote.ps1");
     std::fs::write(&script, goway::remote::SCRIPT_PS).unwrap();
     let root = t.path().join("root");

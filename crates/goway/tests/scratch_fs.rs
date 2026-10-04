@@ -60,6 +60,14 @@ fn a_run_keeps_its_scratch_files_under_the_remote_root_not_tmp() {
     assert!(dir.ends_with("/tmp"), "{dir}");
 }
 
+/// Whether the file system under `dir` treats names that differ only in case as one.
+fn temp_ignores_case(dir: &std::path::Path) -> bool {
+    std::fs::write(dir.join("case-probe"), b"").unwrap();
+    let same = dir.join("CASE-PROBE").exists();
+    std::fs::remove_file(dir.join("case-probe")).unwrap();
+    same
+}
+
 // frob:tests crates/goway/src/remote.rs::invocation
 #[test]
 fn case_only_clashes_are_refused_on_a_case_insensitive_host_naming_both_paths() {
@@ -97,13 +105,21 @@ fn case_only_clashes_are_refused_on_a_case_insensitive_host_naming_both_paths() 
             .exists()
     );
 
-    // The same stream is fine on a case-sensitive file system.
+    // The same stream is fine on a case-sensitive file system (not on this one, if it
+    // ignores case, as APFS does by default: the host then refuses it for real).
     let out = receive(&["src/Main.rs", "src/main.rs"], &[]);
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    if temp_ignores_case(home.path()) {
+        assert_eq!(out.status.code(), Some(76));
+        // Nothing was extracted, so put one file in the seed for the next check.
+        let out = receive(&["src/main.rs"], &[]);
+        assert!(out.status.success());
+    } else {
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
     // A clash with a file already in the seed is caught too.
     let out = receive(&["SRC/main.rs"], &env);
     assert_eq!(
@@ -126,8 +142,12 @@ fn the_remote_doctor_reports_the_file_system_of_the_root_and_of_tmp() {
         "root_noexec=0",
         "tmp_fs=",
         "tmp_noexec=",
-        "root_case_insensitive=0",
     ] {
         assert!(text.contains(key), "{key} missing in {text}");
     }
+    let flag = format!(
+        "root_case_insensitive={}",
+        u8::from(temp_ignores_case(home.path()))
+    );
+    assert!(text.contains(&flag), "{flag} missing in {text}");
 }

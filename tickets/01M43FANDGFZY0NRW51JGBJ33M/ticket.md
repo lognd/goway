@@ -2,12 +2,13 @@
 id = "01M43FANDGFZY0NRW51JGBJ33M"
 title = "macOS CI: translate tests assume a symlink-free temp dir and pwsh on /usr/bin"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T12:48:23Z"
-updated = "2026-10-04T15:29:28Z"
+updated = "2026-10-04T15:30:03Z"
 scope = ["crates/goway/tests/translate.rs"]
 
 [[acceptance]]
