@@ -2,13 +2,13 @@
 id = "01M44DSX2K8MN0C65X5P88GWQW"
 title = "Audit3 H2: administrator routes never start goway-setup by bare name; a protected, verified copy only"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T21:41:00Z"
-updated = "2026-10-04T21:41:00Z"
+updated = "2026-10-04T21:41:03Z"
 labels = ["security"]
 scope = ["crates/goway/src/winadmin.rs", "crates/goway/src/winadmin.ps1", "crates/goway/src/doctor/windows.rs", "crates/goway/src/add.rs", "crates/goway/tests/win_elevate.rs", "crates/goway/tests/winadmin_setup.rs", "docs/install-windows.md"]
 
