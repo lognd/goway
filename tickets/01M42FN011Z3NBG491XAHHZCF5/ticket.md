@@ -8,7 +8,7 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T03:34:48Z"
-updated = "2026-10-04T12:20:01Z"
+updated = "2026-10-04T12:20:02Z"
 scope = ["crates/goway/src/translate.rs", "crates/goway/src/runners.rs", "crates/goway/src/project.rs", "crates/goway/src/run.rs", "crates/goway/src/remote.ps1", "crates/goway/src/remote.sh", "crates/goway/tests/translate.rs", "docs/config.md", "docs/design.md", "crates/goway/src/shard.rs", "crates/goway/src/lib.rs"]
 
 [[links]]
@@ -45,5 +45,5 @@ bound = true
 
 [[acceptance]]
 text = "Given property tests over arbitrary command lines, when translation runs, then only argv[0] can change, every other argument is byte-identical, and the result is either unchanged or a program resolved from a PATH directory"
-bound = false
+bound = true
 +++
