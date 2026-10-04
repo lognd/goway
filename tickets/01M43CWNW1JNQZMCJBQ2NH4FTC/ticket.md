@@ -2,7 +2,8 @@
 id = "01M43CWNW1JNQZMCJBQ2NH4FTC"
 title = "Learn each repository's peak memory per run and only place runs where it fits; explain an out-of-memory kill"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
