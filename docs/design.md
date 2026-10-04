@@ -328,6 +328,37 @@ ordinary seed files, `remote.sh` and `remote.ps1` need no change and the
 copy-integrity check covers them. Blobs of paths the secret rules keep local
 are filtered out of the pack list.
 
+### Clocks
+
+goway stores and compares only epoch seconds (UTC), so time zones never
+matter anywhere. Every comparison uses one machine's clock, never a mix:
+
+- The laptop's clock decides which local files changed (their mtimes
+  against the mtimes it sent last time) and when a run started.
+- The helper's clock decides what is expired on the helper: the age of
+  caches, kept work dirs and slots in gc, and the time given to files written
+  into a slot.
+- The helper's monotonic time since boot (`/proc/uptime`) decides whether a
+  starting run is young, because the wall clock can step.
+
+No comparison subtracts a laptop time from a helper time: the two clocks may
+differ by minutes (a WSL machine after sleep), and a comparison across them
+would be wrong by that amount.
+
+What a clock step does:
+
+- **A helper's wall clock jumps forward.** Every age on that helper becomes
+  huge, so gc would see a run that has just been synced as long abandoned.
+  A work dir is therefore protected by liveness, not age: `receive` records
+  its own process (with its start time, so a recycled pid is not trusted) and
+  the monotonic time at birth, and gc keeps the dir while that process lives
+  or for two minutes by the monotonic clock. Once the run takes the dir's
+  lock, the lock protects it and the markers are removed.
+- **The laptop's clock runs ahead.** Synced files have mtimes in the helper's
+  future. A slot's copies are written with the helper's current time, never the
+  laptop's, so make and ninja see no clock skew and a second run rebuilds
+  nothing, and tar's future-timestamp warnings are suppressed.
+
 ## 3. Where each part is documented
 
 User-facing behaviour is described in docs/usage.md (run, status, gc,

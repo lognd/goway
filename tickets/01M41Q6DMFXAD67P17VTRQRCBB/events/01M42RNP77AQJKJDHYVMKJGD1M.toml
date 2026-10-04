@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T06:12:28Z"
+digest = "f7685c019185d40f89c78aa11d20b93224ae1681a3e3c105b8e07f161fbac816"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.51s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2f77d137-97a5-4a8e-ae9a-f7037ce36aa0 with nextest profile: default
+    Starting 2 tests across 62 binaries (731 tests skipped)
+        PASS [   0.047s] goway::remote_ps1 gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones
+        PASS [   0.057s] goway::remote_ps1 probe_reports_the_facts_goway_schedules_with
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.059s] 2 tests run: 2 passed, 731 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones) | test(probe_reports_the_facts_goway_schedules_with)'"
+size = 863
+status = "measured"
+tests = ["gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones", "probe_reports_the_facts_goway_schedules_with"]
+at = "2026-10-04T06:12:28Z"
+actor = "lognd"
+rev = 1
