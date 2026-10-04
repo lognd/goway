@@ -672,10 +672,40 @@ setup.
 ## Doctor
 
 ```
-goway doctor                 # every host
+goway doctor                 # every host: problems only
+goway doctor --all           # also the passing checks
+goway doctor --explain mold  # the long text for one check
 goway doctor <YOUR-COMPUTER-NAME-HERE> --fix          # run the fixes that need no root
 goway doctor <YOUR-COMPUTER-NAME-HERE> --fix --rsudo  # also the administrator fixes
+goway doctor --fix --rsudo --harden                   # and the optional hardening
 ```
+
+### What doctor prints
+
+Doctor is quiet by default. It prints one summary line per host (how
+many problems and how many checks passed), then one table with each
+problem once. A problem several hosts share is one row that names those
+hosts (`all 3 hosts` when every host has it), failures before warnings.
+Passing checks appear only with `--all`. Long explanations, such as the
+one-run workaround for a linker the project's cargo config asks for, appear
+only for one named check, with `--explain CHECK`, together with the exact
+fix command.
+
+With `--fix`, the fixes are listed once in plain words with the hosts
+that need them. System changes need `--rsudo`: for each host goway
+says in plain words what will change there and asks `[s]how exact
+commands / [y]es / [N]o`. The exact root script is always shown before it
+runs (with `--yes` it is shown and runs without asking). Everything runs
+in one sudo session on that host, as separate steps: a step that fails
+does not stop the others, each step reports its own result, and goway
+checks again afterwards and records only what it verified as fixed.
+`apt-get update` runs once per session. sudo asks for the password
+itself; goway never sees it.
+
+Hardening, such as turning off ssh password login, is not needed to run
+anything. It is listed separately as optional and is applied only with
+`--harden` (which needs `--rsudo`), with its own question, never in the
+same confirmation as tool installs.
 
 Checks:
 - goway's remote prerequisites: bash, tar, flock, setsid
@@ -724,8 +754,8 @@ error whose fix is the system package (`goway doctor --fix --rsudo`, shown
 in full and confirmed, installed by apt, dnf or pacman and recorded by check
 name only; packages are listed by `goway uninstall`, never removed).
 
-The error also names a one-run override, which goway never applies by
-itself:
+`goway doctor --explain mold` (or `clang`) also names a one-run
+override, which goway never applies by itself:
 
 ```sh
 goway run --env CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=cc \
@@ -751,7 +781,9 @@ Tool names must be plain (letters, digits, `._+-`): they go into a
 command on the host.
 
 Fixes for these tools prefer a user-level install: pinned releases of
-uv, go, cmake, node, a Temurin JDK and Maven, each verified by checksum
+uv, go, cmake, node, a Temurin JDK and Maven (and mold where the
+distribution has no package for it, Ubuntu before 22.04 and Debian
+before 12), each verified by checksum
 before it is unpacked into `~/.local/opt/goway-TOOL` and linked into
 `~/.local/bin` (put that on `PATH`); corepack for pnpm and yarn; a user
 gem for bundler. Everything else (compilers, make, ninja, git, ccache,

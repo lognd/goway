@@ -150,6 +150,9 @@ pub fn add(
         fix: true,
         rsudo: args.rsudo,
         yes: args.yes,
+        harden: false,
+        all: false,
+        explain: None,
     };
     let code = doctor::doctor(paths, renderer, &doctor_args, lookup, prober, settings)?;
     if code == 0 {

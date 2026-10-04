@@ -247,7 +247,7 @@ fn every_run_triggers_automatic_gc_of_expired_entries() {
 #[test]
 fn doctor_reports_every_check_with_status() {
     let w = world();
-    let out = w.run(&["doctor"]);
+    let out = w.run(&["doctor", "--all"]);
     let table = String::from_utf8_lossy(&out.stdout).into_owned();
     // A Mac has one Homebrew check where Linux has one per GNU tool.
     let tools: &[&str] = if cfg!(target_os = "macos") {
@@ -260,11 +260,13 @@ fn doctor_reports_every_check_with_status() {
         .chain(&["cc (linker)", "cargo", "sshd password login"])
     {
         assert!(
-            table.lines().any(|l| l.starts_with(check)),
+            table
+                .lines()
+                .any(|l| l.split_whitespace().nth(1) == check.split_whitespace().next()),
             "{check} missing\n{table}"
         );
     }
-    assert!(String::from_utf8_lossy(&out.stderr).contains("local at 127.0.0.1"));
+    assert!(table.contains("local (127.0.0.1,"), "{table}");
     let sudo_without_fix = w.run(&["doctor", "--sudo"]);
     assert_eq!(
         sudo_without_fix.status.code(),

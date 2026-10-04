@@ -11,6 +11,7 @@
 use std::collections::BTreeMap;
 use std::process::Stdio;
 
+pub mod output;
 mod projneeds;
 
 pub use projneeds::Toolchain;
@@ -60,6 +61,10 @@ impl Fix {
     }
 }
 
+/// Checks whose fixes are hardening, not needs: listed apart and applied
+/// only with `--harden`, never in the same confirmation as tool installs.
+pub const HARDENING: &[&str] = &["sshd password login"];
+
 /// One check result.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Check {
@@ -71,6 +76,8 @@ pub struct Check {
     pub detail: String,
     /// How to fix it, if goway knows.
     pub fix: Option<Fix>,
+    /// The long explanation, shown only by `goway doctor --explain CHECK`.
+    pub explain: Option<String>,
 }
 
 /// Parse `key=value` lines.
@@ -125,6 +132,7 @@ fn darwin_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     let brew = tool(facts, "brew").is_some();
     let check = |level, detail: String, fix| Check {
         name: "Homebrew GNU tools".to_owned(),
+        explain: None,
         level,
         detail,
         fix,
@@ -297,6 +305,7 @@ fn system_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     let mut push = |name: &str, level, detail: String, fix| {
         out.push(Check {
             name: name.to_owned(),
+            explain: None,
             level,
             detail,
             fix,
@@ -310,12 +319,14 @@ fn system_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
         checks.push(match present("cc") {
             Some(v) => Check {
                 name: "cc (linker)".to_owned(),
+                explain: None,
                 level: Level::Ok,
                 detail: v,
                 fix: None,
             },
             None => Check {
                 name: "cc (linker)".to_owned(),
+                explain: None,
                 level: Level::Fail,
                 detail: "missing; run `xcode-select --install` on the Mac (it opens a dialog)"
                     .to_owned(),
@@ -434,6 +445,7 @@ fn toolchain_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     let mut push = |name: &str, level, detail: String, fix| {
         out.push(Check {
             name: name.to_owned(),
+            explain: None,
             level,
             detail,
             fix,
@@ -497,6 +509,7 @@ fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     let mut push = |name: &str, level, detail: String, fix| {
         out.push(Check {
             name: name.to_owned(),
+            explain: None,
             level,
             detail,
             fix,
@@ -639,6 +652,9 @@ fn root_script(steps: &[(String, Fix)]) -> String {
     script
 }
 
+/// Asks whether to run the root steps of one host, given their script.
+pub type Confirm<'a> = dyn Fn(&[(String, Fix)], &str) -> bool + 'a;
+
 /// Run the fixes `--fix` allows: user fixes always; root fixes only with
 /// `sudo` and only after `confirm` approves the whole list, and then all
 /// together in ONE sudo session (one password, typed into sudo itself), each
@@ -646,7 +662,7 @@ fn root_script(steps: &[(String, Fix)]) -> String {
 pub fn apply_fixes(
     checks: &[Check],
     sudo: bool,
-    confirm: &dyn Fn(&[Fix]) -> bool,
+    confirm: &Confirm,
     runner: &dyn FixRunner,
 ) -> Applied {
     let mut applied = Applied::default();
@@ -669,9 +685,10 @@ pub fn apply_fixes(
     // Root fixes first: they provide what user fixes need (curl, cc).
     if !root.is_empty() {
         let fixes: Vec<Fix> = root.iter().map(|(_, f)| f.clone()).collect();
-        if sudo && confirm(&fixes) {
+        let script = root_script(&root);
+        if sudo && confirm(&root, &script) {
             tracing::info!(fixes = root.len(), "running root fixes in one sudo session");
-            let ok = runner.run(&root_script(&root), true);
+            let ok = runner.run(&script, true);
             if !ok {
                 tracing::warn!("the root session reported failing steps");
             }
@@ -723,48 +740,6 @@ impl FixRunner for SshFixRunner<'_> {
             .stderr(Stdio::inherit())
             .status()
             .is_ok_and(|s| s.success())
-    }
-}
-
-fn mark(level: Level) -> &'static str {
-    match level {
-        Level::Ok => "ok",
-        Level::Warn => "WARN",
-        Level::Fail => "FAIL",
-    }
-}
-
-fn report(
-    renderer: Renderer,
-    host: &HostConfig,
-    found: &Found,
-    facts: &BTreeMap<String, String>,
-    checks: &[Check],
-) {
-    renderer.headline(format_args!(
-        "{} at {} ({}, {})",
-        host.name,
-        found.target.address,
-        facts.get("os").map_or("unknown OS", String::as_str),
-        facts.get("arch").map_or("?", String::as_str)
-    ));
-    let mut rows = vec![vec![
-        "check".to_owned(),
-        "status".to_owned(),
-        "detail".to_owned(),
-    ]];
-    for c in checks {
-        rows.push(vec![
-            c.name.clone(),
-            mark(c.level).to_owned(),
-            c.detail.clone(),
-        ]);
-    }
-    renderer.table(&rows);
-    for c in checks.iter().filter(|c| c.level != Level::Ok) {
-        if let Some(fix) = &c.fix {
-            renderer.line(format_args!("  fix {}: {}", c.name, fix.display()));
-        }
     }
 }
 
@@ -934,15 +909,11 @@ fn show_applied(renderer: Renderer, host: &HostConfig, applied: &Applied) {
     }
     if !applied.need_sudo.is_empty() {
         renderer.warn(format_args!(
-            "{}: {} fix(es) need root and were not run. Rerun `goway doctor {} --fix --rsudo` to run them (sudo on {} asks for its password once; goway never sees it), or run them yourself:",
+            "{}: {} fix(es) need administrator rights and were not run; rerun with --rsudo (sudo on {} asks for its password once; goway never sees it)",
             host.name,
             applied.need_sudo.len(),
-            host.name,
             host.name
         ));
-        for fix in &applied.need_sudo {
-            renderer.line(format_args!("  {}\n    why: {}", fix.display(), fix.why));
-        }
     }
 }
 
@@ -962,8 +933,213 @@ fn project_needs() -> Result<projneeds::Needs> {
     projneeds::analyse(&repo.root, &toolchain)
 }
 
+/// What every host's fixes share.
+struct FixCtx<'a> {
+    paths: &'a Paths,
+    renderer: Renderer,
+    args: &'a DoctorArgs,
+    config: &'a Config,
+    lookup: &'a (dyn Lookup + Sync),
+    prober: &'a (dyn Prober + Sync),
+    settings: &'a ssh::Settings,
+    needs: &'a projneeds::Needs,
+    cmd: &'a str,
+    state: &'a State,
+}
+
+/// A reachable host with what doctor found there.
+struct Probed<'a> {
+    host: &'a HostConfig,
+    found: Found,
+    facts: BTreeMap<String, String>,
+    checks: Vec<Check>,
+    /// Its place in the report list.
+    index: usize,
+}
+
+/// Ask before root fixes run; `s` shows the exact script first. The exact
+/// script is always shown before it runs, whatever the answer was.
+fn confirm_plan(
+    renderer: Renderer,
+    host: &str,
+    steps: &[(String, Fix)],
+    script: &str,
+    yes: bool,
+    hardening: bool,
+) -> bool {
+    let show = || {
+        for line in output::script_lines(host, script) {
+            renderer.line(line);
+        }
+    };
+    if yes {
+        show();
+        return true;
+    }
+    let mut shown = false;
+    loop {
+        let Some(answer) = crate::render::ask(&output::prompt_text(host, steps, hardening)) else {
+            return false;
+        };
+        match answer.trim().to_ascii_lowercase().as_str() {
+            "s" | "show" => {
+                show();
+                shown = true;
+            }
+            "y" | "yes" => {
+                if !shown {
+                    show();
+                }
+                return true;
+            }
+            _ => return false,
+        }
+    }
+}
+
+/// Apply one host's fixes (tools first, hardening only with `--harden`),
+/// judge each by a re-check, record what was verified, and update `probed`.
+/// Returns whether anything ran.
+fn fix_host(ctx: &FixCtx<'_>, probed: &mut Probed<'_>) -> bool {
+    let (renderer, args) = (ctx.renderer, ctx.args);
+    let host = probed.host;
+    let runner = SshFixRunner {
+        found: &probed.found,
+        settings: ctx.settings,
+    };
+    let (hard, tools): (Vec<Check>, Vec<Check>) = probed
+        .checks
+        .iter()
+        .cloned()
+        .partition(output::is_hardening);
+    let confirm_tools = |steps: &[(String, Fix)], script: &str| {
+        confirm_plan(renderer, &host.name, steps, script, args.yes, false)
+    };
+    let mut applied = apply_fixes(&tools, args.rsudo, &confirm_tools, &runner);
+    if args.harden {
+        let confirm_hard = |steps: &[(String, Fix)], script: &str| {
+            confirm_plan(renderer, &host.name, steps, script, args.yes, true)
+        };
+        let more = apply_fixes(&hard, args.rsudo, &confirm_hard, &runner);
+        applied.root_ran.extend(more.root_ran);
+        applied.need_sudo.extend(more.need_sudo);
+    }
+    show_applied(renderer, host, &applied);
+    let ran =
+        !applied.done.is_empty() || !applied.failed.is_empty() || !applied.root_ran.is_empty();
+    if !ran {
+        return false;
+    }
+    // Re-check after fixing; each root fix is judged by it.
+    let mut fixed: Vec<String> = applied.done.clone();
+    let mut local = ctx.state.clone();
+    let after = resolve::resolve(
+        ctx.config,
+        host,
+        &mut local,
+        ctx.lookup,
+        ctx.prober,
+        KeyPolicy::Strict,
+        ctx.cmd,
+    )
+    .map(|f| assess_project(&parse_facts(&f.output), ctx.needs));
+    if let Ok(after) = &after {
+        let (ok, bad) = judge_root(&applied.root_ran, after);
+        for (name, fix) in &ok {
+            renderer.ok(format_args!("{}: fixed: {name}", host.name));
+            fixed.push(fix.command.clone());
+        }
+        for (name, _) in &bad {
+            renderer.warn(format_args!(
+                "{}: not fixed: {name} (its output is above)",
+                host.name
+            ));
+        }
+    } else if !applied.root_ran.is_empty() {
+        renderer.warn(format_args!(
+            "{}: cannot re-check, so the root fixes are not recorded",
+            host.name
+        ));
+    }
+    if let Err(e) = record_installed(ctx.paths, &host.name, &probed.facts, &probed.checks, &fixed) {
+        renderer.warn(format_args!(
+            "cannot record what was installed on {}: {e}",
+            host.name
+        ));
+    }
+    if let Ok(after) = after {
+        probed.checks = after;
+    }
+    true
+}
+
+/// Turn the probes of every host into the report and the reachable hosts
+/// (with their checks); also the local ssh findings of unreachable hosts.
+fn collect<'a>(
+    config: &Config,
+    needs: &projneeds::Needs,
+    results: Vec<(&'a HostConfig, Result<Found>)>,
+) -> (
+    Vec<output::HostReport>,
+    Vec<Probed<'a>>,
+    std::collections::BTreeSet<String>,
+) {
+    let mut reports: Vec<output::HostReport> = Vec::new();
+    let mut reached: Vec<Probed<'_>> = Vec::new();
+    let mut local_ssh = std::collections::BTreeSet::new();
+    for (host, result) in results {
+        let found = match result {
+            Ok(found) => found,
+            Err(e) => {
+                reports.push(output::HostReport {
+                    name: host.name.clone(),
+                    address: host.address.clone().unwrap_or_default(),
+                    os: "?".to_owned(),
+                    arch: "?".to_owned(),
+                    outcome: output::Outcome::Down(e.to_string()),
+                });
+                for finding in sshenv::check(
+                    host.address.as_deref().unwrap_or(&host.name),
+                    config.port_of(host),
+                ) {
+                    local_ssh.insert(finding.to_string());
+                }
+                continue;
+            }
+        };
+        let facts = parse_facts(&found.output);
+        let mut checks = assess_project(&facts, needs);
+        for finding in sshenv::check(&found.target.address, found.target.port) {
+            checks.push(Check {
+                name: "local ssh".to_owned(),
+                explain: None,
+                level: Level::Warn,
+                detail: finding.to_string(),
+                fix: None,
+            });
+        }
+        reports.push(output::HostReport {
+            name: host.name.clone(),
+            address: found.target.address.clone(),
+            os: facts
+                .get("os")
+                .cloned()
+                .unwrap_or_else(|| "unknown OS".to_owned()),
+            arch: facts.get("arch").cloned().unwrap_or_else(|| "?".to_owned()),
+            outcome: output::Outcome::Checked(checks.clone()),
+        });
+        reached.push(Probed {
+            host,
+            found,
+            facts,
+            checks,
+            index: reports.len() - 1,
+        });
+    }
+    (reports, reached, local_ssh)
+}
+
 /// `goway doctor`.
-#[allow(clippy::too_many_lines)] // one pass over the hosts; the output redesign splits it
 pub fn doctor(
     paths: &Paths,
     renderer: Renderer,
@@ -1008,90 +1184,64 @@ pub fn doctor(
     if let Err(e) = state.save(&paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
     }
-    let mut worst = Level::Ok;
-    for (host, result) in results {
-        let found = match result {
-            Ok(found) => found,
-            Err(e) => {
-                renderer.warn(format_args!("{}: {e}", host.name));
-                for finding in sshenv::check(
-                    host.address.as_deref().unwrap_or(&host.name),
-                    config.port_of(host),
-                ) {
-                    renderer.warn(format_args!("local ssh: {finding}"));
-                }
-                worst = Level::Fail;
-                continue;
-            }
-        };
-        let facts = parse_facts(&found.output);
-        let mut checks = assess_project(&facts, &needs);
-        for finding in sshenv::check(&found.target.address, found.target.port) {
-            checks.push(Check {
-                name: "local ssh".to_owned(),
-                level: Level::Warn,
-                detail: finding.to_string(),
-                fix: None,
-            });
-        }
-        report(renderer, host, &found, &facts, &checks);
-        if args.fix {
-            let runner = SshFixRunner {
-                found: &found,
-                settings,
-            };
-            let confirm = |fixes: &[Fix]| confirm_root(renderer, &host.name, fixes, args.yes);
-            let applied = apply_fixes(&checks, args.rsudo, &confirm, &runner);
-            show_applied(renderer, host, &applied);
-            let mut fixed: Vec<String> = applied.done.clone();
-            if !applied.done.is_empty()
-                || !applied.failed.is_empty()
-                || !applied.root_ran.is_empty()
-            {
-                // Re-check after fixing; each root fix is judged by it.
-                let mut local = state.clone();
-                let after = resolve::resolve(
-                    &config,
-                    host,
-                    &mut local,
-                    lookup,
-                    prober,
-                    KeyPolicy::Strict,
-                    &cmd,
-                )
-                .map(|f| assess_project(&parse_facts(&f.output), &needs));
-                if let Ok(after) = &after {
-                    let (ok, bad) = judge_root(&applied.root_ran, after);
-                    for (name, fix) in &ok {
-                        renderer.ok(format_args!("{}: fixed: {name}", host.name));
-                        fixed.push(fix.command.clone());
-                    }
-                    for (name, _) in &bad {
-                        renderer.warn(format_args!(
-                            "{}: not fixed: {name} (the output above says why)",
-                            host.name
-                        ));
-                    }
-                } else if !applied.root_ran.is_empty() {
-                    renderer.warn(format_args!(
-                        "{}: cannot re-check, so the root fixes are not recorded",
-                        host.name
-                    ));
-                }
-                if let Err(e) = record_installed(paths, &host.name, &facts, &checks, &fixed) {
-                    renderer.warn(format_args!(
-                        "cannot record what was installed on {}: {e}",
-                        host.name
-                    ));
-                }
-                checks = after.unwrap_or(checks);
-                renderer.note(format_args!("{}: after fixes:", host.name));
-                report(renderer, host, &found, &facts, &checks);
-            }
-        }
-        worst = worst.max(checks.iter().map(|c| c.level).max().unwrap_or(Level::Ok));
+    let (mut reports, mut reached, local_ssh) = collect(&config, &needs, results);
+    for finding in &local_ssh {
+        renderer.warn(format_args!("local ssh: {finding}"));
     }
-    Ok(u8::from(worst == Level::Fail))
+    let print = |lines: Vec<String>| {
+        for line in lines {
+            renderer.line(line);
+        }
+    };
+    if let Some(check) = &args.explain {
+        print(output::explain_lines(&reports, check));
+        return Ok(exit_code(&reports));
+    }
+    print(output::report_lines(
+        &reports,
+        args.all,
+        renderer.is_plain(),
+    ));
+    if args.fix {
+        print(output::plan_lines(&reports, args.harden, args.rsudo));
+        let ctx = FixCtx {
+            paths,
+            renderer,
+            args,
+            config: &config,
+            lookup,
+            prober,
+            settings,
+            needs: &needs,
+            cmd: &cmd,
+            state: &state,
+        };
+        let mut changed = false;
+        for p in &mut reached {
+            if fix_host(&ctx, p) {
+                changed = true;
+                reports[p.index].outcome = output::Outcome::Checked(p.checks.clone());
+            }
+        }
+        if changed {
+            renderer.note("after fixes:");
+            print(output::report_lines(
+                &reports,
+                args.all,
+                renderer.is_plain(),
+            ));
+        }
+    }
+    Ok(exit_code(&reports))
+}
+
+/// 1 when a host is unreachable or has a failing check, else 0.
+fn exit_code(reports: &[output::HostReport]) -> u8 {
+    let bad = reports.iter().any(|r| match &r.outcome {
+        output::Outcome::Down(_) => true,
+        output::Outcome::Checked(c) => c.iter().any(|c| c.level == Level::Fail),
+    });
+    u8::from(bad)
 }
 
 #[cfg(test)]
@@ -1154,8 +1304,11 @@ mod tests {
             .map(|name| {
                 let c = checks.iter().find(|c| c.name == *name).unwrap();
                 assert_eq!(c.level, Level::Fail, "{name}");
+                assert!(!c.detail.contains("--env"), "the detail stays short");
                 assert!(
-                    c.detail
+                    c.explain
+                        .as_deref()
+                        .unwrap()
                         .contains("--env CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=cc")
                 );
                 let fix = c.fix.clone().unwrap();
@@ -1607,7 +1760,7 @@ mod tests {
     fn root_fixes_never_run_without_sudo() {
         let checks = assess(&facts(&["cc", "cargo-nextest", "sccache"]));
         let rec = Recorder(RefCell::new(Vec::new()));
-        let applied = apply_fixes(&checks, false, &|_| true, &rec);
+        let applied = apply_fixes(&checks, false, &|_, _| true, &rec);
         assert_eq!(applied.done.len(), 2, "nextest and sccache run as the user");
         assert!(rec.0.borrow().iter().all(|(_, sudo)| !sudo));
         assert_eq!(applied.need_sudo.len(), 1);
@@ -1615,7 +1768,7 @@ mod tests {
         assert!(applied.need_sudo[0].why.contains("root"));
 
         let rec = Recorder(RefCell::new(Vec::new()));
-        let applied = apply_fixes(&checks, true, &|_| true, &rec);
+        let applied = apply_fixes(&checks, true, &|_, _| true, &rec);
         assert!(applied.need_sudo.is_empty());
         let calls = rec.0.borrow();
         assert!(calls[0].1, "root fixes first, under sudo");
@@ -1628,13 +1781,13 @@ mod tests {
         f.insert("password_auth".to_owned(), "default-yes".to_owned());
         let checks = assess(&f);
         let rec = Recorder(RefCell::new(Vec::new()));
-        let declined = apply_fixes(&checks, true, &|_| false, &rec);
+        let declined = apply_fixes(&checks, true, &|_, _| false, &rec);
         assert!(
             rec.0.borrow().is_empty(),
             "nothing runs when the user says no"
         );
         assert_eq!(declined.need_sudo.len(), 3);
-        let applied = apply_fixes(&checks, true, &|_| true, &rec);
+        let applied = apply_fixes(&checks, true, &|_, _| true, &rec);
         let calls = rec.0.borrow();
         let sudo_calls: Vec<&(String, bool)> = calls.iter().filter(|(_, s)| *s).collect();
         assert_eq!(sudo_calls.len(), 1, "one sudo session for all root fixes");
