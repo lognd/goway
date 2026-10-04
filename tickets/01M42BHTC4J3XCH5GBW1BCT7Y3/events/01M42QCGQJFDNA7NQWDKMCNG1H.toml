@@ -1,0 +1,29 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T05:49:58Z"
+digest = "d275261e5a982c3af9b1b64ec350b6eee84e66d2b4305e9c782b726fd49c39af"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 43.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 0b923397-bafa-4026-a7a0-44047234142c with nextest profile: default
+    Starting 4 tests across 61 binaries (714 tests skipped)
+        PASS [   0.010s] goway doctor::tests::doctor_reports_the_root_file_system_and_unusual_temp_dirs
+        PASS [   0.144s] goway::scratch_fs case_only_clashes_are_refused_on_a_case_insensitive_host_naming_both_paths
+        PASS [   2.682s] goway::scratch_fs the_remote_doctor_reports_the_file_system_of_the_root_and_of_tmp
+        PASS [   4.695s] goway::scratch_fs a_run_keeps_its_scratch_files_under_the_remote_root_not_tmp
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   4.702s] 4 tests run: 4 passed, 714 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_run_keeps_its_scratch_files_under_the_remote_root_not_tmp) | test(the_remote_doctor_reports_the_file_system_of_the_root_and_of_tmp) | test(doctor_reports_the_root_file_system_and_unusual_temp_dirs) | test(case_only_clashes_are_refused_on_a_case_insensitive_host_naming_both_paths)'"
+size = 1088
+status = "measured"
+tests = ["doctor::tests::doctor_reports_the_root_file_system_and_unusual_temp_dirs", "case_only_clashes_are_refused_on_a_case_insensitive_host_naming_both_paths", "the_remote_doctor_reports_the_file_system_of_the_root_and_of_tmp", "a_run_keeps_its_scratch_files_under_the_remote_root_not_tmp"]
+at = "2026-10-04T05:49:58Z"
+actor = "lognd"
+rev = 1
