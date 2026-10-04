@@ -2,7 +2,8 @@
 id = "01M43FGZX6DMY6VWYE7ACGZN8W"
 title = "macOS CI: footprint tests' fake df is shadowed by Homebrew GNU tools first on PATH"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
