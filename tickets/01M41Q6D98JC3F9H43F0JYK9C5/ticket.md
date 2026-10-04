@@ -8,7 +8,7 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-04T00:33:46Z"
+updated = "2026-10-04T00:33:49Z"
 scope = ["crates/goway/src/sync.rs", "crates/goway/src/interop.rs", "docs/design.md", "crates/goway/src/gc.rs", "crates/goway/src/run.rs", "crates/goway/src/pool.rs", "crates/goway/src/status.rs", "crates/goway/src/transport.rs", "crates/goway/src/remote.ps1", "crates/goway/src/remote.rs", "crates/goway/src/resolve.rs", "crates/goway/src/shard.rs", "crates/goway/src/uninstall.rs", "crates/goway/src/local.rs", "crates/goway/src/cli.rs", "crates/goway/src/lib.rs", "crates/goway/src/ssh.rs", "crates/goway/src/remotesys.rs"]
 
 [[links]]
@@ -21,7 +21,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a repeat sync, when few files changed, then only those are written, decided on the WSL side without stat-scanning the NTFS copy, and deletions touch only goway's own directory"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given Windows paths, when goway translates them, then it uses wslpath and refuses paths outside goway's root"
