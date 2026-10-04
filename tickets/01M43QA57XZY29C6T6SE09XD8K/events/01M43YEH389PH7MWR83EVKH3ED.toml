@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T17:12:39Z"
+digest = "959960e8babef1a400216677aafa7a76213cdfe3f404be71be133e746c095200"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 20.23s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 92866b19-fe9c-4751-8d8c-04a2c9f7a6af with nextest profile: default
+    Starting 1 test across 72 binaries (821 tests skipped)
+        PASS [   0.021s] goway spawn::tests::no_production_code_spawns_a_child_outside_the_lock
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.024s] 1 test run: 1 passed, 821 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(no_production_code_spawns_a_child_outside_the_lock)'"
+size = 749
+status = "measured"
+tests = ["spawn::tests::no_production_code_spawns_a_child_outside_the_lock"]
+at = "2026-10-04T17:12:39Z"
+actor = "lognd"
+rev = 1
