@@ -2,7 +2,8 @@
 id = "01M439YZ808PY91MXTGS4SAKKH"
 title = "Shard and each-os lines name the OS the host reported, not the config's os (macOS helper shows linux)"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 1
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
