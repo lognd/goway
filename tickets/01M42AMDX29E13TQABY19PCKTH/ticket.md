@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:07:06Z"
-updated = "2026-10-04T04:09:37Z"
+updated = "2026-10-04T04:09:39Z"
 scope = ["crates/goway/src/add.rs", "crates/goway/src/doctor.rs", "crates/goway/src/cli.rs", "docs/usage.md", "docs/install-windows.md", "crates/goway/src/sshsetup.rs", "crates/goway/src/winadmin.rs", "crates/goway/src/lib.rs", "crates/goway/tests/win_elevate.rs"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given --lsudo for a Windows-side step on the main laptop, when it runs, then the local UAC prompt is used"
-bound = false
+bound = true
 +++
 
 split from ~AD8JP8D (criteria 2 and 3) by lane C

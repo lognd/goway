@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T04:09:39Z"
+digest = "94b6cb32ea20eb451c54093952adf48defab88cf5b157e22575e10f0fd374132"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 413b06d9-e99f-42cb-b7ad-eb09be88a1f7 with nextest profile: default
+    Starting 1 test across 54 binaries (636 tests skipped)
+        PASS [   0.014s] goway winadmin::tests::a_local_step_goes_through_this_laptops_uac_prompt_and_keeps_its_exit_code
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.017s] 1 test run: 1 passed, 636 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_local_step_goes_through_this_laptops_uac_prompt_and_keeps_its_exit_code)'"
+size = 590
+status = "measured"
+tests = ["winadmin::tests::a_local_step_goes_through_this_laptops_uac_prompt_and_keeps_its_exit_code"]
+at = "2026-10-04T04:09:39Z"
+actor = "lognd"
+rev = 1
