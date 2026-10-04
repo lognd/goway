@@ -8,7 +8,7 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T03:34:48Z"
-updated = "2026-10-04T12:19:29Z"
+updated = "2026-10-04T12:19:31Z"
 scope = ["crates/goway/src/translate.rs", "crates/goway/src/runners.rs", "crates/goway/src/project.rs", "crates/goway/src/run.rs", "crates/goway/src/remote.ps1", "crates/goway/src/remote.sh", "crates/goway/tests/translate.rs", "docs/config.md", "docs/design.md", "crates/goway/src/shard.rs", "crates/goway/src/lib.rs"]
 
 [[links]]
@@ -25,7 +25,7 @@ bound = true
 
 [[acceptance]]
 text = 'Given [translate] entries in goway.toml (for example mytool = { windows = "mytool.cmd", linux = "mytool" }), when goway translates, then project entries take precedence over built-in ones, and an unknown OS key is a config error naming file and line'
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a command goway can translate, when cross-OS rules apply (~EDPP8DN), then it counts as cross-platform (the same-OS default, the loud hint, --any-os, cross_os and --each-os all apply to it)"
