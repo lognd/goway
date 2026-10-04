@@ -121,7 +121,14 @@ pub struct Facts {
     pub hw: Option<StaticFacts>,
     /// Seconds since `hw` was probed.
     pub hw_age: Option<u64>,
+    /// The host runs on battery (`None`: it cannot be told).
+    pub on_battery: Option<bool>,
+    /// Seconds since its user last used the keyboard or mouse (`None`: unknown).
+    pub idle_secs: Option<u64>,
 }
+
+/// Longest idle time accepted (ten years): anything above is a broken answer.
+const MAX_IDLE_SECS: u64 = 10 * 365 * 24 * 3600;
 
 impl Facts {
     /// The host's GPUs (none when static facts are unknown).
@@ -153,12 +160,23 @@ pub fn parse_live(map: &BTreeMap<String, String>) -> Facts {
         .get("os")
         .map(|v| crate::render::clean(v).to_ascii_lowercase())
         .filter(|v| !v.is_empty() && v.len() <= 32);
+    let on_battery = match map.get("power").map(String::as_str) {
+        Some("battery") => Some(true),
+        Some("ac") => Some(false),
+        _ => None,
+    };
+    let idle_secs = map
+        .get("idle_secs")
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|s| *s <= MAX_IDLE_SECS);
     Facts {
         os,
         mem_total,
         mem_avail,
         hw: None,
         hw_age: None,
+        on_battery,
+        idle_secs,
     }
 }
 
@@ -458,6 +476,21 @@ mod tests {
         assert_eq!((l.mem_total, l.mem_avail), (None, Some(5)));
         let l = parse_live(&kv("mem_total=10\nmem_avail=20\n"));
         assert_eq!(l.mem_avail, None, "available above total is nonsense");
+    }
+
+    // frob:tests crates/goway/src/facts.rs::parse_live
+    #[test]
+    fn owner_state_is_parsed_strictly_and_absent_means_unknown() {
+        let l = parse_live(&kv("power=battery\nidle_secs=42\n"));
+        assert_eq!((l.on_battery, l.idle_secs), (Some(true), Some(42)));
+        let l = parse_live(&kv("power=ac\nidle_secs=0\n"));
+        assert_eq!((l.on_battery, l.idle_secs), (Some(false), Some(0)));
+        let l = parse_live(&kv("mem_total=10\n"));
+        assert_eq!((l.on_battery, l.idle_secs), (None, None));
+        let l = parse_live(&kv("power=maybe\nidle_secs=-3\n"));
+        assert_eq!((l.on_battery, l.idle_secs), (None, None));
+        let l = parse_live(&kv("idle_secs=99999999999999\n"));
+        assert_eq!(l.idle_secs, None, "an absurd idle time is dropped");
     }
 
     #[test]

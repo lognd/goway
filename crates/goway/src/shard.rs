@@ -366,14 +366,14 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                                 extra.push(detect::request_word(index, count, &nonce));
                             }
                             extra.push(verify.word());
+                            let priority = pool::priority_word(config, host, found, probe);
+                            if verify.attempt == 1
+                                && let Some(note) = pool::owner_note(&host.name, probe, priority)
+                            {
+                                renderer.note(format_args!("{note}"));
+                            }
                             let cmd = run::run_invocation_with(
-                                config,
-                                config.priority_of(host).as_str(),
-                                repo,
-                                &run_id,
-                                args.keep,
-                                &extra,
-                                &command,
+                                config, priority, repo, &run_id, args.keep, &extra, &command,
                             );
                             crate::sync::SshTransport::of(found, env.settings)
                                 .command(&cmd)?

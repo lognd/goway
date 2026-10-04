@@ -47,6 +47,7 @@ priority = "low"               # "low": jobs run under nice 10 with idle-class I
 # max_load = 0.8               # skip hosts whose 1-minute load per core is above this
 # gpu_jobs = 1                 # GPU runs that may share each GPU (override per host)
 # mem_per_core = 0.5           # GiB of free RAM per core below which a host scores worse (0 = off)
+# owner_idle = "5m"            # a helper used or on battery within this counts as in use ("0s" = off)
 
 [local]                        # this machine as a place to run; `--host local` works without it
 # pool = false                 # true: compete with the helpers when goway picks hosts and shards
@@ -122,7 +123,7 @@ Caps, all on the laptop side:
 - `max_jobs` (per host, default every core, at least 1) bounds the goway
   jobs at once, which bounds concurrent memory use. Jobs run at nice 10 with
   idle I/O, so a full helper still yields to whoever sits at it (and extra
-  nicely while its owner is using it, see usage). Set `max_jobs` lower on a
+  nicely while its owner is using it, see below). Set `max_jobs` lower on a
   small helper or one whose RAM per core is thin.
 - `max_load` skips a host whose load per core is above the limit, and
   `mem_per_core` scores hosts with little free RAM worse.
@@ -159,3 +160,28 @@ On the remote, a job sees these variables:
 The remote environment, `~/.cargo/env` and `--env KEY=VALUE` values are
 applied first. goway only fills in what is still unset, so your settings
 always win (see docs/positioning.md).
+
+## A helper whose owner is using it
+
+Helpers are often somebody's laptop. goway never skips a helper because its
+owner is using it, but it is considerate:
+
+- a helper counts as **in use** when it runs on battery or its user touched
+  the keyboard or mouse within `defaults.owner_idle` (default 5 minutes;
+  `"0s"` turns all of this off);
+- when the choice is otherwise close, an idle helper on mains power wins (an
+  in-use helper scores a quarter of a load per core worse; it is never
+  excluded, and `--host` still pins);
+- a job on a helper in use runs at nice 19 with idle I/O instead of nice 10,
+  and with at most half the helper's cores for builds: `CARGO_BUILD_JOBS`,
+  `MAKEFLAGS=-jN`, `CMAKE_BUILD_PARALLEL_LEVEL` and `NEXTEST_TEST_THREADS`
+  are set to that unless you set them (`--env`). goway says so in one line;
+- `goway status` shows the state in the `owner` column: `idle`, `in use`,
+  `on battery`, or `-` when it cannot be told.
+
+How the state is read: power from the kernel's power supplies (WSL2 shows the
+Windows laptop's battery) or `pmset` on a Mac; the idle time from Windows
+through WSL interop (`powershell.exe`) or the HID idle time on a Mac. Where
+interop is switched off (on purpose, on some helpers), on a plain Linux
+helper, on a Windows helper or when the probe times out, the state is
+**unknown**: it neither blocks nor penalises, and status shows `-`.

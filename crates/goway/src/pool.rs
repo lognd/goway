@@ -111,6 +111,89 @@ pub fn capacity(p: &Probe) -> f64 {
     (f64::from(p.cores) - p.load[0] - f64::from(p.jobs)).max(0.5)
 }
 
+/// What a helper's owner is doing there, as far as the probe could tell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OwnerUse {
+    /// Nothing is known (no interop, no tool, a probe that timed out): never blocks, never penalises.
+    Unknown,
+    /// On mains power and nobody touched it within the idle window.
+    Idle,
+    /// Running on battery.
+    Battery,
+    /// Somebody used the keyboard or mouse this many seconds ago.
+    Active(u64),
+}
+
+impl OwnerUse {
+    /// Whether the owner is using the host, so goway should be extra polite.
+    pub fn in_use(self) -> bool {
+        matches!(self, Self::Battery | Self::Active(_))
+    }
+
+    /// One short phrase for notes and status: `-` when unknown.
+    pub fn summary(self) -> String {
+        match self {
+            Self::Unknown => "-".to_owned(),
+            Self::Idle => "idle".to_owned(),
+            Self::Battery => "on battery".to_owned(),
+            Self::Active(s) if s < 90 => "in use".to_owned(),
+            Self::Active(s) => format!("in use ({}m ago)", s / 60),
+        }
+    }
+}
+
+/// How much a host in use scores worse (a quarter of a core of load per core), so an
+/// idle host on mains wins when the choice is otherwise close; it never excludes.
+pub const OWNER_PENALTY: f64 = 0.25;
+
+/// What the owner of `p` is doing, judged against the idle `window` (zero
+/// switches owner awareness off: everything is unknown). Battery wins over idle.
+pub fn owner_use(p: &Probe, window: std::time::Duration) -> OwnerUse {
+    if window.is_zero() {
+        return OwnerUse::Unknown;
+    }
+    if p.facts.on_battery == Some(true) {
+        return OwnerUse::Battery;
+    }
+    match p.facts.idle_secs {
+        Some(s) if s < window.as_secs() => OwnerUse::Active(s),
+        Some(_) => OwnerUse::Idle,
+        None if p.facts.on_battery == Some(false) => OwnerUse::Idle,
+        None => OwnerUse::Unknown,
+    }
+}
+
+/// The priority word a run on `host` sends: `owner` (nice 19, half the cores
+/// for builds) while its owner uses a helper, else the configured one. This
+/// machine and Windows hosts keep the configured priority.
+pub fn priority_word(
+    config: &Config,
+    host: &HostConfig,
+    found: &Found,
+    probe: &Probe,
+) -> &'static str {
+    let configured = config.priority_of(host).as_str();
+    if found.is_local() || found.kind != crate::transport::Kind::Unix {
+        return configured;
+    }
+    if owner_use(probe, config.defaults.owner_idle).in_use() {
+        "owner"
+    } else {
+        configured
+    }
+}
+
+/// The one line saying a run goes extra nicely, when it does.
+pub fn owner_note(host: &str, probe: &Probe, word: &str) -> Option<String> {
+    (word == "owner").then(|| {
+        format!(
+            "{host} is being used ({}): running extra nicely (nice 19, idle I/O, at most {} build jobs)",
+            owner_use(probe, std::time::Duration::MAX).summary(),
+            (probe.cores / 2).max(1)
+        )
+    })
+}
+
 /// A probed host: where it answered and what it said, or why it did not.
 #[derive(Debug)]
 pub struct Probed<'a> {
@@ -165,9 +248,13 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
                 Ok((found, _)) if found.is_local() => crate::local::settings(config).margin,
                 _ => 0.0,
             };
+            // A helper its owner is using is never skipped for it, only less attractive.
+            let in_use = !matches!(&p.result, Ok((found, _)) if found.is_local())
+                && owner_use(probe, config.defaults.owner_idle).in_use();
+            let owner = if in_use { OWNER_PENALTY } else { 0.0 };
             Some((
                 i,
-                score(probe, config.defaults.mem_per_core) - bonus + margin,
+                score(probe, config.defaults.mem_per_core) - bonus + margin + owner,
                 probe.jobs,
             ))
         })
@@ -303,6 +390,9 @@ pub fn probe_call(config: &Config, disk: bool, statics: bool) -> Call {
     }
     if statics {
         args.push("static");
+    }
+    if !config.defaults.owner_idle.is_zero() {
+        args.push("owner");
     }
     Call::new("probe", &args)
 }
@@ -586,6 +676,130 @@ mod tests {
         )
         .unwrap();
         assert_eq!(p.hostname, "ev?[2Jil");
+    }
+
+    fn owned(mut p: Probe, power: Option<bool>, idle: Option<u64>) -> Probe {
+        p.facts.on_battery = power;
+        p.facts.idle_secs = idle;
+        p
+    }
+
+    const WINDOW: std::time::Duration = std::time::Duration::from_secs(300);
+
+    // frob:tests crates/goway/src/pool.rs::owner_use
+    #[test]
+    fn the_owner_is_in_use_on_battery_or_within_the_idle_window_and_unknown_never_counts() {
+        let p = probe(4, 0.0, 0);
+        assert_eq!(owner_use(&p, WINDOW), OwnerUse::Unknown);
+        assert_eq!(
+            owner_use(&owned(p.clone(), Some(true), None), WINDOW),
+            OwnerUse::Battery
+        );
+        assert_eq!(
+            owner_use(&owned(p.clone(), Some(true), Some(9999)), WINDOW),
+            OwnerUse::Battery
+        );
+        assert_eq!(
+            owner_use(&owned(p.clone(), Some(false), Some(10)), WINDOW),
+            OwnerUse::Active(10)
+        );
+        assert_eq!(
+            owner_use(&owned(p.clone(), Some(false), Some(300)), WINDOW),
+            OwnerUse::Idle
+        );
+        assert_eq!(
+            owner_use(&owned(p.clone(), Some(false), None), WINDOW),
+            OwnerUse::Idle
+        );
+        assert_eq!(
+            owner_use(&owned(p.clone(), None, Some(5)), WINDOW),
+            OwnerUse::Active(5)
+        );
+        assert_eq!(
+            owner_use(&owned(p, Some(true), Some(1)), std::time::Duration::ZERO),
+            OwnerUse::Unknown,
+            "a zero window switches the awareness off"
+        );
+        assert!(!OwnerUse::Unknown.in_use() && !OwnerUse::Idle.in_use());
+    }
+
+    // frob:tests crates/goway/src/pool.rs::ranked
+    #[test]
+    fn a_host_in_use_is_never_skipped_only_less_attractive_when_the_choice_is_close() {
+        let hosts = [host("busy", None), host("quiet", None)];
+        let rank = |busy: Probe, quiet: Probe| {
+            let probed = vec![
+                Probed {
+                    host: &hosts[0],
+                    result: Ok((found("busy"), busy)),
+                },
+                Probed {
+                    host: &hosts[1],
+                    result: Ok((found("quiet"), quiet)),
+                },
+            ];
+            ranked(&Config::default(), &probed)
+        };
+        // Equal load: the idle one first, but both stay.
+        let tie = rank(
+            owned(probe(4, 1.0, 0), Some(true), None),
+            owned(probe(4, 1.0, 0), Some(false), Some(9000)),
+        );
+        assert_eq!(tie, [1, 0]);
+        // Far less loaded: the busy one still wins.
+        let far = rank(
+            owned(probe(4, 0.0, 0), None, Some(1)),
+            owned(probe(4, 3.0, 0), Some(false), Some(9000)),
+        );
+        assert_eq!(far, [0, 1]);
+        // Unknown is not penalised: equal load keeps the config order.
+        let unknown = rank(
+            probe(4, 1.0, 0),
+            owned(probe(4, 1.0, 0), Some(false), Some(9000)),
+        );
+        assert_eq!(unknown, [0, 1]);
+    }
+
+    // frob:tests crates/goway/src/pool.rs::priority_word
+    #[test]
+    fn a_run_on_a_host_in_use_gets_the_owner_priority_but_this_machine_and_idle_hosts_do_not() {
+        let config = Config::default();
+        let h = host("h", None);
+        let busy = owned(probe(8, 0.0, 0), Some(true), None);
+        assert_eq!(priority_word(&config, &h, &found("h"), &busy), "owner");
+        let idle = owned(probe(8, 0.0, 0), Some(false), Some(9000));
+        assert_eq!(priority_word(&config, &h, &found("h"), &idle), "low");
+        let mut local = found("h");
+        local.source = resolve::Source::Local;
+        assert_eq!(priority_word(&config, &h, &local, &busy), "low");
+        let mut windows = found("h");
+        windows.kind = crate::transport::Kind::WindowsSsh;
+        assert_eq!(priority_word(&config, &h, &windows, &busy), "low");
+        let mut off = Config::default();
+        off.defaults.owner_idle = std::time::Duration::ZERO;
+        assert_eq!(priority_word(&off, &h, &found("h"), &busy), "low");
+        let note = owner_note("h", &busy, "owner").unwrap();
+        assert!(
+            note.contains("extra nicely") && note.contains("4 build jobs"),
+            "{note}"
+        );
+        assert!(owner_note("h", &busy, "low").is_none());
+    }
+
+    #[test]
+    fn the_probe_asks_for_the_owner_state_unless_it_is_switched_off() {
+        let mut config = Config::default();
+        assert!(
+            probe_call(&config, false, false)
+                .args
+                .contains(&"owner".to_owned())
+        );
+        config.defaults.owner_idle = std::time::Duration::ZERO;
+        assert!(
+            !probe_call(&config, false, false)
+                .args
+                .contains(&"owner".to_owned())
+        );
     }
 
     // frob:tests crates/goway/src/pool.rs::ranked

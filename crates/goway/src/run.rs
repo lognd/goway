@@ -291,9 +291,13 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
 
         let mut extra = gpu_words(&selection, &config, &host);
         extra.push(verify.word());
+        let priority = pool::priority_word(&config, &host, &found, &probe);
+        if let Some(note) = pool::owner_note(&host.name, &probe, priority) {
+            renderer.note(format_args!("{note}"));
+        }
         let cmd = run_invocation_with(
             &config,
-            config.priority_of(&host).as_str(),
+            priority,
             &repo,
             &run_id,
             args.keep,

@@ -709,6 +709,18 @@ sniff_binary() {
   fi
 }
 
+# cap_parallelism: while the owner uses this host, builds and tests get half
+# the cores (at least 1) through the usual variables, each only when the user
+# has not set it (the job's own environment decides, MAKEFLAGS included).
+cap_parallelism() {
+  local half=$(($(cores) / 2))
+  [ "$half" -ge 1 ] || half=1
+  [ -n "${CARGO_BUILD_JOBS+x}" ] || export CARGO_BUILD_JOBS=$half
+  [ -n "${MAKEFLAGS+x}" ] || export MAKEFLAGS="-j$half"
+  [ -n "${CMAKE_BUILD_PARALLEL_LEVEL+x}" ] || export CMAKE_BUILD_PARALLEL_LEVEL=$half
+  [ -n "${NEXTEST_TEST_THREADS+x}" ] || export NEXTEST_TEST_THREADS=$half
+}
+
 # keep_awake: set AWAKE to the words that wrap a job in a sleep inhibitor,
 # empty when the host has none that works. The inhibitor is held by the
 # wrapper process, so it lasts exactly as long as the job and is released
@@ -1020,11 +1032,14 @@ run() {
   wd=$!
   # Foreground (not `&`): background jobs of a non-interactive shell start
   # with SIGINT and SIGQUIT ignored, and the command must not inherit that.
-  # A polite guest on someone's laptop: low CPU and idle-class I/O.
-  if [ "$priority" = low ]; then
-    if command -v nice >/dev/null 2>&1; then nicer+=(nice -n 10); fi
-    if command -v ionice >/dev/null 2>&1; then nicer+=(ionice -c 3); fi
-  fi
+  # A polite guest on someone's laptop: low CPU and idle-class I/O; extra
+  # polite (nice 19, half the cores for builds) while the owner is using it.
+  case "$priority" in
+    low | owner)
+      if command -v nice >/dev/null 2>&1; then nicer+=(nice -n "$([ "$priority" = owner ] && echo 19 || echo 10)"); fi
+      if command -v ionice >/dev/null 2>&1; then nicer+=(ionice -c 3); fi ;;
+  esac
+  if [ "$priority" = owner ]; then cap_parallelism; fi
   # Outermost, so the inhibitor wraps the niceness wrappers and the job.
   keep_awake
   nicer=(${AWAKE[@]+"${AWAKE[@]}"} ${nicer[@]+"${nicer[@]}"})
@@ -1169,14 +1184,64 @@ mem_darwin() {
   printf 'mem_avail=%s\n' $(((${free:-0} + ${inactive:-0} + ${spec:-0}) * page))
 }
 
-# probe ROOT [disk] [budget:MAX:MIN_FREE] [static]: key=value facts for scheduling and status.
-# RAM is always reported; "static" adds the rarely changing hardware facts.
+# power_state: "ac" or "battery" from the kernel's power supplies (WSL2 shows
+# the Windows laptop's), pmset on a Mac; nothing when it cannot be told. The
+# directory is overridable for tests (GOWAY_POWER_SUPPLY_DIR).
+power_state() {
+  local dir=${GOWAY_POWER_SUPPLY_DIR:-/sys/class/power_supply} d type status online ac=0 disch=0
+  if [ "$IS_DARWIN" = 1 ] && [ -z "${GOWAY_POWER_SUPPLY_DIR:-}" ]; then
+    case "$(pmset -g batt 2>/dev/null || true)" in
+      *"'Battery Power'"*) printf 'power=battery\n' ;;
+      *"'AC Power'"*) printf 'power=ac\n' ;;
+    esac
+    return 0
+  fi
+  [ -d "$dir" ] || return 0
+  for d in "$dir"/*; do
+    [ -r "$d/type" ] || continue
+    type=$(cat "$d/type" 2>/dev/null || true)
+    case "$type" in
+      Mains | USB*)
+        online=$(cat "$d/online" 2>/dev/null || true)
+        [ "$online" = 1 ] && ac=1 ;;
+      Battery)
+        status=$(cat "$d/status" 2>/dev/null || true)
+        case "$status" in
+          Discharging) disch=1 ;;
+          Charging | Full | "Not charging") ac=1 ;;
+        esac ;;
+    esac
+  done
+  if [ "$ac" = 1 ]; then printf 'power=ac\n'; elif [ "$disch" = 1 ]; then printf 'power=battery\n'; fi
+  return 0
+}
+
+# idle_secs: seconds since the owner last touched the keyboard or mouse, when
+# it can be told: from Windows through interop on WSL (nothing when interop is
+# off or slow), from the HID idle time on a Mac. Never fails.
+idle_secs() {
+  local v=""
+  if [ "$IS_DARWIN" = 1 ]; then
+    v=$(ioreg -c IOHIDSystem 2>/dev/null | awk '/HIDIdleTime/ {print int($NF / 1000000000); exit}' || true)
+  elif grep -qi microsoft /proc/version 2>/dev/null && command -v powershell.exe >/dev/null 2>&1; then
+    v=$(bounded_for 3 powershell.exe -NoProfile -NonInteractive -Command 'Add-Type -Name L -Namespace G -MemberDefinition @"
+[StructLayout(LayoutKind.Sequential)] public struct I { public uint s; public uint t; }
+[DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref I p);
+"@; $i = New-Object G.L+I; $i.s = 8; if ([G.L]::GetLastInputInfo([ref]$i)) { [int64](((([int64][Environment]::TickCount -band 0xFFFFFFFF) - $i.t) -band 0xFFFFFFFF) / 1000) }' 2>/dev/null | tr -d '\r' | head -1 || true)
+  fi
+  case "$v" in "" | *[!0-9]*) ;; *) printf 'idle_secs=%s\n' "$v" ;; esac
+  return 0
+}
+
+# probe ROOT [disk] [budget:MAX:MIN_FREE] [static] [owner]: key=value facts for scheduling and status.
+# RAM is always reported; "static" adds the rarely changing hardware facts;
+# "owner" adds power= and idle_secs= when they can be read (absent: unknown).
 probe() {
-  local root jobs=0 l a want_disk=0 want_static=0 budget=""
+  local root jobs=0 l a want_disk=0 want_static=0 want_owner=0 budget=""
   root=$(root_dir "$1")
   shift
   for a in "$@"; do
-    case "$a" in disk) want_disk=1 ;; static) want_static=1 ;; budget:[0-9]*:[0-9]*) budget=${a#budget:} ;; esac
+    case "$a" in disk) want_disk=1 ;; static) want_static=1 ;; owner) want_owner=1 ;; budget:[0-9]*:[0-9]*) budget=${a#budget:} ;; esac
   done
   if [ "$IS_DARWIN" = 1 ]; then
     mem_darwin
@@ -1200,6 +1265,7 @@ probe() {
     done
   fi
   printf 'jobs=%s\n' "$jobs"
+  if [ "$want_owner" = 1 ]; then power_state; idle_secs; fi
   if [ "$want_disk" = 1 ]; then
     printf 'disk_used=%s\n' "$(du -sb "$root" 2>/dev/null | cut -f1 || true)"
     printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
