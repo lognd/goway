@@ -2,13 +2,13 @@
 id = "01M43E7SEV5NNR69D6Y2EV35AH"
 title = "weighted_shards tests fail under a loaded helper: weights come from live load, not the faked core counts"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T12:29:21Z"
-updated = "2026-10-04T12:29:21Z"
+updated = "2026-10-04T12:34:06Z"
 scope = ["crates/goway/tests/weighted_shards.rs"]
 
 [[acceptance]]
