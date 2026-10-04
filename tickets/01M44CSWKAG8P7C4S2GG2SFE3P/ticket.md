@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T21:23:31Z"
-updated = "2026-10-04T21:24:46Z"
+updated = "2026-10-04T21:24:47Z"
 labels = ["security"]
 scope = [".github/workflows/release.yml", "docs/release.md", "crates/goway/tests/publishing.rs"]
 
@@ -18,5 +18,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a goway-v tag on a commit that is not an ancestor of origin/main, when version-tag runs, then it fails; docs/release.md lists the GitHub settings the owner must add"
-bound = false
+bound = true
 +++
