@@ -99,7 +99,7 @@ mod tests {
         assert!(worst < Duration::from_secs(2), "a call waited {worst:?}");
     }
 
-    // frob:ticket E09XD8K
+    // frob:ticket 01M43QA57XZY29C6T6SE09XD8K
     // frob:tests crates/goway/src/spawn.rs::CommandExt
     #[test]
     fn no_production_code_spawns_a_child_outside_the_lock() {
