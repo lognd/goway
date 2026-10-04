@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T12:33:53Z"
-updated = "2026-10-04T12:46:36Z"
+updated = "2026-10-04T12:46:40Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/sccache_tmpdir.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a test that starts a server under a TMPDIR, deletes that dir, then runs a build through goway, when the build runs, then it succeeds and the server was restarted"
-bound = false
+bound = true
 +++
