@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:16:54Z"
-updated = "2026-10-04T06:44:19Z"
+updated = "2026-10-04T06:45:34Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/run.rs", "crates/goway/src/cli.rs", "crates/goway/src/state.rs", "crates/goway/tests/queue.rs", "docs/queue.md", "crates/goway/src/queue.rs", "crates/goway/src/lib.rs", "crates/goway/src/config.rs", "crates/goway/tests/local_host.rs", "docs/usage.md"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a helper whose available memory is below the per-job reserve (default 1.5 GiB for any job, configurable per host), when goway picks hosts, then that helper is not given another job until memory frees up (found live on 2026-10-04: a 3.6 GiB helper carried 6 jobs with 0.7 GiB available)"
-bound = false
+bound = true
 +++
