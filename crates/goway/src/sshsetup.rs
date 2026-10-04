@@ -30,7 +30,7 @@ use crate::paths::Paths;
 use crate::remotesys::RemoteSystem;
 use crate::render::Renderer;
 use crate::resolve::{self, Lookup, ProbeResult, Prober, SshProber};
-use crate::ssh::{self, Failure, KeyPolicy, Target};
+use crate::ssh::{self, Failure, KeyPolicy, Target, attempts};
 use crate::state::State;
 
 /// What one setup changed, kept for `--undo`.
@@ -330,6 +330,10 @@ pub fn setup_with(
     if args.undo {
         return undo(paths, renderer, &args.host);
     }
+    // The user asked for this setup, so every login it makes is a user-initiated
+    // step in the failed-login ledger (see `ssh::attempts`), never blocked by
+    // the cap on automatic probing.
+    let _step = attempts::user_step();
     let name = args.host.as_str();
     let record_file = record_path(paths, name);
     if record_file.exists() {
@@ -343,13 +347,18 @@ pub fn setup_with(
     }
     let config = Config::load(&paths.config_file())?;
     let configured = config.host(name).ok().cloned();
-    let host = configured.clone().unwrap_or_else(|| HostConfig {
+    let mut host = configured.clone().unwrap_or_else(|| HostConfig {
         name: name.to_owned(),
         address: args.address.clone(),
         port: args.port,
         user: args.user.clone(),
         ..HostConfig::default()
     });
+    // A rerun after the key was pasted offers goway's own key to the first
+    // probe, so it succeeds instead of costing one more failed login.
+    if configured.is_none() && args.key.is_none() && host.identity.is_none() {
+        host.identity = own_key(paths).map(|(_, private)| private);
+    }
     // A configured host is pinned: check its key strictly. A new one is
     // reached with a scratch known_hosts and verified by hostname below.
     let scratch = fresh_scratch(paths);
@@ -504,7 +513,15 @@ pub fn setup_with(
         elevate: None,
     };
     let user = account_name(&target);
-    let try_password = !args.no_password && knows_password(renderer, name, &user, assume_yes);
+    let password_allowed = attempts::permit(name, attempts::Origin::User);
+    if let Err(blocked) = &password_allowed {
+        renderer.warn(format_args!(
+            "Not asking for a password on {name}: {blocked}."
+        ));
+    }
+    let try_password = !args.no_password
+        && password_allowed.is_ok()
+        && knows_password(renderer, name, &user, assume_yes);
     let mut remote_sys = RemoteSystem {
         target: target.clone(),
         settings: settings.clone(),
@@ -545,6 +562,7 @@ pub fn setup_with(
                 && ssh::classify_failure(&e.to_string()) == Failure::AuthRefused =>
         {
             tracing::warn!(host = name, error = %e, "password login refused; key to be added by hand");
+            attempts::record_failure(name, attempts::Origin::User);
             renderer.warn(format_args!("That password did not work on {name}."));
             renderer.note(format_args!(
                 "Most likely {user} has no password set (common with automatic login) or {name} only allows key logins; \
@@ -879,6 +897,15 @@ impl HandInstall<'_> {
                     "goway's key is not installed there yet, and there is no terminal to wait on",
                 ));
             };
+            // The user pressed Enter: this check is user-initiated and may
+            // use the budget automatic probing leaves, up to the overall cap.
+            if let Err(blocked) = attempts::permit(name, attempts::Origin::User) {
+                self.renderer.warn(format_args!("{blocked}."));
+                return Err(setup_err(
+                    name,
+                    "stopped checking the key to stay under the helper's failed-login limit; wait a few minutes and rerun the same `goway add` command",
+                ));
+            }
             if self.key_works() {
                 self.renderer
                     .ok(format_args!("Key works. {name} is ready."));

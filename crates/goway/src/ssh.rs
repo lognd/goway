@@ -9,6 +9,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+pub mod attempts;
+
 use crate::config::key_alias;
 use crate::paths::Paths;
 
@@ -51,6 +53,7 @@ impl Settings {
     /// Settings from goway's paths; multiplexing only on Unix clients
     /// (Windows OpenSSH has no `ControlMaster`).
     pub fn from_paths(paths: &Paths) -> Self {
+        attempts::init(&paths.state_dir);
         let control_dir = cfg!(unix)
             .then(|| paths.control_dir())
             .filter(|d| {
@@ -365,6 +368,12 @@ pub enum Failure {
     AuthRefused,
     /// No connection (refused, timed out, no route, name not resolved).
     Unreachable,
+    /// goway did not try: too many failed logins to this host lately
+    /// (see [`attempts`]).
+    Throttled,
+    /// The connection was refused soon after failed logins: probably a
+    /// fail2ban or sshguard ban of this machine.
+    ProbableBan,
     /// Anything else.
     Other,
 }
