@@ -8,8 +8,8 @@ points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T22:29:16Z"
-updated = "2026-10-03T22:29:16Z"
-scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/src/config.rs", "crates/goway/tests/**", "docs/usage.md", "docs/config.md", "docs/design.md"]
+updated = "2026-10-04T00:02:38Z"
+scope = ["crates/goway/src/remote.sh", "docs/usage.md", "docs/config.md", "docs/design.md", "crates/goway/tests/cxx_launcher.rs"]
 
 [[acceptance]]
 text = "Given a CMake project and sccache or ccache on the helper, when goway runs it, then CMAKE_C_COMPILER_LAUNCHER and CMAKE_CXX_COMPILER_LAUNCHER (environment, CMake 3.17+) point at it unless the user set them, using the per-repository cache, so a fresh slot or worktree compiles from cache"
