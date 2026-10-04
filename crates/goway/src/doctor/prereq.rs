@@ -15,7 +15,6 @@ use std::fmt::Write as _;
 
 use super::{Check, Fix, Level};
 use crate::error::{Error, Result};
-use crate::ssh;
 
 /// The package managers goway installs for, and their packages per manager.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -217,7 +216,7 @@ impl Prereqs {
     /// `base` (the `doctor` call) followed by this repository's probe, if it has one.
     pub fn wrap(&self, base: &str) -> String {
         match self.probe_script() {
-            Some(script) => format!("{base}; bash -c {}", ssh::shell_quote(&script)),
+            Some(script) => super::append_script(base, &script),
             None => base.to_owned(),
         }
     }
@@ -439,7 +438,8 @@ mod tests {
         assert!(Prereqs::default().probe_script().is_none());
         assert_eq!(Prereqs::default().wrap("base"), "base");
         let wrapped = prereqs().wrap("base");
-        assert!(wrapped.starts_with("base; bash -c '"), "{wrapped}");
+        assert!(wrapped.starts_with("base; bash -c 'eval "), "{wrapped}");
+        assert!(!wrapped.contains('\n') && !wrapped.contains('\\') && !wrapped.contains('!'));
         // The wrapped command is valid shell.
         let ok = std::process::Command::new("bash")
             .args(["-n", "-c", &wrapped.replacen("base", "true", 1)])

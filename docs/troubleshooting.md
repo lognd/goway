@@ -236,6 +236,28 @@ first. To keep goway off a busy helper entirely, set `max_load` for it
 in the config (docs/config.md).
 </details>
 
+<details><summary>doctor warns "logind kills ... processes at logout" or about the remote root's file system</summary>
+
+`goway doctor` reads two things from each Linux helper. First, whether
+systemd-logind is set to `KillUserProcesses=yes` while lingering is off for
+the helper's user: then everything that user left running dies when the
+last login session ends, so a run whose ssh connection drops, or goway's own
+background work, is killed with it. The fix is `loginctl enable-linger USER`;
+it needs root, so `goway doctor --fix --rsudo` offers it with the usual
+confirmation (undo: `loginctl disable-linger USER`). goway reads the setting
+from `logind.conf` and its drop-in directories, so an override somewhere else
+can differ.
+
+Second, the file system under goway's remote root (`defaults.remote_root`,
+`.cache/goway` in the helper's home by default). An encrypted home (ecryptfs,
+encfs, gocryptfs) is only mounted while its owner is logged in, and a network
+file system (NFS, CIFS, sshfs) goes away with the network, so the work trees
+and caches would vanish between sessions. doctor reports the type; point
+`defaults.remote_root` at a directory on an ordinary local disk, such as
+`/srv/goway` (create it and give your user ownership first). goway cannot
+choose that for you.
+</details>
+
 <details><summary>Something else</summary>
 
 Run the failing command again with `-vv` (for example

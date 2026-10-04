@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 use std::process::Stdio;
 
 mod cmakecheck;
+mod logout;
 pub mod output;
 mod prereq;
 mod projneeds;
@@ -295,12 +296,22 @@ pub fn assess_project(facts: &BTreeMap<String, String>, needs: &projneeds::Needs
         out.extend(toolchain_checks(facts));
     }
     out.extend(host_checks(facts));
+    out.extend(logout::checks(facts));
     let mut have: Vec<String> = out.iter().map(|c| c.name.clone()).collect();
     if have.iter().any(|n| n == "cc (linker)") {
         have.push("cc".to_owned());
     }
     out.extend(projneeds::checks(needs, facts, &have));
     out
+}
+
+/// `base` followed by `script` (bash source) run on the host. The script
+/// travels as base64 like [`remote::invocation`]'s payload, so a login shell
+/// that rejects newlines, backslashes or bangs (fish, csh) still accepts it.
+fn append_script(base: &str, script: &str) -> String {
+    use base64::Engine as _;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(script);
+    format!("{base}; bash -c 'eval \"$(printf %s {b64} | base64 -d)\"'")
 }
 
 /// Tools goway's remote side and the fixes need.
@@ -1234,7 +1245,10 @@ pub fn doctor(
     let mut cmd_args = vec![config.defaults.remote_root.as_str()];
     cmd_args.extend(names.iter().map(String::as_str));
     // The repository's targets and packages are asked in the same ssh call.
-    let cmd = needs.prereqs.wrap(&remote::invocation("doctor", &cmd_args));
+    let cmd = logout::wrap(
+        &needs.prereqs.wrap(&remote::invocation("doctor", &cmd_args)),
+        &config.defaults.remote_root,
+    );
     let mut state = State::load(&paths.state_file())?;
     let results = pool::on_hosts(&hosts, &mut state, |host, local| {
         resolve::resolve(
