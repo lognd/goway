@@ -2,13 +2,13 @@
 id = "01M44GXPWBS9QVWWPKRXV3QHHT"
 title = "Every change goway or goway-setup makes to a machine is journaled, and a check fails the build when one is not"
 type = "invariant"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 5
 reporter = "lognd"
 created = "2026-10-04T22:35:31Z"
-updated = "2026-10-04T22:38:24Z"
-scope = ["crates/goway-journal/src/change.rs", "crates/goway-journal/src/journal.rs", "crates/goway-journal/src/plan.rs", "crates/goway-journal/src/apply.rs", "crates/goway-journal/src/lib.rs", "crates/goway-journal/tests/actions.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/src/app.rs", "crates/goway-setup/src/render.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/app.rs", "crates/goway/src/changelog.rs", "crates/goway/src/lib.rs", "crates/goway/src/cli.rs", "crates/goway/src/config.rs", "crates/goway/src/hosts.rs", "crates/goway/src/doctor.rs", "crates/goway/src/doctor/windows.rs", "crates/goway/src/add.rs", "crates/goway/tests/journal_invariant.rs", "crates/goway/tests/changes_cmd.rs", "docs/changes.md", "docs/config.md", "Cargo.toml"]
+updated = "2026-10-04T23:17:10Z"
+scope = ["crates/goway-journal/src/change.rs", "crates/goway-journal/src/journal.rs", "crates/goway-journal/src/plan.rs", "crates/goway-journal/src/apply.rs", "crates/goway-journal/src/lib.rs", "crates/goway-journal/tests/actions.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/src/app.rs", "crates/goway-setup/src/render.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/app.rs", "crates/goway/src/changelog.rs", "crates/goway/src/lib.rs", "crates/goway/src/cli.rs", "crates/goway/src/config.rs", "crates/goway/src/hosts.rs", "crates/goway/src/doctor/windows.rs", "crates/goway/src/add.rs", "crates/goway/tests/journal_invariant.rs", "crates/goway/tests/changes_cmd.rs", "docs/changes.md", "docs/config.md", "Cargo.toml", "crates/goway-setup/tests/elevated.rs", "crates/goway-setup/src/tune.rs", "crates/goway-setup/tests/tune.rs"]
 
 [[acceptance]]
 text = "Given the audit, When it is complete, Then every host-mutation site is listed in the done report with the journal entry it now produces, or the reason it is out of scope (goway run state)"

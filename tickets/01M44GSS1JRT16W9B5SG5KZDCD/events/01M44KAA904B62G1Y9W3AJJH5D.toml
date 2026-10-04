@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T23:17:16Z"
+digest = "18c0b9abceb0dedeac69c93e646549e361c61c1b7924d9ce1ffe2f5bfceab1aa"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 83b98a02-31bf-47a2-9eb2-acd669d649a9 with nextest profile: default
+    Starting 1 test across 76 binaries (848 tests skipped)
+        PASS [   0.007s] goway::doctor_wsl_down a_keepalive_with_no_repetition_is_a_warning_that_points_at_the_installer
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.012s] 1 test run: 1 passed, 848 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_keepalive_with_no_repetition_is_a_warning_that_points_at_the_installer)'"
+size = 589
+status = "measured"
+tests = ["a_keepalive_with_no_repetition_is_a_warning_that_points_at_the_installer"]
+at = "2026-10-04T23:17:21Z"
+actor = "lognd"
+rev = 1
