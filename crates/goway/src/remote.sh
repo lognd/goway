@@ -478,13 +478,28 @@ verify_gate() {
   return 1
 }
 
+# remove_work DIR: best-effort removal of a finished run's work dir. It never
+# fails and never changes the command's exit code: something may still write
+# there (a job's detached child, a concurrent gc), so it retries a few times
+# and otherwise leaves the directory for gc, which collects any unlocked work
+# dir past its orphan age.
+remove_work() {
+  local n
+  for n in 1 2 3 4 5; do
+    if rm -rf "$1" 2>/dev/null; then return 0; fi
+    sleep 0.2
+  done
+  printf 'goway: note: could not remove the work dir of this run; gc will collect it\n' >&2
+  return 0
+}
+
 # verify_failed PHASE: goway judged the copy bad (or never answered): wipe the
 # slot and the seed, say so, and stop. Uses run's variables (dynamic scope).
 verify_failed() {
   printf 'goway-remote: the copy of the tree on this host did not verify (phase %s); slot %s is discarded\n' \
     "$1" "$slot" >&2
   slot_wipe "$slot" "$cache" "$(cat "$work/seed" 2>/dev/null || true)" "$root"
-  rm -rf "$work"
+  remove_work "$work"
   exit 125
 }
 
@@ -1011,7 +1026,7 @@ run() {
     verify_gate "$work" 2 "$rundir" "$work/after.reg" "$work/after.lnk" || verify_failed 2
   fi
   if [ "$keep" = 1 ]; then cp -a --reflink=auto "$rundir" "$work/tree"; fi
-  if [ "$keep" != 1 ]; then rm -rf "$work"; fi
+  if [ "$keep" != 1 ]; then remove_work "$work"; fi
   # Cheap automatic gc of expired entries, detached so it never delays
   # the exit (and never holds the ssh session open).
   if [ -n "$ttls" ]; then
@@ -1214,10 +1229,17 @@ gc_entry() {
   fd=20
   for l in ${locks[@]+"${locks[@]}"}; do
     [ -e "$l" ] || continue
-    # Append, never truncate: opening for write would refresh a slot lock's
-    # mtime, which is the slot's last-use stamp (evict_slot).
-    eval "exec $fd>>\"\$l\""
-    if ! flock -n "$fd"; then action=busy; fi
+    # Open read-only: opening for write would refresh a slot lock's mtime
+    # (the slot's last-use stamp, evict_slot) and, worse, would re-create a
+    # lock file a finishing run has just removed, leaving a stray file that
+    # makes the run's own rm -rf fail with "Directory not empty". A lock that
+    # vanished since the check above belongs to an entry being removed: busy.
+    if eval "exec $fd<\"\$l\"" 2>/dev/null; then
+      if ! flock -n "$fd"; then action=busy; fi
+    else
+      action=busy
+      continue
+    fi
     fd=$((fd + 1))
   done
   age=$(age_of "$dir" "$now")
