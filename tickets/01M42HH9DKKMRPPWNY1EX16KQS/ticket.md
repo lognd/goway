@@ -2,13 +2,14 @@
 id = "01M42HH9DKKMRPPWNY1EX16KQS"
 title = "A run notes fleet drift for the project tools and records the tool versions of the host that ran it"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-04T04:07:43Z"
-updated = "2026-10-04T05:56:09Z"
+updated = "2026-10-04T05:56:10Z"
 scope = ["crates/goway/src/run.rs", "crates/goway/src/drift.rs", "crates/goway/src/render.rs", "crates/goway/tests/drift.rs", "docs/usage.md", "crates/goway/src/state.rs", "crates/goway/src/doctor.rs"]
 
 [[links]]
