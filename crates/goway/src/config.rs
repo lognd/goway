@@ -121,6 +121,12 @@ pub struct Defaults {
     /// turns the penalty off). A 16-core host with 3 GiB runs out of memory
     /// on big builds, so by default it loses to a roomier one.
     pub mem_per_core: f64,
+    /// A helper whose user touched it within this long, or which runs on
+    /// battery, counts as in use: it is never skipped for that, but it
+    /// scores a little worse and runs jobs extra nicely (`0s` turns this
+    /// off). Unknown state (no interop, a Mac without the tool) counts as idle.
+    #[serde(with = "humantime_serde")]
+    pub owner_idle: Duration,
     /// GPU runs that may share each GPU at once (a run that needs a GPU
     /// holds one GPU slot; 1 gives every GPU run its own GPU).
     pub gpu_jobs: u32,
@@ -164,6 +170,7 @@ impl Default for Defaults {
             priority: Priority::Low,
             max_load: None,
             mem_per_core: crate::pool::DEFAULT_MEM_PER_CORE,
+            owner_idle: Duration::from_mins(5),
             gpu_jobs: 1,
             keep: Vec::new(),
             keep_ignored: true,

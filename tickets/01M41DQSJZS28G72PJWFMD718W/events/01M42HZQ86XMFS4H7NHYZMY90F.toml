@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T04:15:36Z"
+digest = "2c6fd82fb1ac928c4a997765c6f7849edde22ff2cd821422dfb9a6aa9d0cd709"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 0b4e2f70-b499-4c6c-a279-73d3eef1317d with nextest profile: default
+    Starting 1 test across 54 binaries (639 tests skipped)
+        PASS [   0.006s] goway pool::tests::a_run_on_a_host_in_use_gets_the_owner_priority_but_this_machine_and_idle_hosts_do_not
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.009s] 1 test run: 1 passed, 639 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_run_on_a_host_in_use_gets_the_owner_priority"
+size = 598
+status = "measured"
+tests = ["pool::tests::a_run_on_a_host_in_use_gets_the_owner_priority_but_this_machine_and_idle_hosts_do_not"]
+at = "2026-10-04T04:15:36Z"
+actor = "lognd"
+rev = 1

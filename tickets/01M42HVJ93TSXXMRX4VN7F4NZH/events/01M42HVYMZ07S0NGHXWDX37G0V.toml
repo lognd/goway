@@ -1,0 +1,8 @@
+kind = "transition"
+from = "todo"
+to = "done"
+outcome = "wont-fix"
+reason = "lane D renames the host in doctor_output.rs inside ~3T7FA5K, which holds the file"
+at = "2026-10-04T04:13:33Z"
+actor = "lognd"
+rev = 1

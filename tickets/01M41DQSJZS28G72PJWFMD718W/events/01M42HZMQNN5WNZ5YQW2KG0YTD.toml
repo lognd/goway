@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T04:15:34Z"
+digest = "10d3d2ec410ae2b5d29ea911dd76216998ff6b757e439286030909ac6d420693"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 00758260-233b-487f-aa64-590cf9ab492c with nextest profile: default
+    Starting 1 test across 54 binaries (639 tests skipped)
+        PASS [   1.270s] goway::owner_awareness a_helper_on_battery_is_still_used_but_extra_nicely_with_half_the_cores
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.273s] 1 test run: 1 passed, 639 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_helper_on_battery_is_still_used_but_extra_nicely"
+size = 587
+status = "measured"
+tests = ["a_helper_on_battery_is_still_used_but_extra_nicely_with_half_the_cores"]
+at = "2026-10-04T04:15:34Z"
+actor = "lognd"
+rev = 1

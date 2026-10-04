@@ -1,0 +1,1 @@
+A helper whose owner is using it (on battery or recently at the keyboard) is never skipped but scores slightly worse, and jobs there run at nice 19 with half the cores for builds; an unreadable state counts as unknown and changes nothing.

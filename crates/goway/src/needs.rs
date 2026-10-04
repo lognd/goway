@@ -612,6 +612,7 @@ mod tests {
                     ..StaticFacts::default()
                 }),
                 hw_age: Some(0),
+                ..Facts::default()
             },
         }
     }

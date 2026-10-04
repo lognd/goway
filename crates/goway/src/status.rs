@@ -59,7 +59,12 @@ fn pool_cell(facts: &crate::facts::Facts, pool_os: &str) -> String {
 }
 
 /// The status table rows (header first); pure so it can be tested.
-pub fn rows(probed: &[Probed<'_>], local_in_pool: bool, pool_os: &str) -> Vec<Vec<String>> {
+pub fn rows(
+    probed: &[Probed<'_>],
+    local_in_pool: bool,
+    pool_os: &str,
+    owner_idle: std::time::Duration,
+) -> Vec<Vec<String>> {
     let mut rows = vec![
         [
             "host",
@@ -72,6 +77,7 @@ pub fn rows(probed: &[Probed<'_>], local_in_pool: bool, pool_os: &str) -> Vec<Ve
             "features",
             "load 1/5/15",
             "jobs",
+            "owner",
             "goway disk",
             "free",
             "facts",
@@ -107,6 +113,11 @@ pub fn rows(probed: &[Probed<'_>], local_in_pool: bool, pool_os: &str) -> Vec<Ve
                     probe.load[0], probe.load[1], probe.load[2]
                 ),
                 format!("{}/{}", probe.jobs, p.host.job_limit(probe.cores)),
+                if found.is_local() {
+                    "-".to_owned()
+                } else {
+                    crate::pool::owner_use(probe, owner_idle).summary()
+                },
                 disk_cell(probe.disk_used, probe.disk_max),
                 probe.disk_free.map_or_else(|| "-".to_owned(), human_bytes),
                 crate::facts::age_summary(probe.facts.hw_age),
@@ -114,6 +125,7 @@ pub fn rows(probed: &[Probed<'_>], local_in_pool: bool, pool_os: &str) -> Vec<Ve
             Err(_) => rows.push(vec![
                 p.host.name.clone(),
                 "unreachable".to_owned(),
+                "-".to_owned(),
                 "-".to_owned(),
                 "-".to_owned(),
                 "-".to_owned(),
@@ -173,6 +185,7 @@ pub fn status(
         &results,
         config.local_in_pool(),
         crate::needs::laptop_os(),
+        config.defaults.owner_idle,
     ));
     for p in &results {
         match &p.result {
@@ -246,6 +259,7 @@ mod tests {
                     ..StaticFacts::default()
                 }),
                 hw_age: Some(7200),
+                ..Facts::default()
             },
         };
         let probed = vec![
@@ -258,7 +272,7 @@ mod tests {
                 result: Err(crate::error::Error::Usage("x".to_owned())),
             },
         ];
-        let rows = rows(&probed, false, "linux");
+        let rows = rows(&probed, false, "linux", std::time::Duration::from_secs(300));
         assert!(rows.iter().all(|r| r.len() == rows[0].len()));
         let line = rows[1].join(" | ");
         assert!(line.contains("8.0/16.0 GiB"), "{line}");

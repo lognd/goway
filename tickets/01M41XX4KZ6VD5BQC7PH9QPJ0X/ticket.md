@@ -15,4 +15,4 @@ text = "Given a helper run of the suite, when it runs, then weighted_shards pass
 bound = false
 +++
 
-found while working ~QNTX8FZ: fails at weighted_shards.rs:94 on quasar and xanders-laptop on unmodified main
+found while working ~QNTX8FZ: fails at weighted_shards.rs:94 on helios and orion-notebook on unmodified main
