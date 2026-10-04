@@ -2,13 +2,13 @@
 id = "01M41Q6D98JC3F9H43F0JYK9C5"
 title = "Sync a WSL work tree to an NTFS copy per repository and worktree, incrementally, without scanning across drvfs"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-04T00:22:01Z"
+updated = "2026-10-04T00:22:04Z"
 scope = ["crates/goway/src/sync.rs", "crates/goway/src/interop.rs", "docs/design.md", "crates/goway/src/gc.rs", "crates/goway/src/run.rs", "crates/goway/src/pool.rs", "crates/goway/src/status.rs", "crates/goway/src/transport.rs", "crates/goway/src/remote.ps1"]
 
 [[links]]
