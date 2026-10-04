@@ -2,13 +2,13 @@
 id = "01M42BHTGMABJE3ZAPBZQETW47"
 title = "Networks that hide helpers: client isolation, blocked mDNS, VPN-only addresses, duplicate names"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T02:23:09Z"
-updated = "2026-10-04T02:23:09Z"
+updated = "2026-10-04T11:45:50Z"
 scope = ["crates/goway/src/resolve.rs", "crates/goway/src/error.rs", "docs/hosts.md", "docs/troubleshooting.md"]
 
 [[acceptance]]
