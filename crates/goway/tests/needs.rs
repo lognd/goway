@@ -71,7 +71,7 @@ fn the_report_records_the_facts_that_met_needs_and_preferences() {
             ("prefer", "mem>=1M")
         ]
     );
-    assert_eq!(matched[1]["fact"].as_str().unwrap(), "linux");
+    assert_eq!(matched[1]["fact"].as_str().unwrap(), os);
     assert!(matched[0]["fact"].as_str().unwrap().ends_with(" cores"));
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(err.contains("running on local"), "{err}");
