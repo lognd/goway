@@ -7,8 +7,8 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T06:18:55Z"
-updated = "2026-10-04T06:20:24Z"
-scope = ["crates/goway/tests/slot_trees.rs", "crates/goway/src/remote.sh", "crates/goway/tests/run_local.rs", "docs/config.md", "CHANGELOG.md"]
+updated = "2026-10-04T11:22:43Z"
+scope = ["crates/goway/tests/slot_trees.rs", "crates/goway/src/remote.sh", "crates/goway/tests/run_local.rs", "docs/config.md", "CHANGELOG.md", "crates/goway/tests/common/mod.rs", "crates/goway/tests/cmake_api.rs"]
 
 [[acceptance]]
 text = "Given a helper with cargo, When cargo_rebuilds_when_an_older_branch_reuses_the_slot runs, Then it passes 10 of 10 times"
