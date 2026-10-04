@@ -2,13 +2,13 @@
 id = "01M42CPNK60AXE6WDCN50Y3T7N"
 title = "goway add asks whether the user knows the helper password before trying one, and ssh gets one password attempt so a wrong or blank one falls through to the key path at once"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T02:43:17Z"
-updated = "2026-10-04T02:43:17Z"
+updated = "2026-10-04T02:49:14Z"
 scope = ["crates/goway/src/add.rs", "crates/goway/src/sshsetup.rs", "crates/goway/src/ssh.rs", "crates/goway/tests/ssh_setup.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
