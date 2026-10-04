@@ -2,13 +2,13 @@
 id = "01M42EM74CSKZX1MHWBZW327DY"
 title = "Waves of runs queue instead of failing: wait for a job slot or enough free memory, fairly, with a bounded wait"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:16:54Z"
-updated = "2026-10-04T05:10:18Z"
+updated = "2026-10-04T06:36:54Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/run.rs", "crates/goway/src/cli.rs", "crates/goway/src/state.rs", "crates/goway/tests/queue.rs", "docs/queue.md", "crates/goway/src/queue.rs", "crates/goway/src/lib.rs", "crates/goway/src/config.rs"]
 
 [[acceptance]]
