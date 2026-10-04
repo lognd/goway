@@ -2,12 +2,12 @@
 id = "01M429PSDPQ96TAGQ4W3C33N2D"
 title = "macOS helper gaps: shard detection, nested runs, copy-verify rerun, slot leftovers, sync.rs ignores"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-04T01:50:55Z"
-updated = "2026-10-04T01:50:55Z"
+updated = "2026-10-04T01:59:49Z"
 scope = ["docs/macos.md", ".github/workflows/ci.yml"]
 
 [[acceptance]]
