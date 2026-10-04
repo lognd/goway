@@ -211,7 +211,7 @@ impl World {
             // The fake ssh reads these; real ssh never sees them.
             .env(
                 "GOWAY_SSH_PASS_ENV",
-                "FAKE_HOSTNAME,FAKE_WINDOWS_PORT,GOWAY_XTRACE,RUSTC_WRAPPER,CARGO_TARGET_DIR,GOWAY_WINDOWS_LOOKUP",
+                "FAKE_HOSTNAME,FAKE_WINDOWS_PORT,RUSTC_WRAPPER,CARGO_TARGET_DIR,GOWAY_WINDOWS_LOOKUP",
             )
             // The fake remote is this machine: settings inherited from an
             // outer goway job (or the user's shell) must not leak in.

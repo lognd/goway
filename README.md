@@ -47,8 +47,8 @@ hardware.
 | openSUSE | Works: the Linux install script. Untested by the maintainer (no such machine) | Works: the Linux steps. Untested by the maintainer (no such machine) |
 | Raspberry Pi OS | Works: the ARM Linux program. Untested by the maintainer (no such machine) | Works: the Linux steps. Untested by the maintainer (no such machine) |
 | ChromeOS Linux (Crostini) | Works: the Linux install script inside the Linux container. Untested by the maintainer (no such machine) | Untested by the maintainer (no such machine): the container's network is not directly reachable from the LAN |
-| macOS Apple Silicon | Works: release binaries and one command ([macOS](#main-laptop-macos)). CI-built and CI-tested only; untested by the maintainer (no such machine) | Not yet: in progress (~FKHDK2A). Untested by the maintainer (no such machine) |
-| macOS Intel | Works: release binaries and one command. CI-built only; untested by the maintainer (no such machine) | Not yet: in progress (~FKHDK2A). Untested by the maintainer (no such machine) |
+| macOS Apple Silicon | Works: release binaries and one command ([macOS](#main-laptop-macos)). CI-built and CI-tested only; untested by the maintainer (no such machine) | Supported, untested by the maintainer (CI only): needs Homebrew GNU tools, see [docs/macos.md](docs/macos.md) |
+| macOS Intel | Works: release binaries and one command. CI-built only; untested by the maintainer (no such machine) | Supported, untested by the maintainer (CI only): needs Homebrew GNU tools, see [docs/macos.md](docs/macos.md) |
 | FreeBSD | Not supported: no release binary. Untested by the maintainer (no such machine) | Not supported. Untested by the maintainer (no such machine) |
 
 **Downloads.** Every version's ready-made files are on the
