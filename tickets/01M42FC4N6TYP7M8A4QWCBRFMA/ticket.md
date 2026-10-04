@@ -8,7 +8,7 @@ points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:29:57Z"
-updated = "2026-10-04T05:29:35Z"
+updated = "2026-10-04T05:29:38Z"
 scope = ["crates/goway/src/needs.rs", "crates/goway/src/error.rs", "docs/usage.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a bare key that needs a value (cores, mem, disk, gpu-mem, cuda), when it is used, then the error says that an unquoted >= is read by the shell as a redirect into a file, names the file it probably created (for example =8), and shows both cores:8 and 'cores>=8'"
-bound = false
+bound = true
 +++
