@@ -1,0 +1,13 @@
+kind = "create"
+title = "Shard and each-os lines name the OS the host reported, not the config's os (macOS helper shows linux)"
+type = "bug"
+category = "todo"
+priority = "high"
+points = 1
+parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
+scope = ["crates/goway/src/shard.rs", "crates/goway/tests/cross_os.rs"]
+acceptance = ["Given a helper whose probe reports os=darwin but whose config os is linux, when --each-os or --shard runs, then the [host os] prefix, the summary line and the report name darwin"]
+body = "found on macOS CI after ~EDPP8DN"
+at = "2026-10-04T11:14:37Z"
+actor = "lognd"
+rev = 1
