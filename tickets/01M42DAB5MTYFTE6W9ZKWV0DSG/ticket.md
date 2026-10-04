@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:54:01Z"
-updated = "2026-10-04T03:55:18Z"
+updated = "2026-10-04T03:55:19Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/render.rs", "crates/goway/src/cli.rs", "crates/goway/tests/doctor_output.rs", "docs/usage.md", "crates/goway/src/doctor/output.rs", "crates/goway/src/doctor/projneeds.rs", "crates/goway/src/add.rs", "crates/goway/tests/doctor_project.rs", "crates/goway/tests/run_local.rs"]
 
 [[acceptance]]
@@ -25,5 +25,5 @@ bound = true
 
 [[acceptance]]
 text = "Given golden-output tests for one host, three hosts with shared problems, --all, --explain and --fix with and without --harden, when the wording changes, then the diff shows it"
-bound = false
+bound = true
 +++
