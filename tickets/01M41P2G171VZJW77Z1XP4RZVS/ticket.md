@@ -8,7 +8,7 @@ points = 13
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-04T00:30:19Z"
+updated = "2026-10-04T00:30:20Z"
 scope = ["crates/goway/src/doctor.rs", "docs/usage.md", "crates/goway/tests/doctor_project.rs", "crates/goway/src/doctor/projneeds.rs", "crates/goway/src/project.rs"]
 
 [[acceptance]]
@@ -25,5 +25,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a C or C++ project, when goway doctor runs, then it checks a compiler and make or ninja (build-essential on Debian and Ubuntu), CMake against cmake_minimum_required, and git when FetchContent or CPM fetch from git, reading CMakeLists.txt as text and labelling those findings approximate (CMake's own interfaces are the follow-up ticket)"
-bound = false
+bound = true
 +++
