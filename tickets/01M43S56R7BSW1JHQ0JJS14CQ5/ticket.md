@@ -2,7 +2,8 @@
 id = "01M43S56R7BSW1JHQ0JJS14CQ5"
 title = "macOS: lifeline reports silence as a closed pipe (bash 3.2 read -t returns 1 on timeout), evict_live lifeline test fails"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
