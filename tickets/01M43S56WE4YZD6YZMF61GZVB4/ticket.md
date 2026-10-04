@@ -7,7 +7,7 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T15:40:11Z"
-updated = "2026-10-04T21:49:42Z"
+updated = "2026-10-04T22:01:23Z"
 scope = ["crates/goway/tests/disk_budget.rs"]
 
 [[acceptance]]
