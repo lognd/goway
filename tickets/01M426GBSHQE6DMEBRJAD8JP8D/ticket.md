@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T00:54:59Z"
-updated = "2026-10-04T02:13:31Z"
+updated = "2026-10-04T02:15:47Z"
 scope = ["crates/goway-setup/src/elevate.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/elevate.rs", "docs/install-windows.md", "crates/goway-setup/Cargo.toml"]
 
 [[acceptance]]
