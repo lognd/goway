@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:03:01Z"
-updated = "2026-10-04T03:03:01Z"
-scope = ["crates/goway/src/doctor.rs", "crates/goway/src/doctor/projneeds.rs", "docs/usage.md"]
+updated = "2026-10-04T03:03:04Z"
+scope = ["crates/goway/src/doctor.rs", "crates/goway/src/doctor/projneeds.rs"]
 
 [[acceptance]]
 text = "Given several root fixes in one sudo session and one of them fails (mold is not packaged on Ubuntu 20.04), when doctor reports, then each fix is reported with its own result (the others are not blamed), the session continues past a failing step and says what ran and what did not, and nothing is recorded for uninstall except what was verified fixed"
