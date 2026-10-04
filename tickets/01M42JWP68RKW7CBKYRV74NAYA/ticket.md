@@ -8,10 +8,10 @@ points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T04:31:25Z"
-updated = "2026-10-04T04:44:34Z"
+updated = "2026-10-04T04:44:42Z"
 scope = ["frob.toml"]
 
 [[acceptance]]
 text = "Given frob.toml, when six tickets are in progress, then frob allows it"
-bound = false
+bound = true
 +++
