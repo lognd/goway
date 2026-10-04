@@ -833,6 +833,26 @@ fn a_work_dir_that_cannot_be_removed_never_changes_the_exit_code() {
     assert!(err.contains("gc will collect it"), "{err}");
 }
 
+// frob:ticket 01M43ETRMKFS15MWTTVZHX18YW
+// frob:tests crates/goway/src/run.rs::discard_work
+#[test]
+fn discard_removes_only_the_named_work_dir_and_refuses_a_bad_run_id() {
+    let h = host!();
+    h.put("a.txt", "a", 1_700_000_000);
+    assert!(h.sync(&["a.txt"], &[], Some("d-a"), false).status.success());
+    assert!(h.sync(&["a.txt"], &[], Some("d-b"), false).status.success());
+    assert!(h.call(&["discard", &h.root(), "d-a"], b"").status.success());
+    assert_eq!(h.work_dirs(), ["d-b"]);
+    // A missing dir is fine; a path-shaped id is refused and removes nothing.
+    assert!(h.call(&["discard", &h.root(), "d-a"], b"").status.success());
+    assert!(
+        !h.call(&["discard", &h.root(), "../work/d-b"], b"")
+            .status
+            .success()
+    );
+    assert_eq!(h.work_dirs(), ["d-b"]);
+}
+
 #[test]
 fn concurrent_runs_use_different_slots_and_a_worktree_prefers_its_last_slot() {
     let h = host!();

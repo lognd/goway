@@ -630,8 +630,8 @@ The same idea for memory (`mempeaks` in goway's root). While a job runs, the
 helper measures the whole job tree's memory: exactly, from the kernel's
 `memory.peak`, when the job runs in its own systemd scope (a user manager and
 cgroup v2, found automatically; the command line reaches the job untouched);
-otherwise by sampling the resident memory of the job's session twice a
-second (a short spike between samples can be missed, which the margin
+otherwise by sampling the resident memory of the job's session (its process
+group on macOS) twice a second (a short spike between samples can be missed, which the margin
 covers). The highest value is kept per repository and reported in the probe.
 The next run never goes to a helper whose total memory is below the peak
 plus a margin (the larger of 256 MiB and 10% of it), and waits in the queue

@@ -1273,6 +1273,13 @@ function Test-Check([string]$Exe, [string[]]$Words, [int]$Secs) {
   } catch { return $false }
 }
 
+# discard ROOT RUN_ID: remove the synced work dir of a run that will not start (as
+# remote.sh discard). Best effort: it never fails; gc collects what it cannot remove.
+function Verb-discard([string[]]$A) {
+  $root = Get-Root $A[0]; Test-Id $A[1] 'discard'
+  Remove-Work (P $root @('work', $A[1]))
+}
+
 # resolve ROOT RUN_ID: for portable command translation (the same contract as remote.sh).
 # stdin holds candidate lines `tier;kind;name;args;check`. Prints one line: `same`,
 # `ok;PROGRAM;ARGS` (a bare name resolves to an absolute PATH file; a work-tree file keeps
@@ -2570,6 +2577,7 @@ function Invoke-Verb([string]$Verb, [string[]]$Rest) {
     'purge' { Verb-purge $Rest }
     'lifeline' { Verb-lifeline $Rest }
     'resolve' { Verb-resolve $Rest }
+    'discard' { Verb-discard $Rest }
     'verify-wait' { Verb-verify-wait $Rest }
     'verify-verdict' { Verb-verify-verdict $Rest }
     default { Die "unknown verb: $Verb" }

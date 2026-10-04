@@ -528,6 +528,12 @@ impl Selection {
         self
     }
 
+    /// Whether the run may land on any OS: nothing limits the pool to the laptop's family
+    /// (`--any-os` or `cross_os = true`) and no `os=` need names one.
+    pub fn is_any_os(&self) -> bool {
+        self.pool_os.is_none() && !self.needs.iter().any(|t| matches!(t, Term::Os(_)))
+    }
+
     /// The host's OS when it lies outside the default pool, else `None` (an unknown OS stays in).
     pub fn outside_pool(&self, probe: &Probe) -> Option<String> {
         let want = self.pool_os.as_deref()?;

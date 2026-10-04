@@ -92,6 +92,21 @@ pub enum Error {
     /// The command line is inconsistent or incomplete.
     #[error("{0}")]
     Usage(String),
+    /// The host cannot say for certain what runs in place of the command's program.
+    #[error(
+        "`{requested}` has no certain equivalent on this {os} host ({why}); goway does not run a guess. \
+         Name a program that host has, add a [translate] entry to goway.toml, or run on a host of this machine's OS"
+    )]
+    TranslationDoubt {
+        /// The program the command names.
+        requested: String,
+        /// The `[translate]` key of the host's OS.
+        os: &'static str,
+        /// Why the host could not say.
+        why: String,
+        /// Whether an unpinned run may pick a host of this machine's OS instead of stopping.
+        repickable: bool,
+    },
     /// A command line feature that is planned but not built yet.
     #[error("`{0}` is not implemented yet")]
     NotImplemented(&'static str),

@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T15:11:32Z"
+digest = "9fa52711425628028a01a8ca6e84712b1d81568849a98314d458f20fc66586f7"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 42.86s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9d6ab716-38cd-4af6-828e-313639f69fa3 with nextest profile: default
+    Starting 1 test across 71 binaries (815 tests skipped)
+        PASS [   0.011s] goway config::tests::a_hosts_disk_budget_overrides_the_defaults_value_by_value
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.017s] 1 test run: 1 passed, 815 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_hosts_disk_budget_overrides_the_defaults_value_by_value)'"
+size = 757
+status = "measured"
+tests = ["config::tests::a_hosts_disk_budget_overrides_the_defaults_value_by_value"]
+at = "2026-10-04T15:11:32Z"
+actor = "lognd"
+rev = 1
