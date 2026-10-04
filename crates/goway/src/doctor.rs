@@ -19,12 +19,13 @@ pub mod output;
 mod prereq;
 mod projneeds;
 pub mod windows;
+pub mod wsl_down;
 
 pub use prereq::Packages;
 pub use projneeds::{Needs, Toolchain, first_version};
 
 use crate::cli::DoctorArgs;
-use crate::config::{Config, HostConfig};
+use crate::config::{Config, HostConfig, Os, Transport};
 use crate::error::{Error, Result};
 use crate::paths::Paths;
 use crate::pool;
@@ -1428,6 +1429,7 @@ fn record_windows(
 /// (with their checks); also the local ssh findings of unreachable hosts.
 fn collect<'a>(
     config: &Config,
+    prober: &dyn Prober,
     needs: &projneeds::Needs,
     results: Vec<(&'a HostConfig, Result<Found>)>,
 ) -> (
@@ -1447,7 +1449,7 @@ fn collect<'a>(
                     address: host.address.clone().unwrap_or_default(),
                     os: "?".to_owned(),
                     arch: "?".to_owned(),
-                    outcome: output::Outcome::Down(e.to_string()),
+                    outcome: output::Outcome::Down(down_reason(config, host, prober, &e)),
                 });
                 for finding in sshenv::check(
                     host.address.as_deref().unwrap_or(&host.name),
@@ -1497,6 +1499,41 @@ fn collect<'a>(
     (reports, reached, local_ssh)
 }
 
+/// Why `host` is down: goway's error, plus a look through Windows OpenSSH at the same address
+/// when the host is a WSL helper (a Windows or interop host has no WSL side to ask about).
+fn down_reason(config: &Config, host: &HostConfig, prober: &dyn Prober, error: &Error) -> String {
+    let why = error.to_string();
+    if Kind::of(host) != Kind::Unix {
+        return why;
+    }
+    let address = host.address.clone().unwrap_or_else(|| host.name.clone());
+    // A configured Windows ssh host at the same address already has its key pinned and its own
+    // port and login; otherwise ask Windows OpenSSH on its default port as the same user.
+    let configured = config.hosts.iter().find(|h| {
+        h.os == Os::Windows
+            && h.transport == Transport::Ssh
+            && h.address.as_deref() == Some(address.as_str())
+    });
+    let windows = match configured {
+        Some(h) => ssh::Target {
+            name: h.name.clone(),
+            address,
+            port: config.port_of(h),
+            user: h.user.clone(),
+            identity: h.identity.as_ref().map(std::path::PathBuf::from),
+        },
+        None => ssh::Target {
+            name: format!("{}-windows", host.name),
+            address,
+            port: wsl_down::WINDOWS_SSH_PORT,
+            user: host.user.clone(),
+            identity: host.identity.as_ref().map(std::path::PathBuf::from),
+        },
+    };
+    let checks = wsl_down::diagnose(prober, &windows, config.port_of(host));
+    wsl_down::describe(&why, &checks)
+}
+
 /// `goway doctor`.
 #[allow(clippy::too_many_lines)] // one pass over hosts: probe, report, record, fix
 pub fn doctor(
@@ -1540,7 +1577,7 @@ pub fn doctor(
     if let Err(e) = state.save(&paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
     }
-    let (mut reports, mut reached, local_ssh) = collect(&config, &needs, results);
+    let (mut reports, mut reached, local_ssh) = collect(&config, prober, &needs, results);
     add_cmake_checks(
         &run::Env {
             paths,
