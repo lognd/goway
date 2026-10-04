@@ -216,6 +216,16 @@ impl Needs {
         self.ecosystems.is_empty() || self.ecosystems.contains(&Eco::Rust)
     }
 
+    /// The tools `goway.toml` `[toolchain]` pins: for these a different
+    /// minor version also counts as drift.
+    pub fn pinned_tools(&self) -> BTreeSet<String> {
+        self.reqs
+            .iter()
+            .filter(|r| r.why == "goway.toml [toolchain]")
+            .map(|r| r.tool.clone())
+            .collect()
+    }
+
     /// The tool names the host should report on.
     pub fn probe_names(&self) -> Vec<String> {
         let mut names: Vec<String> = self.reqs.iter().map(|r| r.tool.clone()).collect();

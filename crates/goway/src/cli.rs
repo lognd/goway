@@ -179,6 +179,10 @@ pub struct DoctorArgs {
     /// off ssh password login), asked separately from the tool installs.
     #[arg(long, requires = "rsudo")]
     pub harden: bool,
+    /// With --fix, say explicitly that every configured host is fixed (the
+    /// default when no HOST is named); refuses a HOST.
+    #[arg(long, requires = "fix", conflicts_with = "host")]
+    pub all_hosts: bool,
     /// Also list the passing checks (by default only problems are shown).
     #[arg(long)]
     pub all: bool,

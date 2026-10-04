@@ -728,6 +728,22 @@ checks again afterwards and records only what it verified as fixed.
 `apt-get update` runs once per session. sudo asks for the password
 itself; goway never sees it.
 
+#### Fleet drift
+
+When the project's tools are probed, doctor also keeps what it saw. It
+prints a versions table, a row per tool and a column for this laptop and
+each host, with `--all` and whenever the hosts disagree. Hosts disagree
+(marked `DRIFT`) when a tool has a different major version on two hosts, or
+a different minor version for a compiler (gcc, g++, clang, rustc, go, java,
+dotnet, ...) or a tool pinned in `goway.toml` `[toolchain]`. A tool that is
+missing or below the project's minimum is an error in the problem table,
+with its fix; a missing tool is not drift. The laptop column is for
+comparison only and never counts as drift. `goway doctor --fix
+--all-hosts` says explicitly that every configured host is fixed (the
+default when no HOST is named) and refuses a HOST. The versions are cached
+in goway's state (with the time they were captured) so later runs can use
+them.
+
 Hardening, such as turning off ssh password login, is not needed to run
 anything. It is listed separately as optional and is applied only with
 `--harden` (which needs `--rsudo`), with its own question, never in the
