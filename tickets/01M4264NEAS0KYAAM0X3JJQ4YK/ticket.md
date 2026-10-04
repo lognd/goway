@@ -2,13 +2,13 @@
 id = "01M4264NEAS0KYAAM0X3JJQ4YK"
 title = "Windows host runs cost about 10s of overhead (one powershell.exe start per call); batch calls or keep one PowerShell session per run"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T00:48:35Z"
-updated = "2026-10-04T00:48:35Z"
+updated = "2026-10-04T02:20:47Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/src/run.rs", "crates/goway/src/interop.rs", "crates/goway/src/transport.rs", "docs/design.md"]
 
 [[acceptance]]
