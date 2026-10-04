@@ -8,8 +8,8 @@ points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-03T20:27:24Z"
-scope = ["crates/goway/src/gc.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs", "crates/goway/src/remote.ps1", "crates/goway/tests/**", "docs/usage.md"]
+updated = "2026-10-04T00:41:32Z"
+scope = ["crates/goway/src/gc.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs", "crates/goway/src/remote.ps1", "docs/usage.md"]
 
 [[acceptance]]
 text = "Given Windows hosts, when goway gc and goway status run, then copies and caches are labelled, expire like on other hosts, and status shows Windows disk use"
