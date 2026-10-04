@@ -75,8 +75,8 @@ pub enum Error {
         /// git's complaint or why git could not run.
         message: String,
     },
-    /// An ssh call to a resolved host failed.
-    #[error("ssh to `{host}` failed: {message}")]
+    /// A remote call (ssh, or PowerShell through WSL interop) to a resolved host failed.
+    #[error("remote call to `{host}` failed: {message}")]
     Ssh {
         /// The host name.
         host: String,
@@ -192,5 +192,17 @@ mod tests {
         for e in errors {
             assert_eq!(e.exit_code(), 125, "{e}");
         }
+    }
+
+    // frob:ticket 01M42FEZBPMJ958RA4K1TD3D5H
+    #[test]
+    fn the_error_for_an_interop_host_names_the_transport_not_ssh() {
+        let e = Error::Ssh {
+            host: "helios".to_owned(),
+            message: "WSL interop: powershell.exe failed".to_owned(),
+        };
+        let text = e.to_string();
+        assert!(!text.contains("ssh to"), "{text}");
+        assert!(text.contains("WSL interop"), "{text}");
     }
 }

@@ -149,6 +149,10 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
                 tracing::info!(host = %p.host.name, per_core, "host above max_load; skipped");
                 return None;
             }
+            if let Some(os) = selection.outside_pool(probe) {
+                tracing::info!(host = %p.host.name, os, "host is outside the default pool OS; skipped");
+                return None;
+            }
             let a = selection.assess(p.host, probe);
             if !a.qualifies() {
                 tracing::info!(host = %p.host.name, lacks = ?a.lacks, "host fails --needs; skipped");
@@ -193,7 +197,13 @@ fn unusable(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> {
         .map(|p| match &p.result {
             Ok((_, probe)) => {
                 let a = selection.assess(p.host, probe);
-                if a.qualifies() {
+                if let Some(os) = selection.outside_pool(probe) {
+                    format!(
+                        "{}: {os} host, outside the default {} pool (pin it with --host, or ask with --needs os={os})",
+                        p.host.name,
+                        selection.pool_os.as_deref().unwrap_or("?")
+                    )
+                } else if a.qualifies() {
                     format!(
                         "{}: load {:.2} on {} cores, {} goway jobs",
                         p.host.name, probe.load[0], probe.cores, probe.jobs
@@ -1072,5 +1082,97 @@ mod tests {
         assert_eq!(pick_of(&probed(6.0, 0)).as_deref(), Some("local"));
         // At [local] max_jobs (default 1) it is skipped however idle it is.
         assert_eq!(pick_of(&probed(6.0, 1)).as_deref(), Some("helper"));
+    }
+
+    /// `10.0.0.1` (the idlest) is a Windows host; the other two are Linux.
+    struct MixedOsProber;
+    impl Prober for MixedOsProber {
+        fn probe(&self, target: &Target, _: KeyPolicy, _: &str) -> resolve::ProbeResult {
+            let (os, load) = match target.address.as_str() {
+                "10.0.0.1" => ("windows", 0.0),
+                "10.0.0.2" => ("linux", 2.0),
+                "10.0.0.3" => ("linux", 1.0),
+                _ => return Err((Failure::Unreachable, String::new())),
+            };
+            Ok(format!(
+                "arch=x86_64\nhostname=h\ncores=8\nload1={load}\nload5=0\nload15=0\njobs=0\nos={os}\n"
+            ))
+        }
+    }
+
+    fn pool_choice(selection: &Selection, wanted: Option<&str>) -> Result<String> {
+        let config = three_hosts();
+        let mut state = State::default();
+        choose(
+            &config,
+            selection,
+            &mut state,
+            Path::new(""),
+            &NoLookup,
+            &MixedOsProber,
+            wanted,
+        )
+        .map(|(h, ..)| h.name)
+    }
+
+    // frob:ticket 01M42EZ3TAWHTCJ4MWVYKNEA39
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    // frob:tests crates/goway/src/pool.rs::choose
+    #[test]
+    fn the_default_pool_only_holds_hosts_of_the_laptops_os() {
+        let linux = Selection::default().with_default_os("linux");
+        // The idlest host is Windows; a plain run never lands there.
+        assert_eq!(pool_choice(&linux, None).unwrap(), "small");
+        // A macOS laptop's pool has neither of these.
+        let err = pool_choice(&Selection::default().with_default_os("darwin"), None).unwrap_err();
+        assert!(matches!(err, Error::NoHost(_)), "{err}");
+        assert!(
+            err.to_string()
+                .contains("idle: windows host, outside the default darwin pool"),
+            "{err}"
+        );
+    }
+
+    // frob:ticket 01M42EZ3TAWHTCJ4MWVYKNEA39
+    // frob:tests crates/goway/src/pool.rs::choose
+    #[test]
+    fn asking_for_another_os_or_pinning_a_host_reaches_it() {
+        let win = selection("os=windows", "").with_default_os("linux");
+        assert_eq!(win.pool_os, None, "an os need replaces the default");
+        assert_eq!(pool_choice(&win, None).unwrap(), "idle");
+        let linux = Selection::default().with_default_os("linux");
+        assert_eq!(pool_choice(&linux, Some("idle")).unwrap(), "idle");
+    }
+
+    // frob:ticket 01M42EZ3TAWHTCJ4MWVYKNEA39
+    // frob:tests crates/goway/src/pool.rs::choose_many
+    #[test]
+    fn shards_never_mix_operating_systems() {
+        let config = three_hosts();
+        let mut state = State::default();
+        let mut shards = |sel: &Selection, n| {
+            choose_many(
+                &config,
+                sel,
+                &mut state,
+                Path::new(""),
+                &NoLookup,
+                &MixedOsProber,
+                n,
+            )
+        };
+        let linux = Selection::default().with_default_os("linux");
+        let names: Vec<String> = shards(&linux, 2)
+            .unwrap()
+            .into_iter()
+            .map(|h| h.0.name)
+            .collect();
+        assert_eq!(names, ["small", "gpu"]);
+        assert!(
+            shards(&linux, 3).is_err(),
+            "the Windows host is not a third shard"
+        );
+        let win = selection("os=windows", "").with_default_os("linux");
+        assert_eq!(shards(&win, 1).unwrap()[0].0.name, "idle");
     }
 }

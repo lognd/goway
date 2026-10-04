@@ -87,6 +87,17 @@ machine it trusts:
 `goway host remove NAME` deletes the host from the config, the state
 and the pinned keys.
 
+## The default pool: one OS family
+
+A plain `goway run` (no `--host`, no `--needs os=...`) only considers hosts
+of the laptop's own OS family: `linux`, `darwin` or `windows`, with WSL
+counting as Linux. A Windows host in the config therefore never receives a
+Linux laptop's `cargo` runs by accident, and sharded runs never mix
+operating systems. Ask for the other family with `--needs os=windows` (or
+a `goway.toml` rule), or pin a host with `--host NAME`; both behave as
+before. A host that has not reported its OS stays in the pool. `goway
+status` has a `default pool` column: `yes`, or `no (windows)`.
+
 ## Windows hosts
 
 A `[[host]]` has an `os` (`linux`, the default, or `windows`) and a

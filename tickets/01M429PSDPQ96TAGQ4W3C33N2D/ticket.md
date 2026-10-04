@@ -7,12 +7,12 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-04T01:50:55Z"
-updated = "2026-10-04T03:27:58Z"
-scope = ["docs/macos.md", ".github/workflows/ci.yml", "crates/goway/tests/weighted_shards.rs", "crates/goway/tests/shard_detect.rs", "crates/goway/tests/needs.rs", "crates/goway/tests/project_rules.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/install_methods.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/copy_integrity.rs", "crates/goway/tests/common/mod.rs", "crates/goway/src/spawn.rs", "crates/goway/src/lib.rs", "crates/goway/src/sync.rs", "crates/goway/src/run.rs", "crates/goway/src/ssh.rs", "crates/goway/src/resolve.rs", "crates/goway/src/local.rs", "crates/goway/src/remote.sh", "crates/goway/tests/spawn_race.rs", "crates/goway/src/shard.rs"]
+updated = "2026-10-04T03:50:25Z"
+scope = ["docs/macos.md", ".github/workflows/ci.yml", "crates/goway/tests/weighted_shards.rs", "crates/goway/tests/shard_detect.rs", "crates/goway/tests/needs.rs", "crates/goway/tests/project_rules.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/install_methods.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/copy_integrity.rs", "crates/goway/tests/common/mod.rs", "crates/goway/src/spawn.rs", "crates/goway/src/lib.rs", "crates/goway/src/sync.rs", "crates/goway/src/run.rs", "crates/goway/src/ssh.rs", "crates/goway/src/resolve.rs", "crates/goway/src/local.rs", "crates/goway/src/remote.sh", "crates/goway/tests/spawn_race.rs", "crates/goway/src/shard.rs", "crates/goway/tests/inhibit.rs"]
 
 [[acceptance]]
 text = "Given the macOS CI job, when it runs, then none of the listed tests are skipped"
-bound = false
+bound = true
 +++
 
 found while working ~FKHDK2A: skipped in the macOS CI job (see the filter in ci.yml and docs/macos.md): shard_detect and weighted_shards binaries, nesting::recursive_goway_stops_at_the_depth_limit (hangs on macOS after depth 1), copy_integrity a_failure_with_a_bad_copy_is_rerun_once_on_a_rebuilt_copy (verify-verdict: no work dir), slot_trees deleted_files_and_leftovers_go_but_dependency_dirs_stay, five ignored sync.rs protocol tests (sync.rs was leased), Linux-fact tests (needs, project_rules, doctor, install_methods, priority).

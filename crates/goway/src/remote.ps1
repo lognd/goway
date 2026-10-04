@@ -88,6 +88,19 @@ function Split-Nul([byte[]]$Bytes) {
   return ,$out
 }
 
+# Split NUL-terminated words, keeping empty ones (an empty argument is an argument).
+function Split-Words([byte[]]$Bytes) {
+  $out = New-Object System.Collections.Generic.List[string]
+  $start = 0
+  for ($i = 0; $i -lt $Bytes.Length; $i++) {
+    if ($Bytes[$i] -eq 0) {
+      $out.Add($script:Utf8.GetString($Bytes, $start, $i - $start))
+      $start = $i + 1
+    }
+  }
+  return ,$out
+}
+
 # ---- paths ------------------------------------------------------------
 
 function Get-Home {
@@ -2205,7 +2218,7 @@ function Verb-session([string[]]$A) {
     $argBytes = if ($argsLen -gt 0) { Read-Frame $in $argsLen } else { ,(New-Object byte[] 0) }
     $inBytes = if ($inLen -gt 0) { Read-Frame $in $inLen } else { ,(New-Object byte[] 0) }
     if ($null -eq $argBytes -or $null -eq $inBytes) { break }
-    [string[]]$words = [string[]](Split-Nul $argBytes)
+    [string[]]$words = [string[]](Split-Words $argBytes)
     $out = New-Object IO.MemoryStream; $err = New-Object IO.MemoryStream
     $script:Stdout = $out; $script:Stderr = $err
     $script:SessionIn = New-Object IO.MemoryStream (, $inBytes)

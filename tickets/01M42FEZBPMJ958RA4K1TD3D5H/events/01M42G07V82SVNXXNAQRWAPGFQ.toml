@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T03:40:56Z"
+digest = "e47555573dced574ea44a6b4dbbbbca90302fd9535ebe9e95f588dac86eb35cd"
+exit_code = 0
+inline = '''
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.31s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID fe9d72ea-9471-4fe3-80d3-859fa74aef6a with nextest profile: default
+    Starting 1 test across 51 binaries (614 tests skipped)
+        PASS [   0.007s] goway error::tests::the_error_for_an_interop_host_names_the_transport_not_ssh
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.010s] 1 test run: 1 passed, 614 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/the_error_for_an_interop_host_names_the_transport_not_ssh/)'"
+size = 624
+status = "measured"
+tests = ["error::tests::the_error_for_an_interop_host_names_the_transport_not_ssh"]
+at = "2026-10-04T03:40:56Z"
+actor = "lognd"
+rev = 1

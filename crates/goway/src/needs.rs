@@ -466,6 +466,9 @@ pub struct Selection {
     pub needs: Vec<Term>,
     /// Soft preferences.
     pub prefers: Vec<Term>,
+    /// The OS family the default pool is limited to (the laptop's); `None` for no limit.
+    /// Set only when no `os=` need is given; a pinned host ignores it.
+    pub pool_os: Option<String>,
 }
 
 impl Selection {
@@ -485,7 +488,24 @@ impl Selection {
         Ok(Self {
             needs: terms(needs)?,
             prefers: terms(prefers)?,
+            pool_os: None,
         })
+    }
+
+    /// Limit the default pool to hosts of OS family `os`, unless a need names an OS itself.
+    #[must_use]
+    pub fn with_default_os(mut self, os: &str) -> Self {
+        let named = self.needs.iter().any(|t| matches!(t, Term::Os(_)));
+        self.pool_os = (!named).then(|| os.to_owned());
+        tracing::debug!(pool_os = ?self.pool_os, "default pool OS");
+        self
+    }
+
+    /// The host's OS when it lies outside the default pool, else `None` (an unknown OS stays in).
+    pub fn outside_pool(&self, probe: &Probe) -> Option<String> {
+        let want = self.pool_os.as_deref()?;
+        let have = probe.facts.os.as_deref()?;
+        (!have.eq_ignore_ascii_case(want)).then(|| have.to_owned())
     }
 
     /// Whether nothing is asked for.
@@ -529,6 +549,14 @@ impl Selection {
             }
         }
         a
+    }
+}
+
+/// The OS family of this machine as hosts report it (`linux`, `darwin`, `windows`); WSL is Linux.
+pub fn laptop_os() -> &'static str {
+    match std::env::consts::OS {
+        "macos" => "darwin",
+        other => other,
     }
 }
 

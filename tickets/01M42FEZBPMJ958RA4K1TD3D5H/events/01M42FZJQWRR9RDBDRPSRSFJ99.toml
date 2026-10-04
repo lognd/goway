@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T03:40:34Z"
+digest = "af49c2636431d3e9d3e35c11053c23b371bc7000e1200027f99bea17ce8b8fac"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.99s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 531c10b8-8f5a-4109-ba6c-05656154ca64 with nextest profile: default
+    Starting 1 test across 51 binaries (613 tests skipped)
+        PASS [   0.084s] goway::ps_session a_first_sync_into_an_empty_root_keeps_empty_arguments
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.090s] 1 test run: 1 passed, 613 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_first_sync_into_an_empty_root_keeps_empty_arguments)'"
+size = 750
+status = "measured"
+tests = ["a_first_sync_into_an_empty_root_keeps_empty_arguments"]
+at = "2026-10-04T03:40:34Z"
+actor = "lognd"
+rev = 1

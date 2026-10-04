@@ -103,7 +103,7 @@ pub fn call_probe(host: &str, call: &Call) -> Result<String> {
 pub fn call_probe_via(exe: &Path, host: &str, call: &Call) -> Result<String> {
     let fail = |message: String| Error::Ssh {
         host: host.to_owned(),
-        message,
+        message: format!("WSL interop: {message}"),
     };
     let run = |source: &str| -> Result<Vec<u8>> {
         crate::sync::exchange_child(command_with(exe, source), b"").map_err(|e| match e {

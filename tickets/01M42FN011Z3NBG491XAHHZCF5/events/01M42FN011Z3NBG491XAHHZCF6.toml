@@ -1,0 +1,12 @@
+kind = "create"
+title = 'Portable command translation: the program name or path is translated per OS (python3 to py -3, ./gradlew to gradlew.bat, ./build/x to build\x.exe), shown and recorded'
+type = "story"
+category = "todo"
+priority = "high"
+points = 5
+parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
+scope = ["crates/goway/src/translate.rs", "crates/goway/src/runners.rs", "crates/goway/src/project.rs", "crates/goway/src/run.rs", "crates/goway/src/remote.ps1", "crates/goway/src/remote.sh", "crates/goway/tests/translate.rs", "docs/usage.md", "docs/config.md"]
+acceptance = ['Given a command whose program differs by OS, when it runs on a host of another OS, then only the program (argv[0]) is translated, never other arguments: python3 or python to the py -3 launcher (else python.exe; never the WindowsApps Store stub) on Windows and to python3 on a Linux host without python; pip3 or pip to py -3 -m pip; ./gradlew to gradlew.bat; ./mvnw to mvnw.cmd; a ./relative/path program to .\relative\path with .exe appended when that file exists (and the multi-config build\Debug or build\Release location when only that exists); node, npm, npx, cargo, go and dotnet unchanged', "Given a translation, when the run starts, then goway prints one line naming host and translation (for example nova-windows: python3 -> py -3), and the --report records the requested and the actual program", 'Given [translate] entries in goway.toml (for example mytool = { windows = "mytool.cmd", linux = "mytool" }), when goway translates, then project entries take precedence over built-in ones, and an unknown OS key is a config error naming file and line', "Given a command goway can translate, when cross-OS rules apply (~EDPP8DN), then it counts as cross-platform (the same-OS default, the loud hint, --any-os, cross_os and --each-os all apply to it)"]
+at = "2026-10-04T03:34:48Z"
+actor = "lognd"
+rev = 1
