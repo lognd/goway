@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T22:01:42Z"
+digest = "44d234d4f816246e1d5f684e5732e09eea3e4b1d8f263ad1be065be2e06e3acb"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID abf31c1c-d109-4c50-ac50-55f9050fb1bc with nextest profile: default
+    Starting 1 test across 75 binaries (842 tests skipped)
+        PASS [   0.186s] goway::disk_budget eviction_keeps_a_locked_slot_and_takes_the_next_oldest
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.191s] 1 test run: 1 passed, 842 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(eviction_keeps_a_locked_slot_and_takes_the_next_oldest)'"
+size = 567
+status = "measured"
+tests = ["eviction_keeps_a_locked_slot_and_takes_the_next_oldest"]
+at = "2026-10-04T22:01:42Z"
+actor = "lognd"
+rev = 1

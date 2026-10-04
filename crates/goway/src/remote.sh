@@ -1492,6 +1492,8 @@ run() {
   # would keep this run's slot and work dir locked after it ends.
   watchdog "$PPID" "$work/pid" "$work" </dev/null >/dev/null 2>&1 5>&- 7>&- 9>&- &
   wd=$!
+  # Out of the job table, so bash 3.2 (macOS) never prints "Terminated" for it.
+  disown "$wd" 2>/dev/null || true
   # Foreground (not `&`): background jobs of a non-interactive shell start
   # with SIGINT and SIGQUIT ignored, and the command must not inherit that.
   # A polite guest on someone's laptop: low CPU and idle-class I/O; extra
