@@ -2,7 +2,8 @@
 id = "01M41Y5J0TM325Z5HTA6JC6FR2"
 title = "C and C++ builds stay warm and share downloads: compiler launcher via sccache or ccache, shared FetchContent and CPM source caches"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
