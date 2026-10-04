@@ -190,7 +190,7 @@ pub fn world_with_ssh(script: &str) -> World {
     .unwrap();
     let repo = root.join("proj");
     std::fs::create_dir(&repo).unwrap();
-    git(&repo, &["init", "-q", "-b", "main"]);
+    goway::repo::init_main(&repo).unwrap();
     std::fs::write(repo.join("hello.txt"), "hello\n").unwrap();
     World {
         _dir: dir,
