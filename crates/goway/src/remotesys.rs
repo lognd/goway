@@ -318,9 +318,9 @@ impl System for RemoteSystem {
                     "snapshot names a link {link:?} the tool does not own"
                 )));
             }
-            let _ = write!(
+            let _ = writeln!(
                 script,
-                "ln -sfn {} \"$HOME/.local/bin/{link}\"\n",
+                "ln -sfn {} \"$HOME/.local/bin/{link}\"",
                 ssh::shell_quote(target)
             );
         }
@@ -365,9 +365,9 @@ impl PinName {
 fn pinned_exists(pin: &PinName) -> String {
     let mut script = format!("[ -d {} ] && exit 0\n", pin.dir());
     for l in &pin.links {
-        let _ = write!(
+        let _ = writeln!(
             script,
-            "{{ [ -L \"$HOME/.local/bin/{l}\" ] || [ -e \"$HOME/.local/bin/{l}\" ]; }} && exit 0\n"
+            "{{ [ -L \"$HOME/.local/bin/{l}\" ] || [ -e \"$HOME/.local/bin/{l}\" ]; }} && exit 0"
         );
     }
     script.push_str("exit 1\n");
