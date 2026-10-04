@@ -191,14 +191,14 @@ goway doctor --fix applies the fixes; goway doctor --explain CHECK says more abo
 fn an_unreachable_host_is_one_line() {
     let mut hosts = fleet();
     hosts.push(HostReport {
-        name: "dwarf".to_owned(),
+        name: "orion".to_owned(),
         address: String::new(),
         os: "?".to_owned(),
         arch: "?".to_owned(),
         outcome: Outcome::Down("ssh: connection refused".to_owned()),
     });
     let got = text(&report_lines(&hosts[3..], false, false));
-    assert_eq!(got, "dwarf: unreachable: ssh: connection refused");
+    assert_eq!(got, "orion: unreachable: ssh: connection refused");
 }
 
 #[test]
