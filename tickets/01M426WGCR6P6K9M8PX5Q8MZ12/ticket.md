@@ -2,7 +2,8 @@
 id = "01M426WGCR6P6K9M8PX5Q8MZ12"
 title = "Test world: pin max_jobs so tests with concurrent runs do not hit the cores/2 default on small CI runners"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 1
 reporter = "lognd"
