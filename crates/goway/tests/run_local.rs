@@ -649,10 +649,45 @@ fn sccache_listens_on_an_owner_only_socket_not_a_tcp_port() {
     ]);
     let text = String::from_utf8_lossy(&out.stdout).into_owned();
     assert!(text.contains("port=none"), "{text}");
+    assert!(text.contains("sccache") && text.contains(".sock"), "{text}");
+}
+
+#[test]
+fn sccache_socket_path_fits_a_unix_address_under_a_deep_remote_root() {
+    if Command::new("sccache").arg("--version").output().is_err() {
+        return;
+    }
+    let w = world();
+    let deep = w
+        .root
+        .join("d".repeat(60))
+        .join("e".repeat(60))
+        .join("goway-remote");
+    let path = w.config.join("config.toml");
+    let text = std::fs::read_to_string(&path).unwrap();
+    let from = format!("remote_root = \"{}\"", w.remote.display());
+    assert!(text.contains(&from), "{text}");
+    std::fs::write(
+        &path,
+        text.replace(&from, &format!("remote_root = \"{}\"", deep.display())),
+    )
+    .unwrap();
+    let out = w.run(&[
+        "run",
+        "--",
+        "sh",
+        "-c",
+        "echo uds=${SCCACHE_SERVER_UDS-unset}; sccache --show-stats >/dev/null 2>&1 || echo server-failed",
+    ]);
     assert!(
-        text.contains("/cache/") && text.contains("sccache.sock"),
-        "{text}"
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
     );
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    let uds = text.lines().next().unwrap().strip_prefix("uds=").unwrap();
+    assert!(!text.contains("server-failed"), "{text}");
+    assert!(uds == "unset" || uds.len() < 108, "{uds}");
 }
 
 #[test]

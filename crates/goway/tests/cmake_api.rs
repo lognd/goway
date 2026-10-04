@@ -43,6 +43,13 @@ fn call(w: &common::World, call: &Call) -> Vec<u8> {
         .arg("-c")
         .arg(call.bash())
         .env("HOME", &w.root)
+        // Compiler caches inherited from an outer goway job point at that
+        // job's sccache server, whose temp dir is not this test's.
+        .env_remove("SCCACHE_SERVER_UDS")
+        .env_remove("SCCACHE_SERVER_PORT")
+        .env_remove("CMAKE_C_COMPILER_LAUNCHER")
+        .env_remove("CMAKE_CXX_COMPILER_LAUNCHER")
+        .env_remove("RUSTC_WRAPPER")
         .output()
         .unwrap();
     assert!(
