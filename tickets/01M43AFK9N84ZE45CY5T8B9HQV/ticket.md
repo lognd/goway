@@ -2,7 +2,8 @@
 id = "01M43AFK9N84ZE45CY5T8B9HQV"
 title = "A run refreshes a stale tool-version cache from its own probe"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 reporter = "lognd"
