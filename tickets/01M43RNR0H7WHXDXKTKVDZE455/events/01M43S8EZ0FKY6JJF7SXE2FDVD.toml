@@ -1,0 +1,11 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T15:41:57Z"
+digest = "e321853b31173b202e9574f776563eb95966c2c8801c6ca7785186c62a83e7e1"
+provider = "file"
+ref = "scripts/ci-ps-watch.sh"
+size = 1120
+status = "measured"
+at = "2026-10-04T15:41:57Z"
+actor = "lognd"
+rev = 1
