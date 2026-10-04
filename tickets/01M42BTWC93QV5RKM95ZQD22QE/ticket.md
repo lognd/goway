@@ -2,13 +2,13 @@
 id = "01M42BTWC93QV5RKM95ZQD22QE"
 title = "doctor asks cargo metadata, go list, mvn, Gradle and dotnet for the project needs, with real parsers and approximate fallbacks"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:28:06Z"
-updated = "2026-10-04T02:28:06Z"
+updated = "2026-10-04T04:19:43Z"
 scope = ["crates/goway/src/ecotools.rs", "crates/goway/src/doctor.rs", "crates/goway/src/doctor/projneeds.rs", "docs/usage.md"]
 
 [[acceptance]]
