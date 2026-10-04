@@ -2,7 +2,8 @@
 id = "01M42RFMD7NF24476N9VYN8F9T"
 title = "Learn each repository's build footprint and never send a run to a helper without room for it; explain a disk-full failure"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
