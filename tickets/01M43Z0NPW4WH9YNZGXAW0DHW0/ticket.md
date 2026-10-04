@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T17:22:33Z"
-updated = "2026-10-04T17:22:49Z"
-scope = ["crates/goway/src/footprint.rs", "crates/goway/src/pool.rs", "crates/goway/src/remote.sh", "crates/goway/src/cli.rs", "crates/goway/tests/mem_footprint.rs", "docs/usage.md"]
+updated = "2026-10-04T17:25:01Z"
+scope = ["crates/goway/src/footprint.rs", "crates/goway/src/pool.rs", "crates/goway/src/remote.sh", "crates/goway/src/cli.rs", "crates/goway/tests/mem_footprint.rs", "docs/usage.md", "crates/goway/src/needs.rs", "crates/goway/src/lib.rs", "crates/goway/src/run.rs", "crates/goway/src/project.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs"]
 
 [[acceptance]]
 text = "Given a recorded memory peak above every helper's total (found live: goway's own suite recorded about 7.3 GiB, refused on a 7.6 GiB helper with margin, and no host could run it), when goway picks hosts, then the run is never locked out: --host always runs there (with a warning naming the recorded peak), a new --ignore-footprint (or --needs mem>=0) skips the check for one run, and when no helper could ever fit the peak goway runs on the largest eligible helper with a warning instead of refusing"
