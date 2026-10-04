@@ -8,8 +8,8 @@ points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T00:47:38Z"
-updated = "2026-10-04T03:04:41Z"
-scope = ["crates/goway/src/add.rs", "crates/goway/src/hosts.rs", "docs/hosts.md"]
+updated = "2026-10-04T03:05:20Z"
+scope = ["crates/goway/src/add.rs", "crates/goway/src/hosts.rs", "docs/hosts.md", "crates/goway/src/sshsetup.rs"]
 
 [[acceptance]]
 text = "Given a native Windows host set up with goway-setup install --host --native, when goway add runs, then the key is handed over through --authorized-key (a key line or .pub path) and recorded, or the exact command is printed"
