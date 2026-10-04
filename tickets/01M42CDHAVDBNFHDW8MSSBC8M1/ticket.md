@@ -2,13 +2,13 @@
 id = "01M42CDHAVDBNFHDW8MSSBC8M1"
 title = "A dry run of a host install prints the plan even when the elevated guard cannot touch WSL"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:38:17Z"
-updated = "2026-10-04T02:38:17Z"
+updated = "2026-10-04T02:40:30Z"
 scope = ["crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/cli.rs"]
 
 [[acceptance]]
