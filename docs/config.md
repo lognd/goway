@@ -174,7 +174,7 @@ On the remote, a job sees these variables:
 | `GOWAY_HOST` | the host's hostname |
 | `GOWAY_RUN_ID` | the run's id |
 | `CARGO_TARGET_DIR` | a free per-repository target slot, unless already set |
-| `RUSTC_WRAPPER`, `SCCACHE_DIR`, `SCCACHE_SERVER_UDS`, `SCCACHE_IDLE_TIMEOUT` | sccache with a per-repository cache, a server socket in goway's owner-only cache directory (no TCP port), and a 300 s idle timeout. These are set only when sccache is installed and `RUSTC_WRAPPER` is unset, and each one only if it is still unset. |
+| `RUSTC_WRAPPER`, `SCCACHE_DIR`, `SCCACHE_SERVER_UDS`, `SCCACHE_IDLE_TIMEOUT` | sccache with a per-repository cache, a server socket in goway's owner-only cache directory (no TCP port), moved to an owner-only directory under `$XDG_RUNTIME_DIR` or `/tmp/goway-<uid>` (with the server started from there) when the run's paths are too long for a unix socket address, and a 300 s idle timeout. These are set only when sccache is installed and `RUSTC_WRAPPER` is unset, and each one only if it is still unset. |
 
 | `CMAKE_C_COMPILER_LAUNCHER`, `CMAKE_CXX_COMPILER_LAUNCHER` | `sccache`, or else `ccache`, when installed on the host (CMake 3.17+ reads these from the environment), so C and C++ builds compile from the per-repository cache. Set only if unset: `CMAKE_CXX_COMPILER_LAUNCHER=` (empty) switches it off. A `-DCMAKE_..._LAUNCHER` on the command line or in the project's CMakeLists always wins over the environment. |
 | `CCACHE_DIR` | a per-repository ccache directory, when ccache (and no sccache) is the launcher and the variable is unset |

@@ -228,6 +228,7 @@ impl World {
             .env_remove("CARGO_TARGET_DIR")
             .env_remove("SCCACHE_DIR")
             .env_remove("SCCACHE_SERVER_PORT")
+            .env_remove("SCCACHE_SERVER_UDS")
             .env_remove("GOWAY")
             .env_remove("GOWAY_RUN_ID")
             .env_remove("GOWAY_HOST")

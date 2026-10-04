@@ -9,6 +9,7 @@
 //! through an interactive ssh session so sudo can ask for the password.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::process::Stdio;
 
 mod cmakecheck;
@@ -310,13 +311,34 @@ fn probe_host(
     prober: &dyn Prober,
     (cmd, call): (&str, &remote::Call),
 ) -> Result<Found> {
-    if Kind::of(host) == Kind::Unix {
-        return resolve::resolve(config, host, state, lookup, prober, KeyPolicy::Strict, cmd);
+    let (found, sent, rtt) = crate::facts::clock::timed(|| {
+        if Kind::of(host) == Kind::Unix {
+            resolve::resolve(config, host, state, lookup, prober, KeyPolicy::Strict, cmd)
+        } else {
+            resolve::resolve_call(config, host, state, lookup, prober, KeyPolicy::Strict, call)
+        }
+    });
+    let mut found = found?;
+    if let Some(ms) = crate::facts::clock::measure(&found.output, sent, rtt) {
+        // frob:ticket 01M42RAM7D56M1KH49NTGZTRVF
+        let _ = writeln!(found.output, "\n{}={ms}", crate::facts::clock::FACT);
     }
-    let mut found =
-        resolve::resolve_call(config, host, state, lookup, prober, KeyPolicy::Strict, call)?;
-    windows::add_extra_facts(&mut found, prober);
+    if Kind::of(host) != Kind::Unix {
+        windows::add_extra_facts(&mut found, prober);
+    }
     Ok(found)
+}
+
+/// The clock check for a host whose measured offset is in `facts`, if over tolerance.
+fn clock_check(facts: &BTreeMap<String, String>, windows: bool) -> Option<Check> {
+    let ms: i64 = facts.get(crate::facts::clock::FACT)?.parse().ok()?;
+    Some(Check {
+        name: "clock".to_owned(),
+        explain: None,
+        level: Level::Warn,
+        detail: crate::facts::clock::detail(ms, windows)?,
+        fix: None,
+    })
 }
 
 /// Checks for one project: goway's own system tools, the Rust toolchain
@@ -1094,7 +1116,7 @@ fn show_applied(renderer: Renderer, host: &HostConfig, applied: &Applied) {
 
 /// What the project in the current directory needs (nothing detected when
 /// the directory is not in a git project: goway's own Rust-first checks).
-fn project_needs() -> Result<projneeds::Needs> {
+pub(crate) fn project_needs() -> Result<projneeds::Needs> {
     let Ok(cwd) = std::env::current_dir() else {
         return Ok(projneeds::Needs::default());
     };
@@ -1437,6 +1459,7 @@ fn collect<'a>(
         };
         let facts = parse_facts(&found.output);
         let mut checks = assess_for(found.kind, &facts, needs);
+        checks.extend(clock_check(&facts, found.kind != Kind::Unix));
         // An interop host has no ssh setup to check.
         let ssh_findings = if found.kind.uses_ssh() {
             sshenv::check(&found.target.address, found.target.port)
@@ -1649,6 +1672,23 @@ fn exit_code(reports: &[output::HostReport]) -> u8 {
 mod tests {
     use super::*;
     use std::cell::RefCell;
+
+    // frob:tests crates/goway/src/doctor.rs::clock_check
+    #[test]
+    fn doctor_warns_about_a_clock_over_two_seconds_off_with_the_os_fix() {
+        let fact = |ms: &str| BTreeMap::from([("clock_offset_ms".to_owned(), ms.to_owned())]);
+        assert!(clock_check(&fact("1500"), false).is_none());
+        assert!(clock_check(&BTreeMap::new(), false).is_none());
+        let c = clock_check(&fact("-4000"), false).unwrap();
+        assert_eq!((c.name.as_str(), c.level), ("clock", Level::Warn));
+        assert!(c.detail.contains("4.0 s behind") && c.detail.contains("sudo hwclock -s"));
+        assert!(
+            clock_check(&fact("90000"), true)
+                .unwrap()
+                .detail
+                .contains("resync")
+        );
+    }
 
     // frob:tests crates/goway/src/doctor.rs::host_checks
     #[test]

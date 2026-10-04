@@ -11,6 +11,7 @@ pub mod drift;
 pub mod ecotools;
 pub mod error;
 pub mod facts;
+pub mod footprint;
 pub mod gc;
 pub mod gitmeta;
 pub mod hosts;

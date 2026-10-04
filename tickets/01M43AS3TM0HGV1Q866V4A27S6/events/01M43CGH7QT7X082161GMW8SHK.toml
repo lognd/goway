@@ -1,0 +1,49 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T11:59:09Z"
+digest = "c58d735508866a36239fcf487302dc02058f2f1ba586ece9c8ec9de560225a64"
+exit_code = 0
+inline = '''
+   Compiling regex-syntax v0.8.11
+   Compiling getrandom v0.3.4
+   Compiling fastrand v2.5.0
+   Compiling wait-timeout v0.2.1
+   Compiling getrandom v0.4.3
+   Compiling zerocopy v0.8.59
+   Compiling quick-error v1.2.3
+   Compiling bit-vec v0.8.0
+   Compiling fnv v1.0.7
+   Compiling num-traits v0.2.19
+   Compiling unarray v0.1.4
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling rand_core v0.9.5
+   Compiling tempfile v3.27.0
+   Compiling bit-set v0.8.0
+   Compiling rand_xorshift v0.4.0
+   Compiling rand v0.9.5
+   Compiling rusty-fork v0.3.1
+   Compiling regex-automata v0.4.18
+   Compiling ppv-lite86 v0.2.21
+   Compiling matchers v0.2.0
+   Compiling tracing-subscriber v0.3.23
+   Compiling rand_chacha v0.9.0
+   Compiling proptest v1.11.0
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d8e89e44-887a-4331-99b7-d456ddb02f65 with nextest profile: default
+    Starting 1 test across 67 binaries (781 tests skipped)
+        PASS [   1.047s] goway::remote_ps1 the_lifeline_stops_the_job_when_the_client_goes_away_and_spares_a_finished_run
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.052s] 1 test run: 1 passed, 781 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/the_lifeline_stops_the_job_when_the_client_goes_away/)'"
+size = 1482
+status = "measured"
+tests = ["the_lifeline_stops_the_job_when_the_client_goes_away_and_spares_a_finished_run"]
+at = "2026-10-04T11:59:10Z"
+actor = "lognd"
+rev = 1

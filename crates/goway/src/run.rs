@@ -217,7 +217,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     let env_bytes = encode_env(&args.env)?;
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
-    let (selection, rule) = project::selection_for(
+    let (mut selection, rule) = project::selection_for(
         &repo.root,
         &args.command,
         &args.needs,
@@ -227,6 +227,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
     if let Some(r) = &rule {
         renderer.note(r.describe());
     }
+    selection.repo_id = Some(repo.id.clone());
     if args.host.is_none() {
         project::warn_cross_os(
             renderer,
@@ -245,6 +246,23 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         poll: pool::DEFAULT_POLL,
         note: &|line| renderer.note(line),
     };
+    crate::drift::ask_where_stale(
+        &mut state,
+        &config
+            .hosts
+            .iter()
+            .map(|h| h.name.clone())
+            .collect::<Vec<_>>(),
+        &repo.id,
+        crate::state::now_secs(),
+        || match crate::doctor::project_needs() {
+            Ok(needs) => needs.probe_names(),
+            Err(e) => {
+                tracing::debug!(error = %e, "cannot read the project needs; no versions asked");
+                Vec::new()
+            }
+        },
+    );
     let (host, found, probe, claim) = pool::choose_queued(
         &config,
         &selection,
@@ -255,6 +273,12 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         args.host.as_deref(),
         &wait,
     )?;
+    crate::drift::record_probed(
+        &mut state,
+        &host.name,
+        crate::state::now_secs(),
+        &probe.facts.tools,
+    );
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host address");
     }
@@ -286,7 +310,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
 
     let remote_root = config.defaults.remote_root.as_str();
     let now = crate::state::now_secs();
-    // From goway doctor's cache; never probed, so a run never waits for it.
+    // From the cache (goway doctor, or this run's own probe when it was stale); never probed separately.
     let versions = crate::drift::for_run(&state, &host.name, &repo.id, now);
     if let Some(note) = &versions.note {
         renderer.note(note);
@@ -324,6 +348,9 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
 
         let mut extra = gpu_words(&selection, &config, &host);
         extra.push(verify.word());
+        if found.kind == crate::transport::Kind::Unix {
+            extra.push(crate::footprint::room_word());
+        }
         let priority = pool::priority_word(&config, &host, &found, &probe);
         if let Some(note) = pool::owner_note(&host.name, &probe, priority) {
             renderer.note(format_args!("{note}"));
@@ -947,8 +974,8 @@ const HEARTBEAT_SECS: u64 = 5;
 /// byte on its stdin every [`HEARTBEAT_SECS`]. When goway dies, even by
 /// SIGKILL, the pipe's write end closes and the helper stops the job; when
 /// the machine sleeps or the network drops, the bytes stop and it stops the
-/// job after its timeout. Only for Unix helpers (the Windows helper script
-/// has no lifeline verb). Never fails the run: without it the run is only as
+/// job after its timeout. Every helper kind has the verb (`remote.sh` and
+/// `remote.ps1`). Never fails the run: without it the run is only as
 /// protected as before.
 struct Beat {
     child: std::process::Child,
@@ -958,9 +985,6 @@ struct Beat {
 
 impl Beat {
     fn start(found: &Found, settings: &ssh::Settings, life: &Lifeline<'_>) -> Option<Self> {
-        if found.kind != crate::transport::Kind::Unix {
-            return None;
-        }
         let call = Call::new("lifeline", &[life.remote_root, life.run_id]);
         let mut command = match SshTransport::of(found, settings).command(&call) {
             Ok(c) => c,

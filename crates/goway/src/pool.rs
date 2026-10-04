@@ -44,6 +44,8 @@ pub struct Probe {
     pub disk_free: Option<u64>,
     /// The host's disk budget for goway in bytes (status only).
     pub disk_max: Option<u64>,
+    /// Peak disk footprint of each repository built there, by repository id (see [`crate::footprint`]).
+    pub footprints: BTreeMap<String, u64>,
     /// RAM, GPUs and other facts (see [`crate::facts`]).
     pub facts: Facts,
 }
@@ -79,6 +81,7 @@ pub fn parse_probe(text: &str) -> Option<Probe> {
         disk_used: kv.get("disk_used").and_then(|v| v.parse().ok()),
         disk_free: kv.get("disk_free").and_then(|v| v.parse().ok()),
         disk_max: kv.get("disk_max").and_then(|v| v.parse().ok()),
+        footprints: crate::footprint::parse(&kv),
         facts: facts::parse_live(
             &kv.iter()
                 .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
@@ -232,6 +235,10 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
             let reserve = config.job_mem_of(p.host);
             if reserve > 0 && probe.facts.mem_avail.is_some_and(|a| a < reserve) {
                 tracing::info!(host = %p.host.name, avail = ?probe.facts.mem_avail, reserve, "host has less free memory than one job reserves; skipped");
+                return None;
+            }
+            if let Some(why) = room_shortage(selection, probe) {
+                tracing::info!(host = %p.host.name, %why, "host has no disk room for this repository; skipped");
                 return None;
             }
             let per_core = probe.load[0] / f64::from(probe.cores.max(1));
@@ -437,11 +444,14 @@ pub fn choose_many(
 
 /// The remote command line that probes a Unix host (also this machine).
 pub fn probe_command(config: &Config, disk: bool, statics: bool) -> String {
-    probe_call(config, disk, statics).bash()
+    probe_call(config, disk, statics, &[]).bash()
 }
 
 /// The call that probes a host, whatever it speaks.
-pub fn probe_call(config: &Config, disk: bool, statics: bool) -> Call {
+///
+/// A non-empty `tools` adds the word `tools:A,B`: the host also reports the
+/// versions of those tools (names with other characters are left out).
+pub fn probe_call(config: &Config, disk: bool, statics: bool, tools: &[String]) -> Call {
     let root = config.defaults.remote_root.as_str();
     let mut args = vec![root];
     let budget;
@@ -456,6 +466,20 @@ pub fn probe_call(config: &Config, disk: bool, statics: bool) -> Call {
     }
     if !config.defaults.owner_idle.is_zero() {
         args.push("owner");
+    }
+    let wanted = tools
+        .iter()
+        .filter(|t| {
+            !t.is_empty()
+                && t.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "._+-".contains(c))
+        })
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join(",");
+    let wanted = format!("tools:{wanted}");
+    if wanted.len() > "tools:".len() {
+        args.push(&wanted);
     }
     Call::new("probe", &args)
 }
@@ -472,16 +496,22 @@ pub fn probe_one(
     let key = host.name.to_ascii_lowercase();
     let now = crate::state::now_secs();
     let statics = state.refresh_facts || facts::stale(state.facts.get(&key), now);
-    let found = resolve::resolve_call(
-        config,
-        host,
-        state,
-        lookup,
-        prober,
-        KeyPolicy::Strict,
-        &probe_call(config, disk, statics),
-    )?;
-    let probe = complete_probe(&host.name, &found.output, state, now)?;
+    let call = probe_call(config, disk, statics, state.tools_to_probe(&host.name, now));
+    let (found, sent, rtt) = crate::facts::clock::timed(|| {
+        resolve::resolve_call(
+            config,
+            host,
+            state,
+            lookup,
+            prober,
+            KeyPolicy::Strict,
+            &call,
+        )
+    });
+    let found = found?;
+    let mut probe = complete_probe(&host.name, &found.output, state, now)?;
+    // frob:ticket 01M42TD5V6H043JYBGK591BBA2
+    probe.facts.clock_offset_ms = crate::facts::clock::measure(&found.output, sent, rtt);
     Ok((found, probe))
 }
 
@@ -707,6 +737,20 @@ fn apply_pending(config: &Config, pending: &BTreeMap<String, u32>, results: &mut
     }
 }
 
+/// Why `probe`'s host has no disk room for the run's repository, when it lacks it
+/// (free plus evictable space below the repository's footprint plus margin).
+fn room_shortage(selection: &Selection, probe: &Probe) -> Option<String> {
+    let id = selection.repo_id.as_deref()?;
+    match crate::footprint::assess(probe, id) {
+        crate::footprint::Room::Short {
+            free,
+            evictable,
+            need,
+        } => Some(crate::footprint::short_text(free, evictable, need)),
+        _ => None,
+    }
+}
+
 /// The hosts that could ever take the run: reachable, in the pool, meeting every need.
 fn eligible_hosts(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> {
     results
@@ -745,6 +789,8 @@ fn busy_lines(
                     gib(probe.facts.mem_avail.unwrap_or(0)),
                     gib(reserve)
                 )
+            } else if let Some(why) = room_shortage(selection, probe) {
+                format!("{name}: {why}")
             } else if snap.held_for_earlier(name) {
                 format!("{name}: reserved for runs ahead in the queue")
             } else {
@@ -757,6 +803,18 @@ fn busy_lines(
 #[allow(clippy::cast_precision_loss)] // display only
 fn gib(bytes: u64) -> f64 {
     bytes as f64 / (1024.0 * 1024.0 * 1024.0)
+}
+
+/// One `host: why` per eligible host that has no disk room for the run's repository.
+fn skipped_for_room(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> {
+    results
+        .iter()
+        .filter_map(|p| {
+            let (_, probe) = p.result.as_ref().ok()?;
+            let why = room_shortage(selection, probe)?;
+            Some(format!("{}: {why}", p.host.name))
+        })
+        .collect()
 }
 
 /// What one probe round decided.
@@ -793,6 +851,14 @@ fn decide_round(
             .find(|&i| !snap.held_for_earlier(&results[i].host.name));
         match pick {
             Some(i) => {
+                let short = skipped_for_room(selection, results);
+                if !short.is_empty() {
+                    (wait.note)(&format!(
+                        "skipped for disk room: {}; using {}",
+                        short.join("; "),
+                        results[i].host.name
+                    ));
+                }
                 let claim = wait.queue.claim(&results[i].host.name)?;
                 tracing::info!(host = %results[i].host.name, position = snap.position(), "picked");
                 Ok(Decision::Taken(i, claim))
@@ -894,7 +960,7 @@ pub fn choose_queued(
         if elapsed >= wait.limit {
             tracing::warn!(?elapsed, "gave up waiting for a host");
             let mut out = vec![format!(
-                "waited {} in the queue (position {}) for a host with a free job slot and memory for one more job",
+                "waited {} in the queue (position {}) for a host with a free job slot, memory and disk for one more job",
                 humantime::format_duration(Duration::from_secs(elapsed.as_secs())),
                 pos + 1
             )];
@@ -954,6 +1020,7 @@ mod tests {
             disk_used: None,
             disk_free: None,
             disk_max: None,
+            footprints: std::collections::BTreeMap::new(),
             facts: Facts::default(),
         }
     }
@@ -1118,13 +1185,13 @@ mod tests {
     fn the_probe_asks_for_the_owner_state_unless_it_is_switched_off() {
         let mut config = Config::default();
         assert!(
-            probe_call(&config, false, false)
+            probe_call(&config, false, false, &[])
                 .args
                 .contains(&"owner".to_owned())
         );
         config.defaults.owner_idle = std::time::Duration::ZERO;
         assert!(
-            !probe_call(&config, false, false)
+            !probe_call(&config, false, false, &[])
                 .args
                 .contains(&"owner".to_owned())
         );
@@ -1215,6 +1282,50 @@ mod tests {
         ];
         assert_eq!(pick(&Config::default(), &probed), Some(1));
         assert_eq!(pick(&Config::default(), &probed[..1]), Some(0));
+    }
+
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn a_host_without_disk_room_for_the_repositorys_footprint_is_held_back() {
+        let gib = 1024u64 * 1024 * 1024;
+        let mut small = probe(16, 0.0, 0);
+        small.disk_free = Some(3 * gib);
+        small.disk_used = Some(2 * gib);
+        small.footprints.insert("repo1".to_owned(), 20 * gib);
+        let mut evictable = probe(16, 4.0, 0);
+        evictable.disk_free = Some(3 * gib);
+        evictable.disk_used = Some(30 * gib);
+        evictable.footprints.insert("repo1".to_owned(), 20 * gib);
+        let hosts = [host("small", None), host("evictable", None)];
+        let probed = vec![
+            Probed {
+                host: &hosts[0],
+                result: Ok((found("small"), small)),
+            },
+            Probed {
+                host: &hosts[1],
+                result: Ok((found("evictable"), evictable)),
+            },
+        ];
+        let config = Config::default();
+        let mut sel = Selection {
+            repo_id: Some("repo1".to_owned()),
+            ..Selection::default()
+        };
+        assert_eq!(
+            ranked_for(&config, &sel, &probed),
+            [1],
+            "5 GiB cannot hold 20 GiB plus its margin; 33 GiB with eviction can"
+        );
+        let why = room_shortage(&sel, &probed[0].result.as_ref().unwrap().1);
+        assert!(why.unwrap().contains("needs about 22.0 GiB"));
+        assert_eq!(skipped_for_room(&sel, &probed).len(), 1);
+        sel.repo_id = Some("other".to_owned());
+        assert_eq!(
+            ranked_for(&config, &sel, &probed).len(),
+            2,
+            "unknown repository"
+        );
     }
 
     // frob:tests crates/goway/src/pool.rs::ranked_for
@@ -1417,6 +1528,43 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    /// A host whose clock runs `ahead` seconds fast (and `None`: it reports no epoch).
+    struct Clocked(Option<i64>);
+    impl Prober for Clocked {
+        fn probe(&self, _: &Target, _: KeyPolicy, _: &str) -> resolve::ProbeResult {
+            let epoch = self.0.map_or_else(String::new, |a| {
+                let now = i64::try_from(crate::state::now_secs()).unwrap();
+                format!("epoch={}\n", now + a)
+            });
+            Ok(format!(
+                "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\njobs=0\n{epoch}"
+            ))
+        }
+    }
+
+    // frob:tests crates/goway/src/pool.rs::probe_one
+    #[test]
+    fn probe_one_measures_the_helper_clock_offset() {
+        let mut h = host("h", None);
+        h.address = Some("10.0.0.9".to_owned());
+        let mut config = Config::default();
+        config.hosts.push(h.clone());
+        let offset = |ahead| {
+            let mut state = State::default();
+            probe_one(&config, &h, &mut state, &NoLookup, &Clocked(ahead), false)
+                .unwrap()
+                .1
+                .facts
+                .clock_offset_ms
+        };
+        let ms = offset(Some(3600)).unwrap();
+        assert!((3_595_000..=3_605_000).contains(&ms), "{ms}");
+        let ms = offset(Some(-90)).unwrap();
+        assert!((-95_000..=-85_000).contains(&ms), "{ms}");
+        assert!(offset(Some(0)).unwrap().abs() < 2_000);
+        assert_eq!(offset(None), None);
     }
 
     /// Answers every address like a different machine: only `10.0.0.2` has a GPU.

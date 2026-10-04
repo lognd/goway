@@ -40,8 +40,15 @@ stage only runs if every earlier one failed:
 Loopback, link-local and duplicate addresses are skipped. Windows also
 answers with unrelated adapters (for example VirtualBox
 `192.168.56.1`). Those candidates fail the key check and are skipped.
-Resolution stops early if the key is not pinned yet or authentication is
-refused, because another address of the same machine would not help.
+An address whose key is not pinned, or that refuses authentication, does
+not stop the search: another machine may answer first for the name.
+goway never uses an address whose key it has not confirmed, so two
+machines answering for one name cannot make it pick the wrong one.
+When no candidate answers, the error says which case it looks like: a
+name that resolves to an unreachable address (client isolation, a
+partial VPN), no address at all (mDNS blocked), or several machines
+answering for one name. See "A network that hides the helpers" in
+troubleshooting.md.
 The error lists every candidate tried and why it failed, including the
 reason a candidate was rejected (for example a hostname that does not
 match).

@@ -1,0 +1,7 @@
+kind = "transition"
+from = "todo"
+to = "in-progress"
+reason = "lease: lognd in goway-wt/CEQNJYE; scope: crates/goway/tests/slot_trees.rs, crates/goway/src/remote.sh, crates/goway/tests/run_local.rs, docs/config.md, CHANGELOG.md, crates/goway/tests/common/mod.rs, crates/goway/tests/cmake_api.rs; ttl 7200s"
+at = "2026-10-04T11:45:33Z"
+actor = "lognd"
+rev = 1

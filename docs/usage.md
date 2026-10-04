@@ -597,6 +597,30 @@ again, every five seconds, so the ssh load does not grow with the wave.
 A run that no host could ever take (unreachable, or failing a `--needs`
 term) still fails at once. `--host NAME` pins a host and never waits.
 
+### Disk room: a repository's footprint
+
+After each run a helper records the peak disk a repository has used there
+(its slot tree, target dir and shared compiler caches, measured with `du`
+in the detached step after the run, under `footprints` in goway's
+root). The next run reads it: a helper whose free space plus everything
+goway holds there (the most eviction could free) is below the footprint
+plus a margin (the larger of 1 GiB and 10% of it) is held back like one
+short of memory, so the wave queues for disk instead of filling it. When
+other helpers qualify, one note names those skipped
+(`skipped for disk room: h1: 3.0 GiB free (2.0 GiB of it evictable), this
+repository needs about 22.0 GiB; using h2`). A helper chosen while short on
+free space first evicts idle entries, least recently used first, to make the
+room and says what it freed. `--host NAME` pins a host and skips the check
+(the run still makes room), and an explicit `--needs disk>=SIZE` applies as
+before. A repository never seen on a helper has no footprint and is not held back.
+
+If a run fails while the helper's disk is (nearly) full, goway says so in
+plain words after the command's own error: that the host ran out of disk, how
+much the repository needs at least and what is free, what the disk budget
+freed afterwards, and to rerun with `--needs disk>=SIZE` or on another host.
+The peak is a high-water mark: it never shrinks, and a failure at a full disk
+records only what was written before it ran out.
+
 ### Exit codes
 
 | Code | Meaning |
@@ -848,8 +872,13 @@ from the others for a tool the project uses, goway prints one note
 12) ...`, with how long ago doctor saw them). `--report` records those
 versions under `tool_versions` (with `source` and the time they were
 captured), so frob evidence says what built and tested the run. The cache is
-per repository: run `goway doctor` in the project to refresh it, and a run in
-another project does not use it.
+per repository, and a run in another project does not use it. Nothing needs
+`goway doctor` first: when a host's cache for the repository is missing or
+over a day old, the probe the run already makes also asks that host for the
+versions of the project's tools (the probe word `tools:cc,make,...`, a
+bounded `--version` each), and the run stores what the chosen host reports.
+A fresh cache adds nothing to the probe. A helper whose scripts predate this
+reports nothing and keeps its old cache.
 
 Hardening, such as turning off ssh password login, is not needed to run
 anything. It is listed separately as optional and is applied only with

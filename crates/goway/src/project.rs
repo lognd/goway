@@ -383,6 +383,7 @@ pub fn selection_for(
         needs: merged(&rule.needs, &cli.needs),
         prefers: merged(&rule.prefers, &cli.prefers),
         pool_os: None,
+        repo_id: None,
     };
     Ok((default_os(selection), Some(applied)))
 }
