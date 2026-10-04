@@ -7,7 +7,7 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T04:28:40Z"
-updated = "2026-10-04T04:42:56Z"
+updated = "2026-10-04T04:43:03Z"
 scope = ["crates/goway/tests/owner_awareness.rs"]
 
 [[acceptance]]
