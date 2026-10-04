@@ -1192,6 +1192,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn undo_is_derived_from_the_check_name_and_removes_only_its_own_links() {
         let home = tempfile::tempdir().unwrap();
