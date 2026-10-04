@@ -2,13 +2,13 @@
 id = "01M43CFMDFG8YSM3HNRD0GB213"
 title = "Pending claims reserve their repository's disk footprint so a wave of one repository spreads across helpers"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T11:58:41Z"
-updated = "2026-10-04T11:58:41Z"
+updated = "2026-10-04T11:58:56Z"
 scope = ["crates/goway/src/queue.rs", "crates/goway/src/pool.rs", "docs/usage.md"]
 
 [[acceptance]]
