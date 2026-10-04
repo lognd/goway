@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:58:00Z"
-updated = "2026-10-04T03:55:49Z"
+updated = "2026-10-04T03:56:26Z"
 scope = ["crates/goway/src/run.rs", "crates/goway/tests/host_asleep.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
