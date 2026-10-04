@@ -1,0 +1,6 @@
+kind = "comment"
+subtype = "note"
+body = "Audit 3 done 2026-10-04: 0 critical, 2 high, 3 medium, 14 low, 9 info. Fixed: H1 ~PA6WM2T, H2 ~P88GWQW, M1 ~893RAE4, M2+L1 ~169R3Q0, M3 ~G2SFE3P, each with a regression test that fails without the fix. L2-L14 remain low and are recorded for after v0.1.0."
+at = "2026-10-04T21:49:28Z"
+actor = "lognd"
+rev = 1
