@@ -1,10 +1,35 @@
 # goway remote side. Sent inline with every ssh call and run as
 #   bash -c "<this script>" goway VERB ARGS...
 # so the remote needs nothing installed beyond bash, GNU findutils, tar,
-# coreutils and util-linux (flock). Every directory goway owns carries a
+# coreutils and util-linux (flock); on macOS the same GNU tools from Homebrew. Every directory goway owns carries a
 # meta.json label and a lock file that is flock-held while in use.
 set -Eeuo pipefail
 umask 077
+
+# Portability. On macOS (BSD userland, bash 3.2) put Homebrew's GNU tools
+# first: coreutils, findutils, gnu-sed, gnu-tar and grep ship "gnubin"
+# directories of unprefixed GNU names, flock and util-linux (setsid) their
+# own bin. Nothing here changes what runs on Linux.
+IS_DARWIN=0
+FDDIR=/proc/self/fd
+if [ "$(uname -s)" = Darwin ]; then
+  IS_DARWIN=1
+  FDDIR=/dev/fd
+  # sysctl, vm_stat and perl live in system directories a caller's PATH may omit.
+  PATH="$PATH:/usr/sbin:/sbin:/usr/bin:/bin"
+  for brew in /opt/homebrew /usr/local; do
+    for d in "$brew"/opt/*/libexec/gnubin "$brew"/opt/util-linux/bin "$brew"/opt/util-linux/sbin "$brew"/opt/flock/bin "$brew/bin"; do
+      [ -d "$d" ] && PATH="$d:$PATH"
+    done
+  done
+  export PATH
+  # Without util-linux's setsid, perl (always on macOS) starts a new session.
+  if ! command -v setsid >/dev/null 2>&1; then
+    setsid() { perl -e 'use POSIX qw(setsid); setsid(); exec @ARGV or exit 127' -- "$@"; }
+  fi
+  # Without coreutils' nproc.
+  if ! command -v nproc >/dev/null 2>&1; then nproc() { sysctl -n hw.ncpu; }; fi
+fi
 
 die() { printf 'goway-remote: %s\n' "$*" >&2; exit 125; }
 # Any failure of the script itself exits 125, never a command-like code.
@@ -36,6 +61,20 @@ mark_root() {
   printf 'goway state; safe to delete with goway gc --all\n' >"$1/.goway-root"
 }
 
+# same_fd PATH FD: whether FD is open on the file PATH names now (a lock
+# file gc removed and something re-created is a different file). Linux
+# compares with /proc/self/fd; macOS has no such link, so perl fstat()s the
+# inherited descriptor.
+if [ "$IS_DARWIN" = 1 ]; then
+  same_fd() {
+    local want
+    want=$(stat -c %d:%i "$1" 2>/dev/null) || return 1
+    [ "$want" = "$(perl -e 'open(my $f, "<&=", $ARGV[0]) or exit 1; my @s = stat($f); print "$s[0]:$s[1]"' "$2")" ]
+  }
+else
+  same_fd() { [ "$1" -ef "$FDDIR/$2" ]; }
+fi
+
 # lock_dir FD DIR FLOCK_OPT: create DIR if needed and hold DIR/lock on FD
 # (FLOCK_OPT is -x or -s). gc may remove DIR at any moment, so the open can
 # fail (DIR vanished) or lock an unlinked file; both retry until the held
@@ -53,7 +92,7 @@ lock_dir() {
         eval "$hook"
       fi
       flock "$opt" "$fd"
-      if [ "$dir/lock" -ef "/proc/self/fd/$fd" ]; then return 0; fi
+      if same_fd "$dir/lock" "$fd"; then return 0; fi
     fi
     sleep 0.05
   done
@@ -291,7 +330,7 @@ sync_slot() {
   fi
 
   find "$farm" -mindepth 1 \( -type f -o -type l \) -printf "$REC" | sort -z >"$tmp/snap"
-  find "$slot" -mindepth 1 "${prune[@]}" \( -type f -o -type l \) -printf "$REC" | sort -z >"$tmp/slot"
+  find "$slot" -mindepth 1 ${prune[@]+"${prune[@]}"} \( -type f -o -type l \) -printf "$REC" | sort -z >"$tmp/slot"
   [ -f "$slot.farm" ] || cp "$tmp/empty" "$slot.farm"
   [ -f "$slot.slot" ] || cp "$tmp/empty" "$slot.slot"
   rec_paths <"$tmp/snap" | sort -z >"$tmp/snap.p"
@@ -342,7 +381,7 @@ sync_slot() {
   (cd "$slot" && xargs -0 -r rm -f -- <"$tmp/stale.final")
   # Directories left empty (not the kept ones) go too, innermost first.
   while :; do
-    find "$slot" -mindepth 1 "${prune[@]}" -type d -empty -print0 >"$tmp/emptydirs"
+    find "$slot" -mindepth 1 ${prune[@]+"${prune[@]}"} -type d -empty -print0 >"$tmp/emptydirs"
     [ -s "$tmp/emptydirs" ] || break
     xargs -0 -r rmdir -- <"$tmp/emptydirs"
   done
@@ -369,7 +408,7 @@ sync_slot() {
   # What the next reconcile compares against: the snapshot and the slot as
   # they are now (the job's changes show up as differences from the latter).
   cp "$tmp/snap" "$slot.farm"
-  find "$slot" -mindepth 1 "${prune[@]}" \( -type f -o -type l \) -printf "$REC" | sort -z >"$slot.slot"
+  find "$slot" -mindepth 1 ${prune[@]+"${prune[@]}"} \( -type f -o -type l \) -printf "$REC" | sort -z >"$slot.slot"
   printf '%s %s' "$seedkey" "$(cat "$work/seqinfo" 2>/dev/null)" >"$slot.state"
   printf 'written=%s removed=%s\n' "$written" "$removed" >"$slot.stats"
   rm -rf "$tmp"
@@ -658,7 +697,7 @@ sniff_binary() {
 # launch_job CMD...: start the job as run does (own session, pid recorded
 # for the watchdog, polite priority). JOB_PID and JOB_NICER are run's.
 launch_job() {
-  setsid sh -c 'echo $$ >"$0"; exec "$@"' "$JOB_PID" "${JOB_NICER[@]}" "$@"
+  setsid sh -c 'echo $$ >"$0"; exec "$@"' "$JOB_PID" ${JOB_NICER[@]+"${JOB_NICER[@]}"} "$@"
 }
 
 # catch2_rejected ERRFILE RC: whether Catch2 refused the shard flags before
@@ -689,7 +728,7 @@ catch2_attempt() {
   # Not the run's lock fds (7, 9): a lingering tee must never hold a slot.
   (trap '' XFSZ; ulimit -f 128; exec tee "$errfile" <"$fifo" >&2) 5>&- 7>&- 9>&- &
   tpid=$!
-  launch_job "$@" "${extra[@]}" 2>"$fifo" || rc=$?
+  launch_job "$@" ${extra[@]+"${extra[@]}"} 2>"$fifo" || rc=$?
   wait "$tpid" || true
   rm -f "$fifo"
   if catch2_rejected "$errfile" "$rc"; then ATTEMPT_REJECTED=1; fi
@@ -849,7 +888,7 @@ run() {
     # accept the lock only if it is the file the dir currently has.
     mkdir -p "$cache"
     exec 7>"$cache/target-$k.lock"
-    if flock -n 7 && [ "$cache/target-$k.lock" -ef /proc/self/fd/7 ]; then slot=$k; break; fi
+    if flock -n 7 && same_fd "$cache/target-$k.lock" 7; then slot=$k; break; fi
     exec 7>&-
   done
   if [ -z "$slot" ]; then
@@ -859,7 +898,7 @@ run() {
       mkdir -p "$cache"
       exec 7>"$cache/target-$slot.lock"
       flock 7
-      [ "$cache/target-$slot.lock" -ef /proc/self/fd/7 ] && break
+      same_fd "$cache/target-$slot.lock" 7 && break
     done
   fi
   [ -f "$cache/meta.json" ] || printf '%s' "$cache_meta" | base64 -d >"$cache/meta.json"
@@ -954,10 +993,10 @@ run() {
   fi
   if [ -n "$detect" ]; then
     JOB_PID="$work/pid"
-    JOB_NICER=("${nicer[@]}")
+    JOB_NICER=(${nicer[@]+"${nicer[@]}"})
     shard_run "$detect" "$work" "$@" || rc=$?
   else
-    setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "${nicer[@]}" "$@" || rc=$?
+    setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
   fi
   kill "$wd" 2>/dev/null || true
   cd "$root"
@@ -1041,6 +1080,26 @@ static_facts() {
   printf 'wsl=%s\nwinvideo=%s\n' "$wsl" "$win"
 }
 
+# machine: this host's CPU architecture, spelled as Linux does (arm64 is aarch64).
+machine() {
+  case "$(uname -m)" in
+    arm64) printf 'aarch64\n' ;;
+    *) uname -m ;;
+  esac
+}
+
+# mem_darwin: mem_total and mem_avail (free + inactive + speculative pages) from sysctl and vm_stat.
+mem_darwin() {
+  local total page free inactive spec
+  total=$(sysctl -n hw.memsize 2>/dev/null) || return 0
+  printf 'mem_total=%s\n' "$total"
+  page=$(sysctl -n hw.pagesize 2>/dev/null || echo 4096)
+  free=$(vm_stat 2>/dev/null | awk '/^Pages free/ {gsub(/\./, "", $3); print $3}')
+  inactive=$(vm_stat 2>/dev/null | awk '/^Pages inactive/ {gsub(/\./, "", $3); print $3}')
+  spec=$(vm_stat 2>/dev/null | awk '/^Pages speculative/ {gsub(/\./, "", $3); print $3}')
+  printf 'mem_avail=%s\n' $(((${free:-0} + ${inactive:-0} + ${spec:-0}) * page))
+}
+
 # probe ROOT [disk] [budget:MAX:MIN_FREE] [static]: key=value facts for scheduling and status.
 # RAM is always reported; "static" adds the rarely changing hardware facts.
 probe() {
@@ -1050,11 +1109,20 @@ probe() {
   for a in "$@"; do
     case "$a" in disk) want_disk=1 ;; static) want_static=1 ;; budget:[0-9]*:[0-9]*) budget=${a#budget:} ;; esac
   done
+  if [ "$IS_DARWIN" = 1 ]; then
+    mem_darwin
+  else
   awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {if (t) printf "mem_total=%.0f\n", t*1024; if (a) printf "mem_avail=%.0f\n", a*1024}' /proc/meminfo 2>/dev/null || true
+  fi
   if [ "$want_static" = 1 ]; then static_facts; fi
-  printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(uname -m)" "$(uname -n)" "$(nproc)"
+  printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(machine)" "$(uname -n)" "$(nproc)"
   printf 'os=%s\n' "$(uname -s | tr '[:upper:]' '[:lower:]')"
-  read -r l1 l5 l15 _ </proc/loadavg
+  if [ "$IS_DARWIN" = 1 ]; then
+    # "{ 1.23 1.45 1.67 }"
+    read -r _ l1 l5 l15 _ < <(sysctl -n vm.loadavg)
+  else
+    read -r l1 l5 l15 _ </proc/loadavg
+  fi
   printf 'load1=%s\nload5=%s\nload15=%s\n' "$l1" "$l5" "$l15"
   if [ -d "$root/work" ]; then
     for l in "$root"/work/*/lock; do
@@ -1125,7 +1193,7 @@ gc_entry() {
   # that refreshed the entry just before cannot be raced.
   action=keep
   fd=20
-  for l in "${locks[@]}"; do
+  for l in ${locks[@]+"${locks[@]}"}; do
     [ -e "$l" ] || continue
     # Append, never truncate: opening for write would refresh a slot lock's
     # mtime, which is the slot's last-use stamp (evict_slot).
@@ -1181,7 +1249,7 @@ evict_slot() {
     return 0
   fi
   exec 20>>"$lock"
-  if ! flock -n 20 || [ ! "$lock" -ef /proc/self/fd/20 ]; then
+  if ! flock -n 20 || ! same_fd "$lock" 20; then
     exec 20>&-
     printf 'busy\tslot\t0\t0\t%s\t%s\n' "$repo" "$dir/tree-$k"
     GC_ACTION=busy
@@ -1245,7 +1313,7 @@ evict() {
         [ -e "$l" ] || continue
         k=${l##*/target-}
         k=${k%.lock}
-        case "$k" in "" | *[!0-9]*) continue ;; esac
+        if [ -z "$k" ] || [ -n "${k//[0-9]/}" ]; then continue; fi
         printf '%s\t0\tslot\t%s\t%s\n' "$(stat -c %Y "$l" 2>/dev/null || echo "$now")" "$d" "$k"
       done
     done | sort -n -k1,1 -k2,2
@@ -1324,11 +1392,22 @@ want_version() {
 # want.TOOL=<version line>, empty when missing. User-level installs that
 # goway's fixes make (~/.local/bin) count.
 doctor() {
-  local t v pa
+  local t v pa out
   shift
   PATH="$HOME/.local/bin:$PATH"
   if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; printf 'cargo_env=yes\n'; else printf 'cargo_env=no\n'; fi
-  for t in bash git tar flock setsid cc curl rustup cargo cargo-nextest sccache apt-get dnf pacman; do
+  printf 'kernel=%s\n' "$(uname -s)"
+  if [ "$IS_DARWIN" = 1 ]; then
+    # Which tools still resolve to the BSD versions (no --version, or not GNU).
+    v=""
+    for t in find sed tar grep stat date sort comm xargs cp du df; do
+      out=$("$t" --version 2>&1 || true)
+      case "$out" in *GNU*) ;; *) v="$v${v:+,}$t" ;; esac
+    done
+    printf 'gnu_missing=%s\n' "$v"
+    printf 'os=macOS %s\n' "$(sw_vers -productVersion 2>/dev/null || echo unknown)"
+  fi
+  for t in bash git tar flock setsid cc curl rustup cargo cargo-nextest sccache brew apt-get dnf pacman; do
     if command -v "$t" >/dev/null 2>&1; then
       case "$t" in
         cargo-nextest) v=$({ cargo-nextest nextest --version 2>/dev/null || true; } | head -1) ;;
@@ -1347,8 +1426,10 @@ doctor() {
       printf 'want.%s=\n' "$t"
     fi
   done
-  printf 'os=%s\n' "$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}")"
-  printf 'arch=%s\n' "$(uname -m)"
+  if [ "$IS_DARWIN" != 1 ]; then
+    printf 'os=%s\n' "$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}")"
+  fi
+  printf 'arch=%s\n' "$(machine)"
   printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
   # sshd's effective value when we may ask (root), else its first-match order:
   # drop-ins in lexical order, then the main file.

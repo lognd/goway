@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/src/remote.sh", "crates/goway/src/doctor.rs", "crates/goway/src/pool.rs", ".github/workflows/ci.yml"]
+new = ["crates/goway/src/remote.sh", "crates/goway/src/doctor.rs", "crates/goway/src/pool.rs", ".github/workflows/ci.yml", "README.md", "docs/macos.md"]
+at = "2026-10-04T01:44:46Z"
+actor = "lognd"
+rev = 1

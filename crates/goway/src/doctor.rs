@@ -88,6 +88,79 @@ fn tool<'a>(facts: &'a BTreeMap<String, String>, name: &str) -> Option<&'a str> 
         .filter(|v| !v.is_empty())
 }
 
+/// `brew install PACKAGE` as a per-user fix, when Homebrew is there.
+fn brew_fix(facts: &BTreeMap<String, String>, package: &str) -> Option<Fix> {
+    tool(facts, "brew")?;
+    Some(Fix {
+        command: format!("brew install {package}"),
+        root: false,
+        why: "Homebrew installs per user, no sudo".to_owned(),
+    })
+}
+
+/// Whether the host is a Mac (its helper side runs on Homebrew's GNU tools).
+fn is_darwin(facts: &BTreeMap<String, String>) -> bool {
+    facts.get("kernel").is_some_and(|k| k == "Darwin")
+}
+
+/// The Homebrew packages goway's remote side needs on a Mac.
+const BREW_TOOLS: &str = "coreutils findutils gnu-sed gnu-tar grep util-linux flock";
+
+/// The macOS checks: Homebrew itself, then the GNU tools goway's remote
+/// side runs on (all installed per user, never with sudo).
+fn darwin_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
+    let missing: Vec<&str> = facts
+        .get("gnu_missing")
+        .map(String::as_str)
+        .unwrap_or_default()
+        .split(',')
+        .filter(|t| !t.is_empty())
+        .collect();
+    let mut gone: Vec<String> = ["flock", "setsid"]
+        .iter()
+        .filter(|t| tool(facts, t).is_none())
+        .map(|t| (*t).to_owned())
+        .collect();
+    gone.extend(missing.iter().map(|t| (*t).to_owned()));
+    let brew = tool(facts, "brew").is_some();
+    let check = |level, detail: String, fix| Check {
+        name: "Homebrew GNU tools".to_owned(),
+        level,
+        detail,
+        fix,
+    };
+    if gone.is_empty() {
+        return vec![check(
+            Level::Ok,
+            "GNU coreutils, findutils, sed, tar, grep, flock and setsid found".to_owned(),
+            None,
+        )];
+    }
+    let detail = format!(
+        "missing: {}; goway's remote side needs the GNU versions",
+        gone.join(", ")
+    );
+    if brew {
+        vec![check(
+            Level::Fail,
+            detail,
+            Some(Fix {
+                command: format!("brew install {BREW_TOOLS}"),
+                root: false,
+                why: "Homebrew installs per user, no sudo".to_owned(),
+            }),
+        )]
+    } else {
+        vec![check(
+            Level::Fail,
+            format!(
+                "{detail}; Homebrew is not installed: see https://brew.sh (its installer asks for sudo itself), then run `brew install {BREW_TOOLS}`"
+            ),
+            None,
+        )]
+    }
+}
+
 /// The package install command for this host's package manager.
 fn install(facts: &BTreeMap<String, String>, apt: &str, dnf: &str, pacman: &str) -> String {
     if tool(facts, "apt-get").is_some() {
@@ -230,6 +303,27 @@ fn system_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
         });
     };
     let present = |name: &str| tool(facts, name).map(str::to_owned);
+    if is_darwin(facts) {
+        // The package-manager fixes below are Linux's; a Mac has no
+        // missing curl and its compiler comes with the Xcode tools.
+        let mut checks = darwin_checks(facts);
+        checks.push(match present("cc") {
+            Some(v) => Check {
+                name: "cc (linker)".to_owned(),
+                level: Level::Ok,
+                detail: v,
+                fix: None,
+            },
+            None => Check {
+                name: "cc (linker)".to_owned(),
+                level: Level::Fail,
+                detail: "missing; run `xcode-select --install` on the Mac (it opens a dialog)"
+                    .to_owned(),
+                fix: None,
+            },
+        });
+        return checks;
+    }
     for t in ["bash", "tar", "flock", "setsid"] {
         match present(t) {
             Some(v) => push(t, Level::Ok, v, None),
@@ -312,11 +406,15 @@ fn toolchain_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
             "cargo-nextest",
             Level::Warn,
             "missing; `cargo nextest run` will not work".to_owned(),
-            pinned_install(&NEXTEST, arch).map(|command| Fix {
-                command,
-                root: false,
-                why: "installs the pinned, checksum-verified prebuilt binary into the user's cargo bin".to_owned(),
-            }),
+            if is_darwin(facts) {
+                brew_fix(facts, "cargo-nextest")
+            } else {
+                pinned_install(&NEXTEST, arch).map(|command| Fix {
+                    command,
+                    root: false,
+                    why: "installs the pinned, checksum-verified prebuilt binary into the user's cargo bin".to_owned(),
+                })
+            },
         ),
     }
     match present("sccache") {
@@ -325,11 +423,15 @@ fn toolchain_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
             "sccache",
             Level::Warn,
             "missing; cold builds in new target slots will be slower".to_owned(),
-            pinned_install(&SCCACHE, arch).map(|command| Fix {
-                command,
-                root: false,
-                why: "installs the pinned, checksum-verified release binary into the user's cargo bin".to_owned(),
-            }),
+            if is_darwin(facts) {
+                brew_fix(facts, "sccache")
+            } else {
+                pinned_install(&SCCACHE, arch).map(|command| Fix {
+                    command,
+                    root: false,
+                    why: "installs the pinned, checksum-verified release binary into the user's cargo bin".to_owned(),
+                })
+            },
         ),
     }
     out
@@ -874,6 +976,46 @@ mod tests {
         f.insert("disk_free".to_owned(), (500u64 << 30).to_string());
         f.insert("password_auth".to_owned(), "no".to_owned());
         f
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::darwin_checks
+    #[test]
+    fn a_mac_missing_gnu_tools_gets_a_per_user_brew_fix() {
+        let mut f = facts(&["flock", "setsid", "cargo-nextest"]);
+        f.insert("kernel".to_owned(), "Darwin".to_owned());
+        f.insert("gnu_missing".to_owned(), "find,tar".to_owned());
+        f.insert("tool.brew".to_owned(), "Homebrew 4".to_owned());
+        let checks = assess(&f);
+        let gnu = checks
+            .iter()
+            .find(|c| c.name == "Homebrew GNU tools")
+            .unwrap();
+        assert_eq!(gnu.level, Level::Fail);
+        assert!(
+            gnu.detail.contains("flock, setsid, find, tar"),
+            "{}",
+            gnu.detail
+        );
+        let fix = gnu.fix.as_ref().unwrap();
+        assert!(!fix.root && fix.command.starts_with("brew install coreutils"));
+        let nextest = checks.iter().find(|c| c.name == "cargo-nextest").unwrap();
+        assert_eq!(
+            nextest.fix.as_ref().unwrap().command,
+            "brew install cargo-nextest"
+        );
+        assert!(
+            checks
+                .iter()
+                .all(|c| c.fix.as_ref().is_none_or(|x| !x.root))
+        );
+        // Without Homebrew there is nothing goway may run: it explains.
+        f.remove("tool.brew");
+        let checks = assess(&f);
+        let gnu = checks
+            .iter()
+            .find(|c| c.name == "Homebrew GNU tools")
+            .unwrap();
+        assert!(gnu.fix.is_none() && gnu.detail.contains("https://brew.sh"));
     }
 
     #[test]
