@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:03:01Z"
-updated = "2026-10-04T03:08:04Z"
+updated = "2026-10-04T03:08:10Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/src/doctor/projneeds.rs"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a distro without a package for a tool (mold before Ubuntu 22.04 and Debian 12), when doctor plans the fix, then it offers the upstream release as a pinned, sha256-verified user-level install under ~/.local/opt with links in ~/.local/bin (mold and ld.mold), recorded for uninstall by check name, while distros that package it still get the package"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given several apt installs in one root session, when the script is built, then apt-get update runs once for the session, not once per package"
