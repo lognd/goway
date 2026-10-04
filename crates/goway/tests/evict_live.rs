@@ -25,7 +25,7 @@ fn tiny_budget(w: &common::World) {
 }
 
 // frob:ticket 01M43GWXKVF2RFVTAHR1WYK8J5
-// frob:tests crates/goway/src/remote.sh::run
+// frob:tests crates/goway/src/run.rs::run
 #[test]
 fn a_wave_over_a_tiny_budget_never_loses_a_live_runs_work_dir() {
     let w = common::world();
@@ -124,7 +124,7 @@ fn lifeline(w: &common::World, id: &str, input: &str, timeout: &str) -> std::pro
 }
 
 // frob:ticket 01M43GWXKVF2RFVTAHR1WYK8J5
-// frob:tests crates/goway/src/remote.sh::lifeline
+// frob:tests crates/goway/src/run.rs::stream
 #[test]
 fn the_lifeline_says_why_it_stopped_a_job_and_tells_silence_from_a_closed_pipe() {
     let w = common::world();
