@@ -1,0 +1,12 @@
+kind = "create"
+title = "Wire the measured clock offset into pool probe_one"
+type = "task"
+category = "todo"
+priority = "medium"
+points = 1
+scope = ["crates/goway/src/pool.rs", "crates/goway/tests/clock.rs"]
+acceptance = ["Given a probe_one call, when the host reports epoch, then Probe.facts.clock_offset_ms is the measured offset"]
+body = "Split from ~TGZTRVF because pool.rs was leased. probe_one times the probe and calls clock::measure."
+at = "2026-10-04T06:42:46Z"
+actor = "lognd"
+rev = 1
