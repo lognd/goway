@@ -1,0 +1,12 @@
+kind = "create"
+title = "The helper-side wait for a build slot ignores --wait; bound it and say who holds the slots"
+type = "bug"
+category = "todo"
+priority = "high"
+points = 2
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/src/remote.sh", "crates/goway/src/remote.ps1", "crates/goway/src/run.rs", "crates/goway/tests/slot_wait.rs", "docs/usage.md"]
+acceptance = ["Given all of a repository's build slots busy on the chosen helper, when a run waits for one, then the wait is bounded by the same --wait (default 5 minutes), the note says how many slots are busy and how long the oldest holder has run, and on timeout goway exits 125 saying so (found live: a run waited 40 minutes for a slot)"]
+at = "2026-10-04T22:02:06Z"
+actor = "lognd"
+rev = 1
