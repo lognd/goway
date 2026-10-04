@@ -299,7 +299,7 @@ fn open_regular(root: &Path, rel: &str, full: &Path) -> std::io::Result<(std::fs
 /// The work tree's file set: what git shows, minus deleted files, secrets
 /// (per `secrets`) and anything under a symlinked directory.
 pub fn file_set(root: &Path, secrets: &Secrets) -> Result<FileSet> {
-    let out = std::process::Command::new("git")
+    let out = repo::git_command()
         .arg("-C")
         .arg(root)
         .args(["ls-files", "-co", "--exclude-standard", "-z", "--full-name"])

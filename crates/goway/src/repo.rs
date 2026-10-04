@@ -28,9 +28,32 @@ pub struct Repo {
     pub client: String,
 }
 
+/// The null device as git spells it for `core.hooksPath`.
+const NO_HOOKS: &str = if cfg!(windows) { "NUL" } else { "/dev/null" };
+
+/// A `git` command for a repository goway does not trust: the repository's
+/// own config cannot start a program through `core.fsmonitor` or
+/// `core.hooksPath`, no pager or editor is used, and the user's and
+/// system's global hooks directory is replaced by nothing. Every goway git
+/// call starts here. (`ls-files`, `rev-list` and `pack-objects` apply no
+/// clean/smudge filter or diff driver, so those need no further switch.)
+pub fn git_command() -> Command {
+    let mut c = Command::new("git");
+    c.arg("-c")
+        .arg("core.fsmonitor=false")
+        .arg("-c")
+        .arg(format!("core.hooksPath={NO_HOOKS}"))
+        .arg("-c")
+        .arg("core.pager=cat")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .env_remove("GIT_EXTERNAL_DIFF");
+    c
+}
+
 /// Run git in `dir` and return trimmed stdout.
 pub fn git(dir: &Path, args: &[&str]) -> Result<String> {
-    let out = Command::new("git")
+    let out = git_command()
         .arg("-C")
         .arg(dir)
         .args(args)

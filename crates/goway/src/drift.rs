@@ -160,10 +160,12 @@ fn version_command(tool: &str) -> (&str, &'static [&'static str]) {
 /// The first line of `tool`'s version report on this laptop, `None` when it
 /// is missing, fails, or is too slow. The tool names come from the project's
 /// own files and `goway.toml` and are validated names, never shell text (no
-/// shell is involved).
+/// shell is involved). The probe runs in a neutral directory (never the
+/// repository) with rustup auto-install off, so a project cannot pick the
+/// program that answers.
 pub fn laptop_version(tool: &str) -> Option<String> {
     let (program, args) = version_command(tool);
-    let printed = crate::ecotools::bounded_output(program, args, None, &[])?;
+    let printed = crate::ecotools::bounded_output(program, args, &[])?;
     // `java -version` reports on stderr.
     let text = if printed.stdout.trim().is_empty() {
         printed.stderr
