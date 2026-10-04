@@ -191,7 +191,11 @@ unpacked, ...) the install refuses that step with a message instead of touching 
 full token (High mandatory level, verified on both test laptops), so nothing happens. In an
 ordinary console it re-runs only the host component through the `runas` verb (a UAC prompt) and
 returns the elevated copy's exit code; the client component never runs elevated. It
-does not prompt when it cannot be shown (no `SESSIONNAME`, as in SSH sessions), with `--no-elevate`,
+shows the prompt only where it can be clicked: it compares its own session id (`ProcessIdToSessionId`)
+with the active console session (`WTSGetActiveConsoleSessionId`), so a run started from WSL interop or
+over ssh into WSL on a logged-in laptop (session 1, no `SESSIONNAME`) still gets the prompt, while a
+service, a boot task (session 0) or another account's ssh session does not (a named session such as
+a remote desktop also counts). It does not prompt when it cannot be shown, with `--no-elevate`,
 or in the elevated copy itself; it then fails with a message saying how to start an elevated
 terminal. The interactive UAC path is built but was not exercised end to end (the test machines are
 only reachable over SSH). How the elevated step is kept safe is described next.

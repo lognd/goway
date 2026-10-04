@@ -7,8 +7,8 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-04T01:50:55Z"
-updated = "2026-10-04T01:59:49Z"
-scope = ["docs/macos.md", ".github/workflows/ci.yml"]
+updated = "2026-10-04T02:18:47Z"
+scope = ["docs/macos.md", ".github/workflows/ci.yml", "crates/goway/tests/weighted_shards.rs", "crates/goway/tests/shard_detect.rs", "crates/goway/tests/needs.rs", "crates/goway/tests/project_rules.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/install_methods.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/copy_integrity.rs", "crates/goway/tests/common/mod.rs"]
 
 [[acceptance]]
 text = "Given the macOS CI job, when it runs, then none of the listed tests are skipped"
