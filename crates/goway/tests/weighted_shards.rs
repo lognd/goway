@@ -1,5 +1,6 @@
 //! Capacity-weighted sharding through the fake-ssh world: two "hosts" that
-//! are this machine, one pretending to have 64 cores and the other 16.
+//! are this machine, one pretending to have 6400 cores and the other 1600 (so the real load average, which
+//! the probe reports, is negligible against them).
 #![cfg(unix)]
 
 mod common;
@@ -17,8 +18,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 case "$host" in
-  *127.0.0.2*) export FAKE_NPROC=16 ;;
-  *) export FAKE_NPROC=64 ;;
+  *127.0.0.2*) export FAKE_NPROC=1600 ;;
+  *) export FAKE_NPROC=6400 ;;
 esac
 exec sh -c "$1"
 "#;
@@ -29,7 +30,7 @@ fn shim(w: &common::World, name: &str, body: &str) {
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
 }
 
-/// Two hosts, `big` (64 cores) and `small` (16), and a stand-in test runner
+/// Two hosts, `big` (6400 cores) and `small` (1600), and a stand-in test runner
 /// named `fake-nextest` that prints the arguments it was given.
 fn world() -> common::World {
     let w = common::world_with_ssh(FAKE_SSH_PER_HOST);
@@ -81,7 +82,7 @@ fn a_bigger_host_runs_proportionally_more_partitions_and_together_they_cover_all
     let stdout = String::from_utf8_lossy(&out.stdout);
     let by = partitions_by_host(&stdout);
     assert_eq!(by.len(), 2, "{stdout}");
-    // 64 vs 16 free cores: weights 4 and 1, so 5 partitions, 4 of them on the big host.
+    // 6400 vs 1600 free cores: weights 4 and 1, so 5 partitions, 4 of them on the big host.
     let (big, small) = (&by["big"], &by["small"]);
     assert_eq!((big.len(), small.len()), (4, 1), "{by:?}");
     let mut all: Vec<&String> = big.iter().chain(small).collect();
