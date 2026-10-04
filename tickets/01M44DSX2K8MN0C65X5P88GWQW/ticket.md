@@ -8,7 +8,7 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T21:41:00Z"
-updated = "2026-10-04T21:47:55Z"
+updated = "2026-10-04T21:48:24Z"
 labels = ["security"]
 scope = ["crates/goway/src/winadmin.rs", "crates/goway/src/winadmin.ps1", "crates/goway/src/doctor/windows.rs", "crates/goway/src/add.rs", "crates/goway/tests/win_elevate.rs", "crates/goway/tests/winadmin_setup.rs", "docs/install-windows.md", "crates/goway/tests/pwsh/mod.rs", "crates/goway/tests/ps_quote.rs"]
 
