@@ -2,7 +2,8 @@
 id = "01M41T4HJEW3W92MXGMVHRF97S"
 title = "goway-setup install --host --native: a Windows helper without WSL over OpenSSH, journaled"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
