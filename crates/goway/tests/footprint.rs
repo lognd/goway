@@ -33,7 +33,15 @@ fn fake_df(w: &common::World, avail: u64, size: u64) {
 
 /// `goway <args>` in the world, with the fake `df` (when `fake_df` made one) in front of any PATH.
 fn goway_run(w: &common::World, args: &[&str]) -> std::process::Output {
-    w.goway(args)
+    let mut cmd = w.goway(args);
+    // goway clears the environment of its ssh; the world names what the fake ssh may pass on.
+    let pass = cmd
+        .get_envs()
+        .find(|(k, _)| *k == "GOWAY_SSH_PASS_ENV")
+        .and_then(|(_, v)| v)
+        .map(|v| v.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    cmd.env("GOWAY_SSH_PASS_ENV", format!("{pass},BASH_ENV"))
         .env("BASH_ENV", w.bin.join("fake-df.sh"))
         .output()
         .unwrap()
