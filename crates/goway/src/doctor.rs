@@ -374,6 +374,60 @@ fn system_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     out
 }
 
+/// NVIDIA's CUDA toolkit for WSL-Ubuntu (apt on `x86_64` only); the Windows driver stays the only
+/// driver, so the repository's `cuda-toolkit` package (no driver) is installed, never `cuda`.
+fn cuda_fix(facts: &BTreeMap<String, String>) -> Option<Fix> {
+    if tool(facts, "apt-get").is_none() || facts.get("arch").is_none_or(|a| a != "x86_64") {
+        return None;
+    }
+    Some(Fix {
+        command: format!(
+            "cd \"$(mktemp -d)\" && curl -fsSLO {CUDA_KEYRING_URL} && dpkg -i cuda-keyring_1.1-1_all.deb && apt-get update && apt-get install -y cuda-toolkit"
+        ),
+        root: true,
+        why: "installs NVIDIA's CUDA toolkit for WSL (no Linux GPU driver: the Windows driver serves WSL); system packages need root".to_owned(),
+    })
+}
+
+/// NVIDIA's apt keyring package for WSL-Ubuntu on `x86_64`.
+const CUDA_KEYRING_URL: &str = "https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/cuda-keyring_1.1-1_all.deb";
+
+/// What WSL got of the laptop's RAM, swap and processors, and the command that changes it.
+fn push_wsl_hardware(
+    facts: &BTreeMap<String, String>,
+    hw: &crate::facts::StaticFacts,
+    push: &mut impl FnMut(&str, Level, String, Option<Fix>),
+) {
+    let (Some(win_ram), Some(win_cores)) = (hw.windows_ram, hw.windows_cores) else {
+        tracing::debug!("no Windows hardware facts (interop off): skipping the WSL size check");
+        return;
+    };
+    let ram = facts.get("mem_total").and_then(|v| v.parse::<u64>().ok());
+    let cores = facts.get("cores").and_then(|v| v.parse::<u32>().ok());
+    let short = crate::facts::shortfalls(ram, hw.swap_total, cores, win_ram, win_cores);
+    if short.is_empty() {
+        push(
+            "wsl size",
+            Level::Ok,
+            "WSL has a fair share of the laptop's RAM, swap and processors".to_owned(),
+            None,
+        );
+        return;
+    }
+    let command = crate::facts::suggest(win_ram, win_cores).command();
+    push(
+        "wsl size",
+        Level::Warn,
+        format!(
+            "WSL gets much less than the laptop has ({}). Windows keeps at least 4 GiB or 25% of the RAM. \
+             Run on the helper's Windows side (journaled; `goway-setup uninstall --host` restores the old values): `{command}`; \
+             it asks before `wsl --shutdown` and refuses while goway jobs run",
+            short.join("; ")
+        ),
+        None,
+    );
+}
+
 /// The Rust toolchain.
 fn toolchain_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     let mut out = Vec::new();
@@ -485,6 +539,9 @@ fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
             ),
             _ => {}
         }
+        if hw.wsl {
+            push_wsl_hardware(facts, &hw, &mut push);
+        }
         if let Some(name) = crate::facts::gpu_invisible_to_wsl(&hw) {
             push(
                 "gpu",
@@ -502,6 +559,18 @@ fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
         } else {
             let list: Vec<String> = hw.gpus.iter().map(crate::facts::Gpu::summary).collect();
             push("gpu", Level::Ok, list.join(", "), None);
+            if hw.wsl && hw.gpus.iter().any(|g| g.vendor == "nvidia") {
+                push(
+                    "cuda toolkit",
+                    if hw.nvcc { Level::Ok } else { Level::Warn },
+                    if hw.nvcc {
+                        "nvcc found".to_owned()
+                    } else {
+                        "the GPU is visible but the CUDA toolkit (nvcc) is not installed".to_owned()
+                    },
+                    (!hw.nvcc).then(|| cuda_fix(facts)).flatten(),
+                );
+            }
         }
     }
     match facts.get("password_auth").map(String::as_str) {
@@ -748,6 +817,11 @@ pub fn undo_of(check: &str) -> Option<(String, bool)> {
             false,
         )),
         "sshd password login" => Some((format!("rm -f {SSHD_DROPIN} && {RELOAD_SSHD}"), true)),
+        // The toolkit and NVIDIA's keyring; the Windows GPU driver is not ours to touch.
+        "cuda toolkit" => Some((
+            "apt-get remove -y cuda-toolkit cuda-keyring && apt-get autoremove -y".to_owned(),
+            true,
+        )),
         other => projneeds::undo_of(other),
     }
 }
@@ -996,6 +1070,61 @@ mod tests {
         f
     }
 
+    // frob:tests crates/goway/src/doctor.rs::assess_project
+    #[test]
+    fn a_cargo_config_naming_clang_and_mold_makes_doctor_check_and_plan_both() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join(".cargo")).unwrap();
+        std::fs::write(
+            dir.path().join(".cargo/config.toml"),
+            "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\nrustflags = [\"-C\", \"link-arg=-fuse-ld=mold\"]\n",
+        )
+        .unwrap();
+        let needs = projneeds::Needs {
+            linking: crate::ecotools::cargo_linking(dir.path(), None, &|_| None),
+            ..Default::default()
+        };
+        assert!(needs.probe_names().contains(&"clang".to_owned()));
+        assert!(needs.probe_names().contains(&"mold".to_owned()));
+        // A helper with gcc only: no clang, no mold.
+        let mut f = facts(&[]);
+        f.insert("want.clang".to_owned(), String::new());
+        f.insert("want.mold".to_owned(), String::new());
+        let checks = assess_project(&f, &needs);
+        let fixes: Vec<String> = ["clang", "mold"]
+            .iter()
+            .map(|name| {
+                let c = checks.iter().find(|c| c.name == *name).unwrap();
+                assert_eq!(c.level, Level::Fail, "{name}");
+                assert!(
+                    c.detail
+                        .contains("--env CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=cc")
+                );
+                let fix = c.fix.clone().unwrap();
+                assert!(fix.root);
+                fix.command
+            })
+            .collect();
+        assert_eq!(
+            fixes,
+            [
+                "apt-get update && apt-get install -y clang",
+                "apt-get update && apt-get install -y mold"
+            ]
+        );
+        // One sudo session runs both, and both are recorded for uninstall by
+        // check name only (system packages are listed, never removed).
+        assert!(projneeds::is_package_check("clang") && projneeds::is_package_check("mold"));
+        // A helper that has them is fine.
+        f.insert("want.clang".to_owned(), "clang version 18.1.3".to_owned());
+        f.insert("want.mold".to_owned(), "mold 2.30.0".to_owned());
+        assert!(
+            assess_project(&f, &needs)
+                .iter()
+                .all(|c| c.level == Level::Ok)
+        );
+    }
+
     // frob:tests crates/goway/src/doctor.rs::darwin_checks
     #[test]
     fn a_mac_missing_gnu_tools_gets_a_per_user_brew_fix() {
@@ -1151,6 +1280,69 @@ mod tests {
                 .0
                 .contains("reload sshd")
         );
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::push_wsl_hardware
+    // frob:tests crates/goway/src/doctor.rs::host_checks
+    #[test]
+    fn doctor_compares_what_wsl_got_with_the_laptop_and_names_the_tune_command() {
+        let g = 1u64 << 30;
+        let run = |wsl_ram: u64| {
+            let mut f = facts(&[]);
+            f.insert("static".to_owned(), "1".to_owned());
+            f.insert("wsl".to_owned(), "1".to_owned());
+            f.insert("winhw".to_owned(), format!("{};16", 16 * g));
+            f.insert("swap_total".to_owned(), (6 * g).to_string());
+            f.insert("mem_total".to_owned(), wsl_ram.to_string());
+            f.insert("cores".to_owned(), "16".to_owned());
+            assess(&f)
+                .into_iter()
+                .find(|c| c.name == "wsl size")
+                .unwrap()
+        };
+        let low = run(g * 36 / 10);
+        assert_eq!(low.level, Level::Warn);
+        assert!(
+            low.detail
+                .contains("goway-setup.exe tune --memory 12GB --swap 6GB --processors 14")
+                && low.detail.contains("4 GiB or 25%"),
+            "{}",
+            low.detail
+        );
+        assert_eq!(run(10 * g).level, Level::Ok);
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::cuda_fix
+    // frob:tests crates/goway/src/doctor.rs::undo_of
+    #[test]
+    fn a_visible_nvidia_gpu_without_cuda_gets_the_wsl_toolkit_fix_and_an_undo() {
+        let run = |nvcc: &str, apt: bool| {
+            let mut f = facts(if apt { &[] } else { &["apt-get"] });
+            f.insert("static".to_owned(), "1".to_owned());
+            f.insert("wsl".to_owned(), "1".to_owned());
+            f.insert(
+                "gpu.0".to_owned(),
+                "nvidia|RTX 3060|12288|555.42|12.5".to_owned(),
+            );
+            f.insert("nvcc".to_owned(), nvcc.to_owned());
+            assess(&f)
+                .into_iter()
+                .find(|c| c.name == "cuda toolkit")
+                .unwrap()
+        };
+        let c = run("0", true);
+        assert_eq!(c.level, Level::Warn);
+        let fix = c.fix.unwrap();
+        assert!(fix.root && fix.command.contains("wsl-ubuntu/x86_64/cuda-keyring"));
+        assert!(
+            fix.command.contains("install -y cuda-toolkit"),
+            "never the driver package"
+        );
+        assert!(!fix.command.contains("cuda-drivers") && !fix.command.contains("install -y cuda "));
+        let (undo, root) = undo_of("cuda toolkit").unwrap();
+        assert!(root && undo.contains("remove -y cuda-toolkit"));
+        assert!(run("0", false).fix.is_none(), "no apt, no automatic fix");
+        assert_eq!(run("1", true).level, Level::Ok);
     }
 
     // frob:tests crates/goway/src/doctor.rs::host_checks

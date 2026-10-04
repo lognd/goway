@@ -699,6 +699,34 @@ through real TOML and JSON parsers. `CMakeLists.txt` has no declarative
 form, so it is read as text (bounded) and its findings are labelled
 approximate.
 
+#### The linker cargo will use
+
+A Rust project may name a linker or a linker backend in cargo's own
+configuration, for example `linker = "clang"` with
+`rustflags = ["-C", "link-arg=-fuse-ld=mold"]` under
+`[target.x86_64-unknown-linux-gnu]`. doctor reads every `.cargo/config.toml`
+cargo would read (the project directory and each parent, then
+`$CARGO_HOME`), with cargo's precedence, plus `CARGO_TARGET_<TRIPLE>_LINKER`,
+`CARGO_TARGET_<TRIPLE>_RUSTFLAGS` and `RUSTFLAGS` from your environment. For
+each host's own target triple it then checks the linker program and the
+backend (`mold`, `lld` as `ld.lld`) on that host, and a missing one is an
+error whose fix is the system package (`goway doctor --fix --rsudo`, shown
+in full and confirmed, installed by apt, dnf or pacman and recorded by check
+name only; packages are listed by `goway uninstall`, never removed).
+
+The error also names a one-run override, which goway never applies by
+itself:
+
+```sh
+goway run --env CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=cc \
+          --env "RUSTFLAGS=-C link-arg=-fuse-ld=lld" -- cargo nextest run
+```
+
+A non-empty `RUSTFLAGS` replaces the configured rustflags, and Rust's
+bundled lld needs nothing installed. Two things that do not work:
+cargo-nextest's inner `cargo test` ignores `--config`, and an empty
+`CARGO_TARGET_*_RUSTFLAGS` does not override config rustflags.
+
 `goway.toml` can pin or add tools; these are checked like detected ones
 and win over a detected version:
 

@@ -4,7 +4,7 @@ use std::io::IsTerminal as _;
 use std::path::{Path, PathBuf};
 
 use clap::{Args, Parser, Subcommand};
-use goway_journal::{LocalSystem, sha256_hex, still_applied};
+use goway_journal::{LocalSystem, SystemError, sha256_hex, still_applied};
 
 use crate::admin;
 use crate::app::{self, Retry};
@@ -22,6 +22,7 @@ use crate::plan::{Component, Sources, build};
 use crate::render::{ColorWhen, Renderer};
 use crate::stage;
 use crate::sysapi::{Tool, tool_path};
+use crate::tune;
 use crate::windows::{
     broadcast_environment_change, schedule_dir_removal, schedule_self_delete, spawn_detached,
 };
@@ -170,6 +171,34 @@ pub enum Command {
         #[arg(long, hide = true, value_name = "DIR")]
         relaunched: Option<PathBuf>,
     },
+    /// Give the WSL helper more of this machine: journaled `.wslconfig` memory, swap,
+    /// processors and nested virtualization (undone by `uninstall --host`).
+    Tune {
+        /// Memory for WSL, such as 12GB.
+        #[arg(long, value_name = "SIZE")]
+        memory: Option<String>,
+        /// Swap for WSL, such as 4GB (0 disables it).
+        #[arg(long, value_name = "SIZE")]
+        swap: Option<String>,
+        /// Processors for WSL.
+        #[arg(long, value_name = "N")]
+        processors: Option<u32>,
+        /// Nested virtualization (KVM inside WSL).
+        #[arg(long, value_name = "BOOL")]
+        nested_virtualization: Option<bool>,
+        /// WSL distro whose goway jobs are counted before a restart.
+        #[arg(long, default_value = DEFAULT_DISTRO)]
+        distro: String,
+        /// Change `.wslconfig` even while goway jobs run (WSL is then never restarted for you).
+        #[arg(long)]
+        yes: bool,
+        /// Print the changes and change nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Profile selection.
+        #[command(flatten)]
+        profile: ProfileArg,
+    },
     /// Show the journal and whether each target still holds goway's value.
     Status {
         /// Profile selection.
@@ -315,8 +344,143 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             }
             result
         }
+        Command::Tune {
+            memory,
+            swap,
+            processors,
+            nested_virtualization,
+            distro,
+            yes,
+            dry_run,
+            profile,
+        } => {
+            let req = tune::TuneRequest {
+                memory: memory.as_deref().map(tune::parse_size).transpose()?,
+                swap: swap.as_deref().map(tune::parse_size).transpose()?,
+                processors: processors.map(tune::parse_processors).transpose()?,
+                nested_virtualization: *nested_virtualization,
+            };
+            run_tune(r, &profile.profile, distro, &req, *yes, *dry_run)
+        }
         Command::Status { profile } => status(r, &profile.profile),
     }
+}
+
+/// goway's default remote root inside the distro (relative to the default user's home).
+const DEFAULT_REMOTE_ROOT: &str = ".cache/goway";
+
+/// `goway-setup tune`: journal the `.wslconfig` edits, then offer the WSL restart that applies them.
+fn run_tune(
+    r: Renderer,
+    profile: &str,
+    distro: &str,
+    req: &tune::TuneRequest,
+    yes: bool,
+    dry_run: bool,
+) -> Result<(), SetupError> {
+    if req.is_empty() {
+        return Err(SetupError::BadTuneValue(
+            "nothing to change: pass --memory, --swap, --processors or --nested-virtualization"
+                .to_owned(),
+        ));
+    }
+    let layout = Layout::from_environment(profile)?;
+    let home = dirs::home_dir().ok_or(SetupError::NoLocalAppData)?;
+    let plan = tune::tune_plan(&tune::wslconfig_path(&home), req);
+    if dry_run {
+        r.plan_component(".wslconfig tuning", &plan, None);
+        return Ok(());
+    }
+    if !cfg!(windows) {
+        return Err(SetupError::HostNeedsWindows);
+    }
+    let mut sys = HostSystem::new(distro);
+    let jobs = sys.goway_jobs_running(DEFAULT_REMOTE_ROOT)?;
+    if jobs > 0 && !yes {
+        return Err(SetupError::TuneJobsRunning(jobs));
+    }
+    let journal = tune::apply_tune(&mut LocalSystem, &layout.tune_journal_path, &plan)?;
+    tracing::info!(entries = journal.entries.len(), "tuned .wslconfig");
+    r.notice(&format!(
+        "changed {} .wslconfig setting(s); `goway-setup uninstall --host` restores the previous values",
+        plan.len()
+    ));
+    offer_restart(
+        r,
+        &layout,
+        &mut sys,
+        host::restart_need(&journal),
+        jobs == 0,
+    );
+    Ok(())
+}
+
+/// Say that the new values need `wsl --shutdown`, and run it only after an explicit yes, with no
+/// goway jobs running. WSL is brought back through the Limited logon keepalive task, never with
+/// `wsl.exe -d` from here: whatever starts WSL decides the token of its interop (see SECURITY.md).
+fn offer_restart(
+    r: Renderer,
+    layout: &Layout,
+    sys: &mut HostSystem,
+    need: host::RestartNeed,
+    idle: bool,
+) {
+    let Some(command) = need.command(&sys.distro) else {
+        return;
+    };
+    let console = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+    let task = host::task_name(&layout.profile, Keepalive::Logon);
+    let after = format!(
+        "WSL then starts again through the `{task}` task (or open a normal, non-administrator terminal and run `wsl -d {}`; never start WSL from an administrator terminal)",
+        sys.distro
+    );
+    if !idle || !console {
+        r.notice(&format!(
+            "the new values apply after a WSL restart. {} When you are ready, run `{command}` from a normal terminal. {after}",
+            need.consequence()
+        ));
+        return;
+    }
+    let question = format!(
+        "The new values apply after `{command}`. {} {after}. Restart WSL now? [y/N] ",
+        need.consequence()
+    );
+    if !ask_yes_no(r, &question) {
+        r.notice(&format!(
+            "not restarting; when you are ready, run: {command}"
+        ));
+        return;
+    }
+    restart_wsl(r, need, &sys.distro, &command);
+    match sys.start_task(&task) {
+        Ok(()) => r.notice(&format!(
+            "started the `{task}` task; WSL comes back limited"
+        )),
+        Err(e) => {
+            tracing::warn!(error = %e, task, "could not start the keepalive task");
+            r.notice(&format!(
+                "could not start the `{task}` task ({e}); it starts at your next logon, or run `wsl -d {}` from a normal terminal",
+                sys.distro
+            ));
+        }
+    }
+}
+
+/// Revert the user-level `.wslconfig` tuning (it needs no administrator rights).
+fn uninstall_tune(r: Renderer, layout: &Layout) -> Result<bool, SetupError> {
+    if !layout.tune_journal_path.exists() {
+        return Ok(false);
+    }
+    let journal = goway_journal::Journal::load(&layout.tune_journal_path)?;
+    let need = host::restart_need(&journal);
+    tune::revert_tune(&mut LocalSystem, &layout.tune_journal_path)?;
+    r.notice("restored the previous .wslconfig settings");
+    if let Some(command) = need.command("") {
+        r.notice(&format!(
+            "they apply after the next WSL restart ({command})"
+        ));
+    }
+    Ok(true)
 }
 
 /// When Windows opened this console just for us (Add/Remove Programs runs the uninstall entry
@@ -670,7 +834,22 @@ fn dry_run_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
     let label = format!("host component of profile {}", layout.profile);
     let sys = HostSystem::new(&req.distro);
     let home = dirs::home_dir().ok_or(SetupError::NoLocalAppData)?;
-    if cfg!(windows) && sys.distro_reachable()? {
+    let reachable = cfg!(windows)
+        && match sys.distro_reachable() {
+            Ok(up) => up,
+            // The elevated guard refuses to start WSL: a dry run changes nothing, so it still
+            // prints the plan (from assumed facts) and says what a real install needs.
+            Err(SystemError::InvalidState(why)) => {
+                tracing::info!(%why, "dry run: distro not running, planning from assumed facts");
+                r.notice(&format!(
+                    "WSL distro {} is not running; a real install will ask you to start it from a normal (non-administrator) terminal. Planning from assumed facts",
+                    req.distro
+                ));
+                false
+            }
+            Err(e) => return Err(e.into()),
+        };
+    if reachable {
         let facts = sys.probe(&home)?;
         let network = host::resolve_network(req.network, &facts)?;
         let params = host_params(req, network)?;
@@ -944,7 +1123,10 @@ fn uninstall(
     let mut found = false;
     for component in order {
         found |= match component {
-            Component::Host => uninstall_host_entry(r, &layout, activate, elevate)?,
+            Component::Host => {
+                let tuned = !elevate.is_child && uninstall_tune(r, &layout)?;
+                uninstall_host_entry(r, &layout, activate, elevate)? || tuned
+            }
             Component::Client => uninstall_client(r, &layout, relaunched)?,
         };
     }

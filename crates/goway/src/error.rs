@@ -113,6 +113,8 @@ fn render_misses(misses: &[crate::resolve::Miss]) -> String {
     }
     if any(Failure::AuthRefused) {
         out.push_str("\n  next: set up key login: `goway add NAME` (asks for its password once)");
+        out.push_str("\n  next: ");
+        out.push_str(&permission_denied_hint("USER"));
     }
     if any(Failure::HostKeyMismatch) {
         out.push_str("\n  next: that address answered with a different key: another machine has it now (goway skips it), or NAME was reinstalled; if reinstalled: `goway host remove NAME`, then `goway add NAME`");
@@ -121,6 +123,20 @@ fn render_misses(misses: &[crate::resolve::Miss]) -> String {
         out.push_str("\n  next: is it switched on, awake and on the same network, with WSL running? check with `goway status`");
     }
     out
+}
+
+/// The likely causes of "Permission denied" for `user`, each with the command that checks it.
+pub fn permission_denied_hint(user: &str) -> String {
+    format!(
+        "Permission denied means the helper refused the login; the usual causes, with a check on the helper for each:\n    \
+         - no password is set for {user} (common with automatic login): `passwd -S {user}` shows NP, and sshd never accepts an empty password; add goway's key by hand (`goway add NAME --no-password` prints the commands) or set one with `passwd`\n    \
+         - a mistyped password: type it again slowly, or use `--no-password`\n    \
+         - password login is switched off: `sudo sshd -T | grep -i passwordauthentication` says no; add the key by hand\n    \
+         - the wrong user: pass the helper's Linux account with `--user`\n    \
+         - a lockout or a ban after failed attempts: `faillock --user {user}` (reset with `faillock --user {user} --reset`), `sudo fail2ban-client status sshd`\n    \
+         - AllowUsers or AllowGroups excludes {user}: `sudo sshd -T | grep -iE 'allowusers|allowgroups'`\n    \
+         details: docs/troubleshooting.md, \"goway add says Permission denied\""
+    )
 }
 
 impl Error {
@@ -145,6 +161,25 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_permission_denied_hint_names_every_cause_with_its_check() {
+        let hint = permission_denied_hint("alice");
+        for needle in [
+            "passwd -S alice",
+            "NP",
+            "mistyped",
+            "sshd -T | grep -i passwordauthentication",
+            "--user",
+            "faillock --user alice",
+            "fail2ban-client status sshd",
+            "AllowUsers",
+            "AllowGroups",
+            "--no-password",
+        ] {
+            assert!(hint.contains(needle), "missing {needle}: {hint}");
+        }
+    }
 
     #[test]
     fn every_goway_error_exits_125() {

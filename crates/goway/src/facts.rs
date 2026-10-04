@@ -55,6 +55,7 @@ impl Gpu {
 }
 
 /// The facts that change rarely; cached per host.
+#[allow(clippy::struct_excessive_bools)] // one bool per probed fact
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct StaticFacts {
     /// GPUs the host's driver tools list.
@@ -69,6 +70,18 @@ pub struct StaticFacts {
     pub wsl: bool,
     /// Video adapters Windows lists (WSL hosts only).
     pub windows_gpus: Vec<String>,
+    /// RAM of the whole laptop in bytes (WSL hosts with interop only).
+    #[serde(default)]
+    pub windows_ram: Option<u64>,
+    /// Logical processors of the whole laptop (WSL hosts with interop only).
+    #[serde(default)]
+    pub windows_cores: Option<u32>,
+    /// Swap WSL has, in bytes.
+    #[serde(default)]
+    pub swap_total: Option<u64>,
+    /// `nvcc` (the CUDA toolkit) is installed.
+    #[serde(default)]
+    pub nvcc: bool,
     /// How WSL interop behaves on this host (WSL hosts only; `None` when not probed).
     #[serde(default)]
     pub interop: Option<Interop>,
@@ -213,6 +226,13 @@ pub fn parse_static(map: &BTreeMap<String, String>) -> Option<StaticFacts> {
                 .collect()
         })
         .unwrap_or_default();
+    // "<RAM bytes>;<logical cores>" from Windows; both must be sane to count.
+    let windows_hw = map.get("winhw").and_then(|v| {
+        let (ram, cores) = v.split_once(';')?;
+        let ram: u64 = ram.trim().parse().ok()?;
+        let cores: u32 = cores.trim().parse().ok()?;
+        ((1..=1 << 50).contains(&ram) && (1..=4096).contains(&cores)).then_some((ram, cores))
+    });
     Some(StaticFacts {
         gpus,
         cpu_features,
@@ -220,6 +240,10 @@ pub fn parse_static(map: &BTreeMap<String, String>) -> Option<StaticFacts> {
         docker: flag("docker"),
         wsl: flag("wsl"),
         windows_gpus,
+        windows_ram: windows_hw.map(|h| h.0),
+        windows_cores: windows_hw.map(|h| h.1),
+        swap_total: map.get("swap_total").and_then(|v| v.trim().parse().ok()),
+        nvcc: flag("nvcc"),
         interop: match map.get("interop").map(String::as_str) {
             Some("off") => Some(Interop::Off),
             Some("limited") => Some(Interop::Limited),
@@ -274,6 +298,100 @@ pub fn age_summary(age: Option<u64>) -> String {
     }
 }
 
+/// What goway suggests WSL should get on a machine, leaving Windows enough.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Suggestion {
+    /// Memory for WSL in whole GiB.
+    pub memory_gib: u64,
+    /// Swap for WSL in whole GiB.
+    pub swap_gib: u64,
+    /// Processors for WSL.
+    pub processors: u32,
+}
+
+impl Suggestion {
+    /// The `goway-setup tune` command line that applies it.
+    pub fn command(self) -> String {
+        format!(
+            "goway-setup.exe tune --memory {}GB --swap {}GB --processors {}",
+            self.memory_gib, self.swap_gib, self.processors
+        )
+    }
+}
+
+/// The suggested WSL size for a machine with `total_ram` bytes and `cores` logical processors.
+///
+/// Windows keeps at least 4 GiB or 25% of the RAM, whichever is more (on a machine of 4 GiB or
+/// less WSL gets half). Swap is half the memory, at most 8 GiB; Windows keeps a core on small
+/// machines and two on large ones.
+pub fn suggest(total_ram: u64, cores: u32) -> Suggestion {
+    let reserve = (4 * GIB).max(total_ram / 4);
+    let memory = if total_ram > reserve + GIB {
+        total_ram - reserve
+    } else {
+        total_ram / 2
+    };
+    let memory_gib = (memory / GIB).max(1);
+    let processors = match cores {
+        0..=2 => cores.max(1),
+        3..=7 => cores - 1,
+        _ => cores - 2,
+    };
+    Suggestion {
+        memory_gib,
+        swap_gib: (memory_gib / 2).min(8),
+        processors,
+    }
+}
+
+/// How far below the suggestion WSL is: the settings worth changing, as plain words, or none.
+///
+/// A value counts as "far below" when it is under 60% of the suggested memory, 70% of the suggested processors or half the suggested swap,
+/// which leaves WSL's own default (half the RAM, all cores) quiet on small machines.
+pub fn shortfalls(
+    wsl_ram: Option<u64>,
+    wsl_swap: Option<u64>,
+    wsl_cores: Option<u32>,
+    windows_ram: u64,
+    windows_cores: u32,
+) -> Vec<String> {
+    let want = suggest(windows_ram, windows_cores);
+    let gib = |b: u64| {
+        #[allow(clippy::cast_precision_loss)] // display only
+        let v = b as f64 / GIB as f64;
+        format!("{v:.1} GiB")
+    };
+    let mut out = Vec::new();
+    if let Some(r) = wsl_ram
+        && r * 10 < want.memory_gib * GIB * 6
+    {
+        out.push(format!(
+            "memory: WSL has {} of the laptop's {}; suggested {} GiB",
+            gib(r),
+            gib(windows_ram),
+            want.memory_gib
+        ));
+    }
+    if let Some(s) = wsl_swap
+        && s * 2 < want.swap_gib * GIB
+    {
+        out.push(format!(
+            "swap: WSL has {}; suggested {} GiB",
+            gib(s),
+            want.swap_gib
+        ));
+    }
+    if let Some(c) = wsl_cores
+        && u64::from(c) * 10 < u64::from(want.processors) * 7
+    {
+        out.push(format!(
+            "processors: WSL has {c} of the laptop's {windows_cores}; suggested {}",
+            want.processors
+        ));
+    }
+    out
+}
+
 /// Whether Windows lists a discrete GPU that WSL does not see.
 pub fn gpu_invisible_to_wsl(hw: &StaticFacts) -> Option<&str> {
     if !hw.wsl || !hw.gpus.is_empty() {
@@ -296,6 +414,8 @@ pub const ELEVATED_INTEROP_WARNING: &str = "WSL interop on this host runs Window
      anyone who can log in to this WSL can act as a Windows administrator. Fix on Windows: run \
      `wsl --shutdown` from a normal, non-admin terminal and let the logon keepalive task restart \
      it limited, or disable interop with `[interop] enabled=false` in the distro's /etc/wsl.conf";
+
+const GIB: u64 = 1024 * 1024 * 1024;
 
 #[cfg(test)]
 mod tests {
@@ -362,6 +482,57 @@ mod tests {
         assert!(elevated_interop_warning(&hw("limited")).is_none());
         assert_eq!(hw("junk").interop, None);
         assert!(elevated_interop_warning(&StaticFacts::default()).is_none());
+    }
+
+    // frob:tests crates/goway/src/facts.rs::suggest
+    #[test]
+    fn windows_keeps_four_gib_or_a_quarter_of_the_ram() {
+        let g = 1u64 << 30;
+        let s = suggest(16 * g, 16);
+        assert_eq!((s.memory_gib, s.swap_gib, s.processors), (12, 6, 14));
+        assert_eq!(
+            suggest(64 * g, 8).memory_gib,
+            48,
+            "25% beats 4 GiB on big machines"
+        );
+        assert_eq!(suggest(8 * g, 4).memory_gib, 4);
+        assert_eq!(
+            suggest(4 * g, 2).memory_gib,
+            2,
+            "small machines split in half"
+        );
+        assert_eq!(suggest(128 * g, 64).swap_gib, 8, "swap is capped");
+        assert_eq!(
+            s.command(),
+            "goway-setup.exe tune --memory 12GB --swap 6GB --processors 14"
+        );
+    }
+
+    // frob:tests crates/goway/src/facts.rs::shortfalls
+    // frob:tests crates/goway/src/facts.rs::parse_static
+    #[test]
+    fn a_wsl_far_below_the_laptop_is_listed_and_a_fair_share_is_not() {
+        let g = 1u64 << 30;
+        // A 16-core helper with 3.6 GiB of RAM and no swap, on a 16 GiB laptop.
+        let low = shortfalls(Some(g * 36 / 10), Some(0), Some(16), 16 * g, 16);
+        assert_eq!(low.len(), 2, "{low:?}");
+        assert!(low[0].starts_with("memory:") && low[1].starts_with("swap:"));
+        // WSL's own default (half the RAM, a quarter swap, every core) is close enough.
+        assert!(shortfalls(Some(8 * g), Some(4 * g), Some(16), 16 * g, 16).is_empty());
+        let cores = shortfalls(Some(12 * g), Some(6 * g), Some(4), 16 * g, 16);
+        assert!(cores.len() == 1 && cores[0].starts_with("processors:"));
+        let hw = |v: &str| {
+            parse_static(&kv(&format!(
+                "static=1\nwsl=1\nwinhw={v}\nswap_total=1073741824\nnvcc=1\n"
+            )))
+            .unwrap()
+        };
+        let ok = hw("17179869184;16");
+        assert_eq!((ok.windows_ram, ok.windows_cores), (Some(16 * g), Some(16)));
+        assert_eq!(ok.swap_total, Some(g));
+        assert!(ok.nvcc);
+        assert_eq!(hw(";").windows_ram, None);
+        assert_eq!(hw("1;99999").windows_cores, None);
     }
 
     // frob:tests crates/goway/src/facts.rs::gpu_invisible_to_wsl

@@ -78,6 +78,8 @@ replaced, so `uninstall` replays the journal backwards and restores the machine.
     goway-setup install [--client] [--host] [--native [--authorized-key KEY]] [--profile NAME] [--dry-run]
                         [--port N] [--distro NAME] [--keepalive logon|boot [--allow-elevated-wsl]] [--no-harden]
                         [--allow-from CIDR]... [--allow-wide] [--no-activate] [--no-elevate] [--yes]
+    goway-setup tune [--memory SIZE] [--swap SIZE] [--processors N] [--nested-virtualization BOOL]
+                     [--distro NAME] [--yes] [--dry-run] [--profile NAME]
     goway-setup uninstall [--client] [--host] [--profile NAME] [--no-activate] [--no-elevate]
     goway-setup status [--profile NAME]
 
@@ -305,6 +307,33 @@ in a test profile (`--profile goway-test`), and compare what `uninstall` leaves 
   not covered until added to `SCRUB_PREFIXES` or `SCRUB_NAMES` in `crates/goway-setup/src/relay.rs`.
   Treat the helper's Windows account as you treat any administrator account. The alternative that would
   remove the question, a small signed helper program instead of a script, is not built.
+
+## Giving WSL more of the machine
+
+`goway doctor HELPER` shows what WSL got of the laptop's RAM, swap and processors (the laptop's own
+numbers come from `powershell.exe` through interop, so a helper with interop off cannot be compared)
+and warns when WSL is far below a suggestion that leaves Windows at least 4 GiB or 25% of the RAM
+(memory under 60% of it, processors under 70%, swap under half). It prints the exact command:
+
+    goway-setup.exe tune --memory 12GB --swap 6GB --processors 14 [--nested-virtualization true]
+
+`tune` edits only the `[wsl2]` keys you name in `%UserProfile%\.wslconfig`, through a journal of its own
+(`tune-journal.json` in the profile's per-user state directory: `.wslconfig` is yours, so no administrator
+rights are involved and the elevated host uninstall never reads this journal). Running it again extends
+the journal. `goway-setup uninstall --host` first restores the exact previous `.wslconfig` values (or
+removes the keys it added), in your own process. The new values apply only after `wsl --shutdown`, which
+stops every process in every WSL distro, so `tune` refuses while goway jobs hold work directories in the
+distro (`--yes` overrides that and then never restarts WSL for you), explains the consequence and asks
+before it runs the restart, and never runs it without a console. After the shutdown it starts the
+**logon keepalive task** (Limited) so WSL comes back with non-elevated interop; it never starts WSL
+itself with `wsl.exe -d` (see "WSL interop and elevation"). If only a boot keepalive exists, or the task
+cannot be started, it tells you to start WSL from a normal terminal. Never restart it from an
+administrator terminal.
+
+GPU: when Windows lists a GPU that WSL cannot see, `goway doctor` says to install the current Windows
+driver with WSL support (never a Linux driver inside WSL) and to run `wsl --shutdown`. When an NVIDIA GPU
+is visible but `nvcc` is missing, `goway doctor HELPER --fix --rsudo` installs NVIDIA's `cuda-toolkit`
+from the WSL-Ubuntu repository (x86_64, apt, no driver) and records it for `goway uninstall`.
 
 ## WSL interop and elevation
 

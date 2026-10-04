@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use super::{Check, Fix, Level, install};
+use crate::ecotools::{self, CargoLinking};
 use crate::error::{Error, Result};
 
 /// The largest project file goway reads.
@@ -164,6 +165,9 @@ pub struct Needs {
     pub ecosystems: BTreeSet<Eco>,
     /// The tools, one per name.
     pub reqs: Vec<Req>,
+    /// How cargo links per target triple (the linker and `-fuse-ld` backend
+    /// its config and environment name); the host's own triple picks one.
+    pub linking: Vec<CargoLinking>,
 }
 
 /// Whether `name` is safe to put in a probe command (and a file name).
@@ -211,7 +215,42 @@ impl Needs {
 
     /// The tool names the host should report on.
     pub fn probe_names(&self) -> Vec<String> {
-        self.reqs.iter().map(|r| r.tool.clone()).collect()
+        let mut names: Vec<String> = self.reqs.iter().map(|r| r.tool.clone()).collect();
+        for l in &self.linking {
+            for tool in l.linker.iter().chain(l.backend.iter()) {
+                if !names.contains(tool) {
+                    names.push(tool.clone());
+                }
+            }
+        }
+        names
+    }
+
+    /// The requirements of the linker setup cargo uses for `triple`: the
+    /// linker program and its `-fuse-ld` backend.
+    fn linking_reqs(&self, triple: &str) -> Vec<Req> {
+        let Some(l) = self.linking.iter().find(|l| l.triple == triple) else {
+            return Vec::new();
+        };
+        let override_hint = format!(
+            "to run once without installing it: goway run --env {}=cc --env \"RUSTFLAGS=-C link-arg=-fuse-ld=lld\" -- ... (a non-empty RUSTFLAGS replaces the config's rustflags and Rust's bundled lld needs nothing installed; cargo-nextest's inner `cargo test` ignores --config and an empty CARGO_TARGET_*_RUSTFLAGS does not override config rustflags); goway never applies this itself",
+            ecotools::target_var(triple, "LINKER")
+        );
+        l.linker
+            .iter()
+            .map(|t| ("linker", t))
+            .chain(l.backend.iter().map(|t| ("-fuse-ld backend", t)))
+            .map(|(role, tool)| Req {
+                tool: tool.clone(),
+                min: None,
+                why: format!(
+                    "cargo's {role} for {triple} ({}); {override_hint}",
+                    l.source
+                ),
+                optional: false,
+                approximate: false,
+            })
+            .collect()
     }
 
     /// One line naming what was detected, for the report.
@@ -254,6 +293,12 @@ fn rust(root: &Path, needs: &mut Needs) {
         return;
     }
     needs.eco(Eco::Rust);
+    let cargo_home = std::env::var_os("CARGO_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| Path::new(&h).join(".cargo")));
+    needs.linking = ecotools::cargo_linking(root, cargo_home.as_deref(), &|name| {
+        std::env::var(name).ok()
+    });
     // The toolchain checks (cargo, nextest, sccache) are goway's own; the
     // channel in rust-toolchain.toml is rustup's to install.
     if let Some(text) = read(root, "rust-toolchain.toml")
@@ -767,6 +812,8 @@ const PACKAGES: &[(&str, &str, &str, &str)] = &[
     ("gcc", "gcc", "gcc", "gcc"),
     ("g++", "g++", "gcc-c++", "gcc"),
     ("clang", "clang", "clang", "clang"),
+    ("mold", "mold", "mold", "mold"),
+    ("ld.lld", "lld", "lld", "lld"),
     ("ninja", "ninja-build", "ninja-build", "ninja"),
     ("ccache", "ccache", "ccache", "ccache"),
     ("cmake", "cmake", "cmake", "cmake"),
@@ -849,7 +896,19 @@ fn fix_for(req: &Req, facts: &BTreeMap<String, String>) -> Option<Fix> {
 /// Checks for every requirement, from the host's `want.TOOL` facts.
 pub fn checks(needs: &Needs, facts: &BTreeMap<String, String>, skip: &[String]) -> Vec<Check> {
     let mut out = Vec::new();
-    for req in &needs.reqs {
+    let mut reqs: Vec<Req> = needs.reqs.clone();
+    if facts.get("kernel").is_none_or(|k| k == "Linux")
+        && let Some(arch) = facts
+            .get("arch")
+            .filter(|a| matches!(a.as_str(), "x86_64" | "aarch64"))
+    {
+        for req in needs.linking_reqs(&format!("{arch}-unknown-linux-gnu")) {
+            if !reqs.iter().any(|r| r.tool == req.tool) {
+                reqs.push(req);
+            }
+        }
+    }
+    for req in &reqs {
         if skip.contains(&req.tool) {
             continue;
         }

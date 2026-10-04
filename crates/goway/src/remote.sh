@@ -1059,7 +1059,7 @@ bounded_for() {
 # anything but the vendor query tools, docker info and powershell.exe (WSL
 # only, to list the video adapters Windows has).
 static_facts() {
-  local n=0 pat cuda="" flags="" f kvm=0 docker=0 wsl=0 win="" interop="" adm=""
+  local n=0 pat cuda="" flags="" f kvm=0 docker=0 wsl=0 win="" interop="" adm="" winhw="" nvcc=0 swap=""
   printf 'static=1\n'
   if command -v nvidia-smi >/dev/null 2>&1; then
     cuda=$(bounded nvidia-smi 2>/dev/null | grep -o 'CUDA Version: [0-9.]*' | head -1 | cut -d' ' -f3 || true)
@@ -1108,10 +1108,18 @@ static_facts() {
       esac
       if [ "$interop" != off ]; then
         win=$(bounded_for 3 powershell.exe -NoProfile -NonInteractive -Command '(Get-CimInstance Win32_VideoController).Name -join ";"' 2>/dev/null | tr -d '\r' | head -1 || true)
+        # What the whole laptop has, to compare with what WSL got: "<RAM bytes>;<logical cores>".
+        winhw=$(bounded_for 3 powershell.exe -NoProfile -NonInteractive -Command '$c = Get-CimInstance Win32_ComputerSystem; "$($c.TotalPhysicalMemory);$($c.NumberOfLogicalProcessors)"' 2>/dev/null | tr -d '\r' | head -1 || true)
       fi
     fi
   fi
-  printf 'wsl=%s\nwinvideo=%s\ninterop=%s\n' "$wsl" "$win" "$interop"
+  printf 'wsl=%s\nwinvideo=%s\ninterop=%s\nwinhw=%s\n' "$wsl" "$win" "$interop" "$winhw"
+  if [ "$IS_DARWIN" != 1 ]; then
+    swap=$(awk '/^SwapTotal:/ {printf "%.0f", $2*1024}' /proc/meminfo 2>/dev/null || true)
+    printf 'swap_total=%s\n' "$swap"
+    if command -v nvcc >/dev/null 2>&1 || [ -x /usr/local/cuda/bin/nvcc ]; then nvcc=1; fi
+    printf 'nvcc=%s\n' "$nvcc"
+  fi
 }
 
 # machine: this host's CPU architecture, spelled as Linux does (arm64 is aarch64).

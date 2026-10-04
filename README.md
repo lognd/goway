@@ -580,7 +580,11 @@ More: [config](docs/config.md), [how helpers are found](docs/hosts.md),
 
 ## Something went wrong?
 
-See [docs/troubleshooting.md](docs/troubleshooting.md). Every goway
+See [docs/troubleshooting.md](docs/troubleshooting.md); if `goway add`
+says "Permission denied", start with its section "goway add says
+Permission denied" (no password set, password login off, a ban, and
+how to add goway's key by hand with `goway add NAME --no-password`).
+Every goway
 error ends with a `next:` line saying what to try, and `goway doctor`
 checks everything at once.
 

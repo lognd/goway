@@ -1,0 +1,11 @@
+kind = "create"
+title = "Unusual helper configurations: detect them, explain them, and keep working"
+type = "epic"
+category = "todo"
+priority = "medium"
+points = 13
+scope = ["crates/goway/src/doctor.rs"]
+acceptance = ["Given each unusual configuration in this epic, when goway meets it, then goway either works or stops with what is wrong and the exact next step"]
+at = "2026-10-04T02:23:06Z"
+actor = "lognd"
+rev = 1

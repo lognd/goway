@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T02:35:26Z"
+digest = "ff5e5d42c5472144ce99c39a22ee033069a6ede84625e4b1e5378fd667e8f907"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 73e57058-7de4-419a-8766-45cbc446e814 with nextest profile: default
+    Starting 2 tests across 48 binaries (586 tests skipped)
+        PASS [   0.007s] goway error::tests::the_permission_denied_hint_names_every_cause_with_its_check
+        PASS [   0.188s] goway::ssh_setup a_helper_that_refuses_passwords_gets_the_key_by_hand_without_a_terminal
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.191s] 2 tests run: 2 passed, 586 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_permission_denied_hint_names_every_cause_with_its_check) | test(a_helper_that_refuses_passwords_gets_the_key_by_hand_without_a_terminal)'"
+size = 689
+status = "measured"
+tests = ["error::tests::the_permission_denied_hint_names_every_cause_with_its_check", "a_helper_that_refuses_passwords_gets_the_key_by_hand_without_a_terminal"]
+at = "2026-10-04T02:35:26Z"
+actor = "lognd"
+rev = 1

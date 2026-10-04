@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T02:35:27Z"
+digest = "4d9a2d86631628303d636e82dd9101d5f7bb7907d3428377e272f26bf234b9c8"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 50d28f8d-4517-42cb-bdff-34afd880972c with nextest profile: default
+    Starting 2 tests across 48 binaries (586 tests skipped)
+        PASS [   0.007s] goway error::tests::the_permission_denied_hint_names_every_cause_with_its_check
+        PASS [   0.379s] goway::ssh_setup on_a_terminal_goway_waits_for_enter_then_carries_on
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.383s] 2 tests run: 2 passed, 586 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_permission_denied_hint_names_every_cause_with_its_check) | test(on_a_terminal_goway_waits_for_enter_then_carries_on)'"
+size = 669
+status = "measured"
+tests = ["error::tests::the_permission_denied_hint_names_every_cause_with_its_check", "on_a_terminal_goway_waits_for_enter_then_carries_on"]
+at = "2026-10-04T02:35:27Z"
+actor = "lognd"
+rev = 1
