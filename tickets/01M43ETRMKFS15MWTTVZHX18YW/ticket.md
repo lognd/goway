@@ -8,8 +8,8 @@ points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T12:39:42Z"
-updated = "2026-10-04T12:51:37Z"
-scope = ["crates/goway/src/run.rs", "crates/goway/src/pool.rs", "crates/goway/tests/translate.rs", "crates/goway/src/error.rs", "crates/goway/src/remote.sh", "crates/goway/src/remote.ps1", "docs/usage.md"]
+updated = "2026-10-04T13:22:29Z"
+scope = ["crates/goway/src/run.rs", "crates/goway/src/error.rs", "crates/goway/src/remote.sh", "crates/goway/src/remote.ps1", "docs/usage.md", "crates/goway/tests/translate_repick.rs"]
 
 [[acceptance]]
 text = "Given an --any-os (or cross_os) run that lands on another OS where translation is in doubt, when goway finds out, then it re-picks among hosts of the laptop's OS (excluding the doubtful host) and runs there with one note, instead of exiting 125; the doubtful host's synced work dir is removed; a pinned run still stops as specified"
