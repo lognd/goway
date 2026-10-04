@@ -2,7 +2,8 @@
 id = "01M43QA57XZY29C6T6SE09XD8K"
 title = "macOS CI: slot_trees written_files_are_stamped_after_outputs_dated_in_the_future hangs for hours on a runner"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
