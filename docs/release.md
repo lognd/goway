@@ -56,6 +56,29 @@ archive from `uname`, verifies it with `sha256sum` or, on macOS, `shasum -a
 
 Only Linux can be a helper; macOS is a main laptop only.
 
+## Who can publish: GitHub settings the owner adds
+
+The workflow cannot protect itself; these repository settings do. Without
+them, anyone who can push a `goway-v*` tag (a leaked token, a collaborator, a
+compromised machine) gets a release with build provenance that
+`install.sh` serves as "latest".
+
+1. **Environment `github-release`** (Settings, Environments): add a required
+   reviewer (the owner, with "prevent self-review" off for a single-owner
+   repository) and a deployment tag rule `goway-v*`. The `publish` job runs
+   in it, so nothing is published until the reviewer approves. `crates-io`
+   and `pypi` have their own reviewers and the same tag rule.
+2. **Tag ruleset** (Settings, Rules, Rulesets, target: tags, pattern
+   `goway-v*`): restrict creation to the owner, and block updates and
+   deletions, so a published tag cannot be moved. Require signed commits if
+   you sign.
+3. The `version-tag` job already refuses a tag whose commit is not an
+   ancestor of `origin/main` (`git merge-base --is-ancestor`), so a branch
+   commit that bypasses the `no-push-main` ruleset cannot be released.
+
+`ci` lints the workflow (`crates/goway/tests/publishing.rs`): the `publish`
+job names `github-release`, and `version-tag` has the ancestry check.
+
 ## Publishing to crates.io
 
 After the GitHub release succeeds, the `crates-io` job publishes

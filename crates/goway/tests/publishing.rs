@@ -225,3 +225,39 @@ fn every_readme_download_link_names_a_file_the_release_publishes() {
         );
     }
 }
+
+#[test]
+fn the_github_release_needs_an_approved_environment_and_a_tag_on_main() {
+    // Audit 3, M3: nobody who can merely push a tag gets a "latest" release.
+    let publish = release_job("publish");
+    assert!(
+        publish.contains("environment: github-release"),
+        "publish must run in the github-release environment"
+    );
+    let check = release_job("version-tag");
+    assert!(
+        check.contains("git merge-base --is-ancestor \"$GITHUB_SHA\" origin/main"),
+        "{check}"
+    );
+    assert!(check.contains("fetch-depth: 0"), "{check}");
+    // Every job that can write releases or mint tokens declares an environment.
+    let release = read(".github/workflows/release.yml");
+    let jobs = release.split("\njobs:\n").nth(1).expect("jobs section");
+    let names: Vec<&str> = jobs
+        .lines()
+        .filter(|l| l.starts_with("  ") && !l.starts_with("   ") && l.ends_with(':'))
+        .map(|l| l.trim().trim_end_matches(':'))
+        .collect();
+    for name in names {
+        let body = release_job(name);
+        let writes = body.contains("contents: write")
+            || body.contains("id-token: write")
+            || body.contains("secrets.");
+        if writes {
+            assert!(
+                body.contains("\n    environment: "),
+                "{name} writes or uses a secret but has no environment"
+            );
+        }
+    }
+}
