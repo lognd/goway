@@ -491,6 +491,16 @@ ssh session goes away, whether from Ctrl-C, a closed laptop lid or Wi-Fi
 loss, the watchdog sends the job's process group TERM, then KILL after 5
 seconds, and the work dir is cleaned up.
 
+### A helper stays awake while a job runs
+
+A laptop helper that suspends on idle would drop the job mid-run. So the
+job runs under a sleep inhibitor held for exactly its lifetime:
+`systemd-inhibit --what=sleep:idle` on Linux (when logind accepts it; a
+WSL without systemd just goes without), `caffeinate -i -m -s` on macOS.
+The inhibitor is the job's outermost wrapper, so it is released however
+the job ends: exit, signal, or the watchdog's kill after a lost
+connection. It does not hold off a closed lid or an empty battery.
+
 ### Terminal output
 
 The command runs somewhere else and may be untrusted, so what it prints

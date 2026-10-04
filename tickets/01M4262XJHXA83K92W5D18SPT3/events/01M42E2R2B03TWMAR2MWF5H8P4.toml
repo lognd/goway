@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T03:07:21Z"
+digest = "91c6959ef0e726cdb2e29fe157d96dc4a6ccbcc79945b53958212a33cafe658c"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 41.46s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 49245b1a-5e3b-490e-8762-8110dcfdb7a5 with nextest profile: default
+    Starting 1 test across 50 binaries (600 tests skipped)
+        PASS [   0.010s] goway sshsetup::tests::a_native_windows_host_gets_one_goway_setup_command_with_the_key_line
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.014s] 1 test run: 1 passed, 600 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_native_windows_host_gets_one_goway_setup_command"
+size = 770
+status = "measured"
+tests = ["sshsetup::tests::a_native_windows_host_gets_one_goway_setup_command_with_the_key_line"]
+at = "2026-10-04T03:07:21Z"
+actor = "lognd"
+rev = 1

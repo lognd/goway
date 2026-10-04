@@ -78,8 +78,9 @@ pub fn ps_install() -> String {
          $ms = New-Object IO.MemoryStream; [Console]::OpenStandardInput().CopyTo($ms); \
          $t = \"$p.$PID.tmp\"; [IO.File]::WriteAllBytes($t, $ms.ToArray()); \
          if ([IO.File]::Exists($p)) {{ [IO.File]::Delete($p) }}; [IO.File]::Move($t, $p); \
-         foreach ($f in [IO.Directory]::GetFiles($d, 'remote-*.ps1')) {{ \
-         if ($f -ne $p -and [IO.File]::GetLastWriteTimeUtc($f) -lt [DateTime]::UtcNow.AddDays(-1)) {{ \
+         foreach ($f in @([IO.Directory]::GetFiles($d, 'remote-*.ps1')) + @([IO.Directory]::GetFiles($d, 'remote-*.native.dll'))) {{ \
+         if ($f -ne $p -and [IO.Path]::GetFileNameWithoutExtension($f).Replace('.native', '') -ne [IO.Path]::GetFileNameWithoutExtension($p) \
+         -and [IO.File]::GetLastWriteTimeUtc($f) -lt [DateTime]::UtcNow.AddDays(-1)) {{ \
          try {{ [IO.File]::Delete($f) }} catch {{ }} }} }}; exit 0",
         ps_locate()
     )

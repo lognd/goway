@@ -25,6 +25,7 @@ pub mod repo;
 pub mod resolve;
 pub mod run;
 pub mod runners;
+pub mod session;
 pub mod shard;
 pub mod ssh;
 pub mod sshenv;

@@ -709,6 +709,25 @@ sniff_binary() {
   fi
 }
 
+# keep_awake: set AWAKE to the words that wrap a job in a sleep inhibitor,
+# empty when the host has none that works. The inhibitor is held by the
+# wrapper process, so it lasts exactly as long as the job and is released
+# however the job ends (exit, signal, the watchdog's kill of the group).
+# Linux asks logind (probed once with `true`: a WSL without systemd, or a
+# session logind refuses, simply gets none); macOS uses caffeinate.
+keep_awake() {
+  AWAKE=()
+  case "$(uname -s 2>/dev/null)" in
+    Darwin)
+      if command -v caffeinate >/dev/null 2>&1; then AWAKE=(caffeinate -i -m -s); fi ;;
+    Linux)
+      if command -v systemd-inhibit >/dev/null 2>&1 &&
+        bounded systemd-inhibit --what=sleep:idle --who=goway --why="goway job" --mode=block true >/dev/null 2>&1; then
+        AWAKE=(systemd-inhibit --what=sleep:idle --who=goway --why="goway job" --mode=block)
+      fi ;;
+  esac
+}
+
 # launch_job CMD...: start the job as run does (own session, pid recorded
 # for the watchdog, polite priority). JOB_PID and JOB_NICER are run's.
 launch_job() {
@@ -1006,6 +1025,9 @@ run() {
     if command -v nice >/dev/null 2>&1; then nicer+=(nice -n 10); fi
     if command -v ionice >/dev/null 2>&1; then nicer+=(ionice -c 3); fi
   fi
+  # Outermost, so the inhibitor wraps the niceness wrappers and the job.
+  keep_awake
+  nicer=(${AWAKE[@]+"${AWAKE[@]}"} ${nicer[@]+"${nicer[@]}"})
   if [ -n "$detect" ]; then
     JOB_PID="$work/pid"
     JOB_NICER=(${nicer[@]+"${nicer[@]}"})

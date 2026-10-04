@@ -17,6 +17,7 @@ use base64::Engine as _;
 use crate::error::{Error, Result};
 use crate::remote::{self, Call};
 use crate::repo::{self, Repo};
+use crate::session;
 use crate::ssh::{self, KeyPolicy, Target};
 use crate::transport::{self, Kind as HostKind};
 
@@ -798,8 +799,129 @@ fn stderr_text(c: &Captured) -> String {
     String::from_utf8_lossy(&c.stderr).trim().to_owned()
 }
 
+/// Log how long a helper call took (each Windows call starts a PowerShell).
+fn timed<T>(call: &Call, f: impl FnOnce() -> T) -> T {
+    let started = std::time::Instant::now();
+    let r = f();
+    tracing::debug!(verb = %call.verb, elapsed = ?started.elapsed(), "helper call");
+    r
+}
+
+/// The verbs a Windows helper's session serves (the rest, `run` above all,
+/// keep their own process).
+const SESSION_VERBS: [&str; 9] = [
+    "manifest",
+    "hashes",
+    "deletions",
+    "changes",
+    "receive",
+    "envfile",
+    "argsfile",
+    "verify-wait",
+    "verify-verdict",
+];
+
+/// A writer that keeps at most [`session::MAX_INPUT`] bytes and notes when
+/// it was asked for more.
+struct Capped<'a> {
+    buf: &'a mut Vec<u8>,
+    over: &'a mut bool,
+}
+
+impl std::io::Write for Capped<'_> {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        if self.buf.len() + data.len() > session::MAX_INPUT {
+            *self.over = true;
+            return Err(std::io::Error::other("input too large for a session"));
+        }
+        self.buf.extend_from_slice(data);
+        Ok(data.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 impl Transport for SshTransport<'_> {
     fn output(&self, call: &Call) -> Result<Vec<u8>> {
+        timed(call, || {
+            self.in_session(call, b"")
+                .unwrap_or_else(|| self.output_inner(call))
+        })
+    }
+
+    fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
+        timed(call, || {
+            self.in_session(call, input)
+                .unwrap_or_else(|| self.exchange_inner(call, input))
+        })
+    }
+
+    fn feed(
+        &self,
+        call: &Call,
+        feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
+    ) -> Result<()> {
+        timed(call, || {
+            if self.session_applies(call) {
+                let (mut buf, mut over) = (Vec::new(), false);
+                let result = feed(&mut Capped {
+                    buf: &mut buf,
+                    over: &mut over,
+                });
+                if !over {
+                    result?;
+                    if let Some(done) = self.in_session(call, &buf) {
+                        return done.map(drop);
+                    }
+                }
+            }
+            self.feed_inner(call, feed)
+        })
+    }
+}
+
+impl SshTransport<'_> {
+    /// Whether `call` may use this host's session.
+    fn session_applies(&self, call: &Call) -> bool {
+        self.kind != HostKind::Unix && SESSION_VERBS.contains(&call.verb.as_str())
+    }
+
+    /// Run `call` through the host's session: `None` when there is none to
+    /// use (the caller then starts a process for the call).
+    fn in_session(&self, call: &Call, input: &[u8]) -> Option<Result<Vec<u8>>> {
+        if !self.session_applies(call) {
+            return None;
+        }
+        let key = format!("{:?}/{}", self.kind, self.target.name);
+        let mut words = vec![call.verb.as_str()];
+        words.extend(call.args.iter().map(String::as_str));
+        let reply = session::call(&key, || self.start_session(), &words, input)?;
+        Some(if reply.code == 0 {
+            Ok(reply.stdout)
+        } else {
+            Err(self.fail(String::from_utf8_lossy(&reply.stderr).trim().to_owned()))
+        })
+    }
+
+    /// Start the host's session, installing the remote script first when
+    /// this version is not there yet.
+    fn start_session(&self) -> std::result::Result<session::Session, String> {
+        let spawn = || {
+            self.command(&Call::new("session", &[] as &[&str]))
+                .map_err(|e| e.to_string())
+                .and_then(session::Session::start)
+        };
+        match spawn() {
+            Err(e) if e.contains(remote::NOT_INSTALLED_MARK) => {
+                self.install_script().map_err(|e| e.to_string())?;
+                spawn()
+            }
+            other => other,
+        }
+    }
+
+    fn output_inner(&self, call: &Call) -> Result<Vec<u8>> {
         self.with_script(|| {
             let child = self
                 .command(call)?
@@ -822,7 +944,7 @@ impl Transport for SshTransport<'_> {
         })
     }
 
-    fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
+    fn exchange_inner(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
         self.with_script(|| {
             exchange_child(self.command(call)?, input).map_err(|e| match e {
                 Error::Ssh { message, .. } => self.fail(message),
@@ -831,7 +953,7 @@ impl Transport for SshTransport<'_> {
         })
     }
 
-    fn feed(
+    fn feed_inner(
         &self,
         call: &Call,
         feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
