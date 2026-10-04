@@ -8,12 +8,12 @@ points = 13
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-04T00:29:34Z"
+updated = "2026-10-04T00:30:14Z"
 scope = ["crates/goway/src/doctor.rs", "docs/usage.md", "crates/goway/tests/doctor_project.rs", "crates/goway/src/doctor/projneeds.rs", "crates/goway/src/project.rs"]
 
 [[acceptance]]
 text = "Given a project folder, when goway doctor runs there, then it detects the ecosystems from the project's files and checks each host for their tools, with exact fixes (user-level where possible, root fixes through --rsudo)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a project, when doctor runs, then it checks only what the project's files require (Rust: cargo and nextest only when used, rust-toolchain.toml; Python: requires-python, uv, pytest and xdist when declared; Node: .nvmrc or engines and the lockfile's package manager; Java: release or toolchain version plus Maven or Gradle; Go: go.mod version; Ruby: .ruby-version and bundler; .NET: global.json) plus goway.toml [toolchain] entries, and skips everything else (a C++ project is never asked for cargo)"
