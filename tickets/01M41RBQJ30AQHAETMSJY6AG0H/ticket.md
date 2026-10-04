@@ -2,7 +2,8 @@
 id = "01M41RBQJ30AQHAETMSJY6AG0H"
 title = "Timing-sensitive integration tests fail under machine load"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
