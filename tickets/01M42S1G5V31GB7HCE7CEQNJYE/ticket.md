@@ -2,7 +2,8 @@
 id = "01M42S1G5V31GB7HCE7CEQNJYE"
 title = "slot_trees cargo stale-build regression test fails on a helper"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
