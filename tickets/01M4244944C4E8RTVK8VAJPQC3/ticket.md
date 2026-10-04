@@ -8,12 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T00:13:26Z"
-updated = "2026-10-04T00:13:26Z"
-scope = ["crates/goway/src/remote.sh", "crates/goway/src/pool.rs", "crates/goway/src/facts.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/clock.rs", "docs/design.md", "docs/troubleshooting.md"]
-
-[[acceptance]]
-text = "Given a probe, when it runs, then goway measures the helper's clock offset from the laptop (helper epoch time against the laptop's, corrected by half the round trip), goway status shows offsets over 2 seconds, and goway doctor warns with the fix (WSL after sleep: wsl --shutdown or sudo hwclock -s; Windows: resync time)"
-bound = false
+updated = "2026-10-04T06:06:25Z"
+scope = ["crates/goway/src/remote.sh", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/clock.rs", "docs/design.md", "docs/troubleshooting.md"]
 
 [[acceptance]]
 text = "Given a run that has just created its work directory, when the helper's wall clock jumps forward by any amount, then gc never removes it: a fresh work directory is protected by a liveness check (its creator process is alive on that helper), not only by its age; a test simulates the jump"
