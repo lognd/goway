@@ -2,7 +2,8 @@
 id = "01M41Q6DMFXAD67P17VTRQRCBB"
 title = "gc, status and doctor for Windows hosts"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
