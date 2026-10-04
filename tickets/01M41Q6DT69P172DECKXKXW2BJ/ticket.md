@@ -2,13 +2,13 @@
 id = "01M41Q6DT69P172DECKXKXW2BJ"
 title = "frob-v2 runs its Windows tests and clippy through goway before a push"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-03T20:27:24Z"
+updated = "2026-10-04T00:41:43Z"
 scope = ["docs/usage.md", "README.md"]
 
 [[acceptance]]
