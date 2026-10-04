@@ -8,7 +8,7 @@ points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-04T01:17:56Z"
+updated = "2026-10-04T01:18:43Z"
 scope = ["docs/usage.md", "README.md"]
 
 [[acceptance]]
