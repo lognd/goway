@@ -7,8 +7,8 @@ priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T22:33:20Z"
-updated = "2026-10-04T22:33:56Z"
-scope = ["crates/goway-setup/src/ps.rs", "crates/goway-setup/tests/host_plan.rs"]
+updated = "2026-10-04T22:34:57Z"
+scope = ["crates/goway-setup/src/ps.rs", "crates/goway-setup/tests/host_plan.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/hostsys.rs"]
 
 [[acceptance]]
 text = "Given a boot or logon keepalive, When the task script is generated, Then its trigger repeats every few minutes with MultipleInstances IgnoreNew so a running keepalive is not duplicated"
