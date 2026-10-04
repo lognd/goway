@@ -2,7 +2,8 @@
 id = "01M44C7W7BZNCC912JGPA6WM2T"
 title = "Audit3 H1: goway never runs a repository-selected program on the laptop"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
