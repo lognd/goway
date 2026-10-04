@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T03:26:55Z"
+digest = "a63c457e7a9c792eb16c595df6408219e24c31a1d224e99e3fa5911b210485c5"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 83ec8250-9447-4c23-bb3e-02d1ef74f9ac with nextest profile: default
+    Starting 4 tests across 51 binaries (609 tests skipped)
+        PASS [   0.007s] goway status::tests::status_marks_hosts_the_default_pool_uses
+        PASS [   0.009s] goway project::tests::a_run_defaults_to_the_laptops_os_unless_a_need_names_one
+        PASS [   0.011s] goway pool::tests::the_default_pool_only_holds_hosts_of_the_laptops_os
+        PASS [   0.013s] goway pool::tests::shards_never_mix_operating_systems
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.016s] 4 tests run: 4 passed, 609 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/the_default_pool_only_holds_hosts_of_the_laptops_os|shards_never_mix_operating_systems|status_marks_hosts_the_default_pool_uses|a_run_defaults_to_the_laptops_os_unless_a_need_names_one/)'"
+size = 836
+status = "measured"
+tests = ["status::tests::status_marks_hosts_the_default_pool_uses", "project::tests::a_run_defaults_to_the_laptops_os_unless_a_need_names_one", "pool::tests::the_default_pool_only_holds_hosts_of_the_laptops_os", "pool::tests::shards_never_mix_operating_systems"]
+at = "2026-10-04T03:26:55Z"
+actor = "lognd"
+rev = 1
