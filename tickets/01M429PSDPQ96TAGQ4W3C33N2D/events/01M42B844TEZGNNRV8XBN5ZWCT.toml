@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["docs/macos.md", ".github/workflows/ci.yml"]
+new = ["docs/macos.md", ".github/workflows/ci.yml", "crates/goway/tests/weighted_shards.rs", "crates/goway/tests/shard_detect.rs", "crates/goway/tests/needs.rs", "crates/goway/tests/project_rules.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/install_methods.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/copy_integrity.rs"]
+at = "2026-10-04T02:17:52Z"
+actor = "lognd"
+rev = 1
