@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["Given a laptop helper that would suspend on idle, when a goway job runs there, then the job holds a sleep inhibitor for exactly its lifetime (systemd-inhibit --what=sleep:idle where available, SetThreadExecutionState on Windows, caffeinate on macOS), released however the run ends, and a helper that suspends anyway is reported as asleep, not as a failed command"]
+new = ["Given a laptop helper that would suspend on idle, when a goway job runs there, then the job holds a sleep inhibitor for exactly its lifetime (systemd-inhibit --what=sleep:idle where available, caffeinate on macOS), released however the run ends and never failing the job when the host has none (the Windows SetThreadExecutionState part is on the remote.ps1 parity ticket)"]
+moved = [0]
+at = "2026-10-04T02:57:59Z"
+actor = "lognd"
+rev = 1

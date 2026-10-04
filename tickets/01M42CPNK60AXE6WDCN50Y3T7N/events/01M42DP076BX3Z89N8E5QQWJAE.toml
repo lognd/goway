@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T03:00:23Z"
+digest = "52c3b43292df336357c8ad5c461cb9f97cd193807d769e1e8d69260d039935af"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 972d239c-9735-4974-8118-87be9b456799 with nextest profile: default
+    Starting 2 tests across 48 binaries (591 tests skipped)
+        PASS [   0.026s] goway ssh::tests::a_password_login_asks_once_under_the_name_the_user_typed
+        PASS [   0.384s] goway::ssh_setup golden_yes_with_a_bad_password_then_paste
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.386s] 2 tests run: 2 passed, 591 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(/a_password_login_asks_once/) | (binary(ssh_setup) & test(/golden_yes_with_a_bad/))'"
+size = 654
+status = "measured"
+tests = ["ssh::tests::a_password_login_asks_once_under_the_name_the_user_typed", "golden_yes_with_a_bad_password_then_paste"]
+at = "2026-10-04T03:00:23Z"
+actor = "lognd"
+rev = 1
