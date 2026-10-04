@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway-setup/src/relay.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/tests/relay.rs", "crates/goway-setup/tests/hostsys.rs", "crates/goway/src/doctor.rs", "crates/goway/src/facts.rs", "crates/goway/src/remote.sh", "crates/goway/tests/host_facts.rs", "docs/install-windows.md", "SECURITY.md", "crates/goway-setup/src/cli.rs"]
+new = ["crates/goway-setup/src/relay.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/tests/relay.rs", "crates/goway-setup/tests/hostsys.rs", "crates/goway/src/doctor.rs", "crates/goway/src/facts.rs", "crates/goway/src/remote.sh", "crates/goway/tests/host_facts.rs", "docs/install-windows.md", "SECURITY.md", "crates/goway-setup/src/cli.rs", "crates/goway/src/status.rs", "crates/goway/tests/doctor.rs"]
+at = "2026-10-04T02:01:34Z"
+actor = "lognd"
+rev = 1

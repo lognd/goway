@@ -1,0 +1,7 @@
+kind = "field"
+field = "title"
+old = "Owner awareness: skip a host while its user is active or it runs on battery"
+new = "Owner awareness: a helper whose owner is using it stays available but goway runs extra nicely there"
+at = "2026-10-04T02:02:41Z"
+actor = "lognd"
+rev = 1

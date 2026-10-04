@@ -770,10 +770,13 @@ function Resolve-Program([string]$Name) {
   return $null
 }
 
-# Run a program to completion with $Stdin on its standard input; returns
+# Run a program to completion with an empty standard input; returns
 # @(exit code, stdout bytes). $Env adds environment variables. Standard
-# error is discarded.
-function Invoke-Native([string]$Exe, [string[]]$Words, [byte[]]$Stdin, [hashtable]$Env) {
+# error is discarded. There is deliberately no way to feed it input: under
+# Windows PowerShell 5.1 the redirected stdin is a StreamWriter in the
+# console code page, and with code page 65001 it sends a UTF-8 BOM first
+# (what made git read "\uFEFFout" as a path on CI).
+function Invoke-Native([string]$Exe, [string[]]$Words, [hashtable]$Env) {
   $psi = New-Object Diagnostics.ProcessStartInfo
   $psi.FileName = $Exe
   $psi.Arguments = Join-WinArgs $Words
@@ -784,7 +787,6 @@ function Invoke-Native([string]$Exe, [string[]]$Words, [byte[]]$Stdin, [hashtabl
   if ($Env) { foreach ($k in $Env.Keys) { $psi.EnvironmentVariables[$k] = [string]$Env[$k] } }
   $p = [Diagnostics.Process]::Start($psi)
   $errTask = $p.StandardError.BaseStream.CopyToAsync([IO.Stream]::Null)
-  if ($Stdin -and $Stdin.Length) { $p.StandardInput.BaseStream.Write($Stdin, 0, $Stdin.Length) }
   $p.StandardInput.Close()
   $ms = New-Object IO.MemoryStream
   $p.StandardOutput.BaseStream.CopyTo($ms)
@@ -796,7 +798,7 @@ function Invoke-Native([string]$Exe, [string[]]$Words, [byte[]]$Stdin, [hashtabl
 # The first line of `$Exe $Words` (a tool's version), or '' on failure.
 function Tool-Version([string]$Exe, [string[]]$Words) {
   try {
-    $r = Invoke-Native $Exe $Words $null $null
+    $r = Invoke-Native $Exe $Words $null
     if ($r[0] -ne 0) { return '' }
     $t = $script:Utf8.GetString($r[1]).Trim()
     $nl = $t.IndexOf("`n")
@@ -816,7 +818,7 @@ function Get-Arch {
       default { return [string]$env:PROCESSOR_ARCHITECTURE }
     }
   }
-  $r = Invoke-Native (Resolve-Program 'uname') @('-m') $null $null
+  $r = Invoke-Native (Resolve-Program 'uname') @('-m') $null
   return $script:Utf8.GetString($r[1]).Trim()
 }
 
@@ -854,7 +856,7 @@ function GPU-Query([string]$Query) {
   $exe = Resolve-Program 'nvidia-smi'
   if (-not $exe) { return @() }
   try {
-    $r = Invoke-Native $exe @("--query-gpu=$Query", '--format=csv,noheader,nounits') $null $null
+    $r = Invoke-Native $exe @("--query-gpu=$Query", '--format=csv,noheader,nounits') $null
     if ($r[0] -ne 0) { return @() }
     return @($script:Utf8.GetString($r[1]).Split("`n") | ForEach-Object { $_.Trim("`r") } | Where-Object { $_ })
   } catch { return @() }
@@ -868,7 +870,7 @@ function Static-Facts {
   if ($exe) {
     $cuda = ''
     try {
-      $r = Invoke-Native $exe @() $null $null
+      $r = Invoke-Native $exe @() $null
       if ($script:Utf8.GetString($r[1]) -match 'CUDA Version: ([0-9.]+)') { $cuda = $Matches[1] }
     } catch { }
     foreach ($line in (GPU-Query 'name,memory.total,driver_version')) {
@@ -902,7 +904,7 @@ function Static-Facts {
   [void]$sb.Append("kvm=$kvm`n")
   $docker = 0
   $d = Resolve-Program 'docker'
-  if ($d) { try { if ((Invoke-Native $d @('info') $null $null)[0] -eq 0) { $docker = 1 } } catch { } }
+  if ($d) { try { if ((Invoke-Native $d @('info') $null)[0] -eq 0) { $docker = 1 } } catch { } }
   [void]$sb.Append("docker=$docker`n")
   $win = ''
   if ($script:IsWin) {
@@ -1301,12 +1303,25 @@ function Get-GitIgnored([string]$Farm, [string[]]$Paths, [string]$Scratch) {
   $git = Resolve-Program 'git'
   if (-not $git -or $Paths.Count -eq 0) { return @() }
   $gitdir = [IO.Path]::Combine($Scratch, 'git')
-  $null = Invoke-Native $git @('init', '-q', '--bare', $gitdir) $null $null
-  $ms = New-Object IO.MemoryStream
-  foreach ($p in $Paths) { $b = $script:Utf8.GetBytes($p); $ms.Write($b, 0, $b.Length); $ms.WriteByte(0) }
+  $null = Invoke-Native $git @('init', '-q', '--bare', $gitdir) $null
   $null_ = if ($script:IsWin) { 'NUL' } else { '/dev/null' }
-  $r = Invoke-Native $git @('-c', "core.excludesFile=$null_", 'check-ignore', '--no-index', '-z', '--stdin') $ms.ToArray() @{ GIT_DIR = $gitdir; GIT_WORK_TREE = $Farm }
-  return [string[]](Split-Nul $r[1])
+  $out = New-Object System.Collections.Generic.List[string]
+  # The paths go as arguments, in batches under the command line limit.
+  $i = 0
+  while ($i -lt $Paths.Count) {
+    $batch = New-Object System.Collections.Generic.List[string]
+    $len = 0
+    while ($i -lt $Paths.Count -and ($batch.Count -eq 0 -or $len + $Paths[$i].Length + 3 -lt 16000)) {
+      $batch.Add($Paths[$i]); $len += $Paths[$i].Length + 3; $i++
+    }
+    $words = @('-c', "core.excludesFile=$null_", '-c', 'core.quotepath=false', 'check-ignore', '--no-index', '--') + $batch.ToArray()
+    $r = Invoke-Native $git $words @{ GIT_DIR = $gitdir; GIT_WORK_TREE = $Farm }
+    foreach ($line in $script:Utf8.GetString($r[1]).Split("`n")) {
+      $line = $line.TrimEnd("`r")
+      if ($line) { $out.Add($line) }
+    }
+  }
+  return [string[]]$out.ToArray()
 }
 
 # Update $Slot in place so it holds exactly the files of $Farm (the run's
@@ -1559,7 +1574,7 @@ function Get-ParentPid {
   }
   $ps = Resolve-Program 'ps'
   if ($ps) {
-    $r = Invoke-Native $ps @('-o', 'ppid=', '-p', "$PID") $null $null
+    $r = Invoke-Native $ps @('-o', 'ppid=', '-p', "$PID") $null
     $t = $script:Utf8.GetString($r[1]).Trim()
     if ($t -match '^\d+$') { return [int]$t }
   }
