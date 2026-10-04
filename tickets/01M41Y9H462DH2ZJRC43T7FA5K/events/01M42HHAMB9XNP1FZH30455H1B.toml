@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["Given a project and several hosts, when goway doctor runs, then it prints one table (also in --plain) with a row per required tool and a column per host plus the laptop, showing versions; a missing tool or one below the project minimum is an error with the exact fix; hosts that disagree (different major version, or different minor where the tool is a compiler or a pinned [toolchain] entry) are marked drift", "Given goway doctor --fix --all-hosts, when it runs, then it brings every host to the required (or pinned) versions with user-level installs where possible and --rsudo for system packages, each recorded for uninstall", "Given a run, when the chosen host's cached tool versions differ from the rest of the fleet for a tool the project uses, then goway prints a one-line drift note, and the run report (and --report JSON) records the versions of the project's tools on that host so frob evidence says what built and tested it"]
+new = ["Given a project and several hosts, when goway doctor runs, then it prints one table (also in --plain) with a row per required tool and a column per host plus the laptop, showing versions; a missing tool or one below the project minimum is an error with the exact fix; hosts that disagree (different major version, or different minor where the tool is a compiler or a pinned [toolchain] entry) are marked drift", "Given goway doctor --fix --all-hosts, when it runs, then it brings every host to the required (or pinned) versions with user-level installs where possible and --rsudo for system packages, each recorded for uninstall"]
+moved = [1, 2, 0]
+at = "2026-10-04T04:07:45Z"
+actor = "lognd"
+rev = 1

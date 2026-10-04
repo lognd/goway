@@ -1,0 +1,12 @@
+kind = "create"
+title = "Use a placeholder host name in the doctor output golden test"
+type = "chore"
+category = "todo"
+priority = "medium"
+points = 1
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/tests/doctor_output.rs"]
+acceptance = ["Given crates/goway/tests/doctor_output.rs, when read, then its host names are placeholders (helios, orion and the like), and the golden tests still pass"]
+at = "2026-10-04T04:13:20Z"
+actor = "lognd"
+rev = 1

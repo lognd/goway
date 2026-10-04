@@ -231,7 +231,8 @@ pub struct AddArgs {
     /// (listed, confirmed once, one sudo password typed into its sudo).
     #[arg(long)]
     pub rsudo: bool,
-    /// Also install what this laptop is missing (ssh client, git) with sudo here.
+    /// Also install what this laptop is missing (ssh client, git) with sudo here
+    /// (on Windows, through its own UAC prompt).
     #[arg(long)]
     pub lsudo: bool,
     /// Do not ask before the --rsudo / --lsudo changes.
@@ -240,6 +241,12 @@ pub struct AddArgs {
     /// Do not try a password: print goway's key and the commands to add it by hand on the helper.
     #[arg(long)]
     pub no_password: bool,
+    /// With --rsudo, for a Windows-side step: a Windows administrator account whose key is in
+    /// the helper's `administrators_authorized_keys`, so goway elevates through its Windows ssh
+    /// without anyone at the helper (otherwise a UAC prompt on its desktop, else the exact
+    /// command to run as administrator).
+    #[arg(long, value_name = "USER", requires = "rsudo")]
+    pub windows_admin: Option<String>,
 }
 
 /// `goway host` verbs.
@@ -292,6 +299,7 @@ pub enum SshCommand {
 
 /// Arguments of `goway ssh setup`.
 #[derive(Debug, Args)]
+#[allow(clippy::struct_excessive_bools)] // independent command-line switches
 pub struct SshSetupArgs {
     /// The host name (configured or new).
     #[arg(value_parser = host_name)]
@@ -319,6 +327,18 @@ pub struct SshSetupArgs {
     /// Do not try a password: print goway's key and the commands to add it by hand on the host.
     #[arg(long, conflicts_with = "undo")]
     pub no_password: bool,
+    /// For a native Windows host: run its administrator step (authorizing the key) for you,
+    /// through its Windows ssh as `--windows-admin`, else through a UAC prompt on its desktop;
+    /// no password is ever typed into goway.
+    #[arg(long, conflicts_with = "undo")]
+    pub rsudo: bool,
+    /// With --rsudo: a Windows administrator account whose key is in the helper's
+    /// `administrators_authorized_keys` (unattended elevation).
+    #[arg(long, value_name = "USER", requires = "rsudo")]
+    pub windows_admin: Option<String>,
+    /// Answer yes to the questions (try the password, run the administrator step).
+    #[arg(long, short = 'y', conflicts_with = "undo")]
+    pub yes: bool,
 }
 
 /// `goway config` verbs.

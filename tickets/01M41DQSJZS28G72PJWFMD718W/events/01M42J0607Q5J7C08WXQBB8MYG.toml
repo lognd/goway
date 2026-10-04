@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T04:15:51Z"
+digest = "e3a068997a3bf4c4e479d63c4b366be7541c90ffdb08a2720623031a52917ddf"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 3aa0265f-5470-4acf-b69d-eca9e826bff3 with nextest profile: default
+    Starting 1 test across 54 binaries (639 tests skipped)
+        PASS [   6.212s] goway::owner_awareness an_unreadable_state_is_unknown_and_changes_nothing
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   6.216s] 1 test run: 1 passed, 639 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "an_unreadable_state_is_unknown"
+size = 567
+status = "measured"
+tests = ["an_unreadable_state_is_unknown_and_changes_nothing"]
+at = "2026-10-04T04:15:51Z"
+actor = "lognd"
+rev = 1

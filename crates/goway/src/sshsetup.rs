@@ -276,7 +276,7 @@ pub fn setup(
     args: &SshSetupArgs,
     lookup: &dyn Lookup,
 ) -> Result<u8> {
-    setup_with(paths, renderer, args, lookup, false)
+    setup_with(paths, renderer, args, lookup, args.yes)
 }
 
 /// Removes goway's temporary prompt `known_hosts` copy when setup ends, however it ends.
@@ -463,6 +463,10 @@ pub fn setup_with(
             target: &key_target,
             settings: &settings,
             windows: true,
+            elevate: args.rsudo.then_some(Elevate {
+                admin: args.windows_admin.as_deref(),
+                yes: assume_yes,
+            }),
         }
         .run(&account_name(&target))?;
         return finish_setup(
@@ -497,6 +501,7 @@ pub fn setup_with(
         target: &key_target,
         settings: &settings,
         windows: false,
+        elevate: None,
     };
     let user = account_name(&target);
     let try_password = !args.no_password && knows_password(renderer, name, &user, assume_yes);
@@ -712,19 +717,36 @@ struct HandInstall<'a> {
     settings: &'a ssh::Settings,
     /// A native Windows host: one `goway-setup` command instead of shell lines.
     windows: bool,
+    /// Run the Windows administrator step for the user (`--rsudo`), when asked to.
+    elevate: Option<Elevate<'a>>,
 }
 
 /// The command to run in an administrator PowerShell on a native Windows
 /// host so it authorizes `public_key` (goway-setup records it for its own
 /// uninstall).
 pub fn native_setup_command(public_key: &str) -> String {
-    let key: String = public_key
+    format!(
+        "goway-setup install --host --native --authorized-key \"{}\"",
+        native_key_line(public_key)
+    )
+}
+
+/// The one key line `goway-setup` is given: the first line of the `.pub` text, without quotes.
+fn native_key_line(public_key: &str) -> String {
+    public_key
         .lines()
         .next()
         .unwrap_or_default()
         .trim()
-        .replace('"', "");
-    format!("goway-setup install --host --native --authorized-key \"{key}\"")
+        .replace('"', "")
+}
+
+/// How `--rsudo` elevates a Windows-side step during setup.
+struct Elevate<'a> {
+    /// A Windows administrator account for the unattended ssh route.
+    admin: Option<&'a str>,
+    /// Do not ask before running the step.
+    yes: bool,
 }
 
 /// How many times the user may press Enter before goway gives up waiting for the key.
@@ -757,6 +779,68 @@ impl HandInstall<'_> {
         .is_ok()
     }
 
+    /// With `--rsudo`: run the Windows administrator step through the best route available
+    /// (administrator ssh account, else a UAC prompt on the helper's desktop). True when the key
+    /// works afterwards; otherwise says why and leaves the manual command to the caller.
+    fn elevated_install(&self) -> bool {
+        use crate::winadmin::{Outcome, SshWinRunner, WinStep, elevate};
+        let Some(want) = &self.elevate else {
+            return false;
+        };
+        let name = self.name;
+        let key = native_key_line(self.public_key);
+        let step = WinStep::setup(
+            &["install", "--host", "--native", "--authorized-key", &key],
+            "authorizes goway's key on this Windows host",
+        );
+        let approved = want.yes
+            || crate::render::ask(&format!(
+                "Run `{}` as a Windows administrator on {name}? [y/N] ",
+                step.command
+            ))
+            .is_some_and(|a| matches!(a.trim(), "y" | "Y" | "yes" | "Yes" | "YES"));
+        if !approved {
+            self.renderer
+                .note("not elevating; showing the command instead");
+            return false;
+        }
+        let runner = SshWinRunner {
+            key_name: name,
+            address: &self.target.address,
+            port: self.target.port,
+            settings: self.settings,
+            // A native Windows host has no WSL to start the prompt from.
+            wsl: None,
+        };
+        match elevate(&step, want.admin, &runner) {
+            Outcome::Ran(route) => {
+                tracing::info!(host = name, ?route, "windows administrator step ran");
+                if self.key_works() {
+                    self.renderer
+                        .ok(format_args!("Key works. {name} is ready."));
+                    return true;
+                }
+                self.renderer.warn(format_args!(
+                    "the administrator step ran on {name} but the key does not work yet"
+                ));
+                false
+            }
+            Outcome::Failed(route, why) => {
+                tracing::warn!(host = name, ?route, %why, "windows administrator step failed");
+                self.renderer.warn(format_args!(
+                    "the administrator step failed on {name}: {why}"
+                ));
+                false
+            }
+            Outcome::Manual { tried } => {
+                for line in tried {
+                    self.renderer.note(format_args!("not elevated: {line}"));
+                }
+                false
+            }
+        }
+    }
+
     /// Print the commands and wait until key login works: with a terminal the user presses
     /// Enter after running them; without one goway stops with the next step.
     fn run(&self, user: &str) -> Result<()> {
@@ -764,6 +848,9 @@ impl HandInstall<'_> {
         if self.key_works() {
             self.renderer
                 .ok(format_args!("goway's key already works on {name}"));
+            return Ok(());
+        }
+        if self.windows && self.elevated_install() {
             return Ok(());
         }
         if self.windows {
