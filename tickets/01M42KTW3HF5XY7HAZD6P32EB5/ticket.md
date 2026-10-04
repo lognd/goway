@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given packages a repository asks for, when they would be installed as root, then the plan names the repository and goway.toml as the source, lists every package, and needs the usual explicit confirmation; package names are validated against the package manager's name syntax (no options, paths or shell characters) so a repository cannot inject anything but package names"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given rust-toolchain.toml with targets = [...], when doctor runs, then those targets count as rust_targets too"
