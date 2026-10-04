@@ -326,6 +326,25 @@ impl HostConfig {
     }
 }
 
+/// The disk sizes `max_disk`, `min_free` and `cache_size` (in that order) must parse; `who`
+/// prefixes the message (empty for `[defaults]`, else the host).
+fn check_sizes(origin: &Path, who: &str, sizes: [&Option<String>; 3]) -> Result<()> {
+    for (key, text) in ["max_disk", "min_free", "cache_size"]
+        .into_iter()
+        .zip(sizes)
+    {
+        if let Some(t) = text
+            && crate::needs::parse_size(t).is_none()
+        {
+            return Err(Error::Config {
+                path: origin.to_owned(),
+                message: format!("{who}{key} `{t}` is not a size such as 20G"),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// The ssh `HostKeyAlias` for a host name.
 pub fn key_alias(name: &str) -> String {
     format!("goway-{name}")
@@ -428,20 +447,15 @@ impl Config {
             });
         }
         let d = &self.defaults;
-        for (key, text) in [
-            ("max_disk", d.max_disk.as_deref()),
-            ("min_free", Some(d.min_free.as_str())),
-            ("cache_size", Some(d.cache_size.as_str())),
-        ] {
-            if let Some(t) = text
-                && crate::needs::parse_size(t).is_none()
-            {
-                return Err(Error::Config {
-                    path: origin.to_owned(),
-                    message: format!("{key} `{t}` is not a size such as 20G"),
-                });
-            }
-        }
+        check_sizes(
+            origin,
+            "",
+            [
+                &d.max_disk,
+                &Some(d.min_free.clone()),
+                &Some(d.cache_size.clone()),
+            ],
+        )?;
         for entry in &self.defaults.keep {
             if let Err(why) = check_keep_entry(entry) {
                 return Err(Error::Config {
@@ -451,23 +465,11 @@ impl Config {
             }
         }
         for h in &self.hosts {
-            for (key, text) in [
-                ("max_disk", &h.max_disk),
-                ("min_free", &h.min_free),
-                ("cache_size", &h.cache_size),
-            ] {
-                if let Some(t) = text
-                    && crate::needs::parse_size(t).is_none()
-                {
-                    return Err(Error::Config {
-                        path: origin.to_owned(),
-                        message: format!(
-                            "host `{}`: {key} `{t}` is not a size such as 20G",
-                            h.name
-                        ),
-                    });
-                }
-            }
+            check_sizes(
+                origin,
+                &format!("host `{}`: ", h.name),
+                [&h.max_disk, &h.min_free, &h.cache_size],
+            )?;
         }
         if let Some(l) = &self.local {
             if !(1..=1024).contains(&l.max_jobs) {
