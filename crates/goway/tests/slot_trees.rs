@@ -75,7 +75,11 @@ fn second_run_updates_in_place_and_writes_only_changes() {
 }
 
 /// A same-size edit within the same whole second as the previous sync (the
-/// resolution of the mtimes goway compares) still reaches the slot.
+/// resolution of the mtimes goway compares) still reaches the slot. The
+/// stamp is dated ahead so it stays inside the racy window (at or after the
+/// second before a sync starts) however long a loaded host takes per run;
+/// a stamp fixed at test start ages out of it and would then be, by design,
+/// indistinguishable from an unchanged file.
 #[test]
 fn same_size_edit_within_the_same_second_reaches_the_slot() {
     let w = world();
@@ -84,7 +88,7 @@ fn same_size_edit_within_the_same_second_reaches_the_slot() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let stamp = std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs);
+    let stamp = std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs + 3600);
     for content in ["aaaa\n", "bbbb\n", "cccc\n", "dddd\n"] {
         std::fs::write(&file, content).unwrap();
         std::fs::File::options()
