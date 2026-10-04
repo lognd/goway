@@ -1,1 +1,1 @@
-frob: Windows elevation: detect a desktop session by session id (not SESSIONNAME), and --rsudo/--lsudo elevate Windows-side steps through an admin OpenSSH session or UAC, never with a stored password.
+goway-setup finds the interactive desktop by session id, so install --host started from WSL interop or ssh into WSL on a logged-in laptop shows the UAC prompt.
