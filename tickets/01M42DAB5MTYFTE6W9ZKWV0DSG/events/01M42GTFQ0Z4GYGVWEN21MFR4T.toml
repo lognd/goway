@@ -1,0 +1,53 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T03:55:16Z"
+digest = "6d4b9a19667693175ace73b54cbea360dcc42e06e9c49e6c185b9d8b3c2ac7de"
+exit_code = 0
+inline = '''
+   Compiling regex-syntax v0.8.11
+   Compiling fastrand v2.5.0
+   Compiling getrandom v0.3.4
+   Compiling wait-timeout v0.2.1
+   Compiling zerocopy v0.8.59
+   Compiling getrandom v0.4.3
+   Compiling fnv v1.0.7
+   Compiling quick-error v1.2.3
+   Compiling bit-vec v0.8.0
+   Compiling num-traits v0.2.19
+   Compiling unarray v0.1.4
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling rand_core v0.9.5
+   Compiling bit-set v0.8.0
+   Compiling tempfile v3.27.0
+   Compiling rand_xorshift v0.4.0
+   Compiling rand v0.9.5
+   Compiling rusty-fork v0.3.1
+   Compiling regex-automata v0.4.18
+   Compiling matchers v0.2.0
+   Compiling tracing-subscriber v0.3.23
+   Compiling ppv-lite86 v0.2.21
+   Compiling rand_chacha v0.9.0
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+   Compiling proptest v1.11.0
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 37s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 306c47eb-3ee7-4bb8-9a6e-31126911c9d5 with nextest profile: default
+    Starting 5 tests across 52 binaries (621 tests skipped)
+        PASS [   0.007s] goway::doctor_output explain_gives_the_long_text_for_one_check_only
+        PASS [   0.007s] goway::doctor_output problems_are_grouped_across_hosts_and_passing_checks_stay_hidden
+        PASS [   0.007s] goway::doctor_output all_adds_the_passing_rows_after_the_problems
+        PASS [   0.007s] goway::doctor_output one_host_with_nothing_wrong_is_one_line
+        PASS [  12.195s] goway::doctor_project doctor_is_quiet_by_default_and_explains_one_check_on_request
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  12.199s] 5 tests run: 5 passed, 621 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(problems_are_grouped_across_hosts_and_passing_checks_stay_hidden) | test(all_adds_the_passing_rows_after_the_problems) | test(explain_gives_the_long_text_for_one_check_only) | test(one_host_with_nothing_wrong_is_one_line) | test(doctor_is_quiet_by_default_and_explains_one_check_on_request)'"
+size = 1851
+status = "measured"
+tests = ["explain_gives_the_long_text_for_one_check_only", "problems_are_grouped_across_hosts_and_passing_checks_stay_hidden", "all_adds_the_passing_rows_after_the_problems", "one_host_with_nothing_wrong_is_one_line", "doctor_is_quiet_by_default_and_explains_one_check_on_request"]
+at = "2026-10-04T03:55:16Z"
+actor = "lognd"
+rev = 1

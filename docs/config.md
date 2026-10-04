@@ -60,7 +60,7 @@ name = "my-helper"             # the helper's computer name; also tried as my-he
 # address = "my-helper"        # optional: a DNS name or IP to try first
 # port = 22
 # user = "user"               # default: whatever ssh config says
-# max_jobs = 2                 # skip this host while it runs this many goway jobs (default: half its cores, at least 1)
+# max_jobs = 2                 # skip this host while it runs this many goway jobs (default: every core, at least 1)
 # priority = "normal"          # override defaults.priority for this host
 # max_load = 0.5               # override defaults.max_load for this host
 # gpu_jobs = 2                 # override defaults.gpu_jobs for this host
@@ -119,9 +119,11 @@ parallel build uses a few GiB per core.
 
 Caps, all on the laptop side:
 
-- `max_jobs` (per host, default half its cores, at least 1) bounds the
-  goway jobs at once, which bounds concurrent memory use. Set it lower on a
-  small helper and higher on a big one.
+- `max_jobs` (per host, default every core, at least 1) bounds the goway
+  jobs at once, which bounds concurrent memory use. Jobs run at nice 10 with
+  idle I/O, so a full helper still yields to whoever sits at it (and extra
+  nicely while its owner is using it, see usage). Set `max_jobs` lower on a
+  small helper or one whose RAM per core is thin.
 - `max_load` skips a host whose load per core is above the limit, and
   `mem_per_core` scores hosts with little free RAM worse.
 - `target_slots` bounds the target dirs per repository; `cache_ttl` and
