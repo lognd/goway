@@ -2,7 +2,8 @@
 id = "01M42MNTTGT910S380T82TBT2S"
 title = "Many concurrent runs over one ssh master hit the helper's MaxSessions: refused sessions and stale control sockets must be handled quietly"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
