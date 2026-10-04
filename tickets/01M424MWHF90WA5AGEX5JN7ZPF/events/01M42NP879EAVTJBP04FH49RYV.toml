@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T05:20:20Z"
+digest = "546cae3c91f2aa2ae0914775152c912fa6807a0bfa7ea8a68f95cd54f5744701"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 49638506-b9f0-42d0-bd3c-76f6ae1a2ae3 with nextest profile: default
+    Starting 1 test across 58 binaries (687 tests skipped)
+        PASS [   0.562s] goway::cmake_api configure_in_a_project_without_cmakelists_says_so_and_runs_nothing
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.564s] 1 test run: 1 passed, 687 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "configure_in_a_project_without_cmakelists"
+size = 577
+status = "measured"
+tests = ["configure_in_a_project_without_cmakelists_says_so_and_runs_nothing"]
+at = "2026-10-04T05:20:20Z"
+actor = "lognd"
+rev = 1
