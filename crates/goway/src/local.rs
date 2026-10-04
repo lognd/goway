@@ -107,8 +107,21 @@ impl Drop for Slot {
     }
 }
 
-/// How many local jobs run now: lock files somebody holds. Files nobody
-/// holds (a crashed run) are removed.
+/// How long a new slot file counts as running before it is locked.
+const SLOT_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Whether `path` was modified within [`SLOT_GRACE`] (a run is taking it).
+fn is_fresh(path: &Path) -> bool {
+    std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.elapsed().ok())
+        .is_some_and(|age| age < SLOT_GRACE)
+}
+
+/// How many local jobs run now: lock files somebody holds, or created within
+/// the last few seconds (not locked yet). Older files nobody holds (a crashed
+/// run) are removed.
 pub fn running_jobs(dir: &Path) -> u32 {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return 0;
@@ -122,9 +135,10 @@ pub fn running_jobs(dir: &Path) -> u32 {
         let Ok(file) = File::open(&path) else {
             continue;
         };
-        if file.try_lock().is_ok() {
+        if file.try_lock().is_ok() && !is_fresh(&path) {
             let _ = std::fs::remove_file(&path);
         } else {
+            // Held, or created a moment ago by a run that has not locked it yet.
             running += 1;
         }
     }
@@ -341,9 +355,20 @@ mod tests {
         drop(a);
         assert_eq!(running_jobs(dir.path()), 1);
         // A crashed run leaves its file but not its lock.
-        std::fs::write(dir.path().join("crashed.lock"), "").unwrap();
+        let crashed = dir.path().join("crashed.lock");
+        std::fs::write(&crashed, "").unwrap();
+        // frob:ticket 5WD6GZ8 -- a fresh unlocked file is a run about to lock it.
+        assert_eq!(running_jobs(dir.path()), 2);
+        assert!(crashed.exists());
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+        File::options()
+            .write(true)
+            .open(&crashed)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
         assert_eq!(running_jobs(dir.path()), 1);
-        assert!(!dir.path().join("crashed.lock").exists());
+        assert!(!crashed.exists());
         drop(b);
         assert_eq!(running_jobs(dir.path()), 0);
     }
