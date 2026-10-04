@@ -377,7 +377,8 @@ mod tests {
     #[test]
     fn the_probe_word_carries_only_safe_tool_names() {
         let config = Config::default();
-        let args = |t: &[&str]| crate::pool::probe_call(&config, false, false, &names(t)).args;
+        let args =
+            |t: &[&str]| crate::pool::probe_call(&config, None, false, false, &names(t)).args;
         assert!(args(&[]).iter().all(|a| !a.starts_with("tools:")));
         let a = args(&["cc", "g++", "bad name", "x;rm", "cargo-nextest"]);
         assert!(

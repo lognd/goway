@@ -555,6 +555,14 @@ verify_gate() {
   return 1
 }
 
+# lost_note WORK: say why the helper stopped this run, when its lifeline did.
+lost_note() {
+  local why
+  [ -s "$1/lost" ] || return 0
+  why=$(head -1 "$1/lost" 2>/dev/null || true)
+  printf 'goway: this run was stopped by the helper: the client was considered gone because %s\n' "$why" >&2
+}
+
 # remove_work DIR: best-effort removal of a finished run's work dir. It never
 # fails and never changes the command's exit code: something may still write
 # there (a job's detached child, a concurrent gc), so it retries a few times
@@ -669,8 +677,12 @@ mem_sample() {
   if [ -n "$cg" ] && [ -r "$cg/memory.peak" ]; then
     v=$(cat "$cg/memory.peak" 2>/dev/null || true)
     if awk '/^oom_kill / && $2 > 0 {f=1} END {exit !f}' "$cg/memory.events" 2>/dev/null; then : >"$dir/oom"; fi
-  elif [ "$IS_DARWIN" != 1 ]; then
-    v=$(ps -A -o sid= -o rss= 2>/dev/null | awk -v s="$pid" '$1 == s {t += $2} END {print t * 1024}' || true)
+  else
+    # The job leads its session and process group; BSD ps has no session column, so macOS
+    # sums the process group.
+    local col=sid
+    [ "$IS_DARWIN" = 1 ] && col=pgid
+    v=$(ps -A -o "$col=" -o rss= 2>/dev/null | awk -v s="$pid" '$1 == s {t += $2} END {print t * 1024}' || true)
   fi
   case "$v" in "" | *[!0-9]*) return 0 ;; esac
   old=$(cat "$dir/mempeak" 2>/dev/null || echo 0)
@@ -710,8 +722,10 @@ watchdog() {
   if kill -0 "$pid" 2>/dev/null; then stop_group "$pid"; fi
 }
 
-# How long (seconds) lifeline waits for the client's next heartbeat byte.
-LIFELINE_TIMEOUT=30
+# How long (seconds) lifeline waits for the client's next heartbeat byte. Long on
+# purpose: an overloaded laptop sends its beats late, and silence alone is never
+# proof that the client is gone (end of input is, and stops the job at once).
+LIFELINE_TIMEOUT=${GOWAY_LIFELINE_TIMEOUT:-120}
 
 # lifeline ROOT RUN_ID: the run's lifeline. The client keeps this call open
 # and writes a byte to its stdin every few seconds. When stdin ends (the
@@ -722,18 +736,27 @@ LIFELINE_TIMEOUT=30
 # work dir is gone or marked done) is left alone. Stops within
 # LIFELINE_TIMEOUT plus 5 seconds at the worst, at once on end of stdin.
 lifeline() {
-  local root work c="" pid runner
+  local root work c="" pid runner rc=0 why
   root=$(root_dir "$1"); work="$root/work/$2"
   case "$2" in *[!A-Za-z0-9-]* | "") die "lifeline: bad run id" ;; esac
-  while IFS= read -r -n 1 -t "$LIFELINE_TIMEOUT" c; do
+  while :; do
+    IFS= read -r -n 1 -t "$LIFELINE_TIMEOUT" c || rc=$?
+    [ "$rc" = 0 ] || break
     [ -d "$work" ] && [ ! -e "$work/done" ] || return 0
   done
   [ -d "$work" ] && [ ! -e "$work/done" ] || return 0
-  : >"$work/lost" 2>/dev/null || return 0
+  # A timeout (status above 128) means silence; anything else is end of input:
+  # the client's end of the pipe closed, so it is certainly gone.
+  if [ "$rc" -gt 128 ]; then
+    why="its heartbeat was silent for ${LIFELINE_TIMEOUT}s (laptop asleep or the network gone)"
+  else
+    why="its lifeline connection closed (the client exited or lost its network)"
+  fi
+  printf '%s\n' "$why" >"$work/lost" 2>/dev/null || return 0
   pid=$(cat "$work/pid" 2>/dev/null || true)
   case "$pid" in "" | *[!0-9]*) pid="" ;; esac
   if [ -n "$pid" ]; then
-    printf 'goway-remote: client of run %s is gone; stopping its job\n' "$2" >&2
+    printf 'goway-remote: client of run %s is gone (%s); stopping its job\n' "$2" "$why" >&2
     stop_group "$pid"
     return 0
   fi
@@ -805,6 +828,16 @@ resolve() {
     fi
   done
   printf 'none;nothing found on PATH\n'
+}
+
+# discard ROOT RUN_ID: remove the synced work dir of a run that will not start (goway
+# found the command has no certain equivalent on this host and re-picked another one).
+# Best effort like the end of a run: it never fails; gc collects what it cannot remove.
+discard() {
+  local root
+  root=$(root_dir "$1")
+  case "$2" in *[!A-Za-z0-9-]* | "") die "discard: bad run id" ;; esac
+  remove_work "$root/work/$2"
 }
 
 # envfile ROOT RUN_ID: store the run's --env values (NUL-separated on
@@ -1269,7 +1302,7 @@ run() {
   rm -f "$work/born" "$work/creator"
   printf '%s\n' "$$" >"$work/runner"
   trap 'remove_work "$work"; exit 143' TERM
-  if [ -e "$work/lost" ]; then remove_work "$work"; exit 143; fi
+  if [ -e "$work/lost" ]; then lost_note "$work"; remove_work "$work"; exit 143; fi
   # What the last automatic disk-budget eviction freed (it ran detached).
   if [ -s "$root/evicted.log" ]; then
     cat "$root/evicted.log" >&2 2>/dev/null || true
@@ -1350,6 +1383,8 @@ run() {
   # the seed it was synced from, and its cache (see evict).
   GC_PROTECT="|$work|$root/seed/$(cat "$work/seed" 2>/dev/null || true)|$cache|"
   make_room "$root" "$cache" "$slot" "$repo_id" "$room" "$t_max"
+  # Only making room protects them; the gc after the run may take what it left.
+  GC_PROTECT=""
   sync_slot "$work/tree" "$rundir" "$work" "$keepignored" "$keepb64" "$(cat "$work/seed" 2>/dev/null || true)" "$cache/target-$slot"
   # The snapshot has done its job; its links hold no data of their own.
   rm -rf "$work/tree"
@@ -1393,10 +1428,16 @@ run() {
     if [ "${#sc_tmp}" -ge 80 ]; then sc_tmp=$(short_private_dir) || sc_tmp=; fi
     if [ -n "$sc_tmp" ]; then
       mkdir -p "$sc_tmp" 2>/dev/null
+      sccache_heal "$cache" "$sc_tmp"
       TMPDIR=$sc_tmp sccache --start-server >/dev/null 2>&1 || true
+      printf '%s\n' "$sc_tmp" >"$cache/sccache.tmpdir" 2>/dev/null || true
+      export RUSTC_WRAPPER=sccache
+      cc_launcher=sccache
+    else
+      # No stable directory for the server: a build would start it under the
+      # run's TMPDIR, which is removed with the run. Build without sccache.
+      unset SCCACHE_DIR SCCACHE_SERVER_UDS SCCACHE_IDLE_TIMEOUT
     fi
-    export RUSTC_WRAPPER=sccache
-    cc_launcher=sccache
   elif command -v ccache >/dev/null 2>&1; then
     export CCACHE_DIR="${CCACHE_DIR:-$cache/ccache}"
     cc_launcher=ccache
@@ -1425,7 +1466,7 @@ run() {
   # long enough for the watchdog to stop the job and for cleanup to run.
   trap 'hangup=1' HUP PIPE
   trap - TERM
-  if [ -e "$work/lost" ]; then remove_work "$work"; exit 143; fi
+  if [ -e "$work/lost" ]; then lost_note "$work"; remove_work "$work"; exit 143; fi
   cd "$rundir"
   : >"$work/pid"
   # The watchdog must not inherit the lock fds, or a lingering `sleep`
@@ -1463,6 +1504,7 @@ run() {
   : >"$work/done"
   cd "$root"
   memory_report "$root" "$repo_id" "$work" "$rc"
+  lost_note "$work"
   # A failed command: before blaming the code, goway compares every synced
   # file the command did not itself change with the laptop's.
   if [ -n "$verify" ] && [ "$rc" -ne 0 ] && [ ! -e "$work/lost" ] && kill -0 "$PPID" 2>/dev/null; then
@@ -1766,6 +1808,19 @@ work_young() {
   [ "$now" -ge "$born" ] && [ $((now - born)) -lt "$WORK_GRACE" ]
 }
 
+# work_alive DIR: whether the run that owns the work dir DIR still has a live shell
+# or job (its recorded runner or job pid): liveness by process, never by age, as a
+# second guard behind the dir's lock.
+work_alive() {
+  local f pid
+  for f in runner pid; do
+    pid=$(cat "$1/$f" 2>/dev/null || true)
+    case "$pid" in "" | *[!0-9]*) continue ;; esac
+    if kill -0 "$pid" 2>/dev/null; then return 0; fi
+  done
+  return 1
+}
+
 # Seconds since the last use of DIR (its meta.json mtime).
 age_of() {
   local m
@@ -1843,6 +1898,8 @@ gc_entry() {
   # the monotonic clock), not by wall-clock age: if the host's clock jumps
   # forward every age is huge, and this dir must still survive.
   if [ "$kind" = work ] && [ "$action" = "$verb" ] && work_young "$dir"; then action=keep; fi
+  # A work dir whose run is alive is never taken, whatever its lock or age say.
+  if [ "$kind" = work ] && [ "$action" = "$verb" ] && work_alive "$dir"; then action=busy; fi
   bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$action" "$kind" "$age" "${bytes:-0}" "$repo" "$dir"
   GC_ACTION=$action; GC_BYTES=${bytes:-0}
@@ -2264,6 +2321,54 @@ short_private_dir() {
   printf '%s\n' "$d"
 }
 
+# sccache_server_tmpdir SOCK: the TMPDIR the running sccache server for the unix socket SOCK
+# was started under (a client that finds no server starts one with its own
+# environment, so a job whose server idled out mid-run can start one under the
+# run's TMPDIR); empty when unknown (no /proc, no such server).
+sccache_server_tmpdir() {
+  local p env
+  for p in /proc/[0-9]*; do
+    [ -O "$p" ] && [ -r "$p/environ" ] || continue
+    env=$(tr '\0' '\n' <"$p/environ" 2>/dev/null || true)
+    case "$env" in *$'\n'"SCCACHE_START_SERVER=1"$'\n'* | "SCCACHE_START_SERVER=1"$'\n'*) ;; *) continue ;; esac
+    case "$env" in *$'\n'"SCCACHE_SERVER_UDS=$1"$'\n'* | "SCCACHE_SERVER_UDS=$1"$'\n'*) ;; *) continue ;; esac
+    printf '%s\n' "$env" | sed -n 's/^TMPDIR=//p' | head -1
+    return 0
+  done
+  return 0
+}
+
+# sccache_heal CACHE TMP: stop this repository's shared sccache server when it
+# is broken, so the caller starts a fresh one under the stable TMP. Broken:
+# it does not answer, or it was not started by this goway under a TMPDIR that
+# still exists (a server of an older goway runs under a deleted per-run
+# TMPDIR and fails every build, yet constant use keeps its idle timeout from
+# ever firing). Silent when it is healthy; one note when it restarts it.
+sccache_heal() {
+  local cache=$1 tmp=$2 why= recorded= actual=
+  # Only the unix-socket server goway starts; with no socket there is no server
+  # to heal (and asking one would start it under the run's TMPDIR).
+  [ -S "${SCCACHE_SERVER_UDS:-}" ] || return 0
+  TMPDIR=$tmp bounded_for 5 sccache --show-stats >/dev/null 2>&1 || why="it does not answer"
+  if [ -z "$why" ]; then
+    actual=$(sccache_server_tmpdir "$SCCACHE_SERVER_UDS")
+    if [ -n "$actual" ] && [ "$actual" != "$tmp" ]; then why="it runs under the temp directory $actual of a build, which is removed with its run"; fi
+  fi
+  if [ -z "$why" ]; then
+    read -r recorded <"$cache/sccache.tmpdir" 2>/dev/null || recorded=
+    if [ -z "$recorded" ]; then
+      why="it was started by an older goway, under a temp directory that may be gone"
+    elif [ ! -d "$recorded" ]; then
+      why="its temp directory $recorded is gone"
+    fi
+  fi
+  [ -n "$why" ] || return 0
+  printf 'goway-remote: restarting the shared sccache server (%s)\n' "$why" >&2
+  bounded_for 10 sccache --stop-server >/dev/null 2>&1 || true
+  rm -f "$cache/sccache.tmpdir" 2>/dev/null || true
+  return 0
+}
+
 # The sccache server socket for a cache dir: inside it when the path fits a
 # unix socket address, else in the short private dir (sccache fails every
 # build with "path must be shorter than SUN_LEN" otherwise).
@@ -2318,6 +2423,7 @@ case "$verb" in
   purge) purge "$@" ;;
   lifeline) lifeline "$@" ;;
   resolve) resolve "$@" ;;
+  discard) discard "$@" ;;
   ping) printf 'goway-remote ok\n' ;;
   *) die "unknown verb: $verb" ;;
 esac

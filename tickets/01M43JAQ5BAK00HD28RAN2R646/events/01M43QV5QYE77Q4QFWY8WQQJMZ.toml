@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T15:17:13Z"
+digest = "98cec75937121e17ed4340f22f4e027f8a3eef14ebe729d245e91358fdb2292f"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8b325819-46c2-4982-8228-2d876c1421d3 with nextest profile: default
+    Starting 1 test across 72 binaries (817 tests skipped)
+        PASS [   2.116s] goway::evict_live the_lifeline_says_why_it_stopped_a_job_and_tells_silence_from_a_closed_pipe
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   2.122s] 1 test run: 1 passed, 817 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_lifeline_says_why_it_stopped_a_job_and_tells_silence_from_a_closed_pipe)'"
+size = 587
+status = "measured"
+tests = ["the_lifeline_says_why_it_stopped_a_job_and_tells_silence_from_a_closed_pipe"]
+at = "2026-10-04T15:17:13Z"
+actor = "lognd"
+rev = 1

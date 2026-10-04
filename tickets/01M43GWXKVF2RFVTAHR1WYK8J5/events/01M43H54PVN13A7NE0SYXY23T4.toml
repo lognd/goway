@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T13:20:18Z"
+digest = "9b86f8bac6e25b535ae5d1155991cb162be7d81d8b4ad2ce6e2f7ba860955c94"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3m 01s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 633addde-76bd-46b3-9cd0-f2531fbcdb61 with nextest profile: default
+    Starting 3 tests across 1 binary (69 binaries skipped)
+        PASS [   7.360s] goway::mem_footprint a_run_records_its_peak_memory_and_the_probe_reports_it
+        PASS [   9.423s] goway::mem_footprint a_job_in_its_own_scope_gets_its_command_line_untouched
+        PASS [  18.468s] goway::mem_footprint a_job_the_oom_killer_killed_is_explained_in_plain_words
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  18.473s] 3 tests run: 3 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(mem_footprint)'"
+size = 956
+status = "measured"
+tests = ["a_run_records_its_peak_memory_and_the_probe_reports_it", "a_job_in_its_own_scope_gets_its_command_line_untouched", "a_job_the_oom_killer_killed_is_explained_in_plain_words"]
+at = "2026-10-04T13:20:20Z"
+actor = "lognd"
+rev = 1

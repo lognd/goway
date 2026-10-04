@@ -1,0 +1,11 @@
+kind = "create"
+title = "The creator-pid gc test fails on a host that booted under two minutes ago"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 1
+scope = ["crates/goway/tests/clock.rs"]
+acceptance = ["Given a helper whose uptime is under the work-dir grace, when the dead-creator gc test runs, then a dir with no birth marker and a dead creator is removed and the test passes"]
+at = "2026-10-04T13:15:56Z"
+actor = "lognd"
+rev = 1

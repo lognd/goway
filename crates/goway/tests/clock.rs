@@ -77,7 +77,11 @@ fn a_clock_jump_never_lets_gc_remove_a_run_that_is_starting() {
             .success()
     );
     let starting = work_dir(&root, "starting", Some(uptime()));
-    let long_ago = work_dir(&root, "long-ago", Some(uptime().saturating_sub(100_000)));
+    // Born at boot (uptime 0); only old by the monotonic clock once the host
+    // has been up longer than the 120 s grace (plus a margin), which a freshly
+    // booted CI runner or helper may not have.
+    let long_ago = work_dir(&root, "long-ago", Some(0));
+    let long_ago_is_old = uptime() >= 150;
     let unmarked = work_dir(&root, "unmarked", None);
     // The helper's wall clock jumps forward by ten years.
     let out = gc_in_the_future(home.path(), 10);
@@ -86,7 +90,9 @@ fn a_clock_jump_never_lets_gc_remove_a_run_that_is_starting() {
         starting.exists(),
         "a starting run was removed after a clock jump"
     );
-    assert!(!long_ago.exists(), "an old dir by the monotonic clock goes");
+    if long_ago_is_old {
+        assert!(!long_ago.exists(), "an old dir by the monotonic clock goes");
+    }
     assert!(
         !unmarked.exists(),
         "a dir without the marker follows the age rule"
@@ -103,7 +109,9 @@ fn a_dir_whose_creator_process_is_alive_is_never_removed() {
             .status
             .success()
     );
-    let dir = work_dir(&root, "mine", Some(0));
+    // No birth marker: only the creator pid can protect it (a marker of 0 would
+    // count as young on a host that booted under two minutes ago).
+    let dir = work_dir(&root, "mine", None);
     // This test process is the creator; it is alive.
     std::fs::write(dir.join("creator"), format!("{}\n", std::process::id())).unwrap();
     assert!(gc_in_the_future(home.path(), 10).status.success());
