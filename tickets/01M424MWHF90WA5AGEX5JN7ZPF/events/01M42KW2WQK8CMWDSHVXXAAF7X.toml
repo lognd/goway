@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/src/cmakeapi.rs", "crates/goway/src/remote.sh", "crates/goway/tests/cmake_api.rs", "crates/goway/tests/fixtures/cxxshard/CMakeLists.txt", "docs/doctor.md", "docs/cmake.md", "crates/goway/src/lib.rs", "crates/goway/src/doctor.rs", "crates/goway/src/cli.rs", "crates/goway/src/doctor/projneeds.rs", "docs/usage.md"]
+new = ["crates/goway/src/cmakeapi.rs", "crates/goway/src/remote.sh", "crates/goway/tests/cmake_api.rs", "crates/goway/tests/fixtures/cxxshard/CMakeLists.txt", "docs/doctor.md", "docs/cmake.md", "crates/goway/src/lib.rs", "crates/goway/src/doctor.rs", "crates/goway/src/cli.rs", "crates/goway/src/doctor/projneeds.rs", "docs/usage.md", "crates/goway/src/doctor/cmakecheck.rs"]
+at = "2026-10-04T04:48:34Z"
+actor = "lognd"
+rev = 1
