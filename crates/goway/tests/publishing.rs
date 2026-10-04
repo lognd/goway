@@ -195,9 +195,7 @@ fn every_readme_download_link_names_a_file_the_release_publishes() {
         .match_indices(prefix)
         .map(|(i, _)| {
             let rest = &readme[i + prefix.len()..];
-            let end = rest
-                .find(|c: char| c == ')' || c == ' ' || c == '\n' || c == '|')
-                .unwrap_or(rest.len());
+            let end = rest.find([')', ' ', '\n', '|']).unwrap_or(rest.len());
             &rest[..end]
         })
         .collect();
