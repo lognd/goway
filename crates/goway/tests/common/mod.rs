@@ -84,12 +84,11 @@ impl Held {
         self.release();
         let status = self.child.wait().unwrap();
         // The pipes close with the process; give the readers a moment.
-        let (stdout, stderr) = (Arc::clone(&self.stdout), Arc::clone(&self.stderr));
         wait_for("the output readers", || {
-            Arc::strong_count(&stdout) == 1 && Arc::strong_count(&stderr) == 1
+            Arc::strong_count(&self.stdout) == 1 && Arc::strong_count(&self.stderr) == 1
         });
-        let out = stdout.lock().unwrap().clone();
-        let err = stderr.lock().unwrap().clone();
+        let out = self.stdout.lock().unwrap().clone();
+        let err = self.stderr.lock().unwrap().clone();
         Output {
             status,
             stdout: out,
