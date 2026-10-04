@@ -2,12 +2,12 @@
 id = "01M42TD5V6H043JYBGK591BBA2"
 title = "Wire the measured clock offset into pool probe_one"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T06:42:46Z"
-updated = "2026-10-04T06:42:46Z"
+updated = "2026-10-04T06:46:41Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/tests/clock.rs"]
 
 [[acceptance]]
