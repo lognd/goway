@@ -22,6 +22,7 @@ use std::time::{Duration, Instant};
 use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
 use crate::remote::{self, Call};
+use crate::spawn::CommandExt as _;
 use crate::ssh::{self, Failure, KeyPolicy, Target};
 use crate::state::State;
 use crate::transport::{self, Kind};
@@ -373,7 +374,7 @@ fn windows_lookup(name: &str) -> Vec<IpAddr> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .spawn();
+        .spawn_locked();
     let mut child = match child {
         Ok(c) => c,
         Err(e) => {
@@ -428,7 +429,7 @@ impl Prober for SshProber {
     fn probe(&self, target: &Target, policy: KeyPolicy, remote: &str) -> ProbeResult {
         let mut cmd = ssh::command(target, &self.settings, policy, remote);
         cmd.stdin(Stdio::null());
-        match cmd.output() {
+        match cmd.output_locked() {
             Ok(out) if out.status.success() => {
                 let (_noise, payload) = remote::split_frame(out.stdout);
                 Ok(String::from_utf8_lossy(&payload).into_owned())

@@ -27,8 +27,6 @@ if [ "$(uname -s)" = Darwin ]; then
   if ! command -v setsid >/dev/null 2>&1; then
     setsid() { perl -e 'use POSIX qw(setsid); setsid(); exec @ARGV or exit 127' -- "$@"; }
   fi
-  # Without coreutils' nproc.
-  if ! command -v nproc >/dev/null 2>&1; then nproc() { sysctl -n hw.ncpu; }; fi
 fi
 
 die() { printf 'goway-remote: %s\n' "$*" >&2; exit 125; }
@@ -262,8 +260,9 @@ glob_escape() {
 # entry with a leading / is relative to the tree root (and a glob); one
 # without matches a directory of that name at any depth.
 detect_keep() {
-  local tree=$1 name rel dir pre
-  while IFS=$SOH read -r -d '' name rel; do
+  local tree=$1 name rel dir pre us=$'\037'
+  # Fields are split on US, not SOH: bash 3.2 (macOS) mishandles IFS=$'\001' in read.
+  while IFS=$us read -r -d '' name rel; do
     dir=""; [ "$rel" = "${rel%/*}" ] || dir=$(glob_escape "${rel%/*}")
     pre="/${dir:+$dir/}"
     case "$name" in
@@ -278,7 +277,7 @@ detect_keep() {
   done < <(find "$tree" \( -type d \( -name node_modules -o -name .git \) -prune \) -o \
     -type f \( -name package.json -o -name pyproject.toml -o -name 'requirements*.txt' \
     -o -name CMakeLists.txt -o -name pom.xml -o -name build.gradle -o -name build.gradle.kts \) \
-    -printf "%f\\001%P\\0")
+    -printf "%f\\037%P\\0")
 }
 
 # sha_records DIR LIST: "sha256  path" records (NUL-terminated, sorted) of the
@@ -654,7 +653,7 @@ gpu_export() {
 # Before a shard's command runs, the program it names may turn out to be a
 # GoogleTest or Catch2 v3 test binary (usually one built on this host during
 # the run). The file is only ever READ, never executed: it must be a regular
-# ELF or PE executable (magic bytes, so scripts never count) and contain
+# ELF, PE or Mach-O executable (magic bytes, so scripts never count) and contain
 # EVERY marker string of a framework, found with a fixed-string search over
 # a bounded prefix. Markers are flag and variable names the frameworks need
 # to parse their own command line; unlike symbols they survive stripping.
@@ -678,7 +677,8 @@ sniff_binary() {
   if [ -z "$f" ] || [ ! -f "$f" ] || [ ! -r "$f" ]; then printf 'none'; return 0; fi
   magic=$(head -c 4 <"$f" 2>/dev/null | od -An -tx1 | tr -d ' \n' || true)
   case "$magic" in
-    7f454c46 | 4d5a*) ;;
+    # ELF, PE, and Mach-O (64- and 32-bit, either byte order, and fat binaries).
+    7f454c46 | 4d5a* | cffaedfe | cefaedfe | feedfacf | feedface | cafebabe) ;;
     *) printf 'none'; return 0 ;;
   esac
   # One pass for all markers; the output is capped so a hostile file full
@@ -1144,6 +1144,11 @@ static_facts() {
   fi
 }
 
+# cores: this host's logical CPU count (macOS asks sysctl, which coreutils' nproc need not be installed for).
+cores() {
+  if [ "$IS_DARWIN" = 1 ]; then sysctl -n hw.ncpu; else nproc; fi
+}
+
 # machine: this host's CPU architecture, spelled as Linux does (arm64 is aarch64).
 machine() {
   case "$(uname -m)" in
@@ -1179,7 +1184,7 @@ probe() {
   awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {if (t) printf "mem_total=%.0f\n", t*1024; if (a) printf "mem_avail=%.0f\n", a*1024}' /proc/meminfo 2>/dev/null || true
   fi
   if [ "$want_static" = 1 ]; then static_facts; fi
-  printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(machine)" "$(uname -n)" "$(nproc)"
+  printf 'arch=%s\nhostname=%s\ncores=%s\n' "$(machine)" "$(uname -n)" "$(cores)"
   printf 'os=%s\n' "$(uname -s | tr '[:upper:]' '[:lower:]')"
   if [ "$IS_DARWIN" = 1 ]; then
     # "{ 1.23 1.45 1.67 }"

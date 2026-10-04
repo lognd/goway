@@ -25,6 +25,7 @@ use crate::render::{self, Renderer};
 use crate::repo::Repo;
 use crate::run::{self, Env};
 use crate::runners;
+use crate::spawn::CommandExt as _;
 use crate::ssh;
 use crate::state::State;
 use crate::termfilter;
@@ -343,7 +344,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                                 .stdin(Stdio::null())
                                 .stdout(Stdio::piped())
                                 .stderr(Stdio::piped())
-                                .spawn()
+                                .spawn_locked()
                                 .map_err(|e| {
                                     Error::Usage(format!("cannot run `{}`: {e}", command[0]))
                                 })?
@@ -379,7 +380,7 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                                 .stdin(Stdio::null())
                                 .stdout(Stdio::piped())
                                 .stderr(Stdio::piped())
-                                .spawn()
+                                .spawn_locked()
                                 .map_err(|e| Error::Ssh {
                                     host: host.name.clone(),
                                     message: format!("cannot run ssh: {e}"),

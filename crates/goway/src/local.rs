@@ -28,6 +28,7 @@ use crate::render::Renderer;
 use crate::repo::Repo;
 use crate::resolve::{Found, Source};
 use crate::run::{self, Report};
+use crate::spawn::CommandExt as _;
 use crate::ssh::Target;
 use crate::state::State;
 
@@ -144,7 +145,7 @@ pub fn probe(config: &Config, jobs: &Path, state: &mut State, disk: bool) -> Res
         .arg("-c")
         .arg(pool::probe_command(config, disk, statics))
         .stdin(Stdio::null())
-        .output()
+        .output_locked()
         .map_err(|e| Error::Usage(format!("cannot probe this machine: {e}")))?;
     if !out.status.success() {
         return Err(Error::Usage(format!(

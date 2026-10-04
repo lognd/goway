@@ -18,6 +18,7 @@ use crate::error::{Error, Result};
 use crate::remote::{self, Call};
 use crate::repo::{self, Repo};
 use crate::session;
+use crate::spawn::CommandExt as _;
 use crate::ssh::{self, KeyPolicy, Target};
 use crate::transport::{self, Kind as HostKind};
 
@@ -302,7 +303,7 @@ pub fn file_set(root: &Path, secrets: &Secrets) -> Result<FileSet> {
         .arg("-C")
         .arg(root)
         .args(["ls-files", "-co", "--exclude-standard", "-z", "--full-name"])
-        .output()
+        .output_locked()
         .map_err(|e| Error::Git {
             message: format!("cannot run git: {e}"),
         })?;
@@ -939,7 +940,7 @@ impl SshTransport<'_> {
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
-                .spawn()
+                .spawn_locked()
                 .map_err(|e| self.fail(format!("cannot run ssh: {e}")))?;
             let out = capture(child, MAX_HELPER_STDOUT, MAX_HELPER_STDERR)
                 .map_err(|e| self.fail(format!("cannot run ssh: {e}")))?;
@@ -989,7 +990,7 @@ pub fn exchange_child(mut cmd: std::process::Command, input: &[u8]) -> Result<Ve
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
+        .spawn_locked()
         .map_err(spawn_err)?;
     let mut stdin = child.stdin.take();
     let out = std::thread::scope(|scope| {
@@ -1237,7 +1238,7 @@ pub fn feed_child(
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
-        .spawn()
+        .spawn_locked()
         .map_err(|e| Error::Ssh {
             host: String::new(),
             message: format!("cannot spawn: {e}"),

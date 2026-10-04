@@ -27,6 +27,7 @@ pub mod run;
 pub mod runners;
 pub mod session;
 pub mod shard;
+pub mod spawn;
 pub mod ssh;
 pub mod sshenv;
 pub mod sshsetup;

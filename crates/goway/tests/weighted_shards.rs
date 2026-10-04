@@ -39,6 +39,12 @@ fn world() -> common::World {
     );
     std::fs::write(w.config.join("config.toml"), config).unwrap();
     shim(&w, "nproc", "echo ${FAKE_NPROC:-4}");
+    // A Mac's remote script asks sysctl for the core count; everything else passes through.
+    shim(
+        &w,
+        "sysctl",
+        "if [ \"$*\" = \"-n hw.ncpu\" ]; then echo ${FAKE_NPROC:-4}; else exec /usr/sbin/sysctl \"$@\"; fi",
+    );
     shim(&w, "fake-nextest", "echo \"ARGS $*\"");
     w
 }

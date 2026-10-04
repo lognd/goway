@@ -25,6 +25,7 @@ use crate::remote::Call;
 use crate::render::Renderer;
 use crate::repo::Repo;
 use crate::resolve::{Found, Lookup, Prober};
+use crate::spawn::CommandExt as _;
 use crate::ssh;
 use crate::state::State;
 use crate::sync::{self, Label, SshTransport};
@@ -916,7 +917,7 @@ fn stream(
         .stdin(Stdio::inherit())
         .stdout(piped(filter_out || framed))
         .stderr(piped(filter_err))
-        .spawn()
+        .spawn_locked()
         .map_err(ssh_err)?;
     let (out, err) = (child.stdout.take(), child.stderr.take());
     let status = std::thread::scope(|s| {

@@ -98,8 +98,13 @@ jobs:
             PATH="/opt/homebrew/opt/$d/libexec/gnubin:$PATH"
           done
           export PATH
-          # Not yet green on macOS (tracked in docs/macos.md): the remote
-          # script's keep-set detection and framework detection.
-          # Retries absorb timing flakes on the small, busy runners.
-          cargo nextest run -p goway --locked --no-fail-fast --retries 2 \
-            -E 'not (binary(remote_ps1) | binary(shard_detect) | binary(weighted_shards) | test(deleted_files_and_leftovers_go_but_dependency_dirs_stay))'
+          # remote_ps1 needs PowerShell, which a Mac does not have.
+          # No retries: a hang or a flake here is a bug (see docs/macos.md).
+          cargo nextest run -p goway --locked --no-fail-fast -E 'not binary(remote_ps1)'
+      - name: The tests that start many helper calls at once, repeated (the spawn race)
+        run: |
+          for d in coreutils findutils gnu-sed gnu-tar grep; do
+            PATH="/opt/homebrew/opt/$d/libexec/gnubin:$PATH"
+          done
+          export PATH
+          cargo nextest run -p goway --locked --no-fail-fast --stress-count 6 -E 'binary(slot_trees) | binary(nesting) | binary(copy_integrity) | test(spawn::)'
