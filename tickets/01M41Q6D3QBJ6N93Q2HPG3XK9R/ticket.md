@@ -2,7 +2,8 @@
 id = "01M41Q6D3QBJ6N93Q2HPG3XK9R"
 title = "remote.ps1: the Windows side of goway's remote protocol, at parity with remote.sh"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 8
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
