@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T17:42:08Z"
-updated = "2026-10-04T03:55:13Z"
-scope = ["crates/goway/src/pool.rs", "crates/goway/src/config.rs", "crates/goway/src/status.rs", "crates/goway/src/remote.sh", "crates/goway/tests/owner_awareness.rs", "crates/goway/src/facts.rs", "docs/config.md"]
+updated = "2026-10-04T04:00:54Z"
+scope = ["crates/goway/src/pool.rs", "crates/goway/src/config.rs", "crates/goway/src/status.rs", "crates/goway/src/remote.sh", "crates/goway/tests/owner_awareness.rs", "crates/goway/src/facts.rs", "docs/config.md", "crates/goway/src/needs.rs"]
 
 [[acceptance]]
 text = "Given a helper whose Windows user was active within the idle window (default 5 minutes) or which runs on battery, when goway picks hosts, then the helper is never skipped for that reason; an idle helper on mains power is preferred when the choice is otherwise close (a scoring penalty, not an exclusion)"

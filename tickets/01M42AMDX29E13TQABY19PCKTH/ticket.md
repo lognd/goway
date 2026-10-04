@@ -8,8 +8,8 @@ points = 5
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:07:06Z"
-updated = "2026-10-04T03:56:30Z"
-scope = ["crates/goway/src/add.rs", "crates/goway/src/doctor.rs", "crates/goway/src/cli.rs", "docs/usage.md", "docs/install-windows.md"]
+updated = "2026-10-04T03:58:54Z"
+scope = ["crates/goway/src/add.rs", "crates/goway/src/doctor.rs", "crates/goway/src/cli.rs", "docs/usage.md", "docs/install-windows.md", "crates/goway/src/sshsetup.rs", "crates/goway/src/winadmin.rs", "crates/goway/src/lib.rs", "crates/goway/tests/win_elevate.rs"]
 
 [[acceptance]]
 text = "Given goway add or goway doctor --fix with --rsudo for a step that needs Windows administrator rights on a helper, when it runs, then goway elevates on the helper through its Windows OpenSSH server as an administrator account (key in administrators_authorized_keys, unattended) if one is configured, else through goway-setup and a UAC prompt on the helper's desktop when someone is logged in there, else stops with the exact command to run as administrator on the helper; no password is ever stored or typed into goway, and the elevated session never starts WSL"
