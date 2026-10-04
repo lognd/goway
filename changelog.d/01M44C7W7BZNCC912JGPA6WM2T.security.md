@@ -1,0 +1,1 @@
+goway no longer runs cargo, rustc-shim probes or git hooks chosen by a repository on your laptop: requirements are read from manifests, version probes run outside the repository, and git runs with core.fsmonitor and core.hooksPath off.
