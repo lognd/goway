@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T21:25:15Z"
-updated = "2026-10-04T21:33:18Z"
+updated = "2026-10-04T21:33:46Z"
 labels = ["security"]
 scope = ["crates/goway/src/doctor/prereq.rs", "docs/usage.md"]
 
