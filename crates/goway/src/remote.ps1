@@ -783,13 +783,15 @@ function Invoke-Native([string]$Exe, [string[]]$Words, [byte[]]$Stdin, [hashtabl
   $psi.RedirectStandardError = $true
   if ($Env) { foreach ($k in $Env.Keys) { $psi.EnvironmentVariables[$k] = [string]$Env[$k] } }
   $p = [Diagnostics.Process]::Start($psi)
-  $errTask = $p.StandardError.BaseStream.CopyToAsync([IO.Stream]::Null)
+  $errMs = New-Object IO.MemoryStream
+  $errTask = $p.StandardError.BaseStream.CopyToAsync($errMs)
   if ($Stdin -and $Stdin.Length) { $p.StandardInput.BaseStream.Write($Stdin, 0, $Stdin.Length) }
   $p.StandardInput.Close()
   $ms = New-Object IO.MemoryStream
   $p.StandardOutput.BaseStream.CopyTo($ms)
   $p.WaitForExit()
   $errTask.Wait()
+  $script:LastErr = $script:Utf8.GetString($errMs.ToArray())
   return @($p.ExitCode, $ms.ToArray())
 }
 
@@ -1306,7 +1308,7 @@ function Get-GitIgnored([string]$Farm, [string[]]$Paths, [string]$Scratch) {
   foreach ($p in $Paths) { $b = $script:Utf8.GetBytes($p); $ms.Write($b, 0, $b.Length); $ms.WriteByte(0) }
   $null_ = if ($script:IsWin) { 'NUL' } else { '/dev/null' }
   $r = Invoke-Native $git @('-c', "core.excludesFile=$null_", 'check-ignore', '--no-index', '-z', '--stdin') $ms.ToArray() @{ GIT_DIR = $gitdir; GIT_WORK_TREE = $Farm }
-  Write-Err "goway-diag: check-ignore git=$git exit=$($r[0]) bytes=$($r[1].Length) paths=$($Paths -join ',')`n"
+  Write-Err "goway-diag: check-ignore git=$git exit=$($r[0]) bytes=$($r[1].Length) paths=$($Paths -join ',') err=[$($script:LastErr)] gi=[$(Read-TextOrEmpty (P $Farm @('.gitignore')))] argv=[$(Join-WinArgs @('-c', "core.excludesFile=$null_", 'check-ignore'))] stdinlen=$($ms.Length)`n"
   return [string[]](Split-Nul $r[1])
 }
 
