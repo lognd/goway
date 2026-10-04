@@ -60,3 +60,22 @@ fn the_exit_code_of_the_command_survives_a_noisy_helper() {
     assert_eq!(out.status.code(), Some(7), "{}", text(&out.stderr));
     assert_eq!(text(&out.stdout), "hi\n");
 }
+
+// frob:tests crates/goway/src/resolve.rs::noise_fact
+// frob:tests crates/goway/src/doctor.rs::host_checks
+#[test]
+fn doctor_warns_about_noisy_startup_files_with_the_guard_to_add() {
+    let w = common::world_with_ssh(NOISY_FISH_SSH);
+    let out = w.run(&["doctor", "local"]);
+    let all = format!("{}{}", text(&out.stdout), text(&out.stderr));
+    assert!(all.contains("shell startup"), "{all}");
+    assert!(all.contains("Welcome to helios!"), "{all}");
+    assert!(
+        all.contains("case $- in *i*) ;; *) return ;; esac"),
+        "{all}"
+    );
+    // A quiet helper gets no such warning.
+    let quiet = common::world().run(&["doctor", "local"]);
+    let all = format!("{}{}", text(&quiet.stdout), text(&quiet.stderr));
+    assert!(!all.contains("shell startup"), "{all}");
+}
