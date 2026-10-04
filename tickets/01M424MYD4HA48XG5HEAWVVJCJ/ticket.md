@@ -6,8 +6,8 @@ category = "in-progress"
 priority = "medium"
 reporter = "lognd"
 created = "2026-10-04T00:22:32Z"
-updated = "2026-10-04T02:25:49Z"
-scope = ["crates/goway/src/ecotools.rs", "crates/goway/src/doctor.rs", "docs/usage.md"]
+updated = "2026-10-04T02:26:31Z"
+scope = ["crates/goway/src/ecotools.rs", "crates/goway/src/doctor.rs", "docs/usage.md", "crates/goway/src/doctor/projneeds.rs", "crates/goway/src/lib.rs"]
 
 [[acceptance]]
 text = "Given other ecosystems, when doctor determines needs, then it uses each tool's machine-readable output where it exists (cargo metadata, go list -m -json and go env -json, mvn help:effective-pom, Gradle's toolchain report, dotnet --list-sdks) and real parsers (TOML, JSON, XML) for declarative files; plain text matching is only a fallback when the tool is missing, and doctor labels such results approximate and says to install the tool first"
