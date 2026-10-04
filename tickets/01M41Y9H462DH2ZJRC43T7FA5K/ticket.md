@@ -2,7 +2,8 @@
 id = "01M41Y9H462DH2ZJRC43T7FA5K"
 title = "Fleet drift: doctor shows a host-by-tool version table, flags missing or too-old tools as errors and disagreements as drift, and runs record the versions they used"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 5
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
