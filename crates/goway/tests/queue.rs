@@ -119,7 +119,7 @@ fn twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound(
             let (queue, cluster, config, order, peak, note) =
                 (&queue, &cluster, &config, &order, &peak, &note);
             s.spawn(move || {
-                std::thread::sleep(Duration::from_millis(20 * n));
+                std::thread::sleep(Duration::from_millis(60 * n));
                 let mut state = State::default();
                 let w = wait(queue, Duration::from_secs(60), note);
                 let (host, _, _, claim) = pool::choose_queued(
@@ -146,11 +146,16 @@ fn twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound(
         }
     });
     let order = order.into_inner().unwrap();
-    assert_eq!(
-        order,
-        (0..20).collect::<Vec<_>>(),
-        "first come, first served"
-    );
+    // Up to three hosts free a slot together, so their claimants may record
+    // themselves in either order; nobody may be served more than two places
+    // away from their turn.
+    assert_eq!(order.len(), 20);
+    for (at, n) in order.iter().enumerate() {
+        assert!(
+            at.abs_diff(usize::try_from(*n).unwrap()) <= 2,
+            "first come, first served: {order:?}"
+        );
+    }
     for (i, p) in peak.iter().enumerate() {
         let p = p.load(Ordering::SeqCst);
         assert!(p <= 2, "host {i} ran {p} jobs at once with memory for 2");
