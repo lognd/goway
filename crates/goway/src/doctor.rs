@@ -13,6 +13,7 @@ use std::process::Stdio;
 
 mod cmakecheck;
 mod logout;
+mod mac;
 pub mod output;
 mod prereq;
 mod projneeds;
@@ -333,6 +334,7 @@ pub fn assess_project(facts: &BTreeMap<String, String>, needs: &projneeds::Needs
     }
     out.extend(host_checks(facts));
     out.extend(logout::checks(facts));
+    out.extend(mac::checks(facts));
     let mut have: Vec<String> = out.iter().map(|c| c.name.clone()).collect();
     if have.iter().any(|n| n == "cc (linker)") {
         have.push("cc".to_owned());
@@ -1503,7 +1505,7 @@ pub fn doctor(
     cmd_args.extend(names.iter().map(String::as_str));
     // The repository's targets and packages are asked in the same ssh call.
     let cmd = logout::wrap(
-        &needs.prereqs.wrap(&remote::invocation("doctor", &cmd_args)),
+        &mac::wrap(&needs.prereqs.wrap(&remote::invocation("doctor", &cmd_args))),
         &config.defaults.remote_root,
     );
     let call = remote::Call::new("doctor", &cmd_args);
