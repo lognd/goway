@@ -1,0 +1,1 @@
+A helper now stops a job's whole systemd scope (and any process tagged with its run) when its client vanishes or its leader exits with background processes still running, so none outlives its run or holds its build slot.
