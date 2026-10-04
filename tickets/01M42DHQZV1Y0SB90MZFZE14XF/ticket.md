@@ -8,8 +8,8 @@ points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T02:58:04Z"
-updated = "2026-10-04T02:58:04Z"
-scope = ["crates/goway/src/config.rs", "crates/goway/src/pool.rs", "docs/config.md", "docs/usage.md"]
+updated = "2026-10-04T03:50:59Z"
+scope = ["crates/goway/src/config.rs", "crates/goway/src/pool.rs", "docs/config.md"]
 
 [[acceptance]]
 text = "Given a [[host]] without max_jobs, when goway counts its job limit, then the limit is the helper's core count (at least 1), as the owner asked on 2026-10-03; docs explain that jobs run at nice 10 (nice 19 and half the cores while the owner is using the helper) and how to lower max_jobs"
