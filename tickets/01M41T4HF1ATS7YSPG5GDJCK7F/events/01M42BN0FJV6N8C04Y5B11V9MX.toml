@@ -1,0 +1,11 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T02:24:54Z"
+digest = "295d461c196f8c726f3d9477850f1f48b123da5787ec80c88b4c0d7c7986e179"
+provider = "file"
+ref = "docs/install-windows.md"
+size = 46294
+status = "measured"
+at = "2026-10-04T02:24:54Z"
+actor = "lognd"
+rev = 1

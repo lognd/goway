@@ -272,6 +272,18 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
    5. Every step records its prior state; `goway ssh setup --undo HOST`
       removes exactly the lines and settings it added.
 
+### `--with-git` (crates/goway/src/gitmeta.rs)
+
+The `.git` of a helper copy is an overlay: built on the laptop under the
+state dir (init with an empty template, a pack of HEAD's one commit made
+with `rev-list --objects -1` + `pack-objects` + `index-pack`, `shallow`,
+HEAD, one ref file, a whitelisted config, the real index) and added to the
+sync's file list as ordinary `.git/...` entries whose bytes are read from
+the overlay (`write_tar_with`, `compare_claims_with`). Because they are
+ordinary seed files, `remote.sh` and `remote.ps1` need no change and the
+copy-integrity check covers them. Blobs of paths the secret rules keep local
+are filtered out of the pack list.
+
 ## 3. Where each part is documented
 
 User-facing behaviour is described in docs/usage.md (run, status, gc,

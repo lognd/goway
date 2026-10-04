@@ -9,6 +9,7 @@ pub mod doctor;
 pub mod error;
 pub mod facts;
 pub mod gc;
+pub mod gitmeta;
 pub mod hosts;
 pub mod interop;
 pub mod local;
@@ -190,6 +191,7 @@ fn run_command(paths: &Paths, renderer: Renderer, args: &cli::RunArgs) -> Result
         needs: args.needs.clone(),
         prefers: args.prefers.clone(),
         trust_copy: args.trust_copy,
+        with_git: args.with_git,
         env: nested,
         command: args.command.clone(),
     };

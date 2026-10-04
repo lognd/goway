@@ -1,0 +1,17 @@
++++
+id = "01M42BHTN4T6FJ9DDR3E51QN55"
+title = "Toolchains that only appear in login shells, and helpers behind an HTTP proxy"
+type = "story"
+category = "todo"
+priority = "medium"
+points = 1
+parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
+reporter = "lognd"
+created = "2026-10-04T02:23:09Z"
+updated = "2026-10-04T02:23:09Z"
+scope = ["crates/goway/src/remote.sh", "crates/goway/src/doctor.rs", "docs/troubleshooting.md"]
+
+[[acceptance]]
+text = "Given rustup, uv, node or go installed for login shells only (PATH set in .profile, not for ssh commands), or a helper that needs HTTP_PROXY to download, when goway runs or doctor checks, then goway finds the usual per-user tool locations without sourcing startup files, and doctor names the proxy variables goway forwards (only when configured, never secrets in logs)"
+bound = false
++++

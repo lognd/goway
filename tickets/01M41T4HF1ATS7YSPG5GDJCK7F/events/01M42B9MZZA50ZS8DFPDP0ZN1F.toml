@@ -1,0 +1,7 @@
+kind = "transition"
+from = "todo"
+to = "in-progress"
+reason = "lease: lognd in goway-wt/GDJCK7F; scope: crates/goway/src/doctor.rs, crates/goway/src/facts.rs, crates/goway-setup/src/tune.rs, crates/goway-setup/src/cli.rs, crates/goway-setup/src/host.rs, docs/install-windows.md, crates/goway-setup/tests/tune.rs, crates/goway-setup/src/lib.rs, crates/goway/src/remote.sh, crates/goway-setup/src/render.rs, crates/goway-setup/src/hostsys.rs, crates/goway-setup/src/error.rs, docs/troubleshooting.md; ttl 7200s"
+at = "2026-10-04T02:18:42Z"
+actor = "lognd"
+rev = 1
