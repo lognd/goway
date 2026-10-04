@@ -2,13 +2,13 @@
 id = "01M42EZ3TAWHTCJ4MWVYKNEA39"
 title = "The pool only picks hosts of the laptop's OS unless the run pins a host or asks for another OS"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T03:22:51Z"
-updated = "2026-10-04T03:23:04Z"
+updated = "2026-10-04T03:23:05Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/needs.rs", "crates/goway/src/shard.rs", "crates/goway/tests/os_pool.rs", "docs/hosts.md"]
 
 [[acceptance]]
