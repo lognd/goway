@@ -6,7 +6,7 @@ category = "in-progress"
 priority = "medium"
 reporter = "lognd"
 created = "2026-10-04T00:22:30Z"
-updated = "2026-10-04T05:20:02Z"
+updated = "2026-10-04T05:20:04Z"
 scope = ["crates/goway/src/cmakeapi.rs", "crates/goway/src/remote.sh", "crates/goway/tests/cmake_api.rs", "crates/goway/tests/fixtures/cxxshard/CMakeLists.txt", "docs/doctor.md", "docs/cmake.md", "crates/goway/src/lib.rs", "crates/goway/src/doctor.rs", "crates/goway/src/cli.rs", "crates/goway/src/doctor/projneeds.rs", "docs/usage.md", "crates/goway/src/doctor/cmakecheck.rs", "crates/goway/src/add.rs"]
 
 [[acceptance]]
@@ -15,7 +15,7 @@ bound = true
 
 [[acceptance]]
 text = "Given the packages a CMake project finds (find_package(GTest) needs libgtest-dev, find_package(Catch2) needs catch2, pkg_check_modules entries), when doctor runs, then one table maps them to apt, dnf and pacman package names, and FetchContent and CPM dependencies need no system package"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given doctor analyses a project, when it configures it, then that only happens on helpers inside goway's labelled root (never on the laptop and never in the user's work tree), every reply is read with size limits and parsed strictly, and the scratch directory is removed afterwards and covered by gc"
