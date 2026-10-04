@@ -2,7 +2,8 @@
 id = "01M42K43FTZJG00K25DCDZ3HFD"
 title = "doctor quiet-output test must not assume bash passes on macOS"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
