@@ -2,7 +2,8 @@
 id = "01M42BHTRYPX7PM14FQWR8SNXP"
 title = "SELinux or AppArmor denials on helpers are detected and explained"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 1
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
