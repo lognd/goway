@@ -8,7 +8,7 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T11:28:54Z"
-updated = "2026-10-04T11:56:57Z"
+updated = "2026-10-04T11:57:01Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/tests/remote_ps1.rs", "crates/goway/src/sync.rs", "crates/goway/src/run.rs"]
 
 [[acceptance]]
@@ -17,6 +17,10 @@ bound = false
 
 [[acceptance]]
 text = "Given a Windows helper that would sleep on idle, when a goway job runs there, then remote.ps1 holds SetThreadExecutionState ES_SYSTEM_REQUIRED from the job's own process for exactly the job's lifetime"
+bound = false
+
+[[acceptance]]
+text = "Given the probe and doctor verbs and remote.sh's clock offset and liveness-not-age protection, when remote.ps1 runs them, then probe and doctor report epoch=, probe takes tools:A,B and prints want.TOOL lines, and a starting run's work dir is protected from gc by its creator process or the monotonic clock, not by wall-clock age"
 bound = false
 +++
 
