@@ -8,8 +8,8 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T05:02:38Z"
-updated = "2026-10-04T05:22:44Z"
-scope = ["crates/goway/src/ssh.rs", "crates/goway/src/paths.rs", "crates/goway/tests/ssh_mux.rs", "docs/troubleshooting.md"]
+updated = "2026-10-04T05:24:59Z"
+scope = ["crates/goway/src/ssh.rs", "crates/goway/src/paths.rs", "crates/goway/tests/ssh_mux.rs", "docs/troubleshooting.md", "crates/goway/src/ssh/mux.rs"]
 
 [[acceptance]]
 text = "Given more concurrent goway calls to one helper than its sshd MaxSessions (default 10) allows over one ControlMaster (found live: 'mux_client_request_session: session request failed: Session open refused by peer' then 'ControlSocket ... already exists, disabling multiplexing'), when a session is refused, then goway opens the call without multiplexing or through a second master, prints nothing to the user unless it repeats (one note per run at most), and never leaves a stale control socket behind"
