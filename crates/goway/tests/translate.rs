@@ -47,7 +47,7 @@ fn system_path() -> String {
 }
 
 // frob:ticket 01M42FN011Z3NBG491XAHHZCF5
-// frob:tests crates/goway/src/remote.rs::SCRIPT_SH
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
 #[test]
 fn resolution_searches_absolute_path_directories_only_never_the_cwd_or_the_work_tree() {
     let t = tempfile::tempdir().unwrap();
@@ -82,7 +82,7 @@ fn resolution_searches_absolute_path_directories_only_never_the_cwd_or_the_work_
 }
 
 // frob:ticket 01M42FN011Z3NBG491XAHHZCF5
-// frob:tests crates/goway/src/remote.rs::SCRIPT_SH
+// frob:tests crates/goway/src/remote.rs::SCRIPT_PS
 #[test]
 fn doubt_means_no_translation_and_the_first_certain_tier_wins() {
     let t = tempfile::tempdir().unwrap();
