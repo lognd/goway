@@ -7,7 +7,7 @@ priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T22:33:20Z"
-updated = "2026-10-04T22:52:36Z"
+updated = "2026-10-04T22:52:44Z"
 scope = ["crates/goway-setup/src/ps.rs", "crates/goway-setup/tests/host_plan.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/hostsys.rs", "crates/goway-journal/src/system.rs", "crates/goway-journal/src/plan.rs", "crates/goway-journal/src/journal.rs", "crates/goway-journal/src/model.rs", "crates/goway-setup/src/host.rs", "crates/goway-journal/tests/scenarios.rs", "docs/install-windows.md"]
 
 [[acceptance]]
@@ -20,7 +20,7 @@ bound = false
 
 [[acceptance]]
 text = "Given an existing install with the old boot-only task, When goway-setup install or tune runs again, Then the task is replaced with the repeating one"
-bound = false
+bound = true
 +++
 
 Observed: a helper's distro was Stopped while its keepalive task was Ready, last run hours earlier with result 0. The task has only an AtStartup/AtLogOn trigger; once anything shuts WSL down (wsl --shutdown, a Windows update, goway-setup tune), sleep infinity ends and nothing restarts it. The relay task already repeats every few minutes; the keepalive should too.
