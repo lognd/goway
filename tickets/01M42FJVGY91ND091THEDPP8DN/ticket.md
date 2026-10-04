@@ -8,8 +8,8 @@ points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T03:33:37Z"
-updated = "2026-10-04T04:25:44Z"
-scope = ["crates/goway/src/pool.rs", "crates/goway/src/runners.rs", "crates/goway/src/project.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs", "crates/goway/src/cli.rs", "crates/goway/tests/cross_os.rs", "docs/usage.md", "docs/config.md"]
+updated = "2026-10-04T04:38:25Z"
+scope = ["crates/goway/src/pool.rs", "crates/goway/src/runners.rs", "crates/goway/src/project.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs", "crates/goway/src/cli.rs", "crates/goway/tests/cross_os.rs", "docs/usage.md", "crates/goway/src/lib.rs"]
 
 [[acceptance]]
 text = "Given a recognized cross-platform command (cargo build/test/nextest/clippy, pytest or python -m pytest, go test, npm/pnpm/yarn test, npx vitest/jest, mvn, gradle or gradlew, dotnet test, ctest) and hosts of another OS in the fleet, when goway run picks hosts with no --any-os and no cross_os setting, then it stays on the laptop's OS and prints a prominent warning (its own block, not a one-line note) naming the other-OS hosts that could take it and the two ways to allow it: --any-os for this run, or cross_os = true in the project's goway.toml; cross_os = false silences the warning for that project"
