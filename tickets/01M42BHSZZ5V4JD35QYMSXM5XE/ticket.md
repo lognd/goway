@@ -2,13 +2,13 @@
 id = "01M42BHSZZ5V4JD35QYMSXM5XE"
 title = "Password login off or 2FA on the helper: goway add explains how to install its key by hand"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
 reporter = "lognd"
 created = "2026-10-04T02:23:09Z"
-updated = "2026-10-04T02:23:09Z"
+updated = "2026-10-04T02:36:20Z"
 scope = ["crates/goway/src/add.rs", "crates/goway/src/sshsetup.rs", "docs/ssh-setup.md"]
 
 [[acceptance]]
