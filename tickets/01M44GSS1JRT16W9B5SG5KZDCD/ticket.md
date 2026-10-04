@@ -2,12 +2,12 @@
 id = "01M44GSS1JRT16W9B5SG5KZDCD"
 title = "goway doctor diagnoses an unreachable WSL helper from its Windows side and the manual explains the fix"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 reporter = "lognd"
 created = "2026-10-04T22:33:22Z"
-updated = "2026-10-04T22:33:22Z"
+updated = "2026-10-04T23:04:51Z"
 scope = ["crates/goway/src/doctor", "docs/manual.md"]
 
 [[acceptance]]
