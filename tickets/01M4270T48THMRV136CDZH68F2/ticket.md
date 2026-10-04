@@ -2,13 +2,13 @@
 id = "01M4270T48THMRV136CDZH68F2"
 title = "The same-second slot test must not depend on how long a run takes"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T01:03:58Z"
-updated = "2026-10-04T01:03:58Z"
+updated = "2026-10-04T01:04:08Z"
 scope = ["crates/goway/tests/slot_trees.rs"]
 
 [[acceptance]]
