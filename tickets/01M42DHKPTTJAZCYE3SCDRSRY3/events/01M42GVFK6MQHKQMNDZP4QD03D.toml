@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T03:55:49Z"
+digest = "f301683dde97dd62dd06caaeeab210313e345cae098dc1cabc366869ffb6c4be"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.98s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 16b11ba4-3a3a-4127-866f-d7a41d7d6b26 with nextest profile: default
+    Starting 2 tests across 1 binary (51 binaries skipped)
+        PASS [   5.391s] goway::host_asleep a_command_that_exits_255_on_a_host_that_still_answers_keeps_its_exit_code
+        PASS [  13.221s] goway::host_asleep a_host_that_stops_answering_mid_job_is_reported_asleep_not_as_a_failed_command
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  13.222s] 2 tests run: 2 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(host_asleep)'"
+size = 893
+status = "measured"
+tests = ["a_command_that_exits_255_on_a_host_that_still_answers_keeps_its_exit_code", "a_host_that_stops_answering_mid_job_is_reported_asleep_not_as_a_failed_command"]
+at = "2026-10-04T03:55:49Z"
+actor = "lognd"
+rev = 1
