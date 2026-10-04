@@ -2,7 +2,8 @@
 id = "01M4219T92MBXK35BWZ5MMJ7N2"
 title = "Apply HostConfig::job_limit in the pool and status (default max_jobs = cores/2)"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
