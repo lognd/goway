@@ -528,6 +528,12 @@ impl Selection {
         self
     }
 
+    /// Whether the run may land on any OS: nothing limits the pool to the laptop's family
+    /// (`--any-os` or `cross_os = true`) and no `os=` need names one.
+    pub fn is_any_os(&self) -> bool {
+        self.pool_os.is_none() && !self.needs.iter().any(|t| matches!(t, Term::Os(_)))
+    }
+
     /// The host's OS when it lies outside the default pool, else `None` (an unknown OS stays in).
     pub fn outside_pool(&self, probe: &Probe) -> Option<String> {
         let want = self.pool_os.as_deref()?;
@@ -622,6 +628,7 @@ mod tests {
             disk_free: Some(100 * gib),
             disk_max: None,
             footprints: std::collections::BTreeMap::new(),
+            mem_peaks: std::collections::BTreeMap::new(),
             facts: Facts {
                 mem_total: Some(32 * gib),
                 mem_avail: Some(30 * gib),

@@ -479,6 +479,18 @@ function Remove-EmptyDirs([string]$Dir, [bool]$Self) {
   }
 }
 
+# Best-effort removal of a finished run's work dir (as remote.sh remove_work): it
+# never throws and never changes the command's exit code. A job's detached child, a
+# virus scanner or a concurrent gc may still hold something there, so it retries a
+# few times and otherwise leaves the directory for gc (any unlocked work dir past its
+# orphan age).
+function Remove-Work([string]$Dir) {
+  for ($n = 1; $n -le 5; $n++) {
+    try { Remove-Tree $Dir; return } catch { Start-Sleep -Milliseconds 200 }
+  }
+  Write-Err "goway: note: could not remove the work dir of this run; gc will collect it`n"
+}
+
 function Remove-Tree([string]$Path) {
   if ([IO.Directory]::Exists($Path)) {
     try { [IO.Directory]::Delete($Path, $true) } catch {
@@ -1180,13 +1192,25 @@ function Verb-doctor([string[]]$A) {
   Write-Out $sb.ToString()
 }
 
-# How long (milliseconds) lifeline waits for the client's next heartbeat byte.
-$script:LifelineTimeoutMs = 30000
+# How long (milliseconds) lifeline waits for the client's next heartbeat byte
+# (GOWAY_LIFELINE_TIMEOUT, in seconds, overrides it for tests). Long on purpose: an
+# overloaded laptop sends its beats late, and silence alone is never proof that the
+# client is gone (end of input is, and stops the job at once).
+$script:LifelineTimeoutMs = 120000
+if ($env:GOWAY_LIFELINE_TIMEOUT -match '^\d+$') { $script:LifelineTimeoutMs = 1000 * [int]$env:GOWAY_LIFELINE_TIMEOUT }
+
+# Lost-Note WORK: say why the helper stopped this run, when its lifeline did.
+function Lost-Note([string]$Work) {
+  $why = (Read-TextOrEmpty (P $Work @('lost'))).Trim()
+  if (-not $why) { return }
+  Write-Err "goway: this run was stopped by the helper: the client was considered gone because $why`n"
+}
 
 # lifeline ROOT RUN_ID: the run's lifeline. The client keeps this call open and
 # writes a byte to its stdin every few seconds. When stdin ends (the client
-# died) or no byte arrives for 30 seconds (laptop asleep, network gone), the run
-# is stopped: its job's process tree when the job started, else the run's own
+# died) the run is stopped at once; when no byte arrives for the timeout (laptop
+# asleep, network gone) it is stopped too. The reason goes into the lost marker. The
+# run's job process tree is stopped when the job started, else the run's own
 # process. A run that already finished (its work dir is gone or marked done) is
 # left alone. The same contract as remote.sh.
 function Verb-lifeline([string[]]$A) {
@@ -1195,19 +1219,22 @@ function Verb-lifeline([string[]]$A) {
   $live = { [IO.Directory]::Exists($work) -and -not [IO.File]::Exists((P $work @('done'))) }
   $in = [Console]::OpenStandardInput()
   $buf = New-Object byte[] 1
+  $silent = $false
   while ($true) {
     $t = $in.ReadAsync($buf, 0, 1)
-    if (-not $t.Wait($script:LifelineTimeoutMs)) { break }
+    if (-not $t.Wait($script:LifelineTimeoutMs)) { $silent = $true; break }
     if ($t.Result -le 0) { break }
     if (-not (& $live)) { return }
   }
   if (-not (& $live)) { return }
-  try { Write-Text (P $work @('lost')) '' } catch { return }
+  if ($silent) { $why = "its heartbeat was silent for $([int]($script:LifelineTimeoutMs / 1000))s (laptop asleep or the network gone)" }
+  else { $why = 'its lifeline connection closed (the client exited or lost its network)' }
+  try { Write-Text (P $work @('lost')) "$why`n" } catch { return }
   $pidText = (Read-TextOrEmpty (P $work @('pid'))).Trim()
   if ($pidText -match '^\d+$') {
     $p = Get-Process -Id ([int]$pidText) -ErrorAction SilentlyContinue
     if ($p) {
-      Write-Err "goway-remote: client of run $($A[1]) is gone; stopping its job`n"
+      Write-Err "goway-remote: client of run $($A[1]) is gone ($why); stopping its job`n"
       Stop-Tree $p
       return
     }
@@ -1259,6 +1286,13 @@ function Test-Check([string]$Exe, [string[]]$Words, [int]$Secs) {
     if (-not $p.WaitForExit($Secs * 1000)) { try { Stop-Tree $p } catch { }; return $false }
     return ($p.ExitCode -eq 0)
   } catch { return $false }
+}
+
+# discard ROOT RUN_ID: remove the synced work dir of a run that will not start (as
+# remote.sh discard). Best effort: it never fails; gc collects what it cannot remove.
+function Verb-discard([string[]]$A) {
+  $root = Get-Root $A[0]; Test-Id $A[1] 'discard'
+  Remove-Work (P $root @('work', $A[1]))
 }
 
 # resolve ROOT RUN_ID: for portable command translation (the same contract as remote.sh).
@@ -1380,6 +1414,18 @@ function Age-Of([string]$Dir, [long]$Now) {
   } catch { return 0 }
 }
 
+# Test-WorkAlive DIR: whether the run that owns work dir DIR still has a live runner or
+# job process (its recorded pids): liveness by process, never by age, as a second guard
+# behind the dir's lock (as remote.sh work_alive).
+function Test-WorkAlive([string]$Dir) {
+  foreach ($f in @('runner', 'pid')) {
+    $t = (Read-TextOrEmpty ([IO.Path]::Combine($Dir, $f))).Trim()
+    if ($t -notmatch '^\d+$') { continue }
+    if (Get-Process -Id ([int]$t) -ErrorAction SilentlyContinue) { return $true }
+  }
+  return $false
+}
+
 # Decide one entry: print "action TAB kind TAB age TAB bytes TAB repo TAB id
 # TAB path" and remove it when the action is "remove" and $Mode is apply. The
 # entry's locks are taken exclusively (non-blocking) while it is judged.
@@ -1414,6 +1460,8 @@ function Gc-Entry([string]$Kind, [string]$Dir, [long]$Ttl, [long]$Now, [string]$
   # A run that is starting is protected by liveness, not by wall-clock age: if the
   # host's clock jumps forward every age is huge, and this dir must still survive.
   if ($Kind -eq 'work' -and $action -eq $Verb -and (Test-WorkYoung $Dir)) { $action = 'keep' }
+  # A work dir whose run is alive is never taken, whatever its lock or age say.
+  if ($Kind -eq 'work' -and $action -eq $Verb -and (Test-WorkAlive $Dir)) { $action = 'busy' }
   $bytes = Dir-Bytes $Dir
   Write-Out ("$action`t$Kind`t$age`t$bytes`t$($repo[0])`t$($repo[1])`t$Dir`n")
   $script:GcAction = $action; $script:GcBytes = $bytes
@@ -2397,7 +2445,7 @@ function Verb-run([string[]]$A) {
   foreach ($m in @('born', 'creator')) { $f = P $work @($m); if ([IO.File]::Exists($f)) { try { [IO.File]::Delete($f) } catch { } } }
   Write-Text (P $work @('runner')) ("{0}`n" -f $PID)
   # The client's lifeline gave up on this run while it was starting: clean up and go.
-  if ([IO.File]::Exists((P $work @('lost')))) { Unlock-Key 'work'; try { Remove-Tree $work } catch { }; exit 143 }
+  if ([IO.File]::Exists((P $work @('lost')))) { Lost-Note $work; Unlock-Key 'work'; Remove-Work $work; exit 143 }
   $meta = P $cache @('meta.json')
   if (-not [IO.File]::Exists($meta)) { [IO.File]::WriteAllBytes($meta, [Convert]::FromBase64String($cacheMeta)) }
   [IO.File]::SetLastWriteTimeUtc($meta, [DateTime]::UtcNow)
@@ -2462,7 +2510,7 @@ function Verb-run([string[]]$A) {
   }
   [void](Sync-Slot (P $work @('tree')) $rundir $work $keepIgnored $keepB64 $seedKeyFull $target)
   # The snapshot has done its job; its links hold no data of their own.
-  Remove-Tree (P $work @('tree'))
+  try { Remove-Tree (P $work @('tree')) } catch { }
   # Copy integrity, before the command may start.
   $failed = $false
   if ($verify) {
@@ -2492,7 +2540,7 @@ function Verb-run([string[]]$A) {
   [Environment]::SetEnvironmentVariable('GOWAY_RUN_ID', $runId)
   [Environment]::SetEnvironmentVariable('GOWAY_HOST', [Environment]::MachineName)
 
-  if ([IO.File]::Exists((P $work @('lost')))) { Unlock-Key 'slot'; Unlock-Key 'work'; try { Remove-Tree $work } catch { }; exit 143 }
+  if ([IO.File]::Exists((P $work @('lost')))) { Lost-Note $work; Unlock-Key 'slot'; Unlock-Key 'work'; Remove-Work $work; exit 143 }
   $pidFile = P $work @('pid')
   [IO.File]::WriteAllBytes($pidFile, @())
   $rc = 0
@@ -2506,6 +2554,7 @@ function Verb-run([string[]]$A) {
     if ($awake) { try { [GowayNative]::KeepAwake($false) } catch { } }
   }
   Write-Text (P $work @('done')) ''
+  Lost-Note $work
 
   # A failed command: before blaming the code, goway compares every synced
   # file the command did not itself change with the laptop's.
@@ -2520,7 +2569,7 @@ function Verb-run([string[]]$A) {
   }
   if ($keep -eq '1') { Copy-Dir $rundir (P $work @('tree')) }
   Unlock-Key 'work'
-  if ($keep -ne '1') { try { Remove-Tree $work } catch { } }
+  if ($keep -ne '1') { Remove-Work $work }
   # Cheap automatic gc of expired entries, detached.
   # With a disk budget it always starts (usage is checked there, not here).
   if ($ttls -and (($ttls.Split(':').Length -ge 5) -or (Test-GcDue $rootArg $ttls))) { Start-AutoGc $rootArg $ttls }
@@ -2534,7 +2583,7 @@ function Fail-Verify([int]$Phase, [int]$Slot, [string]$Cache, [string]$SeedKey, 
   Unlock-Key 'slot'
   Wipe-Slot $Slot $Cache $SeedKey $Root
   Unlock-Key 'work'
-  try { Remove-Tree $Work } catch { }
+  Remove-Work $Work
   exit 125
 }
 
@@ -2558,6 +2607,7 @@ function Invoke-Verb([string]$Verb, [string[]]$Rest) {
     'purge' { Verb-purge $Rest }
     'lifeline' { Verb-lifeline $Rest }
     'resolve' { Verb-resolve $Rest }
+    'discard' { Verb-discard $Rest }
     'verify-wait' { Verb-verify-wait $Rest }
     'verify-verdict' { Verb-verify-verdict $Rest }
     default { Die "unknown verb: $Verb" }

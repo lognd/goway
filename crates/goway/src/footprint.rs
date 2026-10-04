@@ -40,9 +40,14 @@ pub fn room_word() -> String {
 
 /// The footprints in a probe's `key=value` lines, by repository id.
 pub fn parse(kv: &BTreeMap<&str, &str>) -> BTreeMap<String, u64> {
+    parse_prefixed(kv, KEY_PREFIX)
+}
+
+/// The `PREFIX<repo id>=BYTES` lines of a probe, by well-formed repository id.
+fn parse_prefixed(kv: &BTreeMap<&str, &str>, prefix: &str) -> BTreeMap<String, u64> {
     kv.iter()
         .filter_map(|(k, v)| {
-            let id = k.strip_prefix(KEY_PREFIX)?;
+            let id = k.strip_prefix(prefix)?;
             let ok = !id.is_empty()
                 && id.len() <= 128
                 && id
@@ -51,6 +56,83 @@ pub fn parse(kv: &BTreeMap<&str, &str>) -> BTreeMap<String, u64> {
             ok.then(|| Some((id.to_owned(), v.parse().ok()?)))?
         })
         .collect()
+}
+
+/// The prefix of a memory peak line in the probe's output.
+pub const MEM_KEY_PREFIX: &str = "mempeak.";
+
+/// The smallest memory margin kept on top of a peak (256 MiB).
+pub const MEM_MIN_MARGIN: u64 = 256 << 20;
+
+/// The memory a run of a repository whose job tree peaked at `peak` bytes needs:
+/// the peak plus the larger of [`MEM_MIN_MARGIN`] and a tenth of it.
+pub fn mem_required(peak: u64) -> u64 {
+    peak.saturating_add(MEM_MIN_MARGIN.max(peak / 10))
+}
+
+/// The memory peaks in a probe's `key=value` lines, by repository id.
+pub fn parse_mem_peaks(kv: &BTreeMap<&str, &str>) -> BTreeMap<String, u64> {
+    parse_prefixed(kv, MEM_KEY_PREFIX)
+}
+
+/// How a helper's memory stands against one repository's peak.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemRoom {
+    /// No peak is known, or the helper did not report its memory: nothing to judge.
+    Unknown,
+    /// Available memory covers the peak and margin.
+    Fits,
+    /// The helper's total memory is below the peak and margin: it can never run this.
+    TooSmall {
+        /// The helper's total memory.
+        total: u64,
+        /// Peak plus margin.
+        need: u64,
+    },
+    /// Enough in total, but too little is available now: wait.
+    Short {
+        /// Bytes available now.
+        avail: u64,
+        /// Peak plus margin.
+        need: u64,
+    },
+}
+
+/// Judge `probe` for repository `repo_id`: total memory, then available memory, against
+/// the repository's recorded peak plus margin.
+pub fn assess_mem(probe: &Probe, repo_id: &str) -> MemRoom {
+    let Some(&peak) = probe.mem_peaks.get(repo_id) else {
+        return MemRoom::Unknown;
+    };
+    let need = mem_required(peak);
+    if probe.facts.mem_total.is_some_and(|total| total < need) {
+        return MemRoom::TooSmall {
+            total: probe.facts.mem_total.unwrap_or(0),
+            need,
+        };
+    }
+    match probe.facts.mem_avail {
+        Some(avail) if avail < need => MemRoom::Short { avail, need },
+        Some(_) => MemRoom::Fits,
+        None => MemRoom::Unknown,
+    }
+}
+
+/// One phrase saying why a helper lacks memory for the repository (queue wait lines).
+pub fn mem_short_text(room: MemRoom) -> Option<String> {
+    match room {
+        MemRoom::TooSmall { total, need } => Some(format!(
+            "{} of memory in total, this repository peaked at about {} and needs it all",
+            human_bytes(total),
+            human_bytes(need)
+        )),
+        MemRoom::Short { avail, need } => Some(format!(
+            "{} of memory free, this repository needs about {}",
+            human_bytes(avail),
+            human_bytes(need)
+        )),
+        MemRoom::Unknown | MemRoom::Fits => None,
+    }
 }
 
 /// How a helper's disk stands against one repository's footprint.
@@ -131,5 +213,26 @@ mod tests {
         let got = parse(&kv);
         assert_eq!(got.len(), 1);
         assert_eq!(got["abc-1"], 42);
+    }
+
+    // frob:ticket 01M43CWNW1JNQZMCJBQ2NH4FTC
+    // frob:tests crates/goway/src/footprint.rs::assess_mem
+    #[test]
+    fn memory_is_judged_by_total_first_then_by_what_is_available() {
+        let mut p = crate::pool::parse_probe(
+            "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\njobs=0\nmempeak.r=3221225472\n",
+        )
+        .unwrap();
+        assert_eq!(p.mem_peaks["r"], 3 * GIB);
+        p.facts.mem_total = Some(3 * GIB);
+        p.facts.mem_avail = Some(3 * GIB);
+        assert!(matches!(assess_mem(&p, "r"), MemRoom::TooSmall { .. }));
+        p.facts.mem_total = Some(16 * GIB);
+        assert!(matches!(assess_mem(&p, "r"), MemRoom::Short { .. }));
+        p.facts.mem_avail = Some(8 * GIB);
+        assert_eq!(assess_mem(&p, "r"), MemRoom::Fits);
+        assert_eq!(assess_mem(&p, "other"), MemRoom::Unknown);
+        assert_eq!(mem_required(GIB), GIB + 256 * (1 << 20));
+        assert_eq!(mem_required(20 * GIB), 22 * GIB);
     }
 }

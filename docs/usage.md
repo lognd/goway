@@ -624,6 +624,32 @@ freed afterwards, and to rerun with `--needs disk>=SIZE` or on another host.
 The peak is a high-water mark: it never shrinks, and a failure at a full disk
 records only what was written before it ran out.
 
+### Memory: a repository's peak
+
+The same idea for memory (`mempeaks` in goway's root). While a job runs, the
+helper measures the whole job tree's memory: exactly, from the kernel's
+`memory.peak`, when the job runs in its own systemd scope (a user manager and
+cgroup v2, found automatically; the command line reaches the job untouched);
+otherwise by sampling the resident memory of the job's session (its process
+group on macOS) twice a second (a short spike between samples can be missed, which the margin
+covers). The highest value is kept per repository and reported in the probe.
+The next run never goes to a helper whose total memory is below the peak
+plus a margin (the larger of 256 MiB and 10% of it), and waits in the queue
+while the helper's available memory (less what runs still starting will
+take) is below it, like for disk (`h1: 1.2 GiB of memory free, this
+repository needs about 3.4 GiB`). If every helper is too small, the error says
+so. A repository never seen on a helper is not held back (`job_mem` still
+applies), and `--host NAME` pins a host and skips the check.
+
+When the kernel's OOM killer kills a process of the job (the scope's
+`memory.events` `oom_kill` count, or exit 137 with an OOM kill in the kernel
+log) goway says so after the command's own error: that the host ran out of
+memory, the measured peak and the host's total, and to run on another host,
+ask for `--needs mem>=SIZE`, run fewer jobs at once (`CARGO_BUILD_JOBS=2`,
+`nextest -j 2`), or give the helper more memory (`goway-setup tune` on WSL
+helpers). A killed job's peak is recorded a quarter higher than measured, since
+it never got to use all it wanted.
+
 ### Exit codes
 
 | Code | Meaning |

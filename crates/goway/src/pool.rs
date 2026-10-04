@@ -46,6 +46,8 @@ pub struct Probe {
     pub disk_max: Option<u64>,
     /// Peak disk footprint of each repository built there, by repository id (see [`crate::footprint`]).
     pub footprints: BTreeMap<String, u64>,
+    /// Peak memory of each repository's job tree there, by repository id (see [`crate::footprint`]).
+    pub mem_peaks: BTreeMap<String, u64>,
     /// RAM, GPUs and other facts (see [`crate::facts`]).
     pub facts: Facts,
 }
@@ -82,6 +84,7 @@ pub fn parse_probe(text: &str) -> Option<Probe> {
         disk_free: kv.get("disk_free").and_then(|v| v.parse().ok()),
         disk_max: kv.get("disk_max").and_then(|v| v.parse().ok()),
         footprints: crate::footprint::parse(&kv),
+        mem_peaks: crate::footprint::parse_mem_peaks(&kv),
         facts: facts::parse_live(
             &kv.iter()
                 .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
@@ -241,6 +244,10 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
                 tracing::info!(host = %p.host.name, %why, "host has no disk room for this repository; skipped");
                 return None;
             }
+            if let Some(why) = mem_shortage(selection, probe) {
+                tracing::info!(host = %p.host.name, %why, "host has too little memory for this repository; skipped");
+                return None;
+            }
             let per_core = probe.load[0] / f64::from(probe.cores.max(1));
             if config.max_load_of(p.host).is_some_and(|m| per_core > m) {
                 tracing::info!(host = %p.host.name, per_core, "host above max_load; skipped");
@@ -303,6 +310,17 @@ fn unusable(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> {
                         "{}: {os} host, outside the default {} pool (pin it with --host, or ask with --needs os={os})",
                         p.host.name,
                         selection.pool_os.as_deref().unwrap_or("?")
+                    )
+                } else if a.qualifies()
+                    && matches!(
+                        mem_room(selection, probe),
+                        crate::footprint::MemRoom::TooSmall { .. }
+                    )
+                {
+                    format!(
+                        "{}: {}",
+                        p.host.name,
+                        mem_shortage(selection, probe).unwrap_or_default()
                     )
                 } else if a.qualifies() {
                     format!(
@@ -444,20 +462,26 @@ pub fn choose_many(
 
 /// The remote command line that probes a Unix host (also this machine).
 pub fn probe_command(config: &Config, disk: bool, statics: bool) -> String {
-    probe_call(config, disk, statics, &[]).bash()
+    probe_call(config, None, disk, statics, &[]).bash()
 }
 
 /// The call that probes a host, whatever it speaks.
 ///
 /// A non-empty `tools` adds the word `tools:A,B`: the host also reports the
 /// versions of those tools (names with other characters are left out).
-pub fn probe_call(config: &Config, disk: bool, statics: bool, tools: &[String]) -> Call {
+pub fn probe_call(
+    config: &Config,
+    host: Option<&HostConfig>,
+    disk: bool,
+    statics: bool,
+    tools: &[String],
+) -> Call {
     let root = config.defaults.remote_root.as_str();
     let mut args = vec![root];
     let budget;
     if disk {
         args.push("disk");
-        let (max_disk, min_free, _) = config.defaults.budget_bytes();
+        let (max_disk, min_free, _) = config.budget_of(host);
         budget = format!("budget:{max_disk}:{min_free}");
         args.push(&budget);
     }
@@ -496,7 +520,13 @@ pub fn probe_one(
     let key = host.name.to_ascii_lowercase();
     let now = crate::state::now_secs();
     let statics = state.refresh_facts || facts::stale(state.facts.get(&key), now);
-    let call = probe_call(config, disk, statics, state.tools_to_probe(&host.name, now));
+    let call = probe_call(
+        config,
+        Some(host),
+        disk,
+        statics,
+        state.tools_to_probe(&host.name, now),
+    );
     let (found, sent, rtt) = crate::facts::clock::timed(|| {
         resolve::resolve_call(
             config,
@@ -734,6 +764,19 @@ fn apply_pending(config: &Config, snap: &Snapshot, results: &mut [Probed<'_>]) {
             if let Some(avail) = probe.facts.mem_avail.as_mut() {
                 *avail = avail.saturating_sub(u64::from(n) * reserve);
             }
+            // Memory the same way: a pending run of a repository takes its recorded peak
+            // (at least the per-job reserve already taken above).
+            let peaks: u64 = snap
+                .pending_repos
+                .get(&key)
+                .into_iter()
+                .flatten()
+                .filter_map(|id| probe.mem_peaks.get(id))
+                .map(|peak| peak.saturating_sub(reserve))
+                .sum();
+            if let Some(avail) = probe.facts.mem_avail.as_mut() {
+                *avail = avail.saturating_sub(peaks);
+            }
             // Disk the same way: each pending run of a repository will grow by its footprint.
             let claimed: u64 = snap
                 .pending_repos
@@ -763,6 +806,22 @@ fn room_shortage(selection: &Selection, probe: &Probe) -> Option<String> {
     }
 }
 
+/// The memory assessment of `probe` for the run's repository.
+fn mem_room(selection: &Selection, probe: &Probe) -> crate::footprint::MemRoom {
+    selection
+        .repo_id
+        .as_deref()
+        .map_or(crate::footprint::MemRoom::Unknown, |id| {
+            crate::footprint::assess_mem(probe, id)
+        })
+}
+
+/// Why `probe`'s host has too little memory for the run's repository, when it does
+/// (not enough in total, or not enough available now).
+fn mem_shortage(selection: &Selection, probe: &Probe) -> Option<String> {
+    crate::footprint::mem_short_text(mem_room(selection, probe))
+}
+
 /// The hosts that could ever take the run: reachable, in the pool, meeting every need.
 fn eligible_hosts(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> {
     results
@@ -771,6 +830,10 @@ fn eligible_hosts(selection: &Selection, results: &[Probed<'_>]) -> Vec<String> 
             p.result.as_ref().is_ok_and(|(_, probe)| {
                 selection.outside_pool(probe).is_none()
                     && selection.assess(p.host, probe).qualifies()
+                    && !matches!(
+                        mem_room(selection, probe),
+                        crate::footprint::MemRoom::TooSmall { .. }
+                    )
             })
         })
         .map(|p| p.host.name.clone())
@@ -801,6 +864,8 @@ fn busy_lines(
                     gib(probe.facts.mem_avail.unwrap_or(0)),
                     gib(reserve)
                 )
+            } else if let Some(why) = mem_shortage(selection, probe) {
+                format!("{name}: {why}")
             } else if let Some(why) = room_shortage(selection, probe) {
                 format!("{name}: {why}")
             } else if snap.held_for_earlier(name) {
@@ -1035,6 +1100,7 @@ mod tests {
             disk_free: None,
             disk_max: None,
             footprints: std::collections::BTreeMap::new(),
+            mem_peaks: std::collections::BTreeMap::new(),
             facts: Facts::default(),
         }
     }
@@ -1199,13 +1265,13 @@ mod tests {
     fn the_probe_asks_for_the_owner_state_unless_it_is_switched_off() {
         let mut config = Config::default();
         assert!(
-            probe_call(&config, false, false, &[])
+            probe_call(&config, None, false, false, &[])
                 .args
                 .contains(&"owner".to_owned())
         );
         config.defaults.owner_idle = std::time::Duration::ZERO;
         assert!(
-            !probe_call(&config, false, false, &[])
+            !probe_call(&config, None, false, false, &[])
                 .args
                 .contains(&"owner".to_owned())
         );
@@ -1296,6 +1362,48 @@ mod tests {
         ];
         assert_eq!(pick(&Config::default(), &probed), Some(1));
         assert_eq!(pick(&Config::default(), &probed[..1]), Some(0));
+    }
+
+    // frob:ticket 01M43CWNW1JNQZMCJBQ2NH4FTC
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn a_host_too_small_or_too_busy_for_the_repositorys_memory_peak_is_held_back() {
+        let gib = 1024u64 * 1024 * 1024;
+        let mk = |total: u64, avail: u64| {
+            let mut p = probe(16, 0.0, 0);
+            p.facts.mem_total = Some(total * gib);
+            p.facts.mem_avail = Some(avail * gib);
+            p.mem_peaks.insert("repo1".to_owned(), 3 * gib);
+            p
+        };
+        let hosts = [host("tiny", None), host("busy", None), host("big", None)];
+        let probed = vec![
+            Probed {
+                host: &hosts[0],
+                result: Ok((found("tiny"), mk(3, 3))),
+            },
+            Probed {
+                host: &hosts[1],
+                result: Ok((found("busy"), mk(32, 2))),
+            },
+            Probed {
+                host: &hosts[2],
+                result: Ok((found("big"), mk(32, 20))),
+            },
+        ];
+        let sel = Selection {
+            repo_id: Some("repo1".to_owned()),
+            ..Selection::default()
+        };
+        let config = Config::default();
+        assert_eq!(ranked_for(&config, &sel, &probed), [2]);
+        assert_eq!(
+            eligible_hosts(&sel, &probed),
+            ["busy", "big"],
+            "too small can never run it; too busy only waits"
+        );
+        let lines = unusable(&sel, &probed[..1]);
+        assert!(lines[0].contains("needs it all"), "{lines:?}");
     }
 
     // frob:ticket 01M43CFMDFG8YSM3HNRD0GB213

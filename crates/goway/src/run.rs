@@ -200,13 +200,99 @@ pub struct Env<'a> {
     pub cwd: &'a Path,
 }
 
-/// `goway run`.
+/// `goway run`: one pick of a host, then (only when an unpinned run that may land on any OS
+/// meets a host whose translation of the command is in doubt) a second pick among the hosts
+/// of this machine's own OS, with one note, instead of stopping.
 ///
 /// # Panics
 ///
 /// Only if the copy-verification thread panics, which is a bug.
-#[allow(clippy::too_many_lines)] // one sequence: choose, sync, run, report
 pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
+    let started = Instant::now();
+    let mut host = None;
+    let result = run_repicking(env, renderer, args, &mut host);
+    if let (Err(e), Some(path)) = (&result, &args.report)
+        && args.shard.is_none()
+        && !args.each_os
+    {
+        // Every exit path leaves the report: a run that failed before or while
+        // it ran still says what happened and where.
+        let failure = FailureReport {
+            host,
+            command: args.command.clone(),
+            exit_code: e.exit_code(),
+            duration_secs: started.elapsed().as_secs_f64(),
+            error: e.to_string(),
+        };
+        if let Err(w) = write_report(path, &failure) {
+            tracing::warn!(error = %w, "cannot write the report of a failed run");
+        }
+    }
+    result
+}
+
+/// `--report` of a run that ended in a goway error, before or without an outcome of the command.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct FailureReport {
+    /// The host chosen, when one was.
+    pub host: Option<String>,
+    /// The command as given.
+    pub command: Vec<String>,
+    /// The exit code goway exits with.
+    pub exit_code: u8,
+    /// Wall-clock seconds until the failure.
+    pub duration_secs: f64,
+    /// Why the run failed.
+    pub error: String,
+}
+
+/// [`run`] without the failure report: one attempt, and the second pick after a doubt.
+fn run_repicking(
+    env: &Env<'_>,
+    renderer: Renderer,
+    args: &RunArgs,
+    chosen: &mut Option<String>,
+) -> Result<u8> {
+    match run_picked(env, renderer, args, false, chosen) {
+        Err(Error::TranslationDoubt {
+            requested,
+            os,
+            why,
+            repickable: true,
+        }) => {
+            tracing::info!(%requested, os, %why, "translation in doubt; re-picking among this machine's own OS");
+            renderer.note(format_args!(
+                "`{requested}` has no certain equivalent on the {os} host ({why}); \
+                 running on a host of this machine's OS instead"
+            ));
+            run_picked(env, renderer, args, true, chosen)
+        }
+        other => other,
+    }
+}
+
+/// Remove the synced work dir `run_id` on `found`, a run that will not start (best effort:
+/// whatever stays is collected by gc).
+fn discard_work(env: &Env<'_>, found: &Found, remote_root: &str, run_id: &str) {
+    let transport = SshTransport::of(found, env.settings);
+    match sync::Transport::output(&transport, &Call::new("discard", &[remote_root, run_id])) {
+        Ok(_) => tracing::info!(run_id, "discarded the work dir of a run that did not start"),
+        Err(e) => {
+            tracing::warn!(run_id, error = %e, "cannot discard the work dir; gc will collect it");
+        }
+    }
+}
+
+/// One attempt of `goway run`; `own_os_only` limits the pool to this machine's OS (the
+/// second pick after a translation in doubt).
+#[allow(clippy::too_many_lines)] // one sequence: choose, sync, run, report
+fn run_picked(
+    env: &Env<'_>,
+    renderer: Renderer,
+    args: &RunArgs,
+    own_os_only: bool,
+    chosen: &mut Option<String>,
+) -> Result<u8> {
     if args.each_os {
         return crate::shard::run_each_os(env, renderer, args);
     }
@@ -228,7 +314,10 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         renderer.note(r.describe());
     }
     selection.repo_id = Some(repo.id.clone());
-    if args.host.is_none() {
+    if own_os_only {
+        selection = selection.with_default_os(needs::laptop_os());
+    }
+    if args.host.is_none() && !own_os_only {
         project::warn_cross_os(
             renderer,
             &config,
@@ -274,6 +363,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         args.host.as_deref(),
         &wait,
     )?;
+    *chosen = Some(host.name.clone());
     crate::drift::record_probed(
         &mut state,
         &host.name,
@@ -348,7 +438,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         ));
         report_withheld(renderer, &synced);
         send_env(env, &config, &found, &run_id, &env_bytes)?;
-        let (command, translated) = translated_command(
+        let (command, translated) = match translated_command(
             env,
             &found,
             &probe,
@@ -356,7 +446,20 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
             &run_id,
             &args.command,
             &overrides,
-        )?;
+        ) {
+            Err(Error::TranslationDoubt {
+                requested, os, why, ..
+            }) => {
+                discard_work(env, &found, remote_root, &run_id);
+                return Err(Error::TranslationDoubt {
+                    requested,
+                    os,
+                    why,
+                    repickable: args.host.is_none() && selection.is_any_os(),
+                });
+            }
+            other => other?,
+        };
         if let Some(t) = &translated
             && translation.is_none()
         {
@@ -374,7 +477,13 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
             renderer.note(format_args!("{note}"));
         }
         let cmd = run_invocation_with(
-            &config, priority, &repo, &run_id, args.keep, &extra, &command,
+            &config.for_host(&host),
+            priority,
+            &repo,
+            &run_id,
+            args.keep,
+            &extra,
+            &command,
         );
 
         renderer.headline(format_args!(
@@ -408,6 +517,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         let (streamed, gate_report) = std::thread::scope(|s| {
             let watcher = s.spawn(|| gate.drive(&done));
             let streamed = stream(
+                renderer,
                 &found,
                 env.settings,
                 &cmd,
@@ -563,7 +673,7 @@ pub struct RemoteReport {
 ///
 /// # Errors
 ///
-/// [`Error::Usage`] (exit 125) when the host cannot say for certain: goway never runs a guess.
+/// [`Error::TranslationDoubt`] (exit 125) when the host cannot say for certain: goway never runs a guess.
 pub(crate) fn translated_command(
     env: &Env<'_>,
     found: &Found,
@@ -605,12 +715,12 @@ pub(crate) fn translated_command(
             };
             Ok((translate::apply(command, &program, &args), Some(t)))
         }
-        Outcome::Doubt(why) => Err(Error::Usage(format!(
-            "`{}` has no certain equivalent on this {} host ({why}); goway does not run a guess. \
-             Name a program that host has, add a [translate] entry to goway.toml, or run on a host of this machine's OS",
-            plan.requested,
-            target.key()
-        ))),
+        Outcome::Doubt(why) => Err(Error::TranslationDoubt {
+            requested: plan.requested.clone(),
+            os: target.key(),
+            why,
+            repickable: false,
+        }),
     }
 }
 
@@ -1099,6 +1209,17 @@ impl Beat {
     }
 }
 
+impl Beat {
+    /// Why the lifeline's ssh already ended, or `None` while it is still up.
+    fn broken(&mut self) -> Option<String> {
+        self.child
+            .try_wait()
+            .ok()
+            .flatten()
+            .map(|status| format!("ssh {status}"))
+    }
+}
+
 impl Drop for Beat {
     /// The run is over: stop beating and close the lifeline.
     fn drop(&mut self) {
@@ -1116,6 +1237,7 @@ impl Drop for Beat {
 /// through the control-sequence filter unless `mode` is raw; any other
 /// stream is inherited and so stays byte-exact.
 fn stream(
+    renderer: Renderer,
     found: &Found,
     settings: &ssh::Settings,
     cmd: &Call,
@@ -1124,7 +1246,7 @@ fn stream(
 ) -> Result<(u8, bool)> {
     let interrupted = interrupt_flag();
     // Before the command starts, so a client that dies at once is covered.
-    let _beat = Beat::start(found, settings, life);
+    let mut beat = Beat::start(found, settings, life);
     let mut command = SshTransport::of(found, settings).command(cmd)?;
     if std::io::IsTerminal::is_terminal(&std::io::stderr()) {
         command.env("CARGO_TERM_COLOR", "always");
@@ -1170,6 +1292,13 @@ fn stream(
     })
     .map_err(ssh_err)?;
     let interrupted = interrupted.load(std::sync::atomic::Ordering::SeqCst);
+    if let Some(why) = beat.as_mut().and_then(Beat::broken) {
+        // Only the lifeline broke while the job streamed: the helper may have stopped it.
+        renderer.warn(format_args!(
+            "the lifeline connection to {} broke while the job ran ({why}); the helper stops a job whose client it considers gone, which would explain an unexpected exit 143",
+            found.target.name
+        ));
+    }
     // ssh exits 255 when interrupted; report it like the shell would (128+SIGINT).
     let code = if interrupted && status.code() == Some(255) {
         130

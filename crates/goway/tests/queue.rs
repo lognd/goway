@@ -139,7 +139,7 @@ fn twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound(
                 let now = cluster.running[i].fetch_add(1, Ordering::SeqCst) + 1;
                 claim.started();
                 peak[i].fetch_max(now, Ordering::SeqCst);
-                std::thread::sleep(Duration::from_millis(150));
+                std::thread::sleep(Duration::from_millis(500));
                 cluster.running[i].fetch_sub(1, Ordering::SeqCst);
                 drop(claim);
             });

@@ -1,0 +1,31 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T12:51:14Z"
+digest = "b7c5f700209dc2e3e3a95b36cb9e0b6210243a16f3a3eb16bcf969ce8a4c0c57"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 78e95f54-98a6-42f5-b16f-5f641e86d31c with nextest profile: default
+    Starting 6 tests across 1 binary (68 binaries skipped)
+        PASS [   0.110s] goway::translate powershell_resolves_the_same_way_path_only_tree_files_and_doubt
+        PASS [   2.131s] goway::translate doubt_means_no_translation_and_the_first_certain_tier_wins
+        PASS [   2.210s] goway::translate resolution_searches_absolute_path_directories_only_never_the_cwd_or_the_work_tree
+        PASS [   9.512s] goway::translate a_translate_entry_runs_the_resolved_program_names_it_and_records_it
+        PASS [   9.855s] goway::translate a_run_with_no_certain_equivalent_stops_before_the_command_starts
+        PASS [  10.912s] goway::translate a_translatable_program_counts_as_cross_platform_for_the_cross_os_hint
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  10.914s] 6 tests run: 6 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(translate)'"
+size = 1312
+status = "measured"
+tests = ["powershell_resolves_the_same_way_path_only_tree_files_and_doubt", "doubt_means_no_translation_and_the_first_certain_tier_wins", "resolution_searches_absolute_path_directories_only_never_the_cwd_or_the_work_tree", "a_translate_entry_runs_the_resolved_program_names_it_and_records_it", "a_run_with_no_certain_equivalent_stops_before_the_command_starts", "a_translatable_program_counts_as_cross_platform_for_the_cross_os_hint"]
+at = "2026-10-04T12:51:14Z"
+actor = "lognd"
+rev = 1

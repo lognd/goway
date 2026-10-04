@@ -1,0 +1,30 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T12:54:33Z"
+digest = "484fa6684b5bf48e75e7944e7b5c16c4f4bb228900689cce9a1cb0820fe87fc3"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 50.22s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b77ed49b-5178-4382-b1db-cdcca516c8fa with nextest profile: default
+    Starting 5 tests across 1 binary (69 binaries skipped)
+        PASS [  16.459s] goway::footprint a_tight_disk_makes_the_probe_report_what_goway_holds
+        PASS [  36.440s] goway::footprint a_run_short_of_room_evicts_idle_caches_first_and_says_so
+        PASS [  42.810s] goway::footprint making_room_never_evicts_the_runs_own_seed
+        PASS [  44.043s] goway::footprint a_run_records_the_peak_footprint_and_the_probe_reports_it
+        PASS [  46.791s] goway::footprint a_failure_on_a_nearly_full_disk_is_explained_in_plain_words
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  46.792s] 5 tests run: 5 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(footprint)'"
+size = 1133
+status = "measured"
+tests = ["a_tight_disk_makes_the_probe_report_what_goway_holds", "a_run_short_of_room_evicts_idle_caches_first_and_says_so", "making_room_never_evicts_the_runs_own_seed", "a_run_records_the_peak_footprint_and_the_probe_reports_it", "a_failure_on_a_nearly_full_disk_is_explained_in_plain_words"]
+at = "2026-10-04T12:54:33Z"
+actor = "lognd"
+rev = 1
