@@ -8,7 +8,7 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T13:40:51Z"
-updated = "2026-10-04T15:17:10Z"
+updated = "2026-10-04T15:17:13Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/run.rs", "crates/goway/tests/evict_live.rs", "docs/design.md"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a job stopped by the lifeline watchdog, when it happens, then a lost marker and one clear line say so, so a SIGTERM is never unexplained"
-bound = false
+bound = true
 +++
