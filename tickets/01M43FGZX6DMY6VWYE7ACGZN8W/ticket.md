@@ -7,7 +7,7 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T12:51:51Z"
-updated = "2026-10-04T12:54:33Z"
+updated = "2026-10-04T15:29:29Z"
 scope = ["crates/goway/tests/footprint.rs"]
 
 [[acceptance]]
