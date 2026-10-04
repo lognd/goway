@@ -2,12 +2,12 @@
 id = "01M43QA57XZY29C6T6SE09XD8K"
 title = "macOS CI: slot_trees written_files_are_stamped_after_outputs_dated_in_the_future hangs for hours on a runner"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T15:07:56Z"
-updated = "2026-10-04T15:33:15Z"
+updated = "2026-10-04T15:33:16Z"
 scope = ["crates/goway/src/spawn.rs", "crates/goway/src/run.rs", "crates/goway/src/local.rs", "crates/goway/src/session.rs", "crates/goway/src/remotesys.rs", "crates/goway/src/ecotools.rs", "crates/goway/src/gitmeta.rs", "crates/goway/src/hosts.rs", "crates/goway/src/sshenv.rs", "crates/goway/src/lib.rs", "crates/goway/src/repo.rs", "crates/goway/src/runners.rs", "crates/goway/src/interop.rs", "crates/goway/src/add.rs", "crates/goway/src/resolve.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/slot_trees.rs"]
 
 [[acceptance]]
