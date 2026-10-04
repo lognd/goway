@@ -4,7 +4,7 @@ use std::io::IsTerminal as _;
 use std::path::{Path, PathBuf};
 
 use clap::{Args, Parser, Subcommand};
-use goway_journal::{LocalSystem, sha256_hex, still_applied};
+use goway_journal::{LocalSystem, SystemError, sha256_hex, still_applied};
 
 use crate::admin;
 use crate::app::{self, Retry};
@@ -834,7 +834,22 @@ fn dry_run_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
     let label = format!("host component of profile {}", layout.profile);
     let sys = HostSystem::new(&req.distro);
     let home = dirs::home_dir().ok_or(SetupError::NoLocalAppData)?;
-    if cfg!(windows) && sys.distro_reachable()? {
+    let reachable = cfg!(windows)
+        && match sys.distro_reachable() {
+            Ok(up) => up,
+            // The elevated guard refuses to start WSL: a dry run changes nothing, so it still
+            // prints the plan (from assumed facts) and says what a real install needs.
+            Err(SystemError::InvalidState(why)) => {
+                tracing::info!(%why, "dry run: distro not running, planning from assumed facts");
+                r.notice(&format!(
+                    "WSL distro {} is not running; a real install will ask you to start it from a normal (non-administrator) terminal. Planning from assumed facts",
+                    req.distro
+                ));
+                false
+            }
+            Err(e) => return Err(e.into()),
+        };
+    if reachable {
         let facts = sys.probe(&home)?;
         let network = host::resolve_network(req.network, &facts)?;
         let params = host_params(req, network)?;
