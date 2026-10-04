@@ -2,7 +2,8 @@
 id = "01M43EWZGMJC3DDZRGAD6024D0"
 title = "macOS CI: scratch_fs tests assume a case-sensitive file system"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
