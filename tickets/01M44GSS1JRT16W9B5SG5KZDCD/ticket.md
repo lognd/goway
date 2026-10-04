@@ -24,7 +24,7 @@ bound = true
 
 [[acceptance]]
 text = "Given the manual, When a reader opens the debugging section, Then it lists the by-hand checks: ping, port probe, wsl -l -v over Windows ssh, schtasks /query, and how to restart"
-bound = false
+bound = true
 +++
 
 When the WSL ssh port does not answer but the same address answers Windows OpenSSH (or another configured Windows transport), doctor should look through Windows: wsl.exe -l -v (distro Stopped/Running), the keepalive task (present, last run, last result, has a repeating trigger), and the boot time; then print the exact fix (schtasks /run the keepalive, or goway-setup install to replace a boot-only task). The manual's debugging section gets the same steps written out by hand.
