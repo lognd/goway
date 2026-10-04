@@ -8,8 +8,8 @@ points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T03:16:54Z"
-updated = "2026-10-04T05:07:11Z"
-scope = ["crates/goway/src/pool.rs", "crates/goway/src/run.rs", "crates/goway/src/cli.rs", "crates/goway/src/state.rs", "crates/goway/tests/queue.rs", "docs/usage.md"]
+updated = "2026-10-04T05:10:18Z"
+scope = ["crates/goway/src/pool.rs", "crates/goway/src/run.rs", "crates/goway/src/cli.rs", "crates/goway/src/state.rs", "crates/goway/tests/queue.rs", "docs/queue.md", "crates/goway/src/queue.rs", "crates/goway/src/lib.rs", "crates/goway/src/config.rs"]
 
 [[acceptance]]
 text = "Given many concurrent goway runs from different worktrees on one laptop (a wave from an agent), when they start together, then they spread over the helpers by score, no helper is given more concurrent jobs than its free memory allows at the default reserve, and the queue never starves an early waiter; a test launches 20 runs against 3 fake hosts and checks order and bounds"
