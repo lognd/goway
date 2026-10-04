@@ -21,11 +21,11 @@ use crate::needs::{self, Matched, Selection};
 use crate::paths::Paths;
 use crate::pool;
 use crate::project::{self, Applied};
-use crate::remote;
+use crate::remote::Call;
 use crate::render::Renderer;
 use crate::repo::Repo;
 use crate::resolve::{Found, Lookup, Prober};
-use crate::ssh::{self, KeyPolicy};
+use crate::ssh;
 use crate::state::State;
 use crate::sync::{self, Label, SshTransport};
 use crate::termfilter::{self, OutputMode};
@@ -37,7 +37,9 @@ pub struct Report {
     pub host: String,
     /// Address the run used.
     pub address: String,
-    /// Remote machine architecture (`uname -m`).
+    /// The host's operating system (`linux` or `windows`).
+    pub os: String,
+    /// Remote machine architecture (`uname -m`, or the Windows processor architecture).
     pub arch: String,
     /// Remote machine hostname (`uname -n`).
     pub hostname: String,
@@ -159,13 +161,10 @@ pub(crate) fn send_env(
     if bytes.is_empty() {
         return Ok(());
     }
-    let transport = SshTransport {
-        target: &found.target,
-        settings: env.settings,
-    };
+    let transport = SshTransport::of(found, env.settings);
     sync::Transport::exchange(
         &transport,
-        &remote::invocation("envfile", &[&config.defaults.remote_root, run_id]),
+        &Call::new("envfile", &[&config.defaults.remote_root, run_id]),
         bytes,
     )
     .map(drop)
@@ -309,10 +308,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
             ssh::shell_join(&args.command)
         ));
         let gate = Gate {
-            transport: SshTransport {
-                target: &found.target,
-                settings: env.settings,
-            },
+            transport: SshTransport::of(&found, env.settings),
             remote_root,
             run_id: &run_id,
             repo_root: &repo.root,
@@ -370,6 +366,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
                         base: Report {
                             host: host.name.clone(),
                             address: found.target.address.clone(),
+                            os: found.kind.os().as_str().to_owned(),
                             arch: arch.clone(),
                             hostname: hostname.clone(),
                             command: args.command.clone(),
@@ -396,7 +393,12 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
         ));
     }
     let kept = if args.keep {
-        format!(" (kept {remote_root}/work/{run_id})")
+        let wsl = (found.kind == crate::transport::Kind::WindowsInterop)
+            .then(|| crate::interop::wsl_path_under_root(remote_root, &["work", &run_id, "tree"]))
+            .and_then(std::result::Result::ok)
+            .map(|p| format!(", from WSL: {}", p.display()))
+            .unwrap_or_default();
+        format!(" (kept {remote_root}/work/{run_id}{wsl})")
     } else {
         String::new()
     };
@@ -417,6 +419,7 @@ pub fn run(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
                 base: Report {
                     host: host.name.clone(),
                     address: found.target.address.clone(),
+                    os: found.kind.os().as_str().to_owned(),
                     arch,
                     hostname,
                     command: args.command.clone(),
@@ -453,10 +456,7 @@ pub(crate) fn sync_snapshot(
     run_id: &str,
     keep: bool,
 ) -> Result<sync::Stats> {
-    let transport = SshTransport {
-        target: &found.target,
-        settings: env.settings,
-    };
+    let transport = SshTransport::of(found, env.settings);
     let snapshot = sync::Snapshot {
         run_id: run_id.to_owned(),
         meta_b64: label_b64(repo, "work"),
@@ -554,7 +554,7 @@ impl Gate<'_> {
     const WAIT_RUNNING: &'static str = "50";
 
     fn call(&self, args: &[&str]) -> std::result::Result<Vec<u8>, String> {
-        sync::Transport::output(&self.transport, &remote::invocation(args[0], &args[1..]))
+        sync::Transport::output(&self.transport, &Call::new(args[0], &args[1..]))
             .map_err(|e| e.to_string())
     }
 
@@ -798,7 +798,7 @@ pub(crate) fn run_invocation_with(
     keep: bool,
     extra: &[String],
     command: &[String],
-) -> String {
+) -> Call {
     let cache_meta = label_b64(repo, "cache");
     let slots = config.defaults.target_slots.max(1).to_string();
     let keep = if keep { "1" } else { "0" };
@@ -826,7 +826,7 @@ pub(crate) fn run_invocation_with(
     words.extend(extra.iter().map(String::as_str));
     words.push("--");
     words.extend(command.iter().map(String::as_str));
-    remote::invocation("run", &words)
+    Call::new("run", &words)
 }
 
 /// A flag set when the user presses Ctrl-C. ssh receives the terminal's
@@ -850,11 +850,11 @@ pub(crate) fn interrupt_flag() -> std::sync::Arc<std::sync::atomic::AtomicBool> 
 fn stream(
     found: &Found,
     settings: &ssh::Settings,
-    cmd: &str,
+    cmd: &Call,
     mode: OutputMode,
 ) -> Result<(u8, bool)> {
     let interrupted = interrupt_flag();
-    let mut command = ssh::command(&found.target, settings, KeyPolicy::Strict, cmd);
+    let mut command = SshTransport::of(found, settings).command(cmd)?;
     if std::io::IsTerminal::is_terminal(&std::io::stderr()) {
         command.env("CARGO_TERM_COLOR", "always");
     }

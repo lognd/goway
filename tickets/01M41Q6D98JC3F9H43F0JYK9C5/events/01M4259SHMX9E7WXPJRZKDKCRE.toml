@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [6]
+captured_at = "2026-10-04T00:33:55Z"
+digest = "66a33211a0526cc35186cf84ac331264757ae9cb7f66af90aa9d900487fbc6c0"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9c4fefd5-09cc-4d91-bbf6-d287e60520c7 with nextest profile: default
+    Starting 4 tests across 43 binaries (514 tests skipped)
+        PASS [   0.029s] goway resolve::tests::a_windows_host_is_probed_in_powershell_and_gets_the_script_installed_when_missing
+        PASS [   0.033s] goway sync::tests::the_transport_builds_each_hosts_own_kind_of_process
+        PASS [   0.059s] goway remote::tests::a_call_renders_for_both_languages
+        PASS [   0.119s] goway interop::tests::a_missing_script_is_installed_and_the_probe_repeated
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.125s] 4 tests run: 4 passed, 514 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_windows_host_is_probed_in_powershell_and_gets_the_script_installed_when_missing) | test(the_transport_builds_each_hosts_own_kind_of_process) | test(a_missing_script_is_installed_and_the_probe_repeated) | test(a_call_renders_for_both_languages)'"
+size = 875
+status = "measured"
+tests = ["resolve::tests::a_windows_host_is_probed_in_powershell_and_gets_the_script_installed_when_missing", "sync::tests::the_transport_builds_each_hosts_own_kind_of_process", "remote::tests::a_call_renders_for_both_languages", "interop::tests::a_missing_script_is_installed_and_the_probe_repeated"]
+at = "2026-10-04T00:33:55Z"
+actor = "lognd"
+rev = 1

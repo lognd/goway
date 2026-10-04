@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T00:33:49Z"
+digest = "f06fddecb77294d002edea1f5420934a452cbbfa287f7e49b75c96430426582f"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 110f82db-de4f-4e74-87dc-7080bb7247b0 with nextest profile: default
+    Starting 1 test across 43 binaries (517 tests skipped)
+        PASS [   0.782s] goway sync::tests::a_windows_host_syncs_incrementally_and_deletes_only_inside_its_own_directory
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.793s] 1 test run: 1 passed, 517 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_windows_host_syncs_incrementally_and_deletes_only_inside_its_own_directory)'"
+size = 589
+status = "measured"
+tests = ["sync::tests::a_windows_host_syncs_incrementally_and_deletes_only_inside_its_own_directory"]
+at = "2026-10-04T00:33:49Z"
+actor = "lognd"
+rev = 1

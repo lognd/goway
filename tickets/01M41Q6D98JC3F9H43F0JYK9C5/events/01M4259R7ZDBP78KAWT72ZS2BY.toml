@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [5]
+captured_at = "2026-10-04T00:33:53Z"
+digest = "ca106ad7bf0330a1011362fa23b7c8d7362a7e5e6dbc5a60cd065748e7251c65"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d9beb20f-4d83-470f-9ff1-66644f33f422 with nextest profile: default
+    Starting 1 test across 43 binaries (517 tests skipped)
+        PASS [   0.329s] goway::remote_ps1 a_slot_tree_persists_updates_in_place_and_removes_leftovers
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.334s] 1 test run: 1 passed, 517 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_slot_tree_persists_updates_in_place_and_removes_leftovers)'"
+size = 571
+status = "measured"
+tests = ["a_slot_tree_persists_updates_in_place_and_removes_leftovers"]
+at = "2026-10-04T00:33:53Z"
+actor = "lognd"
+rev = 1

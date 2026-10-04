@@ -21,8 +21,10 @@ use std::time::{Duration, Instant};
 
 use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
+use crate::remote::{self, Call};
 use crate::ssh::{self, Failure, KeyPolicy, Target};
 use crate::state::State;
+use crate::transport::{self, Kind};
 
 /// Where a candidate address came from (shown in logs and errors).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -37,6 +39,8 @@ pub enum Source {
     Mdns,
     /// `<name>.local` through Windows (WSL interop).
     WindowsMdns,
+    /// The Windows side of this machine through WSL interop (no address).
+    Interop,
     /// This machine, chosen with `--host local` or by the `[local]` pool.
     Local,
     /// This machine, because no helper was reachable and `[local] fallback` is set.
@@ -51,6 +55,7 @@ impl std::fmt::Display for Source {
             Self::Name => "dns",
             Self::Mdns => "mdns",
             Self::WindowsMdns => "windows-mdns",
+            Self::Interop => "this machine's Windows side",
             Self::Local => "this machine",
             Self::Fallback => "this machine (fallback)",
         })
@@ -73,11 +78,19 @@ pub trait Prober {
     /// Run `remote` on `target` under `policy`; stdout on success, the
     /// classified failure and stderr otherwise.
     fn probe(&self, target: &Target, policy: KeyPolicy, remote: &str) -> ProbeResult;
+
+    /// Install the PowerShell remote script on the Windows host at `target`
+    /// (a probe found it missing). Unix hosts never need this.
+    fn install(&self, _kind: Kind, _target: &Target) -> std::result::Result<(), String> {
+        Ok(())
+    }
 }
 
 /// A host found at a working address, with the probe's stdout.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Found {
+    /// How the host is reached and what it speaks.
+    pub kind: Kind,
     /// The working target.
     pub target: Target,
     /// Which stage found it.
@@ -91,6 +104,62 @@ impl Found {
     pub fn is_local(&self) -> bool {
         matches!(self.source, Source::Local | Source::Fallback)
     }
+}
+
+/// Find `host` (by address for ssh hosts, on this machine for interop) and
+/// run `call` there in the host's own language. A Windows host that does not
+/// have this version of the remote script yet gets it installed first, so
+/// the caller always sees the verb's own output.
+///
+/// # Errors
+///
+/// [`Error::HostNotFound`] when no address answers, [`Error::Ssh`] when the
+/// call or the script installation fails.
+pub fn resolve_call(
+    config: &Config,
+    host: &HostConfig,
+    state: &mut State,
+    lookup: &dyn Lookup,
+    prober: &dyn Prober,
+    policy: KeyPolicy,
+    call: &Call,
+) -> Result<Found> {
+    let kind = Kind::of(host);
+    if kind == Kind::WindowsInterop {
+        return resolve_interop(host, call);
+    }
+    let line = transport::probe_line(kind, call);
+    let mut found = resolve(config, host, state, lookup, prober, policy, &line)?;
+    if kind != Kind::Unix && found.output.trim() == remote::PROBE_NEEDS_INSTALL {
+        tracing::info!(host = %host.name, "installing the remote script");
+        let fail = |message: String| Error::Ssh {
+            host: host.name.clone(),
+            message,
+        };
+        prober.install(kind, &found.target).map_err(fail)?;
+        found.output = prober
+            .probe(&found.target, policy, &line)
+            .map_err(|(_, e)| fail(e))?;
+    }
+    Ok(found)
+}
+
+/// [`resolve`] for the Windows side of this machine: no address, no ssh.
+fn resolve_interop(host: &HostConfig, call: &Call) -> Result<Found> {
+    let output = crate::interop::call_probe(&host.name, call)?;
+    tracing::info!(host = %host.name, "interop host answered");
+    Ok(Found {
+        kind: Kind::WindowsInterop,
+        target: Target {
+            name: host.name.clone(),
+            address: "this machine (Windows)".to_owned(),
+            port: 0,
+            user: None,
+            identity: None,
+        },
+        source: Source::Interop,
+        output,
+    })
 }
 
 /// One failed candidate, for the final error message.
@@ -172,7 +241,7 @@ fn stage(source: Source, host: &HostConfig, state: &State, lookup: &dyn Lookup) 
         Source::Name => addresses(lookup.system(&host.name)),
         Source::Mdns => addresses(lookup.system(&local)),
         Source::WindowsMdns => addresses(lookup.windows(&local)),
-        Source::Local | Source::Fallback => Vec::new(),
+        Source::Local | Source::Fallback | Source::Interop => Vec::new(),
     }
 }
 
@@ -184,8 +253,9 @@ const STAGES: [Source; 5] = [
     Source::WindowsMdns,
 ];
 
-/// Find where `host` answers with its pinned key, run `remote` there, and
-/// cache the working address in `state` (the caller saves it).
+/// Find where `host` answers with its pinned key, run the raw command line
+/// `remote` there, and cache the working address in `state` (the caller
+/// saves it). Callers that run a verb want [`resolve_call`], which speaks the host's language.
 pub fn resolve(
     config: &Config,
     host: &HostConfig,
@@ -217,6 +287,7 @@ pub fn resolve(
                     tracing::info!(host = %host.name, %address, %source, "host found");
                     state.remember(&host.name, &address, port, crate::state::now_secs());
                     return Ok(Found {
+                        kind: Kind::of(host),
                         target,
                         source,
                         output,
@@ -358,6 +429,16 @@ impl Prober for SshProber {
             }
             Err(e) => Err((Failure::Other, format!("cannot run ssh: {e}"))),
         }
+    }
+
+    fn install(&self, kind: Kind, target: &Target) -> std::result::Result<(), String> {
+        crate::sync::SshTransport {
+            kind,
+            target,
+            settings: &self.settings,
+        }
+        .install_script()
+        .map_err(|e| e.to_string())
     }
 }
 
@@ -621,5 +702,60 @@ mod tests {
         }
         let ips = windows_lookup("localhost");
         assert!(ips.iter().any(IpAddr::is_loopback), "{ips:?}");
+    }
+
+    /// A Windows host whose first probe finds no remote script.
+    struct NeedsInstall {
+        installed: RefCell<u32>,
+        lines: RefCell<Vec<String>>,
+    }
+
+    impl Prober for NeedsInstall {
+        fn probe(&self, _: &Target, _: KeyPolicy, remote: &str) -> ProbeResult {
+            self.lines.borrow_mut().push(remote.to_owned());
+            if *self.installed.borrow() == 0 {
+                Ok(format!("{}\n", remote::PROBE_NEEDS_INSTALL))
+            } else {
+                Ok("arch=aarch64\n".to_owned())
+            }
+        }
+        fn install(&self, kind: Kind, _: &Target) -> std::result::Result<(), String> {
+            assert_eq!(kind, Kind::WindowsSsh);
+            *self.installed.borrow_mut() += 1;
+            Ok(())
+        }
+    }
+
+    // frob:tests crates/goway/src/resolve.rs::resolve_call
+    #[test]
+    fn a_windows_host_is_probed_in_powershell_and_gets_the_script_installed_when_missing() {
+        let config = Config::default();
+        let mut state = State::default();
+        let host = HostConfig {
+            name: "winbox".to_owned(),
+            os: crate::config::Os::Windows,
+            address: Some("192.0.2.7".to_owned()),
+            ..HostConfig::default()
+        };
+        let prober = NeedsInstall {
+            installed: RefCell::new(0),
+            lines: RefCell::new(Vec::new()),
+        };
+        let found = resolve_call(
+            &config,
+            &host,
+            &mut state,
+            &FakeLookup::default(),
+            &prober,
+            KeyPolicy::Strict,
+            &Call::new("probe", &["root"]),
+        )
+        .unwrap();
+        assert_eq!(found.kind, Kind::WindowsSsh);
+        assert_eq!(found.output, "arch=aarch64\n");
+        assert_eq!(*prober.installed.borrow(), 1);
+        let lines = prober.lines.borrow();
+        assert_eq!(lines.len(), 2);
+        assert!(lines.iter().all(|l| l.starts_with("powershell -NoProfile")));
     }
 }

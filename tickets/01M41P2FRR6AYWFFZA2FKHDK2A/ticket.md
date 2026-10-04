@@ -2,13 +2,13 @@
 id = "01M41P2FRR6AYWFFZA2FKHDK2A"
 title = "Portable helper side: macOS (and other non-GNU systems) as helpers"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 parent = "01M41P2FPBSV4WFSQDGQY7SC89"
 reporter = "lognd"
 created = "2026-10-03T20:07:47Z"
-updated = "2026-10-03T23:53:07Z"
+updated = "2026-10-04T00:35:29Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/doctor.rs", "crates/goway/src/pool.rs", ".github/workflows/ci.yml"]
 
 [[acceptance]]

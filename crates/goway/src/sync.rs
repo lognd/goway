@@ -15,9 +15,10 @@ use std::process::Stdio;
 use base64::Engine as _;
 
 use crate::error::{Error, Result};
-use crate::remote;
+use crate::remote::{self, Call};
 use crate::repo::{self, Repo};
 use crate::ssh::{self, KeyPolicy, Target};
+use crate::transport::{self, Kind as HostKind};
 
 /// What a local entry is.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -616,35 +617,94 @@ impl std::fmt::Debug for Manifest {
     }
 }
 
-/// Runs remote script invocations; ssh in production, a local shell in tests.
+/// Runs remote script calls; ssh or interop in production, a local shell in tests.
 pub trait Transport {
-    /// Run `cmd` and return its stdout.
-    fn output(&self, cmd: &str) -> Result<Vec<u8>>;
-    /// Run `cmd` with `input` on its stdin and return its stdout.
-    fn exchange(&self, cmd: &str, input: &[u8]) -> Result<Vec<u8>>;
-    /// Run `cmd`, streaming what `feed` writes into its stdin.
+    /// Run `call` and return its stdout.
+    fn output(&self, call: &Call) -> Result<Vec<u8>>;
+    /// Run `call` with `input` on its stdin and return its stdout.
+    fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>>;
+    /// Run `call`, streaming what `feed` writes into its stdin.
     fn feed(
         &self,
-        cmd: &str,
+        call: &Call,
         feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
     ) -> Result<()>;
 }
 
-/// The production transport: the system ssh to a resolved target.
+/// The production transport: ssh (or WSL interop for the Windows side of
+/// this machine) to a resolved target, speaking the host's own language.
 #[derive(Debug, Clone)]
 pub struct SshTransport<'a> {
+    /// How the host is reached and what it speaks.
+    pub kind: HostKind,
     /// Where to run.
     pub target: &'a Target,
     /// ssh settings.
     pub settings: &'a ssh::Settings,
 }
 
-impl SshTransport<'_> {
+impl<'a> SshTransport<'a> {
+    /// The transport to the host `found` describes.
+    pub fn of(found: &'a crate::resolve::Found, settings: &'a ssh::Settings) -> Self {
+        Self {
+            kind: found.kind,
+            target: &found.target,
+            settings,
+        }
+    }
+
     fn fail(&self, message: String) -> Error {
         Error::Ssh {
             host: self.target.name.clone(),
             message,
         }
+    }
+
+    /// The process that runs `call` on this host.
+    pub fn command(&self, call: &Call) -> Result<std::process::Command> {
+        transport::call_command(
+            self.kind,
+            self.target,
+            self.settings,
+            KeyPolicy::Strict,
+            call,
+        )
+    }
+
+    /// Run `attempt`; when a Windows host does not have this version of the
+    /// remote script yet, install it and run `attempt` once more.
+    fn with_script<T>(&self, mut attempt: impl FnMut() -> Result<T>) -> Result<T> {
+        match attempt() {
+            Err(Error::Ssh { message, .. })
+                if self.kind != HostKind::Unix && message.contains(remote::NOT_INSTALLED_MARK) =>
+            {
+                tracing::info!(host = %self.target.name, "installing the remote script");
+                self.install_script()?;
+                attempt()
+            }
+            other => other,
+        }
+    }
+
+    /// Install this version of the PowerShell remote script on the host.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Ssh`] when the host cannot be reached or refuses it.
+    pub fn install_script(&self) -> Result<()> {
+        let cmd = transport::command(
+            self.kind,
+            self.target,
+            self.settings,
+            KeyPolicy::Strict,
+            transport::Script::Ps(&remote::ps_install()),
+        )?;
+        exchange_child(cmd, remote::SCRIPT_PS.as_bytes())
+            .map(drop)
+            .map_err(|e| match e {
+                Error::Ssh { message, .. } => self.fail(message),
+                other => other,
+            })
     }
 }
 
@@ -716,47 +776,48 @@ fn stderr_text(c: &Captured) -> String {
 }
 
 impl Transport for SshTransport<'_> {
-    fn output(&self, cmd: &str) -> Result<Vec<u8>> {
-        let child = ssh::command(self.target, self.settings, KeyPolicy::Strict, cmd)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| self.fail(format!("cannot run ssh: {e}")))?;
-        let out = capture(child, MAX_HELPER_STDOUT, MAX_HELPER_STDERR)
-            .map_err(|e| self.fail(format!("cannot run ssh: {e}")))?;
-        if !out.status.success() {
-            return Err(self.fail(stderr_text(&out)));
-        }
-        if out.stdout_overflow {
-            return Err(self.fail("the helper's answer is larger than goway accepts".to_owned()));
-        }
-        Ok(out.stdout)
+    fn output(&self, call: &Call) -> Result<Vec<u8>> {
+        self.with_script(|| {
+            let child = self
+                .command(call)?
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .map_err(|e| self.fail(format!("cannot run ssh: {e}")))?;
+            let out = capture(child, MAX_HELPER_STDOUT, MAX_HELPER_STDERR)
+                .map_err(|e| self.fail(format!("cannot run ssh: {e}")))?;
+            if !out.status.success() {
+                return Err(self.fail(stderr_text(&out)));
+            }
+            if out.stdout_overflow {
+                return Err(
+                    self.fail("the helper's answer is larger than goway accepts".to_owned())
+                );
+            }
+            Ok(out.stdout)
+        })
     }
 
-    fn exchange(&self, cmd: &str, input: &[u8]) -> Result<Vec<u8>> {
-        exchange_child(
-            ssh::command(self.target, self.settings, KeyPolicy::Strict, cmd),
-            input,
-        )
-        .map_err(|e| match e {
-            Error::Ssh { message, .. } => self.fail(message),
-            other => other,
+    fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
+        self.with_script(|| {
+            exchange_child(self.command(call)?, input).map_err(|e| match e {
+                Error::Ssh { message, .. } => self.fail(message),
+                other => other,
+            })
         })
     }
 
     fn feed(
         &self,
-        cmd: &str,
+        call: &Call,
         feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
     ) -> Result<()> {
-        feed_child(
-            ssh::command(self.target, self.settings, KeyPolicy::Strict, cmd),
-            feed,
-        )
-        .map_err(|e| match e {
-            Error::Ssh { message, .. } => self.fail(message),
-            other => other,
+        self.with_script(|| {
+            feed_child(self.command(call)?, &mut *feed).map_err(|e| match e {
+                Error::Ssh { message, .. } => self.fail(message),
+                other => other,
+            })
         })
     }
 }
@@ -1079,16 +1140,15 @@ fn sync_once(
     let set = file_set(&repo.root, secrets)?;
     let local = set.files;
     let seed = repo.seed_key();
-    let manifest = transport.output(&remote::invocation("manifest", &[remote_root, &seed]))?;
+    let manifest = transport.output(&Call::new("manifest", &[remote_root, &seed]))?;
     let generation = manifest_generation(&manifest);
     let remote_entries = parse_manifest(&manifest);
     let mut plan = diff(&local, &remote_entries);
     let mut unchanged = 0usize;
     if !plan.verify.is_empty() {
         let paths = nul_list(plan.verify.iter().map(|&i| local[i].path.as_str()));
-        let remote_hashes = parse_hashes(
-            &transport.exchange(&remote::invocation("hashes", &[remote_root, &seed]), &paths)?,
-        );
+        let remote_hashes =
+            parse_hashes(&transport.exchange(&Call::new("hashes", &[remote_root, &seed]), &paths)?);
         for &i in &plan.verify {
             let f = &local[i];
             let same = remote_hashes.get(&f.path).is_some_and(|h| {
@@ -1128,13 +1188,13 @@ fn sync_once(
     );
     if !plan.delete.is_empty() {
         transport.exchange(
-            &remote::invocation("deletions", &[remote_root, &seed, &attempt]),
+            &Call::new("deletions", &[remote_root, &seed, &attempt]),
             &nul_list(plan.delete.iter().map(String::as_str)),
         )?;
     }
     if !to_send.is_empty() {
         transport.exchange(
-            &remote::invocation("changes", &[remote_root, &seed, &attempt]),
+            &Call::new("changes", &[remote_root, &seed, &attempt]),
             &nul_list(to_send.iter().map(|f| f.path.as_str())),
         )?;
     }
@@ -1155,7 +1215,7 @@ fn sync_once(
             if s.keep { "1" } else { "0" },
         )
     });
-    let cmd = remote::invocation(
+    let cmd = Call::new(
         "receive",
         &[
             remote_root,
@@ -1638,9 +1698,9 @@ mod tests {
 
     #[cfg(unix)]
     impl Transport for LocalTransport {
-        fn output(&self, cmd: &str) -> Result<Vec<u8>> {
+        fn output(&self, call: &Call) -> Result<Vec<u8>> {
             let out = std::process::Command::new("sh")
-                .args(["-c", cmd])
+                .args(["-c", &call.bash()])
                 .output()
                 .unwrap();
             assert!(
@@ -1650,18 +1710,18 @@ mod tests {
             );
             Ok(out.stdout)
         }
-        fn exchange(&self, cmd: &str, input: &[u8]) -> Result<Vec<u8>> {
+        fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
             let mut c = std::process::Command::new("sh");
-            c.args(["-c", cmd]);
+            c.args(["-c", &call.bash()]);
             exchange_child(c, input)
         }
         fn feed(
             &self,
-            cmd: &str,
+            call: &Call,
             feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
         ) -> Result<()> {
             let mut c = std::process::Command::new("sh");
-            c.args(["-c", cmd]);
+            c.args(["-c", &call.bash()]);
             feed_child(c, feed)
         }
     }
@@ -1808,9 +1868,10 @@ mod tests {
         let paths = crate::paths::Paths::from_env();
         let config = crate::config::Config::load(&paths.config_file()).unwrap();
         let host = config.host(&name).unwrap().clone();
+        let found_kind = HostKind::of(&host);
         let mut state = crate::state::State::load(&paths.state_file()).unwrap();
         let settings = ssh::Settings::from_paths(&paths);
-        let found = crate::resolve::resolve(
+        let found = crate::resolve::resolve_call(
             &config,
             &host,
             &mut state,
@@ -1819,7 +1880,7 @@ mod tests {
                 settings: settings.clone(),
             },
             KeyPolicy::Strict,
-            "true",
+            &Call::new("ping", &[] as &[&str]),
         )
         .unwrap();
         let dir = tempfile::tempdir().unwrap();
@@ -1827,6 +1888,7 @@ mod tests {
         std::fs::write(dir.path().join("a.txt"), "live").unwrap();
         let repo = Repo::discover(dir.path()).unwrap();
         let transport = SshTransport {
+            kind: found_kind,
             target: &found.target,
             settings: &settings,
         };
@@ -1835,9 +1897,7 @@ mod tests {
         assert_eq!(first.sent, 1);
         let again = sync(&transport, root, &repo, &Secrets::default(), None).unwrap();
         assert_eq!(again.sent, 0);
-        transport
-            .output(&format!("rm -rf {root}/seed/{}", repo.id))
-            .unwrap();
+        transport.output(&Call::new("purge", &[root])).unwrap();
     }
 
     // frob:tests crates/goway/src/sync.rs::exchange_child
@@ -1970,21 +2030,21 @@ mod tests {
 
     #[cfg(unix)]
     impl Transport for RacingGc {
-        fn output(&self, cmd: &str) -> Result<Vec<u8>> {
-            LocalTransport.output(cmd)
+        fn output(&self, call: &Call) -> Result<Vec<u8>> {
+            LocalTransport.output(call)
         }
-        fn exchange(&self, cmd: &str, input: &[u8]) -> Result<Vec<u8>> {
-            LocalTransport.exchange(cmd, input)
+        fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
+            LocalTransport.exchange(call, input)
         }
         fn feed(
             &self,
-            cmd: &str,
+            call: &Call,
             feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
         ) -> Result<()> {
             if !self.raced.replace(true) {
                 std::fs::remove_dir_all(&self.seed).unwrap();
             }
-            LocalTransport.feed(cmd, feed)
+            LocalTransport.feed(call, feed)
         }
     }
 
@@ -2053,15 +2113,15 @@ mod tests {
 
     #[cfg(unix)]
     impl Transport for DropFirstUpload {
-        fn output(&self, cmd: &str) -> Result<Vec<u8>> {
-            LocalTransport.output(cmd)
+        fn output(&self, call: &Call) -> Result<Vec<u8>> {
+            LocalTransport.output(call)
         }
-        fn exchange(&self, cmd: &str, input: &[u8]) -> Result<Vec<u8>> {
-            LocalTransport.exchange(cmd, input)
+        fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
+            LocalTransport.exchange(call, input)
         }
         fn feed(
             &self,
-            cmd: &str,
+            call: &Call,
             feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
         ) -> Result<()> {
             if !self.dropped.replace(true) {
@@ -2070,7 +2130,7 @@ mod tests {
                     message: "connection dropped".to_owned(),
                 });
             }
-            LocalTransport.feed(cmd, feed)
+            LocalTransport.feed(call, feed)
         }
     }
 
@@ -2135,5 +2195,153 @@ mod tests {
             tree.join("b").is_file(),
             "the stale deletion list was applied"
         );
+    }
+
+    /// The PowerShell the Windows-host tests drive: `GOWAY_PWSH`, else `pwsh`
+    /// (Windows CI has `powershell`); without one those tests pass trivially.
+    fn pwsh() -> Option<PathBuf> {
+        let mut candidates: Vec<PathBuf> = std::env::var_os("GOWAY_PWSH")
+            .map(PathBuf::from)
+            .into_iter()
+            .collect();
+        candidates.push(PathBuf::from("pwsh"));
+        if cfg!(windows) {
+            candidates.push(PathBuf::from("powershell"));
+        }
+        candidates.into_iter().find(|c| {
+            std::process::Command::new(c)
+                .args(["-NoProfile", "-Command", "exit 0"])
+                .output()
+                .is_ok_and(|o| o.status.success())
+        })
+    }
+
+    /// Runs `remote.ps1` (the Windows side) under PowerShell, calling the
+    /// script file directly the way an installed copy would be called.
+    struct PwshTransport {
+        ps: PathBuf,
+        script: PathBuf,
+    }
+
+    impl PwshTransport {
+        fn command(&self, call: &Call) -> std::process::Command {
+            let mut words = vec![
+                self.script.to_string_lossy().into_owned(),
+                call.verb.clone(),
+            ];
+            words.extend(call.args.iter().cloned());
+            let source = format!("{}; exit $LASTEXITCODE", transport::ps_call(&words));
+            let mut c = std::process::Command::new(&self.ps);
+            c.args(transport::POWERSHELL_FLAGS)
+                .arg(transport::encoded_command(&source));
+            c
+        }
+    }
+
+    impl Transport for PwshTransport {
+        fn output(&self, call: &Call) -> Result<Vec<u8>> {
+            exchange_child(self.command(call), b"")
+        }
+        fn exchange(&self, call: &Call, input: &[u8]) -> Result<Vec<u8>> {
+            exchange_child(self.command(call), input)
+        }
+        fn feed(
+            &self,
+            call: &Call,
+            feed: &mut dyn FnMut(&mut dyn std::io::Write) -> Result<()>,
+        ) -> Result<()> {
+            feed_child(self.command(call), feed)
+        }
+    }
+
+    // frob:tests crates/goway/src/sync.rs::sync
+    // frob:tests crates/goway/src/sync.rs::Transport
+    #[test]
+    fn a_windows_host_syncs_incrementally_and_deletes_only_inside_its_own_directory() {
+        let Some(ps) = pwsh() else { return };
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("remote.ps1");
+        std::fs::write(&script, remote::SCRIPT_PS).unwrap();
+        let transport = PwshTransport { ps, script };
+        let remote_root = dir.path().join("goway-root");
+        std::fs::create_dir(&remote_root).unwrap();
+        let outside = dir.path().join("outside.txt");
+        std::fs::write(&outside, "not goway's").unwrap();
+        let remote_root = remote_root.to_string_lossy().into_owned();
+
+        let one = dir.path().join("one");
+        std::fs::create_dir(&one).unwrap();
+        init(&one);
+        for i in 0..4 {
+            std::fs::write(one.join(format!("f{i}")), format!("{i}")).unwrap();
+        }
+        let repo = Repo::discover(&one).unwrap();
+        let secrets = Secrets::default();
+        let first = sync(&transport, &remote_root, &repo, &secrets, None).unwrap();
+        assert_eq!((first.files, first.sent), (4, 4));
+        // Repeat: nothing changed, nothing is written.
+        let again = sync(&transport, &remote_root, &repo, &secrets, None).unwrap();
+        assert_eq!((again.sent, again.deleted), (0, 0));
+        // One edit and one removal: exactly those travel.
+        std::fs::write(one.join("f1"), "edited, longer").unwrap();
+        std::fs::remove_file(one.join("f3")).unwrap();
+        let delta = sync(&transport, &remote_root, &repo, &secrets, None).unwrap();
+        assert_eq!((delta.sent, delta.deleted), (1, 1));
+        let seed = std::path::Path::new(&remote_root)
+            .join("seed")
+            .join(repo.seed_key())
+            .join("tree");
+        assert_eq!(
+            std::fs::read_to_string(seed.join("f1")).unwrap(),
+            "edited, longer"
+        );
+        assert!(!seed.join("f3").exists());
+        assert_eq!(std::fs::read_to_string(&outside).unwrap(), "not goway's");
+
+        // A second work tree has a seed of its own; the first is untouched.
+        let two = dir.path().join("two");
+        std::fs::create_dir(&two).unwrap();
+        init(&two);
+        std::fs::write(two.join("g0"), "x").unwrap();
+        let other = Repo::discover(&two).unwrap();
+        let second = sync(&transport, &remote_root, &other, &secrets, None).unwrap();
+        assert_eq!(second.sent, 1);
+        assert_ne!(repo.seed_key(), other.seed_key());
+        assert!(seed.join("f0").exists() && !seed.join("g0").exists());
+    }
+
+    // frob:tests crates/goway/src/sync.rs::SshTransport
+    #[test]
+    fn the_transport_builds_each_hosts_own_kind_of_process() {
+        let target = Target {
+            name: "winbox".to_owned(),
+            address: "192.0.2.7".to_owned(),
+            port: 22,
+            user: None,
+            identity: None,
+        };
+        let settings = ssh::Settings {
+            known_hosts: PathBuf::from("kh"),
+            control_dir: None,
+            connect_timeout_secs: 5,
+        };
+        let call = Call::new("ping", &[] as &[&str]);
+        let line = |kind| {
+            let t = SshTransport {
+                kind,
+                target: &target,
+                settings: &settings,
+            };
+            t.command(&call)
+                .map(|c| {
+                    c.get_args()
+                        .last()
+                        .map(|a| a.to_string_lossy().into_owned())
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default()
+        };
+        assert!(line(HostKind::Unix).starts_with("bash -c "));
+        assert!(line(HostKind::WindowsSsh).starts_with("powershell -NoProfile"));
     }
 }

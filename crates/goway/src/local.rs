@@ -59,6 +59,7 @@ pub fn host(config: &Config) -> HostConfig {
 /// The "found" record of this machine (`source` says why it was chosen).
 pub fn found(source: Source) -> Found {
     Found {
+        kind: crate::transport::Kind::Unix,
         target: Target {
             name: NAME.to_owned(),
             address: "this machine".to_owned(),
@@ -307,6 +308,7 @@ pub fn run_here(
             &Report {
                 host: host.name.clone(),
                 address: found.target.address.clone(),
+                os: found.kind.os().as_str().to_owned(),
                 arch: probe.arch.clone(),
                 hostname: probe.hostname.clone(),
                 command: args.command.clone(),

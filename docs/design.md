@@ -73,6 +73,31 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       connection drops. Exit codes outside 0-255 map to 128+N.
    4. Tests: `crates/goway/tests/remote_ps1.rs` drives the script under
       pwsh on Linux and under Windows PowerShell on Windows CI.
+   5. Windows hosts through the pipeline (`transport::Kind`): a host with
+      `os = "windows"` is `WindowsSsh` (OpenSSH, PowerShell) or
+      `WindowsInterop` (the Windows side of this machine from WSL through
+      `powershell.exe`, no ssh, no address; found as `Source::Interop`).
+      Callers never build a command line: they make a `remote::Call`
+      (verb and arguments) and `sync::SshTransport` (`kind`, target,
+      settings) renders it as bash, as an encoded PowerShell line over
+      ssh, or as a `powershell.exe` process. `resolve::resolve_call`
+      probes in the host's language and, when the probe answers
+      `goway-needs-install`, installs the script and probes again; the
+      transport does the same on exit 126 for every other call. So run,
+      sync, `--env`, copy verification, shards, status, gc and uninstall
+      reach Windows hosts through the same code as Linux ones, and the
+      `--report` file records `os` and the architecture the host reports
+      (`aarch64` on an ARM Windows machine, never assumed).
+   6. The NTFS copy. Sync is the same protocol as on Linux: the Windows
+      script lists its seed manifest natively (never a stat scan across
+      drvfs), goway decides on its own side what differs and sends a tar of
+      only that plus a deletion list; deletions and writes happen only
+      inside the seed of that repository and worktree under goway's
+      directory, and a run updates its persistent slot tree in place.
+      Where goway on the WSL side must name something on the NTFS side (a
+      `--keep` work dir), `interop::wsl_path_under_root` converts it with
+      `wslpath` and `interop::within_root` refuses any path outside
+      goway's directory.
 2. Transport (`ssh`)
    1. Spawn the system `ssh` binary (agent, config, and Windows OpenSSH all
       work). ControlMaster multiplexing on Unix clients only.

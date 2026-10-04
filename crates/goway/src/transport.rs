@@ -20,6 +20,7 @@ use base64::Engine as _;
 
 use crate::config::{HostConfig, Os, Transport};
 use crate::error::{Error, Result};
+use crate::remote::Call;
 use crate::ssh::{self, KeyPolicy, Settings, Target};
 
 /// The PowerShell options goway always passes, ending with the one that
@@ -131,6 +132,41 @@ pub fn command(
     }
 }
 
+/// The remote command line an ssh host is given to run `call`: bash text
+/// for a Unix host, an encoded PowerShell line for a Windows one. Interop
+/// has no command line (see [`call_command`]).
+pub fn ssh_line(kind: Kind, call: &Call) -> String {
+    match kind {
+        Kind::Unix => call.bash(),
+        Kind::WindowsSsh | Kind::WindowsInterop => windows_ssh_line(&call.powershell()),
+    }
+}
+
+/// [`ssh_line`] for a probe: on a Windows host a missing script answers
+/// [`crate::remote::PROBE_NEEDS_INSTALL`] instead of failing.
+pub fn probe_line(kind: Kind, call: &Call) -> String {
+    match kind {
+        Kind::Unix => call.bash(),
+        Kind::WindowsSsh | Kind::WindowsInterop => windows_ssh_line(&call.powershell_probe()),
+    }
+}
+
+/// The process that runs `call` on a host of `kind`, in the host's own
+/// language.
+pub fn call_command(
+    kind: Kind,
+    target: &Target,
+    settings: &Settings,
+    policy: KeyPolicy,
+    call: &Call,
+) -> Result<Command> {
+    let script = match kind {
+        Kind::Unix => return Ok(ssh::command(target, settings, policy, &call.bash())),
+        Kind::WindowsSsh | Kind::WindowsInterop => call.powershell(),
+    };
+    command(kind, target, settings, policy, Script::Ps(&script))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,6 +248,20 @@ mod tests {
                 Script::Sh("x")
             )
             .is_err()
+        );
+    }
+
+    // frob:tests crates/goway/src/transport.rs::ssh_line
+    // frob:tests crates/goway/src/transport.rs::probe_line
+    #[test]
+    fn lines_follow_the_kind() {
+        let call = Call::new("ping", &[] as &[&str]);
+        assert!(ssh_line(Kind::Unix, &call).starts_with("bash -c "));
+        assert!(ssh_line(Kind::WindowsSsh, &call).starts_with("powershell -NoProfile"));
+        assert!(probe_line(Kind::Unix, &call).starts_with("bash -c "));
+        assert_ne!(
+            ssh_line(Kind::WindowsSsh, &call),
+            probe_line(Kind::WindowsSsh, &call)
         );
     }
 }
