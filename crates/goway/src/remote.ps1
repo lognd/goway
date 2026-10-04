@@ -1308,7 +1308,11 @@ function Get-GitIgnored([string]$Farm, [string[]]$Paths, [string]$Scratch) {
   foreach ($p in $Paths) { $b = $script:Utf8.GetBytes($p); $ms.Write($b, 0, $b.Length); $ms.WriteByte(0) }
   $null_ = if ($script:IsWin) { 'NUL' } else { '/dev/null' }
   $r = Invoke-Native $git @('-c', "core.excludesFile=$null_", 'check-ignore', '--no-index', '-z', '--stdin') $ms.ToArray() @{ GIT_DIR = $gitdir; GIT_WORK_TREE = $Farm }
-  Write-Err "goway-diag: check-ignore git=$git exit=$($r[0]) bytes=$($r[1].Length) paths=$($Paths -join ',') err=[$($script:LastErr)] gi=[$(Read-TextOrEmpty (P $Farm @('.gitignore')))] argv=[$(Join-WinArgs @('-c', "core.excludesFile=$null_", 'check-ignore'))] stdinlen=$($ms.Length)`n"
+  $d1 = Invoke-Native $git @('rev-parse', '--show-toplevel', '--git-dir', '--is-bare-repository', '--show-prefix') $null @{ GIT_DIR = $gitdir; GIT_WORK_TREE = $Farm }
+  $d1t = $script:Utf8.GetString($d1[1]) + $script:LastErr
+  $d2 = Invoke-Native $git @('-c', "core.excludesFile=$null_", 'check-ignore', '-v', '-n', '--no-index', '-z', '--stdin') $ms.ToArray() @{ GIT_DIR = $gitdir; GIT_WORK_TREE = $Farm }
+  $d2t = $script:Utf8.GetString($d2[1]) + $script:LastErr
+  Write-Err "goway-diag: farm=$Farm gitdir=$gitdir cwd=$((Get-Location).Path) revparse=[$d1t] verbose=[$d2t] exit=$($r[0])`n"
   return [string[]](Split-Nul $r[1])
 }
 
