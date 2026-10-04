@@ -8,10 +8,10 @@ points = 1
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T00:07:09Z"
-updated = "2026-10-04T00:07:25Z"
+updated = "2026-10-04T00:11:41Z"
 scope = ["crates/goway/tests/publishing.rs"]
 
 [[acceptance]]
 text = "Given cargo clippy --workspace --all-targets -- -D warnings, when it runs, then publishing.rs passes"
-bound = false
+bound = true
 +++
