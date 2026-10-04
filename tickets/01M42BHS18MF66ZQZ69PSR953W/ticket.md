@@ -2,7 +2,8 @@
 id = "01M42BHS18MF66ZQZ69PSR953W"
 title = "Keep a helper awake while a job runs (systemd-inhibit on Linux, a keep-awake request on Windows, caffeinate on macOS)"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
