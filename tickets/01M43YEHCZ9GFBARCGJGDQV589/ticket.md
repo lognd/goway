@@ -2,7 +2,8 @@
 id = "01M43YEHCZ9GFBARCGJGDQV589"
 title = "macOS: bash 3.2 prints 'Terminated' for the killed watchdog on a run's stderr; footprint making_room test flakes"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
