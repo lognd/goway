@@ -1289,6 +1289,9 @@ run() {
     slot_wipe "$slot" "$cache"
     printf 'goway: building slot %s from scratch (attempt %s)\n' "$slot" "$attempt" >&2
   fi
+  # Nothing this run uses may be evicted to make room for it: its work dir,
+  # the seed it was synced from, and its cache (see evict).
+  GC_PROTECT="|$work|$root/seed/$(cat "$work/seed" 2>/dev/null || true)|$cache|"
   make_room "$root" "$cache" "$slot" "$repo_id" "$room" "$t_max"
   sync_slot "$work/tree" "$rundir" "$work" "$keepignored" "$keepb64" "$(cat "$work/seed" 2>/dev/null || true)" "$cache/target-$slot"
   # The snapshot has done its job; its links hold no data of their own.
@@ -1710,6 +1713,8 @@ GC_ACTION=""
 GC_BYTES=0
 GC_FREED=0
 GC_GONE=""
+# Paths evict must never remove (the current run's own entries), as |path|| items.
+GC_PROTECT=""
 
 # Decide one entry: print "action TAB kind TAB age TAB bytes TAB repo TAB id TAB path"
 # and remove it when the action is "remove" and MODE is apply. The entry's
@@ -1966,6 +1971,7 @@ evict() {
     [ -n "$kind" ] || continue
     [ "$freed" -lt "$need" ] || break
     case "$GC_GONE" in *"|$path|"*) continue ;; esac
+    case "$GC_PROTECT" in *"|$path|"*) continue ;; esac
     case "$kind" in
       slot) evict_slot "$path" "$k" "$now" "$mode" "$repo" ;;
       *) gc_entry "$kind" "$path" 0 "$now" "$mode" "$repo" evict ;;
