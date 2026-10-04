@@ -669,8 +669,12 @@ mem_sample() {
   if [ -n "$cg" ] && [ -r "$cg/memory.peak" ]; then
     v=$(cat "$cg/memory.peak" 2>/dev/null || true)
     if awk '/^oom_kill / && $2 > 0 {f=1} END {exit !f}' "$cg/memory.events" 2>/dev/null; then : >"$dir/oom"; fi
-  elif [ "$IS_DARWIN" != 1 ]; then
-    v=$(ps -A -o sid= -o rss= 2>/dev/null | awk -v s="$pid" '$1 == s {t += $2} END {print t * 1024}' || true)
+  else
+    # The job leads its session and process group; BSD ps has no session column, so macOS
+    # sums the process group.
+    local col=sid
+    [ "$IS_DARWIN" = 1 ] && col=pgid
+    v=$(ps -A -o "$col=" -o rss= 2>/dev/null | awk -v s="$pid" '$1 == s {t += $2} END {print t * 1024}' || true)
   fi
   case "$v" in "" | *[!0-9]*) return 0 ;; esac
   old=$(cat "$dir/mempeak" 2>/dev/null || echo 0)
