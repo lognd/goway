@@ -1,0 +1,6 @@
+kind = "scrub"
+reason = "TICK005: private terms replaced by their rule labels (forward commit, history untouched): a helper machine#c4b63ad28def"
+files = ["tickets/01M42E7BT3YPVZXAPXJSTRZ6V7/events/01M42E7BT3YPVZXAPXJSTRZ6V8.toml", "tickets/01M42E7BT3YPVZXAPXJSTRZ6V7/ticket.md"]
+at = "2026-10-04T04:13:10Z"
+actor = "lognd"
+rev = 1

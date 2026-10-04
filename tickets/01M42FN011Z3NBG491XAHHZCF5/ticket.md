@@ -20,7 +20,7 @@ text = 'Given a command whose program differs by OS, when it runs on a host of a
 bound = false
 
 [[acceptance]]
-text = "Given a translation, when the run starts, then goway prints one line naming host and translation (for example nova-windows: python3 -> py -3), and the --report records the requested and the actual program"
+text = "Given a translation, when the run starts, then goway prints one line naming host and translation (for example laptop-windows: python3 -> py -3), and the --report records the requested and the actual program"
 bound = false
 
 [[acceptance]]
