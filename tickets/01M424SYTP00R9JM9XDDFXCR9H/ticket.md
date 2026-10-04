@@ -2,13 +2,13 @@
 id = "01M424SYTP00R9JM9XDDFXCR9H"
 title = "A remote job outlives a client that vanished without a hangup; GPU-slot tests leak busy pollers when they fail"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T00:25:16Z"
-updated = "2026-10-04T00:32:18Z"
+updated = "2026-10-04T00:32:19Z"
 scope = ["crates/goway/tests/gpu_slots.rs", "crates/goway/tests/common/mod.rs"]
 
 [[acceptance]]
