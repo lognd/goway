@@ -59,6 +59,20 @@ mark_root() {
   printf 'goway state; safe to delete with goway gc --all\n' >"$1/.goway-root"
 }
 
+# same_fd PATH FD: whether FD is open on the file PATH names now (a lock
+# file gc removed and something re-created is a different file). Linux
+# compares with /proc/self/fd; macOS has no such link, so perl fstat()s the
+# inherited descriptor.
+if [ "$IS_DARWIN" = 1 ]; then
+  same_fd() {
+    local want
+    want=$(stat -c %d:%i "$1" 2>/dev/null) || return 1
+    [ "$want" = "$(perl -e 'open(my $f, "<&=", $ARGV[0]) or exit 1; my @s = stat($f); print "$s[0]:$s[1]"' "$2")" ]
+  }
+else
+  same_fd() { [ "$1" -ef "$FDDIR/$2" ]; }
+fi
+
 # lock_dir FD DIR FLOCK_OPT: create DIR if needed and hold DIR/lock on FD
 # (FLOCK_OPT is -x or -s). gc may remove DIR at any moment, so the open can
 # fail (DIR vanished) or lock an unlinked file; both retry until the held
@@ -76,7 +90,7 @@ lock_dir() {
         eval "$hook"
       fi
       flock "$opt" "$fd"
-      if [ "$dir/lock" -ef "$FDDIR/$fd" ]; then return 0; fi
+      if same_fd "$dir/lock" "$fd"; then return 0; fi
     fi
     sleep 0.05
   done
@@ -872,7 +886,7 @@ run() {
     # accept the lock only if it is the file the dir currently has.
     mkdir -p "$cache"
     exec 7>"$cache/target-$k.lock"
-    if flock -n 7 && [ "$cache/target-$k.lock" -ef "$FDDIR/7" ]; then slot=$k; break; fi
+    if flock -n 7 && same_fd "$cache/target-$k.lock" 7; then slot=$k; break; fi
     exec 7>&-
   done
   if [ -z "$slot" ]; then
@@ -882,7 +896,7 @@ run() {
       mkdir -p "$cache"
       exec 7>"$cache/target-$slot.lock"
       flock 7
-      [ "$cache/target-$slot.lock" -ef "$FDDIR/7" ] && break
+      same_fd "$cache/target-$slot.lock" 7 && break
     done
   fi
   [ -f "$cache/meta.json" ] || printf '%s' "$cache_meta" | base64 -d >"$cache/meta.json"
@@ -1225,7 +1239,7 @@ evict_slot() {
     return 0
   fi
   exec 20>>"$lock"
-  if ! flock -n 20 || [ ! "$lock" -ef "$FDDIR/20" ]; then
+  if ! flock -n 20 || ! same_fd "$lock" 20; then
     exec 20>&-
     printf 'busy\tslot\t0\t0\t%s\t%s\n' "$repo" "$dir/tree-$k"
     GC_ACTION=busy

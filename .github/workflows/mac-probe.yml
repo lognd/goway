@@ -7,7 +7,11 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v7
+      - run: brew install coreutils findutils gnu-sed gnu-tar grep util-linux flock >/dev/null 2>&1
       - run: |
-          /bin/bash --version | head -1
-          /bin/bash -n crates/goway/src/remote.sh; echo "syntax rc=$?"
-          sed -n 1286,1292p crates/goway/src/remote.sh
+          mkdir -p /tmp/gr
+          S="$(cat crates/goway/src/remote.sh)"
+          for v in "probe /tmp/gr/root disk static" "doctor /tmp/gr/root"; do
+            echo "=== $v"; /bin/bash -c "$S" goway $v 2>&1 | tail -40; done
+          echo "=== trace"; /bin/bash -x -c "$S" goway probe /tmp/gr/root disk static 2>&1 | tail -25
+          ls -la /dev/fd/ | head -3; ( exec 7>/tmp/gr/f; stat -c %d:%i /tmp/gr/f; perl -e 'open(my $f,"<&=",$ARGV[0]) or exit 1; my @s=stat($f); print "$s[0]:$s[1]\n"' 7 )
