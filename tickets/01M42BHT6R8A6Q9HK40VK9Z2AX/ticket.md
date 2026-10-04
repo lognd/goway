@@ -2,7 +2,7 @@
 id = "01M42BHT6R8A6Q9HK40VK9Z2AX"
 title = "Logout must not kill goway: detect KillUserProcesses=yes and missing lingering on Linux helpers"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 parent = "01M42BHPTWVNZ4DZ0H4GXG60MX"
