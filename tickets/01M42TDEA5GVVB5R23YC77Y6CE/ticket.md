@@ -7,12 +7,12 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T06:42:54Z"
-updated = "2026-10-04T11:17:48Z"
+updated = "2026-10-04T11:19:51Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/probe_epoch.rs"]
 
 [[acceptance]]
 text = "Given the probe verb, when it runs on a Linux or macOS host, then it prints epoch=SECONDS since the Unix epoch"
-bound = false
+bound = true
 +++
 
 Split from ~TGZTRVF because remote.sh was leased. Adds epoch=SECONDS to the probe output; remote.ps1 mirrors it (lane A).
