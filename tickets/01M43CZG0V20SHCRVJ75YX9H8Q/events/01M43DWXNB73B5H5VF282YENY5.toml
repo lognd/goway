@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T12:23:25Z"
+digest = "d995ee145f24f8d173e297ea867ddc45ea197d9942878239e76228a51f7bac83"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 39.19s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1bec7576-987b-423c-8be3-f6be742aebbf with nextest profile: default
+    Starting 1 test across 68 binaries (800 tests skipped)
+        PASS [   7.768s] goway::footprint making_room_never_evicts_the_runs_own_seed
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   7.772s] 1 test run: 1 passed, 800 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(making_room_never_evicts_the_runs_own_seed)'"
+size = 738
+status = "measured"
+tests = ["making_room_never_evicts_the_runs_own_seed"]
+at = "2026-10-04T12:23:25Z"
+actor = "lognd"
+rev = 1
