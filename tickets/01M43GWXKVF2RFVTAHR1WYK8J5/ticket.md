@@ -2,12 +2,13 @@
 id = "01M43GWXKVF2RFVTAHR1WYK8J5"
 title = "macOS: measure a job's memory peak (BSD ps has no session id column, so nothing was sampled)"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T13:15:50Z"
-updated = "2026-10-04T14:47:27Z"
+updated = "2026-10-04T14:47:28Z"
 scope = ["crates/goway/src/remote.sh", "docs/usage.md"]
 
 [[acceptance]]
