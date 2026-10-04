@@ -24,14 +24,6 @@ esac
     w
 }
 
-fn spawn(w: &common::World, args: &[&str]) -> std::process::Child {
-    w.goway(args)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .unwrap()
-}
-
 fn gpu_of(out: &std::process::Output) -> String {
     String::from_utf8_lossy(&out.stdout)
         .lines()
@@ -74,27 +66,20 @@ fn a_gpu_run_names_its_gpu_and_a_cpu_run_does_not() {
 #[test]
 fn concurrent_gpu_runs_get_different_gpus_and_the_third_waits_then_runs() {
     let w = gpu_world(2);
-    let hold = "echo GPU=$CUDA_VISIBLE_DEVICES; sleep 3";
-    let args = ["run", "--needs", "gpu", "--", "sh", "-c", hold];
-    let a = spawn(&w, &args);
-    std::thread::sleep(std::time::Duration::from_millis(800));
-    let b = spawn(&w, &args);
-    std::thread::sleep(std::time::Duration::from_millis(800));
-    let c = spawn(&w, &args);
-    let (a, b, c) = (
-        a.wait_with_output().unwrap(),
-        b.wait_with_output().unwrap(),
-        c.wait_with_output().unwrap(),
-    );
+    let hold = |w: &common::World| w.hold(&["--needs", "gpu"], "echo GPU=$CUDA_VISIBLE_DEVICES");
+    let a = hold(&w);
+    a.wait_started();
+    let b = hold(&w);
+    b.wait_started();
+    let c = hold(&w);
+    c.wait_stderr("all 2 GPU(s) are busy");
+    a.release();
+    b.release();
+    let (a, b, c) = (a.finish(), b.finish(), c.finish());
     for o in [&a, &b, &c] {
         assert!(o.status.success(), "{}", err(o));
     }
     assert_eq!((gpu_of(&a), gpu_of(&b)), ("0".to_owned(), "1".to_owned()));
-    assert!(
-        err(&c).contains("all 2 GPU(s) are busy"),
-        "the third run says it waits: {}",
-        err(&c)
-    );
     assert!(["0", "1"].contains(&gpu_of(&c).as_str()));
     assert!(!err(&a).contains("busy") && !err(&b).contains("busy"));
 }
@@ -112,32 +97,22 @@ fn gpu_jobs_lets_several_runs_share_each_gpu() {
         ),
     )
     .unwrap();
-    let args = [
-        "run",
-        "--needs",
-        "gpu",
-        "--",
-        "sh",
-        "-c",
-        "echo GPU=$CUDA_VISIBLE_DEVICES; sleep 3",
-    ];
-    let a = spawn(&w, &args);
-    std::thread::sleep(std::time::Duration::from_millis(800));
-    let b = spawn(&w, &args);
-    std::thread::sleep(std::time::Duration::from_millis(800));
-    let c = spawn(&w, &args);
-    let outs = [a, b, c].map(|c| c.wait_with_output().unwrap());
+    let hold = |w: &common::World| w.hold(&["--needs", "gpu"], "echo GPU=$CUDA_VISIBLE_DEVICES");
+    let a = hold(&w);
+    a.wait_started();
+    let b = hold(&w);
+    b.wait_started();
+    let c = hold(&w);
+    // Two share the one GPU at once; the third has to wait for a slot.
+    c.wait_stderr("all 1 GPU(s) are busy (up to 2 run(s) each)");
+    a.release();
+    b.release();
+    let outs = [a.finish(), b.finish(), c.finish()];
     for o in &outs {
         assert!(o.status.success(), "{}", err(o));
         assert_eq!(gpu_of(o), "0");
     }
-    // Two share the one GPU at once; the third has to wait for a slot.
     assert!(!err(&outs[0]).contains("busy") && !err(&outs[1]).contains("busy"));
-    assert!(
-        err(&outs[2]).contains("all 1 GPU(s) are busy (up to 2 run(s) each)"),
-        "{}",
-        err(&outs[2])
-    );
 }
 
 // frob:tests crates/goway/src/run.rs::gpu_words
@@ -147,22 +122,15 @@ fn the_lock_is_released_however_the_run_ends() {
     // A failing command, then a killed one: the next run gets the only GPU at once.
     let out = w.run(&["run", "--needs", "gpu", "--", "sh", "-c", "exit 7"]);
     assert_eq!(out.status.code(), Some(7));
-    let mut child = spawn(&w, &["run", "--needs", "gpu", "--", "sh", "-c", "sleep 6"]);
-    std::thread::sleep(std::time::Duration::from_millis(1500));
+    let mut held = w.hold(&["--needs", "gpu"], "true");
+    held.wait_started();
     // SIGKILL cannot be handled: only the kernel releasing the flock can free the slot.
-    let pid = child.id().to_string();
-    assert!(
-        std::process::Command::new("kill")
-            .args(["-KILL", &pid])
-            .status()
-            .unwrap()
-            .success()
-    );
-    let _ = child.wait();
-    // The fake remote runs on to the end of its `sleep`; the slot frees when
-    // that shell ends and the kernel drops its flock, not before.
+    held.kill_client();
+    // The fake remote runs on until released; the slot frees when that shell
+    // ends and the kernel drops its flock, not before.
+    held.release();
     let mut got = None;
-    for _ in 0..20 {
+    common::wait_for("the killed run's GPU to free", || {
         let out = w.run(&[
             "run",
             "--needs",
@@ -174,10 +142,9 @@ fn the_lock_is_released_however_the_run_ends() {
         ]);
         if out.status.success() && !err(&out).contains("busy") {
             got = Some(gpu_of(&out));
-            break;
         }
-        std::thread::sleep(std::time::Duration::from_secs(1));
-    }
+        got.is_some()
+    });
     assert_eq!(got.as_deref(), Some("0"));
 }
 

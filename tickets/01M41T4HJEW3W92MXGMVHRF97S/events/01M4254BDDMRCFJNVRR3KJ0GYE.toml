@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T00:30:56Z"
+digest = "2d4d4ae10ba9a7cd0dab242866d9c8d0f6f2c6a62663156f7bf090619224de16"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 4d10678d-dc5c-4cd2-9760-88f5c43f665e with nextest profile: default
+    Starting 5 tests across 1 binary (10 tests and 42 binaries skipped)
+        PASS [   0.018s] goway-setup::native without_a_key_no_key_file_is_touched
+        PASS [   0.025s] goway-setup::native only_one_plain_public_key_line_is_ever_authorized
+        PASS [   0.028s] goway-setup::native acls_are_read_normalized_and_written_as_a_dacl_only
+        PASS [   0.031s] goway-setup::native a_fresh_machine_gets_the_capability_a_narrowed_rule_the_shell_the_key_and_the_service
+        PASS [   0.042s] goway-setup::native a_standard_account_gets_its_own_authorized_keys_with_a_user_only_acl
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.044s] 5 tests run: 5 passed, 10 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(native) & (test(a_standard_account) | test(only_one_plain_public_key) | test(acls_are_read) | test(without_a_key) | test(a_fresh_machine))'"
+size = 1000
+status = "measured"
+tests = ["without_a_key_no_key_file_is_touched", "only_one_plain_public_key_line_is_ever_authorized", "acls_are_read_normalized_and_written_as_a_dacl_only", "a_fresh_machine_gets_the_capability_a_narrowed_rule_the_shell_the_key_and_the_service", "a_standard_account_gets_its_own_authorized_keys_with_a_user_only_acl"]
+at = "2026-10-04T00:30:56Z"
+actor = "lognd"
+rev = 1

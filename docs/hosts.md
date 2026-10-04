@@ -103,5 +103,11 @@ A `[[host]]` has an `os` (`linux`, the default, or `windows`) and a
   network listener, and nothing of the WSL environment is handed to
   Windows. Set it by hand in the config; it only works inside WSL.
 
+The Windows side of the protocol is `remote.ps1` (see docs/design.md
+2a): the same verbs as on Linux, installed once per version under
+`%LOCALAPPDATA%\goway` on the host. Not supported on Windows hosts:
+symlinks in your tree (skipped with a note) and `.bat` or `.cmd` files
+with unusual quoting as the command.
+
 Both kinds share one transport abstraction (`crates/goway/src/transport.rs`),
 so running on this machine in place can be one more kind.

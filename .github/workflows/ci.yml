@@ -20,6 +20,8 @@ jobs:
           tool: cargo-nextest
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: PowerShell is installed, so the remote.ps1 contract tests really run
+        run: pwsh --version
       - run: cargo nextest run --workspace --locked
       - name: Real GoogleTest v1.15.2 and Catch2 v3.7.1 binaries are detected and sharded
         run: cargo nextest run -p goway --locked --run-ignored only -E 'test(real_googletest_and_catch2_binaries_are_detected_and_sharded_disjointly)'
@@ -69,6 +71,14 @@ jobs:
         run: rustup show active-toolchain || rustup toolchain install
       - run: cargo clippy -p goway -p goway-setup -p goway-journal --all-targets --locked -- -D warnings
       - run: cargo test -p goway-setup -p goway-journal --locked --no-fail-fast
+      - name: The remote.ps1 contract tests under PowerShell 7 (pwsh)
+        run: |
+          pwsh --version
+          cargo test -p goway --test remote_ps1 --locked
+      - name: The same tests under Windows PowerShell 5.1
+        env:
+          GOWAY_PWSH: powershell
+        run: cargo test -p goway --test remote_ps1 --locked
   macos:
     # The client and the install scripts on macOS (bash 3.2, BSD userland).
     runs-on: macos-14

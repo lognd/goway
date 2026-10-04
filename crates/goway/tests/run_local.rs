@@ -55,14 +55,11 @@ fn cargo_target_dir_is_a_free_per_repo_slot() {
     assert!(slot0.ends_with("/target-0"), "{slot0}");
 
     // While one run holds slot 0, a concurrent run gets slot 1.
-    let mut busy = w
-        .goway(&["run", "--", "sh", "-c", "sleep 3"])
-        .spawn()
-        .unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(1500));
+    let busy = w.hold(&[], "true");
+    busy.wait_started();
     let second = w.run(&print);
     let slot = String::from_utf8_lossy(&second.stdout).trim().to_owned();
-    assert!(busy.wait().unwrap().success());
+    assert!(busy.finish().status.success());
     assert!(
         slot.ends_with("/target-1"),
         "{slot}\n{}",
@@ -183,23 +180,14 @@ fn gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones() {
     let cache = only_dir(&w.remote.join("cache")); // fresh: kept
 
     // A running job: its work dir is old but locked.
-    let mut busy = w
-        .goway(&["run", "--", "sh", "-c", "sleep 4"])
-        .spawn()
-        .unwrap();
-    let mut running = None;
-    for _ in 0..100 {
-        running = w
-            .work_dirs()
-            .into_iter()
-            .map(|d| w.remote.join("work").join(d))
-            .find(|d| *d != kept && d.join("pid").exists());
-        if running.is_some() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(100));
-    }
-    let running = running.expect("the busy run started");
+    let busy = w.hold(&[], "true");
+    busy.wait_started();
+    let running = w
+        .work_dirs()
+        .into_iter()
+        .map(|d| w.remote.join("work").join(d))
+        .find(|d| *d != kept && d.join("pid").exists());
+    let running = running.expect("the busy run has a work dir");
     backdate(&running.join("meta.json"), 9);
     // The busy run re-touched the seed; age it again.
     backdate(&seed.join("meta.json"), 8);
@@ -215,7 +203,7 @@ fn gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones() {
     assert!(running.exists(), "locked dir untouched\n{stdout}");
     assert!(stdout.contains("busy"), "{stdout}");
     assert!(cache.exists(), "fresh cache kept");
-    assert!(busy.wait().unwrap().success());
+    assert!(busy.finish().status.success());
     // The seed was locked shared only during the snapshot; it is expired now.
     let again = w.run(&["gc"]);
     assert!(again.status.success());
@@ -249,13 +237,9 @@ fn every_run_triggers_automatic_gc_of_expired_entries() {
     let kept = w.remote.join("work").join(&w.work_dirs()[0]);
     backdate(&kept.join("meta.json"), 4);
     assert!(w.run(&["run", "--", "true"]).status.success());
-    for _ in 0..50 {
-        if !kept.exists() {
-            return;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(100));
-    }
-    panic!("automatic gc did not remove the expired kept dir");
+    common::wait_for("automatic gc to remove the expired kept dir", || {
+        !kept.exists()
+    });
 }
 
 // frob:tests crates/goway/src/doctor.rs::doctor
@@ -376,19 +360,22 @@ fn a_run_leaves_no_files_outside_its_root_and_no_processes() {
         outside.is_empty(),
         "files outside the remote root: {outside:?}"
     );
-    // Give the detached gc a moment, then no process may mention this run.
-    std::thread::sleep(std::time::Duration::from_millis(1500));
+    // The detached gc may still be finishing; then no process may mention this run.
     let root = home.join(".cache/goway").display().to_string();
     let mut leftovers = Vec::new();
-    for entry in std::fs::read_dir("/proc").unwrap().flatten() {
-        let Ok(cmdline) = std::fs::read(entry.path().join("cmdline")) else {
-            continue;
-        };
-        let cmdline = String::from_utf8_lossy(&cmdline).replace('\0', " ");
-        if cmdline.contains(&marker) || cmdline.contains(&root) {
-            leftovers.push(cmdline);
+    common::wait_for("no process to mention the run", || {
+        leftovers.clear();
+        for entry in std::fs::read_dir("/proc").unwrap().flatten() {
+            let Ok(cmdline) = std::fs::read(entry.path().join("cmdline")) else {
+                continue;
+            };
+            let cmdline = String::from_utf8_lossy(&cmdline).replace('\0', " ");
+            if cmdline.contains(&marker) || cmdline.contains(&root) {
+                leftovers.push(cmdline);
+            }
         }
-    }
+        leftovers.is_empty()
+    });
     assert!(leftovers.is_empty(), "processes left behind: {leftovers:?}");
 }
 

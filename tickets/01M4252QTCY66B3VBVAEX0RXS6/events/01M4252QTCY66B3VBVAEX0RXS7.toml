@@ -1,0 +1,9 @@
+kind = "create"
+title = "Prove goway-setup install --host --native on a spare Windows machine: roundtrip snapshot in a test profile"
+type = "task"
+category = "todo"
+priority = "medium"
+scope = ["scripts/windows/roundtrip-host.sh", "docs/install-windows.md"]
+at = "2026-10-04T00:30:04Z"
+actor = "lognd"
+rev = 1

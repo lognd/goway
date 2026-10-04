@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T00:30:57Z"
+digest = "71e3db14429fe00b56c5e8a1399e03cd0c7249d030ee4e1dc4e49ea907671268"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 83b66043-4421-4836-b5fb-f685ab2623a5 with nextest profile: default
+    Starting 5 tests across 1 binary (10 tests and 42 binaries skipped)
+        PASS [   0.010s] goway-setup::native uninstall_restores_a_fresh_model_machine_exactly
+        PASS [   0.011s] goway-setup::native uninstall_keeps_what_the_user_already_had_and_restores_what_install_replaced
+        PASS [   0.013s] goway-setup::native the_elevated_uninstall_accepts_what_the_native_install_wrote_and_nothing_else
+        PASS [   0.012s] goway-setup::native probe_output_and_acl_text_are_parsed_exactly
+        PASS [   0.018s] goway-setup::native the_service_resource_name_carries_what_removal_restores
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.019s] 5 tests run: 5 passed, 10 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(native) & (test(uninstall_restores) | test(uninstall_keeps) | test(the_elevated_uninstall) | test(the_service_resource_name) | test(probe_output))'"
+size = 1011
+status = "measured"
+tests = ["uninstall_restores_a_fresh_model_machine_exactly", "uninstall_keeps_what_the_user_already_had_and_restores_what_install_replaced", "the_elevated_uninstall_accepts_what_the_native_install_wrote_and_nothing_else", "probe_output_and_acl_text_are_parsed_exactly", "the_service_resource_name_carries_what_removal_restores"]
+at = "2026-10-04T00:30:57Z"
+actor = "lognd"
+rev = 1
