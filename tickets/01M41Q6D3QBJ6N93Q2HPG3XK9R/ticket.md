@@ -8,8 +8,8 @@ points = 8
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-04T00:00:34Z"
-scope = ["crates/goway/src/remote.ps1", "crates/goway/src/remote.rs", ".github/workflows/ci.yml"]
+updated = "2026-10-04T00:00:39Z"
+scope = ["crates/goway/src/remote.ps1", "crates/goway/src/remote.rs", ".github/workflows/ci.yml", "crates/goway/tests/remote_ps1.rs", "docs/design.md", "docs/hosts.md"]
 
 [[links]]
 kind = "blocked-by"
