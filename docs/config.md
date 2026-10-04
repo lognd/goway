@@ -180,7 +180,7 @@ On the remote, a job sees these variables:
 | `CCACHE_DIR` | a per-repository ccache directory, when ccache (and no sccache) is the launcher and the variable is unset |
 | `CPM_SOURCE_CACHE` | `cache/<repo-id>/cpm` in goway's remote root: one CPM.cmake download directory shared by all slots and worktrees of the repository, unless already set |
 
-The remote environment, `~/.cargo/env` and `--env KEY=VALUE` values are
+The remote environment, the per-user tool directories on PATH and `--env KEY=VALUE` values are
 applied first. goway only fills in what is still unset, so your settings
 always win (see docs/positioning.md).
 

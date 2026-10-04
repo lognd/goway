@@ -20,8 +20,10 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
   (`powershell.exe Resolve-DnsName`, about 4 s, so results are cached).
   LLMNR also answers with unrelated adapters (VirtualBox 192.168.56.1), so a
   name lookup alone is not an identity.
-- Non-interactive ssh does not read ~/.cargo/env; cargo is only on PATH in a
-  login shell.
+- Non-interactive ssh reads no startup file, so tools are only on PATH in a
+  login shell. goway never sources startup files; `user_tool_path` in
+  remote.sh adds ~/.local/bin, ~/.cargo/bin and the uv, node and go
+  locations that exist, for runs and doctor alike.
 - Cargo stays Fresh when a workspace is copied to a new directory with mtimes
   kept and the same CARGO_TARGET_DIR (tested with path and registry deps).
   This makes per-run work directories plus a shared per-repo target cheap.

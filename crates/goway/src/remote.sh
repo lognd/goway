@@ -97,6 +97,24 @@ lock_dir() {
   die "cannot lock $dir (kept vanishing)"
 }
 
+# user_tool_path: make the usual per-user tool directories visible to a
+# non-interactive ssh command, whose PATH never saw .profile or .bashrc.
+# ~/.local/bin (mold, uv tools, goway's own fixes) goes first, then
+# ~/.cargo/bin if it is not already on PATH; the uv, node and go locations
+# that exist are appended (a system install still wins). Startup files are
+# never sourced: they may print text or run anything. Shared by run and doctor.
+user_tool_path() {
+  local d n
+  case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH" ;; esac
+  case ":$PATH:" in *":$HOME/.cargo/bin:"*) ;; *) [ -d "$HOME/.cargo/bin" ] && PATH="$HOME/.cargo/bin:$PATH" ;; esac
+  n=$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1 || true)
+  for d in "$HOME/.local/share/uv/bin" "$HOME/.volta/bin" "$n" "$HOME/.local/share/fnm/aliases/default/bin" /usr/local/go/bin "$HOME/go/bin"; do
+    [ -n "$d" ] && [ -d "$d" ] || continue
+    case ":$PATH:" in *":$d:"*) ;; *) PATH="$PATH:$d" ;; esac
+  done
+  export PATH
+}
+
 # Change-log entries a seed keeps.
 LOG_KEEP=64
 
@@ -1129,14 +1147,14 @@ run() {
   touch "$cache/meta.json"
 
   # Settings that already exist win over goway's defaults: first the
-  # remote environment and ~/.cargo/env, then the user's --env values;
-  # goway only fills in what is still unset.
+  # remote environment and the usual per-user tool directories, then the
+  # user's --env values; goway only fills in what is still unset.
   # Scratch files (compilers, test harnesses, build scripts) go under the
   # run's own work dir, never to the helper's /tmp: that may be a small
   # tmpfs, or mounted noexec so that build scripts cannot run. Only an
   # explicit --env TMPDIR=... wins; the helper's own TMPDIR does not.
   unset TMPDIR
-  if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; fi
+  user_tool_path
   if [ -f "$work/env" ]; then
     while IFS= read -r -d '' kv; do export "$kv"; done <"$work/env"
     rm -f "$work/env"
@@ -1792,8 +1810,10 @@ doctor() {
   local t v pa out root
   root=$(root_dir "$1")
   shift
-  PATH="$HOME/.local/bin:$PATH"
-  if [ -f "$HOME/.cargo/env" ]; then . "$HOME/.cargo/env"; printf 'cargo_env=yes\n'; else printf 'cargo_env=no\n'; fi
+  user_tool_path
+  if [ -f "$HOME/.cargo/env" ]; then printf 'cargo_env=yes\n'; else printf 'cargo_env=no\n'; fi
+  # Names only: a proxy URL may carry credentials, so values never leave the host.
+  printf 'proxy_vars=%s\n' "$({ env | sed -n 's/=.*//p' | grep -iE '^(https?|all|no)_proxy$' | sort -u | paste -sd, - ; } 2>/dev/null || true)"
   printf 'kernel=%s\n' "$(uname -s)"
   if [ "$IS_DARWIN" = 1 ]; then
     # Which tools still resolve to the BSD versions (no --version, or not GNU).

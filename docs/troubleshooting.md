@@ -258,6 +258,17 @@ and caches would vanish between sessions. doctor reports the type; point
 choose that for you.
 </details>
 
+<details><summary>A tool works in my login shell on the helper but goway cannot find it</summary>
+
+ssh commands do not read `.profile` or `.bashrc`, so a tool added to
+PATH there is invisible. goway never reads those files (they may print
+text or run anything). Instead, runs and `goway doctor` add the usual
+per-user directories to PATH: `~/.local/bin` (mold, uv tools), then
+`~/.cargo/bin`, then, where they exist, the uv, Volta, nvm and fnm
+locations, `/usr/local/go/bin` and `~/go/bin`. Install the tool in one
+of those, for example with `cargo install` or `uv tool install`.
+</details>
+
 <details><summary>Something else</summary>
 
 Run the failing command again with `-vv` (for example
