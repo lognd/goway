@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T11:33:08Z"
-updated = "2026-10-04T11:51:29Z"
+updated = "2026-10-04T11:51:36Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/sccache_tmpdir.rs", "docs/design.md"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a test that runs cargo twice through goway with sccache present, when the first run's work dir is gone, then the second build succeeds"
-bound = false
+bound = true
 +++
