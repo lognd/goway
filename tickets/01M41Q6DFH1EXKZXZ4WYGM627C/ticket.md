@@ -2,13 +2,13 @@
 id = "01M41Q6DFH1EXKZXZ4WYGM627C"
 title = "Rust on Windows hosts: per-repository CARGO_TARGET_DIR, msvc target, warm reruns"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-04T00:35:06Z"
+updated = "2026-10-04T00:35:07Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/src/run.rs", "docs/usage.md"]
 
 [[acceptance]]
