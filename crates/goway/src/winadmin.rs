@@ -223,10 +223,10 @@ fn judge(out: &std::process::Output) -> Result<(), Failure> {
     let stderr = String::from_utf8_lossy(&out.stderr).trim().to_owned();
     match out.status.code() {
         Some(0) => Ok(()),
-        Some(SSH_FAILED) => Err(Failure::Unavailable(stderr)),
-        // No protected goway-setup there: this route cannot do the step (the next one cannot
-        // either, but it says so itself), so the person gets the manual command.
-        Some(EXIT_NO_TRUSTED_SETUP) => Err(Failure::Unavailable(stderr)),
+        // 255: ssh could not log in. EXIT_NO_TRUSTED_SETUP: no protected goway-setup there, so
+        // this route cannot do the step (the next one says so itself) and the person gets the
+        // manual command.
+        Some(SSH_FAILED | EXIT_NO_TRUSTED_SETUP) => Err(Failure::Unavailable(stderr)),
         // Including EXIT_WSL_NOT_RUNNING: the session ran, the step did not.
         _ => Err(Failure::StepFailed(stderr)),
     }
