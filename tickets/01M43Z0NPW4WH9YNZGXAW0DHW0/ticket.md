@@ -2,7 +2,8 @@
 id = "01M43Z0NPW4WH9YNZGXAW0DHW0"
 title = "Memory footprint can lock a repository out of every helper: inflated peaks, no override, pinned hosts refused"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "critical"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
