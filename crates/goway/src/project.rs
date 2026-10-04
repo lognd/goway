@@ -7,6 +7,9 @@
 //! prefers = ["cpu=avx2"]
 //! ```
 //!
+//! A top-level `cross_os = true` lets hosts of every OS take the project's runs
+//! (`false` keeps the laptop's OS and silences the cross-OS hint).
+//!
 //! The first rule whose glob matches the whole command line (words joined
 //! by single spaces) supplies `needs` and `prefers` (the terms of
 //! [`crate::needs`]). They are merged with the command line's own terms,
@@ -39,6 +42,9 @@ struct RawFile {
     /// Top-level `with_git = true`: every run gets a `.git` (see `--with-git`).
     #[serde(default)]
     with_git: bool,
+    /// Top-level `cross_os`: `true` lets every OS take runs, `false` silences the hint.
+    #[serde(default)]
+    cross_os: Option<bool>,
 }
 
 /// `[toolchain]`: `tools = [...]` plus `tool = "version"` pins.
@@ -80,6 +86,9 @@ pub struct Rules {
     pub toolchain: crate::doctor::Toolchain,
     /// `with_git = true`: every run of this project gets a `.git`.
     pub with_git: bool,
+    /// `cross_os`: `Some(true)` allows every OS, `Some(false)` keeps the
+    /// laptop's OS without the hint, `None` (unset) keeps it with the hint.
+    pub cross_os: Option<bool>,
 }
 
 /// Whether the project's `goway.toml` asks for `with_git`.
@@ -89,6 +98,67 @@ pub struct Rules {
 /// [`Rules::load`]'s errors.
 pub fn wants_git(root: &Path) -> Result<bool> {
     Ok(Rules::load(root)?.is_some_and(|r| r.with_git))
+}
+
+/// The project's `cross_os` setting (`None` when unset or there is no `goway.toml`).
+///
+/// # Errors
+///
+/// [`Rules::load`]'s errors.
+pub fn cross_os_setting(root: &Path) -> Result<Option<bool>> {
+    Ok(Rules::load(root)?.and_then(|r| r.cross_os))
+}
+
+/// Configured hosts of another OS family than the laptop's (a Mac laptop treats `linux`
+/// hosts as possible Macs, so only Windows hosts count there).
+pub fn other_os_hosts<'a>(config: &'a crate::config::Config, laptop: &str) -> Vec<&'a str> {
+    config
+        .hosts
+        .iter()
+        .filter(|h| {
+            let os = h.os.as_str();
+            os != laptop && !(laptop == "darwin" && os == "linux")
+        })
+        .map(|h| h.name.as_str())
+        .collect()
+}
+
+/// The loud cross-OS hint: a portable runner stays on the laptop's OS while hosts of another
+/// OS could take it. Silent for unrecognized commands, `cross_os` set either way, an explicit
+/// `os=` need, `--any-os`, and a pinned host (`pool_os` is `None` then).
+pub fn warn_cross_os(
+    renderer: crate::render::Renderer,
+    config: &crate::config::Config,
+    command: &[String],
+    selection: &Selection,
+    setting: Option<bool>,
+) {
+    if selection.pool_os.is_none() || setting.is_some() {
+        return;
+    }
+    let Some(runner) = crate::runners::portable_runner(command) else {
+        return;
+    };
+    let hosts = other_os_hosts(config, crate::needs::laptop_os());
+    if hosts.is_empty() {
+        return;
+    }
+    tracing::info!(runner, ?hosts, "cross-OS hint");
+    let laptop = crate::needs::laptop_os();
+    renderer.warn(format_args!(
+        "CROSS-OS: `{runner}` is portable, but this run stays on {laptop} hosts"
+    ));
+    renderer.note(format_args!(
+        "  other-OS hosts that could take it: {}",
+        hosts.join(", ")
+    ));
+    renderer.note("  allow every OS for this run:      goway run --any-os -- ...");
+    renderer.note(format_args!(
+        "  allow it for this project:        cross_os = true in {FILE}"
+    ));
+    renderer.note(format_args!(
+        "  silence this hint:                cross_os = false in {FILE}"
+    ));
 }
 
 /// Which rule applied to a run, for the note and the report.
@@ -197,6 +267,7 @@ impl Rules {
             rules,
             toolchain,
             with_git: raw.with_git,
+            cross_os: raw.cross_os,
         })
     }
 
@@ -259,9 +330,20 @@ pub fn selection_for(
     command: &[String],
     cli_needs: &[String],
     cli_prefers: &[String],
+    any_os: bool,
 ) -> Result<(Selection, Option<Applied>)> {
-    let cli = Selection::parse(cli_needs, cli_prefers)?.with_default_os(crate::needs::laptop_os());
-    let Some(rules) = Rules::load(root)? else {
+    let rules = Rules::load(root)?;
+    // Every OS is a candidate with --any-os or `cross_os = true`; else the laptop's family.
+    let any = any_os || rules.as_ref().is_some_and(|r| r.cross_os == Some(true));
+    let default_os = |s: Selection| {
+        if any {
+            s
+        } else {
+            s.with_default_os(crate::needs::laptop_os())
+        }
+    };
+    let cli = default_os(Selection::parse(cli_needs, cli_prefers)?);
+    let Some(rules) = rules else {
         return Ok((cli, None));
     };
     let Some((n, rule)) = rules.first_match(command) else {
@@ -279,9 +361,8 @@ pub fn selection_for(
         needs: merged(&rule.needs, &cli.needs),
         prefers: merged(&rule.prefers, &cli.prefers),
         pool_os: None,
-    }
-    .with_default_os(crate::needs::laptop_os());
-    Ok((selection, Some(applied)))
+    };
+    Ok((default_os(selection), Some(applied)))
 }
 
 #[cfg(test)]
@@ -303,9 +384,10 @@ mod tests {
     fn a_run_defaults_to_the_laptops_os_unless_a_need_names_one() {
         let dir = tempfile::tempdir().unwrap();
         let none: Vec<String> = Vec::new();
-        let (plain, _) = selection_for(dir.path(), &[], &none, &none).unwrap();
+        let (plain, _) = selection_for(dir.path(), &[], &none, &none, false).unwrap();
         assert_eq!(plain.pool_os.as_deref(), Some(crate::needs::laptop_os()));
-        let (win, _) = selection_for(dir.path(), &[], &["os=windows".to_owned()], &none).unwrap();
+        let (win, _) =
+            selection_for(dir.path(), &[], &["os=windows".to_owned()], &none, false).unwrap();
         assert_eq!(win.pool_os, None);
     }
 
@@ -361,6 +443,7 @@ needs = ["gpu"]
             &words("cargo nextest run"),
             &strings(&["mem>=16G", "kvm"]),
             &[],
+            false,
         )
         .unwrap();
         let applied = applied.unwrap();
@@ -370,11 +453,18 @@ needs = ["gpu"]
         assert_eq!(needs, ["arch=x86_64", "mem>=16G", "kvm"]);
         assert_eq!(sel.prefers.len(), 1);
         // Rule 2 for another cargo command; no rule for others.
-        let (sel, applied) = selection_for(dir.path(), &words("cargo build"), &[], &[]).unwrap();
+        let (sel, applied) =
+            selection_for(dir.path(), &words("cargo build"), &[], &[], false).unwrap();
         assert_eq!(applied.unwrap().rule, 2);
         assert_eq!(sel.needs.len(), 1);
-        let (sel, applied) =
-            selection_for(dir.path(), &words("make"), &strings(&["docker"]), &[]).unwrap();
+        let (sel, applied) = selection_for(
+            dir.path(),
+            &words("make"),
+            &strings(&["docker"]),
+            &[],
+            false,
+        )
+        .unwrap();
         assert!(applied.is_none());
         assert_eq!(sel.needs.len(), 1);
     }
@@ -383,7 +473,7 @@ needs = ["gpu"]
     fn no_file_means_the_command_line_alone() {
         let dir = tempfile::tempdir().unwrap();
         let (sel, applied) =
-            selection_for(dir.path(), &words("make"), &["kvm".to_owned()], &[]).unwrap();
+            selection_for(dir.path(), &words("make"), &["kvm".to_owned()], &[], false).unwrap();
         assert!(applied.is_none());
         assert_eq!(sel.needs.len(), 1);
     }
@@ -421,5 +511,38 @@ needs = ["gpu"]
                 .to_string()
                 .contains("larger than")
         );
+    }
+
+    // frob:ticket 01M42FJVGY91ND091THEDPP8DN
+    // frob:tests crates/goway/src/project.rs::other_os_hosts
+    #[test]
+    fn cross_os_parses_and_other_os_hosts_exclude_the_laptops_family() {
+        assert_eq!(parse("cross_os = true\n").unwrap().cross_os, Some(true));
+        assert_eq!(parse("cross_os = false\n").unwrap().cross_os, Some(false));
+        assert_eq!(parse("").unwrap().cross_os, None);
+        assert!(parse("cross_os = \"maybe\"\n").is_err());
+        let config: crate::config::Config = toml::from_str(
+            "[[host]]\nname = \"a\"\naddress = \"192.0.2.1\"\n[[host]]\nname = \"w\"\nos = \"windows\"\naddress = \"192.0.2.2\"\n",
+        )
+        .unwrap();
+        assert_eq!(other_os_hosts(&config, "linux"), ["w"]);
+        assert_eq!(other_os_hosts(&config, "windows"), ["a"]);
+        assert_eq!(other_os_hosts(&config, "darwin"), ["w"]);
+    }
+
+    // frob:ticket 01M42FJVGY91ND091THEDPP8DN
+    // frob:tests crates/goway/src/project.rs::selection_for
+    #[test]
+    fn any_os_or_cross_os_true_lifts_the_default_pool_os() {
+        let dir = tempfile::tempdir().unwrap();
+        let none: Vec<String> = Vec::new();
+        let (any, _) = selection_for(dir.path(), &[], &none, &none, true).unwrap();
+        assert_eq!(any.pool_os, None);
+        std::fs::write(dir.path().join(FILE), "cross_os = true\n").unwrap();
+        let (any, _) = selection_for(dir.path(), &[], &none, &none, false).unwrap();
+        assert_eq!(any.pool_os, None);
+        std::fs::write(dir.path().join(FILE), "cross_os = false\n").unwrap();
+        let (same, _) = selection_for(dir.path(), &[], &none, &none, false).unwrap();
+        assert!(same.pool_os.is_some());
     }
 }

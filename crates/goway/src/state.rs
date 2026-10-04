@@ -51,6 +51,18 @@ pub struct Distrust {
     pub last_mismatch: u64,
 }
 
+/// The tool versions `goway doctor` last saw on a host, kept so a run can
+/// note fleet drift and record what was used without probing again.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct ToolVersions {
+    /// When doctor captured them, in seconds since the Unix epoch.
+    #[serde(default)]
+    pub captured: u64,
+    /// Tool name to the first line of its version report.
+    #[serde(default)]
+    pub versions: BTreeMap<String, String>,
+}
+
 /// The state file: host name (lowercase) to its cached state.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct State {
@@ -67,6 +79,9 @@ pub struct State {
     /// Repositories on hosts whose copy failed verification, by `host/repo-id`.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub distrust: BTreeMap<String, Distrust>,
+    /// Tool versions doctor last saw, per host (lowercase name).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub tool_versions: BTreeMap<String, ToolVersions>,
     /// Probe static facts on the next probe regardless of age (not saved).
     #[serde(skip)]
     pub refresh_facts: bool,
@@ -155,6 +170,18 @@ impl State {
     pub fn forget(&mut self, name: &str) {
         self.hosts.remove(&name.to_ascii_lowercase());
         self.facts.remove(&name.to_ascii_lowercase());
+        self.tool_versions.remove(&name.to_ascii_lowercase());
+    }
+
+    /// Remember the tool versions doctor saw on `host` at `now`.
+    pub fn record_tools(&mut self, host: &str, now: u64, versions: BTreeMap<String, String>) {
+        self.tool_versions.insert(
+            host.to_ascii_lowercase(),
+            ToolVersions {
+                captured: now,
+                versions,
+            },
+        );
     }
 }
 

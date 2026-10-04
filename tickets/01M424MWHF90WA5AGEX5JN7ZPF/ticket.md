@@ -2,12 +2,12 @@
 id = "01M424MWHF90WA5AGEX5JN7ZPF"
 title = "doctor reads CMake's own interfaces: File API replies and a json-v1 configure trace, with system libraries mapped to packages"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 reporter = "lognd"
 created = "2026-10-04T00:22:30Z"
-updated = "2026-10-04T04:17:27Z"
-scope = ["crates/goway/src/cmakeapi.rs", "crates/goway/src/remote.sh", "crates/goway/tests/cmake_api.rs", "crates/goway/tests/fixtures/cxxshard/CMakeLists.txt", "docs/doctor.md"]
+updated = "2026-10-04T04:17:31Z"
+scope = ["crates/goway/src/cmakeapi.rs", "crates/goway/src/remote.sh", "crates/goway/tests/cmake_api.rs", "crates/goway/tests/fixtures/cxxshard/CMakeLists.txt", "docs/doctor.md", "docs/cmake.md"]
 
 [[acceptance]]
 text = "Given a CMake project, when doctor determines its needs, then it uses CMake's own interfaces, not text matching: goway places a File API query (codemodel-v2, cache-v2, cmakeFiles-v1, toolchains-v1) in every build directory it keeps in a slot so normal configures write replies, doctor reads the latest replies (compilers with id and version, <Pkg>_DIR and FETCHCONTENT_* cache entries, fetched dependencies, link libraries), and doctor --configure runs one configure in a labelled scratch directory with --trace-expand --trace-format=json-v1 to capture find_package, FetchContent_Declare, pkg_check_modules and CPMAddPackage calls with resolved arguments; a failed find_package names the missing package and its install command"

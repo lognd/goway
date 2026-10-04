@@ -442,6 +442,30 @@ runs, so concurrent GPU runs get different GPUs instead of fighting over one:
 Runs that do not ask for a GPU never take a slot. GPU locks live under the
 remote root's `gpu/` directory, which `goway uninstall` removes.
 
+### Which OS runs it: the same one, unless you say so
+
+A plain `goway run` (and every shard of `--shard N`) only uses hosts of the
+laptop's own OS family (`linux`, `darwin` or `windows`; WSL counts as
+Linux). `goway status` marks the hosts the default pool uses. Ask for more:
+
+- `--any-os`, or `cross_os = true` at the top of `goway.toml`: hosts of
+  every OS are candidates; each OS keeps its own caches, and reports and
+  shard lines name the OS.
+- `--needs os=windows`, or `--host NAME`: that OS or host, as before.
+- `--each-os`: the whole command runs once on the best host of each OS in
+  the pool, in parallel. Lines are prefixed `[host os]`, a summary lists
+  each OS's exit code, and goway exits with the first failing OS's code
+  (125 if goway itself failed there). It cannot be combined with `--host`
+  or `--shard`.
+
+For a recognized portable runner (`cargo build/test/nextest/clippy`,
+`pytest`, `go test`, `npm/pnpm/yarn test`, `vitest`/`jest`, `mvn`,
+`gradle`, `dotnet test`, `ctest`) goway prints a prominent warning when
+hosts of another OS are configured: the run stays on the laptop's OS, and
+the warning names those hosts and the two ways to allow it. `cross_os =
+false` in `goway.toml` silences it. Other commands stay on the same OS
+without a word. The warning reads the config's `os`, not live reachability.
+
 ### Running on this machine: `--host local`
 
 ```
@@ -728,6 +752,22 @@ checks again afterwards and records only what it verified as fixed.
 `apt-get update` runs once per session. sudo asks for the password
 itself; goway never sees it.
 
+#### Fleet drift
+
+When the project's tools are probed, doctor also keeps what it saw. It
+prints a versions table, a row per tool and a column for this laptop and
+each host, with `--all` and whenever the hosts disagree. Hosts disagree
+(marked `DRIFT`) when a tool has a different major version on two hosts, or
+a different minor version for a compiler (gcc, g++, clang, rustc, go, java,
+dotnet, ...) or a tool pinned in `goway.toml` `[toolchain]`. A tool that is
+missing or below the project's minimum is an error in the problem table,
+with its fix; a missing tool is not drift. The laptop column is for
+comparison only and never counts as drift. `goway doctor --fix
+--all-hosts` says explicitly that every configured host is fixed (the
+default when no HOST is named) and refuses a HOST. The versions are cached
+in goway's state (with the time they were captured) so later runs can use
+them.
+
 Hardening, such as turning off ssh password login, is not needed to run
 anything. It is listed separately as optional and is applied only with
 `--harden` (which needs `--rsudo`), with its own question, never in the
@@ -764,6 +804,25 @@ Cargo, pyproject, package.json, global.json and CMakePresets.json go
 through real TOML and JSON parsers. `CMakeLists.txt` has no declarative
 form, so it is read as text (bounded) and its findings are labelled
 approximate.
+
+#### Asking each ecosystem's own tool
+
+Where an ecosystem has a tool that answers, doctor asks it instead of
+reading text:
+
+| Ecosystem | Asked | Falls back to |
+| --- | --- | --- |
+| Rust | `cargo metadata --no-deps --offline` for the greatest `rust-version` (checked as `rustc`) | the root `Cargo.toml`, parsed as TOML, labelled approximate |
+| Go | `go list -m -json` (offline, no toolchain download) for the `go` version | the `go` line of `go.mod`, labelled approximate |
+| .NET | `global.json` parsed as JSON; the SDK itself is checked on each host | |
+| Java | the `pom.xml` or Gradle files, read as text | always labelled approximate |
+
+When a tool is missing on this laptop, the result is labelled
+`approximate` and says to install that tool first for an exact answer.
+doctor never runs `mvn` or `gradle` for this: both execute the project's own
+plugins and build scripts, which a diagnostic must not do on your laptop. Every
+tool doctor does run is started without a shell, with a time limit and a cap on
+its output, and `cargo` is told not to install a toolchain.
 
 #### The linker cargo will use
 

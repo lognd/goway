@@ -7,6 +7,7 @@ pub mod cmakeapi;
 pub mod config;
 pub mod detect;
 pub mod doctor;
+pub mod drift;
 pub mod ecotools;
 pub mod error;
 pub mod facts;
@@ -192,6 +193,8 @@ fn run_command(paths: &Paths, renderer: Renderer, args: &cli::RunArgs) -> Result
         keep: args.keep,
         report: args.report.clone(),
         shard: args.shard,
+        any_os: args.any_os,
+        each_os: args.each_os,
         output: args.output,
         needs: args.needs.clone(),
         prefers: args.prefers.clone(),

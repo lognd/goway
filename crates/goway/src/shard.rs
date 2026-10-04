@@ -191,24 +191,71 @@ fn note_detection(renderer: Renderer, report: &ShardReport, d: &Detection, progr
 /// # Panics
 ///
 /// Only if a shard thread panics, which is a bug.
-#[allow(clippy::too_many_lines)] // the shard thread is one sequence: sync, run, report
 pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16) -> Result<u8> {
+    fan_out(env, renderer, args, Fan::Shards(usize::from(count)))
+}
+
+/// `goway run --each-os`: the whole command once on the best host of each OS in the pool,
+/// in parallel, with `[host os]` prefixes. Exits with the first failing OS's code in OS-name
+/// order (125 when goway itself failed there), or 0 when every OS passed.
+///
+/// # Errors
+///
+/// As [`run_sharded`].
+pub fn run_each_os(env: &Env<'_>, renderer: Renderer, args: &RunArgs) -> Result<u8> {
+    fan_out(env, renderer, args, Fan::EachOs)
+}
+
+/// How a run is spread over hosts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Fan {
+    /// One part of the tests per host, N hosts.
+    Shards(usize),
+    /// The whole command on one host of each OS.
+    EachOs,
+}
+
+#[allow(clippy::too_many_lines)] // the shard thread is one sequence: sync, run, report
+fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Result<u8> {
     let started = Instant::now();
-    let count = usize::from(count);
+    let each_os = fan == Fan::EachOs;
+    let mut count = match fan {
+        Fan::Shards(n) => n,
+        Fan::EachOs => 0,
+    };
     let config = Config::load(&env.paths.config_file())?;
     let repo = Repo::discover(env.cwd)?;
-    let (selection, rule) =
-        project::selection_for(&repo.root, &args.command, &args.needs, &args.prefers)?;
+    // --each-os covers every OS by definition; the hint only applies to plain sharding.
+    let (selection, rule) = project::selection_for(
+        &repo.root,
+        &args.command,
+        &args.needs,
+        &args.prefers,
+        args.any_os || each_os,
+    )?;
     if let Some(r) = &rule {
         renderer.note(r.describe());
+    }
+    if !each_os {
+        project::warn_cross_os(
+            renderer,
+            &config,
+            &args.command,
+            &selection,
+            project::cross_os_setting(&repo.root)?,
+        );
     }
     let with_git = args.with_git || project::wants_git(&repo.root)?;
     let project = runners::project_for(&args.command, &args.env, &repo.root)?;
     let mut state = State::load(&env.paths.state_file())?;
     // Plan every shard first, so a command that cannot be split is refused before any host is touched.
-    let mut plans = (1..=count)
-        .map(|index| runners::plan(&args.command, &args.env, &project, index, count))
-        .collect::<Result<Vec<_>>>()?;
+    let mut plans = if each_os {
+        Vec::new()
+    } else {
+        (1..=count)
+            .map(|index| runners::plan(&args.command, &args.env, &project, index, count))
+            .collect::<Result<Vec<_>>>()?
+    };
     if let Some(framework) = plans.first().and_then(|p| p.framework) {
         renderer.note(format_args!("sharding as {}", framework.name()));
     }
@@ -228,15 +275,37 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
             ));
         }
     }
-    let hosts = pool::choose_many(
-        &config,
-        &selection,
-        &mut state,
-        &local::jobs_dir(env.paths),
-        env.lookup,
-        env.prober,
-        count,
-    )?;
+    let hosts = if each_os {
+        let hosts = pool::choose_each_os(
+            &config,
+            &selection,
+            &mut state,
+            &local::jobs_dir(env.paths),
+            env.lookup,
+            env.prober,
+        )?;
+        count = hosts.len();
+        // The same command everywhere: nothing is split.
+        plans = (0..count)
+            .map(|_| runners::Plan {
+                framework: None,
+                command: args.command.clone(),
+                env: Vec::new(),
+                detect: false,
+            })
+            .collect();
+        hosts
+    } else {
+        pool::choose_many(
+            &config,
+            &selection,
+            &mut state,
+            &local::jobs_dir(env.paths),
+            env.lookup,
+            env.prober,
+            count,
+        )?
+    };
     if let Err(e) = state.save(&env.paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
     }
@@ -276,14 +345,24 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
             );
         }
     }
+    let label_of = |h: &crate::config::HostConfig, f: &crate::resolve::Found| {
+        if each_os {
+            format!("{} {}", h.name, f.kind.os().as_str())
+        } else {
+            h.name.clone()
+        }
+    };
+    let labels: Vec<String> = hosts.iter().map(|(h, f, _)| label_of(h, f)).collect();
     renderer.headline(format_args!(
-        "sharding {} across {count} hosts: {}",
+        "{} {} {}: {}",
+        if each_os { "running" } else { "sharding" },
         ssh::shell_join(&args.command),
-        hosts
-            .iter()
-            .map(|(h, ..)| h.name.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
+        if each_os {
+            format!("once per OS on {count} hosts")
+        } else {
+            format!("across {count} hosts")
+        },
+        labels.join(", ")
     ));
     let interrupted = run::interrupt_flag();
     let now = crate::state::now_secs();
@@ -291,13 +370,14 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
         .iter()
         .map(|(h, ..)| !args.trust_copy && state.distrusted(&h.name, &repo.id, now))
         .collect();
-    let width = hosts.iter().map(|(h, ..)| h.name.len()).max().unwrap_or(0);
+    let width = labels.iter().map(String::len).max().unwrap_or(0);
     let results: Vec<Result<ShardReport>> = std::thread::scope(|scope| {
         let handles: Vec<_> = hosts
             .iter()
             .enumerate()
             .map(|(i, (host, found, probe))| {
                 let config = &config;
+                let labels = &labels;
                 let selection = &selection;
                 let capacities = &capacities;
                 let weights = &weights;
@@ -308,11 +388,13 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                 scope.spawn(move || -> Result<ShardReport> {
                     let shard_started = Instant::now();
                     let index = i + 1;
-                    let prefix = format!("[{:<width$}] ", host.name);
+                    let prefix = format!("[{:<width$}] ", labels[i]);
                     let first_run_id = run::new_run_id() + &format!("-s{index}");
                     let mut pairs = args.env.clone();
-                    pairs.push(format!("GOWAY_SHARD={index}"));
-                    pairs.push(format!("GOWAY_SHARD_COUNT={count}"));
+                    if !each_os {
+                        pairs.push(format!("GOWAY_SHARD={index}"));
+                        pairs.push(format!("GOWAY_SHARD_COUNT={count}"));
+                    }
                     pairs.extend(plan.env.iter().cloned());
                     let command = plan.command.clone();
                     let nonce = detect::nonce();
@@ -535,14 +617,25 @@ pub fn run_sharded(env: &Env<'_>, renderer: Renderer, args: &RunArgs, count: u16
                 } else {
                     String::new()
                 };
-                let line = format_args!(
-                    "shard {}/{count} on {}: exit {} in {:.1}s{share}",
-                    report.shard, report.host, report.exit_code, report.duration_secs
-                );
-                if report.exit_code == 0 {
-                    renderer.ok(line);
+                let line = if each_os {
+                    format!(
+                        "{} on {}: exit {} in {:.1}s",
+                        report.os, report.host, report.exit_code, report.duration_secs
+                    )
                 } else {
-                    renderer.failed(line);
+                    format!(
+                        "shard {}/{count} on {} ({}): exit {} in {:.1}s{share}",
+                        report.shard,
+                        report.host,
+                        report.os,
+                        report.exit_code,
+                        report.duration_secs
+                    )
+                };
+                if report.exit_code == 0 {
+                    renderer.ok(&line);
+                } else {
+                    renderer.failed(&line);
                     if code == 0 {
                         code = report.exit_code;
                     }

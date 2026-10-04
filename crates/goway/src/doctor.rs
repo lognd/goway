@@ -14,7 +14,7 @@ use std::process::Stdio;
 pub mod output;
 mod projneeds;
 
-pub use projneeds::Toolchain;
+pub use projneeds::{Needs, Toolchain, first_version};
 
 use crate::cli::DoctorArgs;
 use crate::config::{Config, HostConfig};
@@ -503,9 +503,24 @@ fn toolchain_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
     out
 }
 
+/// The warning for a helper whose shell startup files print text for non-interactive ssh.
+fn startup_noise_check(facts: &BTreeMap<String, String>) -> Option<Check> {
+    let sample = facts.get("startup_noise")?;
+    Some(Check {
+        name: "shell startup".to_owned(),
+        explain: None,
+        level: Level::Warn,
+        detail: format!(
+            "the helper's shell startup files print text for non-interactive ssh (first line: \"{sample}\"); goway ignores it, \
+             but it is printed on every call. Guard it at the top of ~/.bashrc: case $- in *i*) ;; *) return ;; esac"
+        ),
+        fix: None,
+    })
+}
+
 /// Disk and sshd hardening.
 fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
-    let mut out = Vec::new();
+    let mut out: Vec<Check> = startup_noise_check(facts).into_iter().collect();
     let mut push = |name: &str, level, detail: String, fix| {
         out.push(Check {
             name: name.to_owned(),
@@ -1140,6 +1155,7 @@ fn collect<'a>(
 }
 
 /// `goway doctor`.
+#[allow(clippy::too_many_lines)] // one pass over hosts: probe, report, record, fix
 pub fn doctor(
     paths: &Paths,
     renderer: Renderer,
@@ -1202,6 +1218,14 @@ pub fn doctor(
         args.all,
         renderer.is_plain(),
     ));
+    print_versions(renderer, args.all, &needs, &reached);
+    let now = crate::state::now_secs();
+    for o in observed_versions(&needs, &reached) {
+        state.record_tools(&o.host, now, o.versions);
+    }
+    if let Err(e) = state.save(&paths.state_file()) {
+        tracing::warn!(error = %e, "cannot cache tool versions");
+    }
     if args.fix {
         print(output::plan_lines(&reports, args.harden, args.rsudo));
         let ctx = FixCtx {
@@ -1233,6 +1257,48 @@ pub fn doctor(
         }
     }
     Ok(exit_code(&reports))
+}
+
+/// What each reachable host reported for the project's tools.
+fn observed_versions(
+    needs: &projneeds::Needs,
+    reached: &[Probed<'_>],
+) -> Vec<crate::drift::Observed> {
+    let tools = needs.probe_names();
+    reached
+        .iter()
+        .map(|p| crate::drift::Observed {
+            host: p.host.name.clone(),
+            versions: crate::drift::versions_from_facts(&p.facts, &tools),
+        })
+        .collect()
+}
+
+/// The versions table: with `--all`, or whenever hosts disagree.
+fn print_versions(renderer: Renderer, all: bool, needs: &projneeds::Needs, reached: &[Probed<'_>]) {
+    let tools = needs.probe_names();
+    let observed = observed_versions(needs, reached);
+    let pinned = needs.pinned_tools();
+    if tools.is_empty() || observed.is_empty() {
+        return;
+    }
+    let drift = crate::drift::drifting(&tools, &pinned, &observed);
+    if !all && drift.is_empty() {
+        return;
+    }
+    let laptop = crate::drift::laptop_versions(&tools);
+    renderer.line("");
+    for line in crate::drift::table_lines(&tools, &pinned, &observed, &laptop, renderer.is_plain())
+    {
+        renderer.line(line);
+    }
+    if !drift.is_empty() {
+        let names: Vec<&str> = drift.iter().map(|(t, _)| t.as_str()).collect();
+        renderer.line(format!(
+            "{} differ across the hosts; builds may behave differently depending on where they run.",
+            names.join(", ")
+        ));
+    }
 }
 
 /// 1 when a host is unreachable or has a failing check, else 0.

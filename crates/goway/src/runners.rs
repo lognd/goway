@@ -260,6 +260,38 @@ pub fn detect(command: &[String], env: &[String], project: &Project) -> Option<F
     npm_script_framework(command, project)
 }
 
+/// The portable runner `command` invokes (`cargo test`, `pytest`, `go test`, `npm test`,
+/// `mvn`, ...), or `None`. Only argv[0] and the subcommand are looked at, exactly: a
+/// command that is not clearly one of these is not portable (doubt means no).
+pub fn portable_runner(command: &[String]) -> Option<&'static str> {
+    let program = base_name(command.first()?).to_ascii_lowercase();
+    let rest = &command[1..];
+    // The first word that is not a flag or a `+toolchain` selector.
+    let sub = rest
+        .iter()
+        .map(String::as_str)
+        .find(|a| !a.starts_with('-') && !a.starts_with('+'));
+    let has = |w: &str| rest.iter().any(|a| a == w);
+    match program.as_str() {
+        "cargo" => matches!(sub, Some("build" | "test" | "nextest" | "clippy")).then_some("cargo"),
+        "pytest" | "py.test" => Some("pytest"),
+        "python" | "python3" | "py" => {
+            (rest.windows(2).any(|w| w[0] == "-m" && w[1] == "pytest")).then_some("pytest")
+        }
+        "go" => (sub == Some("test")).then_some("go test"),
+        "npm" | "pnpm" | "yarn" => (matches!(sub, Some("test" | "t"))
+            || (sub == Some("run") && has("test")))
+        .then_some("npm test"),
+        "npx" => matches!(sub, Some("vitest" | "jest")).then_some("npx"),
+        "vitest" | "jest" => Some("js tests"),
+        "mvn" | "mvnw" => Some("maven"),
+        "gradle" | "gradlew" => Some("gradle"),
+        "dotnet" => (sub == Some("test")).then_some("dotnet test"),
+        "ctest" => Some("ctest"),
+        _ => None,
+    }
+}
+
 /// `npm test`, `pnpm test`, `yarn test`: the framework named in `scripts.test`.
 fn npm_script_framework(command: &[String], project: &Project) -> Option<Framework> {
     let i = find_tool(command, &["npm", "pnpm", "yarn", "bun"])?;
@@ -1438,5 +1470,45 @@ mod tests {
         let v = plan_weighted(&words("npx vitest run"), &[], &project(&[]), 2, &w).unwrap();
         assert_eq!(v.command, words("npx vitest run --shard=2/2"));
         assert!(!Framework::Vitest.weighted() && Framework::Nextest.weighted());
+    }
+
+    // frob:ticket 01M42FJVGY91ND091THEDPP8DN
+    // frob:tests crates/goway/src/runners.rs::portable_runner
+    #[test]
+    fn portable_runners_are_recognized_exactly_and_everything_else_is_not() {
+        for yes in [
+            "cargo build --release",
+            "cargo +nightly test",
+            "cargo nextest run",
+            "cargo clippy --all-targets",
+            "pytest -x",
+            "python3 -m pytest tests",
+            "go test ./...",
+            "npm test",
+            "pnpm run test",
+            "yarn test",
+            "npx vitest run",
+            "jest",
+            "mvn verify",
+            "./gradlew build",
+            "dotnet test",
+            "ctest --output-on-failure",
+        ] {
+            assert!(portable_runner(&words(yes)).is_some(), "{yes}");
+        }
+        for no in [
+            "bash -c 'cargo test'",
+            "./run-tests.sh",
+            "cargo run",
+            "cargo fmt",
+            "go build",
+            "npm install",
+            "python3 script.py",
+            "dotnet build",
+            "make test",
+            "",
+        ] {
+            assert!(portable_runner(&words(no)).is_none(), "{no}");
+        }
     }
 }

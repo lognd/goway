@@ -209,6 +209,7 @@ pub fn add(
         rsudo: args.rsudo,
         yes: args.yes,
         harden: false,
+        all_hosts: false,
         all: false,
         explain: None,
     };

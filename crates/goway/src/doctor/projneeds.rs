@@ -216,6 +216,16 @@ impl Needs {
         self.ecosystems.is_empty() || self.ecosystems.contains(&Eco::Rust)
     }
 
+    /// The tools `goway.toml` `[toolchain]` pins: for these a different
+    /// minor version also counts as drift.
+    pub fn pinned_tools(&self) -> BTreeSet<String> {
+        self.reqs
+            .iter()
+            .filter(|r| r.why == "goway.toml [toolchain]")
+            .map(|r| r.tool.clone())
+            .collect()
+    }
+
     /// The tool names the host should report on.
     pub fn probe_names(&self) -> Vec<String> {
         let mut names: Vec<String> = self.reqs.iter().map(|r| r.tool.clone()).collect();
@@ -290,6 +300,18 @@ fn with_suffix(root: &Path, suffix: &str) -> bool {
     })
 }
 
+/// A requirement from an ecosystem tool's own answer.
+fn from_detected(tool: &str, d: &ecotools::Detected) -> Req {
+    Req {
+        tool: tool.to_owned(),
+        min: Some(VersionReq::AtLeast(d.min.clone())),
+        why: d.why.clone(),
+        optional: false,
+        approximate: d.approximate,
+        explain: None,
+    }
+}
+
 fn rust(root: &Path, needs: &mut Needs) {
     if !exists(root, "Cargo.toml") {
         return;
@@ -301,6 +323,9 @@ fn rust(root: &Path, needs: &mut Needs) {
     needs.linking = ecotools::cargo_linking(root, cargo_home.as_deref(), &|name| {
         std::env::var(name).ok()
     });
+    if let Some(d) = ecotools::rust_min(root) {
+        needs.push(from_detected("rustc", &d));
+    }
     // The toolchain checks (cargo, nextest, sccache) are goway's own; the
     // channel in rust-toolchain.toml is rustup's to install.
     if let Some(text) = read(root, "rust-toolchain.toml")
@@ -443,7 +468,10 @@ fn java(root: &Path, needs: &mut Needs) {
         return;
     }
     needs.eco(Eco::Java);
-    needs.add("java", None, "pom.xml / build.gradle");
+    match ecotools::java_min(root) {
+        Some(d) => needs.push(from_detected("java", &d)),
+        None => needs.add("java", None, "pom.xml / build.gradle"),
+    }
     if maven && !exists(root, "mvnw") {
         needs.add("mvn", None, "pom.xml (no mvnw)");
     }
@@ -571,12 +599,10 @@ fn go(root: &Path, needs: &mut Needs) {
         return;
     };
     needs.eco(Eco::Go);
-    let min = text
-        .lines()
-        .filter_map(|l| l.trim().strip_prefix("go "))
-        .find_map(|v| numbers(v.trim()))
-        .map(VersionReq::AtLeast);
-    needs.add("go", min, "go.mod");
+    match ecotools::go_min(root, &text) {
+        Some(d) => needs.push(from_detected("go", &d)),
+        None => needs.add("go", None, "go.mod"),
+    }
 }
 
 fn ruby(root: &Path, needs: &mut Needs) {
