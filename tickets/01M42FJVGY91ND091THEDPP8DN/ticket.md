@@ -2,13 +2,14 @@
 id = "01M42FJVGY91ND091THEDPP8DN"
 title = "Cross-OS runs: same OS by default, a loud hint for portable test runners, --any-os and cross_os in goway.toml, and --each-os to run once per OS"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-04T03:33:37Z"
-updated = "2026-10-04T04:43:58Z"
+updated = "2026-10-04T04:43:59Z"
 scope = ["crates/goway/src/pool.rs", "crates/goway/src/runners.rs", "crates/goway/src/project.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs", "crates/goway/src/cli.rs", "crates/goway/tests/cross_os.rs", "docs/usage.md", "crates/goway/src/lib.rs"]
 
 [[acceptance]]
