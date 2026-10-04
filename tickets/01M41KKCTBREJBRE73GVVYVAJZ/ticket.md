@@ -8,7 +8,7 @@ points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-03T19:24:35Z"
-updated = "2026-10-04T13:40:51Z"
+updated = "2026-10-04T17:22:33Z"
 scope = ["docs/release.md"]
 
 [[links]]
@@ -298,6 +298,10 @@ target = "01M43ETRMKFS15MWTTVZHX18YW"
 [[links]]
 kind = "blocked-by"
 target = "01M43JAQ5BAK00HD28RAN2R646"
+
+[[links]]
+kind = "blocked-by"
+target = "01M43Z0NPW4WH9YNZGXAW0DHW0"
 
 [[acceptance]]
 text = "Given the v0.1.0 tag, when the release workflow has run, then the release has Linux x86_64 and aarch64 binaries, goway-setup.exe for x64 and arm64, SHA256SUMS and install.sh, and the documented one-line installer installs goway on a fresh Linux machine"
