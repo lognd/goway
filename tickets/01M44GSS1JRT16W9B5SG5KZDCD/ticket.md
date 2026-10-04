@@ -2,7 +2,8 @@
 id = "01M44GSS1JRT16W9B5SG5KZDCD"
 title = "goway doctor diagnoses an unreachable WSL helper from its Windows side and the manual explains the fix"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 reporter = "lognd"
