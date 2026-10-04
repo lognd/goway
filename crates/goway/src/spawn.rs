@@ -6,10 +6,13 @@
 //! never sees end-of-file until the unrelated child exits: a helper call's
 //! answer is held up by the long-running job another thread just started.
 //! Every spawn that can race with another thread goes through one lock, so
-//! no fork happens while another spawn is setting up its pipes.
+//! no fork happens while another spawn is setting up its pipes. That includes
+//! the unpiped ones: any unlocked fork can carry a half-made pipe into a
+//! long-lived child, so no production code spawns without the lock (a test
+//! scans for it).
 
 use std::io;
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Child, Command, ExitStatus, Output, Stdio};
 use std::sync::Mutex;
 
 /// Held while a child is being created (pipes made, forked, exec'd).
@@ -22,6 +25,9 @@ pub trait CommandExt {
 
     /// [`Command::output`] (stdout and stderr captured) with the spawn under the lock.
     fn output_locked(&mut self) -> io::Result<Output>;
+
+    /// [`Command::status`] with the spawn under the lock.
+    fn status_locked(&mut self) -> io::Result<ExitStatus>;
 }
 
 impl CommandExt for Command {
@@ -38,6 +44,10 @@ impl CommandExt for Command {
     fn output_locked(&mut self) -> io::Result<Output> {
         self.stdout(Stdio::piped()).stderr(Stdio::piped());
         self.spawn_locked()?.wait_with_output()
+    }
+
+    fn status_locked(&mut self) -> io::Result<ExitStatus> {
+        self.spawn_locked()?.wait()
     }
 }
 
@@ -87,5 +97,37 @@ mod tests {
             shorts.into_iter().map(|t| t.join().unwrap()).max().unwrap()
         });
         assert!(worst < Duration::from_secs(2), "a call waited {worst:?}");
+    }
+
+    // frob:ticket E09XD8K
+    // frob:tests crates/goway/src/spawn.rs::CommandExt
+    #[test]
+    fn no_production_code_spawns_a_child_outside_the_lock() {
+        // One unlocked fork anywhere can hand another thread's half-made pipe
+        // to a long-lived child (the lifeline, a job), which then holds that
+        // pipe's reader up until the child exits: the macOS hang.
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut bad = Vec::new();
+        for entry in std::fs::read_dir(&src).unwrap().flatten() {
+            let path = entry.path();
+            if path.extension().is_none_or(|e| e != "rs") || path.ends_with("spawn.rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let production = text.split("\n#[cfg(test)]").next().unwrap();
+            for (n, line) in production.lines().enumerate() {
+                if [".spawn()", ".output()", ".status()"]
+                    .iter()
+                    .any(|m| line.contains(m))
+                {
+                    bad.push(format!("{}:{}: {}", path.display(), n + 1, line.trim()));
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "use the *_locked variants:\n{}",
+            bad.join("\n")
+        );
     }
 }

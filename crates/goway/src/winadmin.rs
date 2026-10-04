@@ -18,6 +18,7 @@
 
 use std::process::Stdio;
 
+use crate::spawn::CommandExt as _;
 use crate::ssh::{self, KeyPolicy, Target};
 use crate::transport;
 
@@ -197,7 +198,7 @@ impl WinRunner for SshWinRunner<'_> {
             wsl,
             "powershell.exe -NoProfile -Command \"if (Get-Process explorer -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }\"",
         )
-        .status()
+        .status_locked()
         .is_ok_and(|s| s.success())
     }
 
@@ -213,7 +214,7 @@ impl WinRunner for SshWinRunner<'_> {
         let line = transport::windows_ssh_line(&step.admin_source());
         let out = ssh::command(&target, self.settings, KeyPolicy::Strict, &line)
             .stdin(Stdio::null())
-            .output()
+            .output_locked()
             .map_err(|e| Failure::Unavailable(format!("cannot run ssh: {e}")))?;
         judge(&out)
     }
@@ -230,7 +231,8 @@ impl WinRunner for SshWinRunner<'_> {
         );
         let out = self
             .wsl_command(wsl, &remote)
-            .output()
+            .stdin(Stdio::null())
+            .output_locked()
             .map_err(|e| Failure::Unavailable(format!("cannot run ssh: {e}")))?;
         judge(&out)
     }
@@ -274,7 +276,7 @@ pub fn run_local(step: &WinStep) -> Local {
     match std::process::Command::new(program)
         .args(["-NoProfile", "-Command", &outer])
         .stdin(Stdio::null())
-        .output()
+        .output_locked()
     {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Local::NoWindows,
         Err(e) => Local::Failed(format!("cannot run {program}: {e}")),

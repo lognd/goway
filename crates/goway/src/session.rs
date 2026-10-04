@@ -20,6 +20,8 @@ use std::io::{BufRead as _, BufReader, Read as _, Write as _};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
+use crate::spawn::CommandExt as _;
+
 /// The line the helper prints when its session loop is ready.
 pub const READY: &str = "goway-session1";
 
@@ -65,7 +67,9 @@ impl Session {
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        let mut child = cmd.spawn().map_err(|e| format!("cannot start: {e}"))?;
+        let mut child = cmd
+            .spawn_locked()
+            .map_err(|e| format!("cannot start: {e}"))?;
         let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
             return Err("no pipes".to_owned());
         };

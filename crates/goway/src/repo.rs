@@ -11,6 +11,7 @@ use std::process::Command;
 use sha2::{Digest as _, Sha256};
 
 use crate::error::{Error, Result};
+use crate::spawn::CommandExt as _;
 
 /// The local repository and work tree a run comes from.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,7 +34,8 @@ pub fn git(dir: &Path, args: &[&str]) -> Result<String> {
         .arg("-C")
         .arg(dir)
         .args(args)
-        .output()
+        .stdin(std::process::Stdio::null())
+        .output_locked()
         .map_err(|e| Error::Git {
             message: format!("cannot run git: {e}"),
         })?;

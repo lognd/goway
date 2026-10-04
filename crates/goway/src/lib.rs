@@ -51,6 +51,7 @@ use config::Config;
 use error::{Error, Result};
 use paths::Paths;
 use render::Renderer;
+use spawn::CommandExt as _;
 
 /// Install the tracing subscriber: `-v` levels, overridable by `GOWAY_LOG`.
 pub fn init_tracing(verbose: u8) {
@@ -255,7 +256,8 @@ fn host_remove(paths: &Paths, renderer: Renderer, name: &str) -> Result<u8> {
             .arg(&alias)
             .arg("-f")
             .arg(&kh)
-            .output()
+            .stdin(std::process::Stdio::null())
+            .output_locked()
         {
             Ok(out) if out.status.success() => tracing::info!(alias, "pinned key removed"),
             Ok(out) => renderer.warn(format_args!(

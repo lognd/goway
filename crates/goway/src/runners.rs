@@ -17,6 +17,7 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use crate::error::{Error, Result};
+use crate::spawn::CommandExt as _;
 
 /// A test framework goway knows how to shard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,7 +84,8 @@ impl Project {
             .arg("-C")
             .arg(root)
             .args(["ls-files", "-co", "--exclude-standard", "-z"])
-            .output()
+            .stdin(std::process::Stdio::null())
+            .output_locked()
             .map_err(|e| Error::Git {
                 message: format!("cannot run git: {e}"),
             })?;

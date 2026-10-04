@@ -6,6 +6,8 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+use crate::spawn::CommandExt as _;
+
 /// Something about the local ssh setup worth telling the user.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Finding {
@@ -74,7 +76,7 @@ pub fn effective(address: &str, port: u16) -> Option<Effective> {
     let out = Command::new("ssh")
         .args(["-G", "-p", &port.to_string(), "--", address])
         .stdin(Stdio::null())
-        .output()
+        .output_locked()
         .ok()?;
     if !out.status.success() {
         return None;
@@ -93,7 +95,7 @@ fn agent_keys() -> Option<bool> {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status()
+        .status_locked()
         .ok()?;
     match status.code() {
         Some(0) => Some(true),

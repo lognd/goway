@@ -30,6 +30,7 @@ use crate::paths::Paths;
 use crate::remotesys::RemoteSystem;
 use crate::render::Renderer;
 use crate::resolve::{self, Lookup, ProbeResult, Prober, SshProber};
+use crate::spawn::CommandExt as _;
 use crate::ssh::{self, Failure, KeyPolicy, Target, attempts};
 use crate::state::State;
 
@@ -112,7 +113,10 @@ fn own_key(paths: &Paths) -> Option<(String, String)> {
 /// The public key line to authorize: the agent's first key, else the first
 /// default identity with a `.pub` next to it.
 pub fn existing_public_key(address: &str, port: u16) -> Option<String> {
-    if let Ok(out) = std::process::Command::new("ssh-add").arg("-L").output()
+    if let Ok(out) = std::process::Command::new("ssh-add")
+        .arg("-L")
+        .stdin(std::process::Stdio::null())
+        .output_locked()
         && out.status.success()
         && let Some(line) = String::from_utf8_lossy(&out.stdout).lines().next()
         && line.starts_with("ssh-")
@@ -194,7 +198,8 @@ fn system32(tool: &str) -> PathBuf {
 fn current_user_sid() -> Option<String> {
     let out = std::process::Command::new(system32("whoami.exe"))
         .args(["/user", "/fo", "csv", "/nh"])
-        .output()
+        .stdin(std::process::Stdio::null())
+        .output_locked()
         .ok()?;
     parse_whoami_sid(&String::from_utf8_lossy(&out.stdout))
 }
@@ -215,7 +220,8 @@ fn restrict_key_acl(path: &Path, renderer: Renderer) {
     let args = icacls_args(path, &principal);
     let ok = std::process::Command::new(system32("icacls.exe"))
         .args(&args)
-        .output()
+        .stdin(std::process::Stdio::null())
+        .output_locked()
         .is_ok_and(|o| o.status.success());
     if ok {
         tracing::info!(key = %path.display(), "key ACL restricted to the user");

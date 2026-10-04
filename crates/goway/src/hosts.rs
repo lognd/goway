@@ -15,6 +15,7 @@ use crate::error::{Error, Result};
 use crate::paths::Paths;
 use crate::render::Renderer;
 use crate::resolve::{self, Lookup, ProbeResult, Prober, SshProber};
+use crate::spawn::CommandExt as _;
 use crate::ssh::{self, Failure, KeyPolicy, Target};
 use crate::sshenv;
 use crate::state::State;
@@ -170,7 +171,8 @@ pub fn forget_key(known_hosts: &Path, alias: &str) {
         .arg(alias)
         .arg("-f")
         .arg(known_hosts)
-        .output();
+        .stdin(std::process::Stdio::null())
+        .output_locked();
     match result {
         Ok(out) if out.status.success() => {
             tracing::debug!(alias, file = %known_hosts.display(), "key forgotten");
@@ -190,7 +192,8 @@ pub fn fingerprints(known_hosts: &Path) -> Vec<String> {
         .arg("-l")
         .arg("-f")
         .arg(known_hosts)
-        .output()
+        .stdin(std::process::Stdio::null())
+        .output_locked()
         .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
         .unwrap_or_default();
     out.split_whitespace()

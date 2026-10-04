@@ -1181,7 +1181,7 @@ impl Beat {
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .spawn()
+            .spawn_locked()
             .map_err(|e| tracing::warn!(error = %e, "cannot start the run's lifeline"))
             .ok()?;
         let mut pipe = child.stdin.take()?;
@@ -1327,7 +1327,7 @@ fn host_answers(found: &Found, settings: &ssh::Settings) -> bool {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status()
+        .status_locked()
         .is_ok_and(|s| s.success())
 }
 

@@ -284,6 +284,7 @@ pub fn bounded_output(
     dir: Option<&Path>,
     envs: &[(&str, &str)],
 ) -> Option<Printed> {
+    use crate::spawn::CommandExt as _;
     use std::process::{Command, Stdio};
     let mut command = Command::new(program);
     command
@@ -295,7 +296,7 @@ pub fn bounded_output(
     if let Some(dir) = dir {
         command.current_dir(dir);
     }
-    let mut child = command.spawn().ok()?;
+    let mut child = command.spawn_locked().ok()?;
     let out = drain(child.stdout.take()?);
     let err = drain(child.stderr.take()?);
     let deadline = std::time::Instant::now() + TOOL_TIMEOUT;

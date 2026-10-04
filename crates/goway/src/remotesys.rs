@@ -12,6 +12,7 @@ use std::process::Stdio;
 
 use goway_journal::{RegValue, ResourceKind, SysResult, System, SystemError};
 
+use crate::spawn::CommandExt as _;
 use crate::ssh::{self, KeyPolicy, Target};
 
 /// Files on `target`; `password` lets ssh prompt (first-time setup).
@@ -48,7 +49,7 @@ impl RemoteSystem {
         })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-        let mut child = cmd.spawn().map_err(|e| SystemError::Io {
+        let mut child = cmd.spawn_locked().map_err(|e| SystemError::Io {
             path: "ssh".into(),
             source: e,
         })?;

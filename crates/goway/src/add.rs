@@ -16,6 +16,7 @@ use crate::error::{Error, Result};
 use crate::paths::Paths;
 use crate::render::Renderer;
 use crate::resolve::{Lookup, Prober};
+use crate::spawn::CommandExt as _;
 use crate::winadmin::{self, Local, WinStep};
 use crate::{doctor, ssh, sshsetup};
 
@@ -37,7 +38,7 @@ fn on_path(tool: &str) -> bool {
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .status()
+        .status_locked()
         .is_ok()
 }
 
@@ -83,7 +84,7 @@ fn local_check(renderer: Renderer, lsudo: bool, yes: bool) -> Result<()> {
     };
     let ok = std::process::Command::new(sudo)
         .args(["/bin/bash", "-c", &command])
-        .status()
+        .status_locked()
         .is_ok_and(|s| s.success());
     if ok {
         renderer.ok(format_args!("installed {}", packages.join(" ")));

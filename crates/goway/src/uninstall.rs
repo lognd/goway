@@ -26,6 +26,7 @@ use crate::paths::Paths;
 use crate::remote::Call;
 use crate::render::Renderer;
 use crate::resolve::{self, Lookup, Prober};
+use crate::spawn::CommandExt as _;
 use crate::ssh::{self, KeyPolicy};
 use crate::state::State;
 use crate::sync::Transport as _;
@@ -481,7 +482,7 @@ fn run_removal(renderer: Renderer, how: &str, argv: &[String]) -> bool {
     tracing::info!(%line, "running the removal command");
     let status = std::process::Command::new(&argv[0])
         .args(&argv[1..])
-        .status();
+        .status_locked();
     match status {
         Ok(s) if s.success() => {
             renderer.ok(format_args!("removed the goway program ({how}): {line}"));
@@ -600,7 +601,7 @@ fn windows_undo(found: &resolve::Found, settings: &ssh::Settings, command: &str)
     match cmd {
         Ok(mut cmd) => cmd
             .stdin(std::process::Stdio::null())
-            .status()
+            .status_locked()
             .is_ok_and(|s| s.success()),
         Err(e) => {
             tracing::warn!(error = %e, "cannot start the Windows undo");

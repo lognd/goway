@@ -10,6 +10,7 @@ use std::process::Command;
 
 use crate::error::{Error, Result};
 use crate::remote::{self, Call};
+use crate::spawn::CommandExt as _;
 
 /// Environment variable naming the `powershell.exe` to use (for tests and
 /// unusual installs); without it goway looks on `PATH` and in System32.
@@ -126,7 +127,12 @@ pub fn call_probe_via(exe: &Path, host: &str, call: &Call) -> Result<String> {
 
 /// The Windows form of a WSL path (`wslpath -w`), when it has one.
 pub fn to_windows_path(path: &Path) -> Option<String> {
-    let out = Command::new("wslpath").arg("-w").arg(path).output().ok()?;
+    let out = Command::new("wslpath")
+        .arg("-w")
+        .arg(path)
+        .stdin(std::process::Stdio::null())
+        .output_locked()
+        .ok()?;
     out.status
         .success()
         .then(|| String::from_utf8_lossy(&out.stdout).trim_end().to_owned())
@@ -138,7 +144,8 @@ pub fn to_wsl_path(windows: &str) -> Option<PathBuf> {
     let out = Command::new("wslpath")
         .arg("-u")
         .arg(windows)
-        .output()
+        .stdin(std::process::Stdio::null())
+        .output_locked()
         .ok()?;
     out.status
         .success()
@@ -198,7 +205,7 @@ pub fn windows_root(remote_root: &str) -> Result<String> {
     );
     let out = command(&source)?
         .stdin(std::process::Stdio::null())
-        .output()
+        .output_locked()
         .map_err(|e| Error::Usage(format!("cannot run powershell.exe: {e}")))?;
     let text = String::from_utf8_lossy(&out.stdout).trim().to_owned();
     if !out.status.success() || text.is_empty() {

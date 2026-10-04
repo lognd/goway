@@ -298,7 +298,7 @@ pub fn run_here(
         hostname: &probe.hostname,
     };
     let _interrupted = run::interrupt_flag();
-    let code = match process(&job).stdin(Stdio::inherit()).status() {
+    let code = match process(&job).stdin(Stdio::inherit()).status_locked() {
         Ok(status) => run::exit_code_of(status),
         Err(e) => {
             renderer.warn(format_args!("cannot run `{}`: {e}", args.command[0]));

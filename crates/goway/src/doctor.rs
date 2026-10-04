@@ -32,6 +32,7 @@ use crate::remote;
 use crate::render::Renderer;
 use crate::resolve::{self, Found, Lookup, Prober};
 use crate::run;
+use crate::spawn::CommandExt as _;
 use crate::ssh::{self, KeyPolicy};
 use crate::sshenv;
 use crate::state::State;
@@ -923,7 +924,7 @@ impl FixRunner for SshFixRunner<'_> {
         cmd.stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
-            .status()
+            .status_locked()
             .is_ok_and(|s| s.success())
     }
 }

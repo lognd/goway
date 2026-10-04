@@ -23,6 +23,7 @@ use std::process::{Command, Stdio};
 use crate::config::Os;
 use crate::error::{Error, Result};
 use crate::repo::{self, Repo};
+use crate::spawn::CommandExt as _;
 use crate::sync::{Kind, LocalFile, Secrets};
 
 /// A built overlay: the directory holding `.git/` and the files in it.
@@ -89,7 +90,10 @@ fn run_files(mut cmd: Command, stdin: &Path, stdout: Option<&Path>, what: &str) 
             cmd.stdout(Stdio::null());
         }
     }
-    let out = cmd.output().map_err(|e| git_failed(what, e))?;
+    let out = cmd
+        .spawn_locked()
+        .and_then(|child| child.wait_with_output())
+        .map_err(|e| git_failed(what, e))?;
     if out.status.success() {
         Ok(())
     } else {
@@ -113,7 +117,8 @@ fn build_pack(root: &Path, dir: &Path, secrets: &Secrets) -> Result<()> {
         .arg("-C")
         .arg(root)
         .args(["rev-list", "--objects", "--max-count=1", "HEAD"])
-        .output()
+        .stdin(Stdio::null())
+        .output_locked()
         .map_err(|e| git_failed("cannot run git", e))?;
     if !listed.status.success() {
         return Err(git_failed(
@@ -223,7 +228,8 @@ pub fn prepare(repo: &Repo, secrets: &Secrets, host_os: Os, state_dir: &Path) ->
             .arg("-q")
             .arg("--template=")
             .arg(&dir)
-            .output()
+            .stdin(Stdio::null())
+            .output_locked()
             .map_err(|e| git_failed("cannot run git", e))?;
         if !init.status.success() {
             return Err(git_failed(
