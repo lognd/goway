@@ -11,6 +11,10 @@ created = "2026-10-04T03:34:48Z"
 updated = "2026-10-04T03:34:48Z"
 scope = ["crates/goway/src/translate.rs", "crates/goway/src/runners.rs", "crates/goway/src/project.rs", "crates/goway/src/run.rs", "crates/goway/src/remote.ps1", "crates/goway/src/remote.sh", "crates/goway/tests/translate.rs", "docs/usage.md", "docs/config.md"]
 
+[[links]]
+kind = "blocked-by"
+target = "01M42FJVGY91ND091THEDPP8DN"
+
 [[acceptance]]
 text = 'Given a command whose program differs by OS, when it runs on a host of another OS, then only the program (argv[0]) is translated, never other arguments: python3 or python to the py -3 launcher (else python.exe; never the WindowsApps Store stub) on Windows and to python3 on a Linux host without python; pip3 or pip to py -3 -m pip; ./gradlew to gradlew.bat; ./mvnw to mvnw.cmd; a ./relative/path program to .\relative\path with .exe appended when that file exists (and the multi-config build\Debug or build\Release location when only that exists); node, npm, npx, cargo, go and dotnet unchanged'
 bound = false
