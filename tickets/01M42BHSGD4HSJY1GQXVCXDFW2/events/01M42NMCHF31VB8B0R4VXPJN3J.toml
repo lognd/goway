@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-04T05:19:19Z"
+digest = "3e59b899de888f40d835bc27b6b534132ef07cd24e50656767eceb80a7e4d5f9"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 5b2aea69-7580-4278-befd-db0e3702ffbf with nextest profile: default
+    Starting 1 test across 57 binaries (670 tests skipped)
+        PASS [   0.008s] goway ssh::attempts::tests::automatic_probing_stops_at_two_but_user_steps_continue_to_four
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.010s] 1 test run: 1 passed, 670 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "automatic_probing_stops_at_two"
+size = 584
+status = "measured"
+tests = ["ssh::attempts::tests::automatic_probing_stops_at_two_but_user_steps_continue_to_four"]
+at = "2026-10-04T05:19:19Z"
+actor = "lognd"
+rev = 1

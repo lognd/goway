@@ -1,0 +1,12 @@
+kind = "create"
+title = "Many concurrent runs over one ssh master hit the helper's MaxSessions: refused sessions and stale control sockets must be handled quietly"
+type = "bug"
+category = "todo"
+priority = "high"
+points = 2
+parent = "01M418GXXC6312Z4N151DYH3Y4"
+scope = ["crates/goway/src/ssh.rs", "crates/goway/src/paths.rs", "crates/goway/tests/ssh_mux.rs", "docs/troubleshooting.md"]
+acceptance = ["Given more concurrent goway calls to one helper than its sshd MaxSessions (default 10) allows over one ControlMaster (found live: 'mux_client_request_session: session request failed: Session open refused by peer' then 'ControlSocket ... already exists, disabling multiplexing'), when a session is refused, then goway opens the call without multiplexing or through a second master, prints nothing to the user unless it repeats (one note per run at most), and never leaves a stale control socket behind", "Given a stale control socket (its master is gone), when goway starts, then it removes and replaces it instead of disabling multiplexing for the rest of the run"]
+at = "2026-10-04T05:02:38Z"
+actor = "lognd"
+rev = 1
