@@ -257,3 +257,78 @@ pub fn public_network_warning(name: &str) -> String {
         name.replace('\'', "''")
     )
 }
+
+/// What the native helper's next-steps block needs to know.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeInfo {
+    /// The Windows device name as Windows reports it.
+    pub device_name: String,
+    /// The ssh host key fingerprint, when sshd has made its key yet.
+    pub fingerprint: Option<String>,
+    /// The Windows account that logs in (`DOMAIN\user` or `user`).
+    pub account: String,
+    /// Whether a public key was authorized by the install.
+    pub key_authorized: bool,
+    /// Where that key went (a path), when one was authorized.
+    pub key_file: Option<String>,
+}
+
+/// The login name part of a Windows account (`DESKTOP\user` becomes `user`).
+pub fn login_name(account: &str) -> &str {
+    account.rsplit_once('\\').map_or(account, |(_, user)| user)
+}
+
+/// The block printed when the native helper install finishes (and by `status --host`): the
+/// name, the fingerprint to compare, the account and the one command to run on the main laptop.
+pub fn native_next_steps(info: &NativeInfo) -> String {
+    let rule = "=".repeat(70);
+    let name = helper_name(&info.device_name);
+    let shown_name = name.as_deref().unwrap_or("NAME-FOR-THIS-LAPTOP");
+    let user = login_name(&info.account);
+    let mut lines = vec![
+        rule.clone(),
+        " THIS LAPTOP IS READY TO BE A HELPER. Next, on your MAIN laptop.".to_owned(),
+        rule.clone(),
+        String::new(),
+        format!("Name to use for this helper:  {shown_name}  (this laptop's Windows name)"),
+    ];
+    match &info.fingerprint {
+        Some(fp) => lines.extend([
+            format!("Its ssh host key fingerprint: {fp}"),
+            format!("Its Windows account:          {user}"),
+            String::new(),
+            "On your main laptop run exactly this:".to_owned(),
+            String::new(),
+            format!(
+                "    {}",
+                add_command(shown_name, fp, user, crate::native::NATIVE_PORT)
+            ),
+            String::new(),
+            "goway shows the same fingerprint there; it must match the one above.".to_owned(),
+        ]),
+        None => lines.extend([
+            "Its ssh host key fingerprint: not available yet (sshd has not made its host key)."
+                .to_owned(),
+            format!("Its Windows account:          {user}"),
+            String::new(),
+            "Start the sshd service, then run `goway-setup.exe status --host` to see this again."
+                .to_owned(),
+        ]),
+    }
+    lines.push(String::new());
+    match (&info.key_file, info.key_authorized) {
+        (Some(file), true) => lines.push(format!(
+            "The key you gave is authorized for {user} in {file}."
+        )),
+        _ => lines.push(
+            "This install authorized no key (--authorized-key was not given). To authorize your main laptop's public key now, uninstall and install again with --authorized-key <path of its .pub file>."
+                .to_owned(),
+        ),
+    }
+    lines.push(
+        "Network: Windows OpenSSH on port 22, reachable from this laptop's local network only (the firewall rule is limited to the local subnet and to Private and Domain networks)."
+            .to_owned(),
+    );
+    lines.push(rule);
+    lines.join("\n")
+}

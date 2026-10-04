@@ -267,3 +267,146 @@ pub fn public_networks() -> String {
         "Get-NetConnectionProfile | Where-Object { $_.NetworkCategory -eq 'Public' } | ForEach-Object { $_.Name }",
     )
 }
+
+/// Script printing `key=value` facts about the native OpenSSH setup and the invoking account:
+/// the account (name, SID, Administrators membership, profile directory), whether the OpenSSH
+/// Server capability is installed, sshd's startup type and state, the current `DefaultShell` and
+/// how the built-in firewall rule admits connections. Read-only.
+pub fn native_probe() -> String {
+    strict(&format!(
+        "$id = [Security.Principal.WindowsIdentity]::GetCurrent()\n\
+         'account=' + $id.Name\n\
+         'sid=' + $id.User.Value\n\
+         'admin=' + $(if ($id.Groups | Where-Object {{ $_.Value -eq 'S-1-5-32-544' }}) {{ '1' }} else {{ '0' }})\n\
+         'profile=' + [Environment]::GetFolderPath('UserProfile')\n\
+         $cap = Get-WindowsCapability -Online -Name {cap} | Where-Object {{ $_.Name -ceq {cap} }}\n\
+         'capability=' + $(if ($cap -and $cap.State -eq 'Installed') {{ '1' }} else {{ '0' }})\n\
+         $svc = Get-CimInstance Win32_Service -Filter \"Name='{svc}'\" -ErrorAction SilentlyContinue\n\
+         if ($svc) {{ 'service_start=' + $svc.StartMode; 'service_running=' + $(if ($svc.State -eq 'Running') {{ '1' }} else {{ '0' }}) }}\n\
+         $shell = (Get-ItemProperty -LiteralPath 'HKLM:\\SOFTWARE\\OpenSSH' -Name DefaultShell -ErrorAction SilentlyContinue).DefaultShell\n\
+         if ($shell) {{ 'default_shell=' + $shell }}\n\
+         $rule = Get-NetFirewallRule -Name {rule} -ErrorAction SilentlyContinue\n\
+         if (-not $rule) {{ 'builtin_rule=absent' }} else {{ 'builtin_rule=' + $(if ({open}) {{ 'open' }} else {{ 'scoped' }}) }}",
+        cap = quote(crate::native::CAPABILITY),
+        svc = crate::native::SSHD_SERVICE,
+        rule = quote(crate::native::BUILTIN_RULE),
+        open = rule_is_open("$rule"),
+    ))
+}
+
+/// The PowerShell condition that is true when the firewall rule held in `var` admits Public
+/// networks or every address.
+fn rule_is_open(var: &str) -> String {
+    format!(
+        "({var}.Profile.ToString() -match 'Public|Any') -or ((({var} | Get-NetFirewallAddressFilter).RemoteAddress | ForEach-Object {{ $_.ToString() }}) -contains 'Any')"
+    )
+}
+
+/// Script printing `1` when the optional capability is installed, else `0`.
+pub fn capability_exists(name: &str) -> String {
+    strict(&format!(
+        "$c = Get-WindowsCapability -Online -Name {q} | Where-Object {{ $_.Name -ceq {q} }}\n\
+         if ($c -and $c.State -eq 'Installed') {{ '1' }} else {{ '0' }}",
+        q = quote(name)
+    ))
+}
+
+/// Script installing the optional capability; prints `restart` when Windows asks for one.
+pub fn capability_add(name: &str) -> String {
+    strict(&format!(
+        "$r = Add-WindowsCapability -Online -Name {}\nif ($r.RestartNeeded) {{ 'restart' }}",
+        quote(name)
+    ))
+}
+
+/// Script removing the optional capability.
+pub fn capability_remove(name: &str) -> String {
+    strict(&format!(
+        "Remove-WindowsCapability -Online -Name {} | Out-Null",
+        quote(name)
+    ))
+}
+
+/// Script printing `1` when sshd runs and starts automatically, else `0`.
+pub fn sshd_exists() -> String {
+    strict(&format!(
+        "$s = Get-CimInstance Win32_Service -Filter \"Name='{}'\" -ErrorAction SilentlyContinue\n\
+         if ($s -and $s.StartMode -eq 'Auto' -and $s.State -eq 'Running') {{ '1' }} else {{ '0' }}",
+        crate::native::SSHD_SERVICE
+    ))
+}
+
+/// Script making sshd start automatically and starting it now.
+pub fn sshd_enable() -> String {
+    strict(&format!(
+        "Set-Service -Name {n} -StartupType Automatic\nStart-Service -Name {n}",
+        n = quote(crate::native::SSHD_SERVICE)
+    ))
+}
+
+/// Script putting sshd back as it was: stopped when it was not running, with its old startup
+/// type. A service that no longer exists (its capability is gone) is success.
+pub fn sshd_restore(spec: &crate::native::ServiceSpec) -> String {
+    let stop = if spec.was_running {
+        String::new()
+    } else {
+        format!(
+            "Stop-Service -Name {} -Force -ErrorAction SilentlyContinue\n",
+            quote(crate::native::SSHD_SERVICE)
+        )
+    };
+    strict(&format!(
+        "if (Get-Service -Name {n} -ErrorAction SilentlyContinue) {{\n{stop}Set-Service -Name {n} -StartupType {t}\n}}",
+        n = quote(crate::native::SSHD_SERVICE),
+        t = spec.restore.as_str()
+    ))
+}
+
+/// Script printing `1` when the firewall rule with this exact `Name` is narrowed (it does not
+/// admit Public networks or every address), or does not exist; else `0`.
+pub fn firewall_scope_exists(name: &str) -> String {
+    strict(&format!(
+        "$rule = Get-NetFirewallRule -Name {n} -ErrorAction SilentlyContinue | Where-Object {{ $_.Name -ceq {n} }}\n\
+         if (-not $rule) {{ '1' }} elseif ({open}) {{ '0' }} else {{ '1' }}",
+        n = quote(name),
+        open = rule_is_open("$rule"),
+    ))
+}
+
+/// Script limiting the rule to the scope's profiles and remote addresses.
+pub fn firewall_scope_set(name: &str, scope: &Scope) -> String {
+    strict(&format!(
+        "Set-NetFirewallRule -Name {} -Profile {} -RemoteAddress {}",
+        quote(name),
+        profiles_arg(scope),
+        remote_arg(scope),
+    ))
+}
+
+/// Script putting the rule back to every profile and address (what the system creates); a rule
+/// that is gone is success.
+pub fn firewall_scope_restore(name: &str) -> String {
+    strict(&format!(
+        "if (Get-NetFirewallRule -Name {n} -ErrorAction SilentlyContinue) {{ Set-NetFirewallRule -Name {n} -Profile Any -RemoteAddress Any }}",
+        n = quote(name)
+    ))
+}
+
+/// Script printing a file's DACL as SDDL (`D:...`).
+pub fn acl_get(path: &str) -> String {
+    strict(&format!(
+        "[System.IO.File]::GetAccessControl({}).GetSecurityDescriptorSddlForm('Access')",
+        quote(path)
+    ))
+}
+
+/// Script replacing a file's DACL with `sddl` (the owner is left as it is).
+pub fn acl_set(path: &str, sddl: &str) -> String {
+    strict(&format!(
+        "$sec = New-Object System.Security.AccessControl.FileSecurity\n\
+         $sec.SetSecurityDescriptorSddlForm({}, 'Access')\n\
+         [System.IO.File]::SetAccessControl({}, $sec)",
+        quote(sddl),
+        quote(path)
+    ))
+}

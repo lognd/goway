@@ -53,6 +53,14 @@ pub enum SetupError {
         /// The existing rule's target (`address:port`).
         connect: String,
     },
+    /// The public key given for the native helper is not one goway will authorize.
+    #[error(
+        "cannot authorize that key: {0}; pass one ssh public key line (ssh-ed25519 AAAA... comment) or the path of a .pub file"
+    )]
+    BadAuthorizedKey(String),
+    /// A native-helper install option cannot be honored.
+    #[error("native install: {0}")]
+    NativeOption(String),
     /// The host component changes Windows and WSL and only runs on Windows.
     #[error("the host component only runs on Windows (use --dry-run to see its plan)")]
     HostNeedsWindows,

@@ -71,7 +71,9 @@ pub fn describe_kind(kind: ResourceKind) -> &'static str {
         ResourceKind::HyperVFirewallRule => "Hyper-V firewall rule",
         ResourceKind::ScheduledTask => "scheduled task",
         ResourceKind::PortProxy => "Windows port relay (portproxy)",
-        ResourceKind::Service => "service",
+        ResourceKind::Service => "service (sshd, automatic and running)",
+        ResourceKind::WindowsCapability => "Windows capability",
+        ResourceKind::FirewallScope => "scope of the built-in Windows Firewall rule",
         ResourceKind::WslPackage => "WSL package",
         ResourceKind::WslUnit => "enabled WSL systemd unit",
         ResourceKind::SshKeyPair => "ssh key pair",
@@ -289,6 +291,23 @@ impl Renderer {
             "installed",
             &format!(
                 "host component of profile {} ({applied} changes; WSL distro {distro}, sshd port {port})",
+                layout.profile
+            ),
+        );
+        self.line(
+            DIM,
+            "journal",
+            &layout.host_journal_path.display().to_string(),
+        );
+    }
+
+    /// Report a finished native host install.
+    pub fn native_installed(self, layout: &Layout, applied: usize) {
+        self.line(
+            GOOD,
+            "installed",
+            &format!(
+                "native host component of profile {} ({applied} changes; Windows OpenSSH Server, port 22)",
                 layout.profile
             ),
         );

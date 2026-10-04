@@ -477,6 +477,7 @@ fn the_host_journal_and_settings_live_in_the_admin_dir_apart_from_the_client_jou
         port: DEFAULT_PORT,
         allow_from: Vec::new(),
         network: NetworkMode::Mirrored,
+        native: None,
     };
     app::save_settings(&l, &settings).unwrap();
     assert_eq!(app::load_settings(&l).unwrap(), Some(settings));
@@ -580,6 +581,7 @@ fn allow_from_accepts_addresses_and_cidrs_and_refuses_everything_else() {
         port: 2222,
         allow_from: vec!["0.0.0.0/0".into()],
         network: NetworkMode::Mirrored,
+        native: None,
     };
     assert!(settings.validate(Path::new("s.json")).is_err());
 }
@@ -594,6 +596,7 @@ fn a_journal_from_before_scoping_can_still_be_uninstalled() {
         port: 2299,
         allow_from: Vec::new(),
         network: NetworkMode::Mirrored,
+        native: None,
     };
     let legacy_fw = Change::EnsureResource {
         kind: ResourceKind::FirewallRule,
@@ -731,6 +734,7 @@ fn allow_from_refuses_wide_and_any_like_ranges_unless_allow_wide_and_never_any()
         port: 2222,
         allow_from: vec!["128.0.0.0/1".into()],
         network: NetworkMode::Mirrored,
+        native: None,
     };
     assert!(settings.validate(Path::new("s.json")).is_ok());
     settings.allow_from = vec!["0.0.0.0/1".into()];

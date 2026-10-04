@@ -28,8 +28,15 @@ pub enum ResourceKind {
     ScheduledTask,
     /// A Windows `netsh interface portproxy` IPv4 relay; `name` is `<listen address>:<port>`.
     PortProxy,
-    /// A system service.
+    /// A system service: present while it is running and starts automatically. The creation spec
+    /// carries the startup type and running state to restore, so removal is exact.
     Service,
+    /// A Windows optional capability (such as the OpenSSH Server), present while installed;
+    /// a capability that was already installed is never recorded, so it is never removed.
+    WindowsCapability,
+    /// The scope (profiles and remote addresses) of a firewall rule that the system created
+    /// itself, looked up by rule name; removal restores the rule to every profile and address.
+    FirewallScope,
     /// A distro package (exists while installed); managed inside a WSL distro.
     WslPackage,
     /// A systemd unit enabled at boot (exists while enabled); managed inside a WSL distro.

@@ -21,6 +21,7 @@ fn settings() -> HostSettings {
         port: 2299,
         allow_from: Vec::new(),
         network: host::NetworkMode::Mirrored,
+        native: None,
     }
 }
 

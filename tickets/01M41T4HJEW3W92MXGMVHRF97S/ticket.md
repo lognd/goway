@@ -2,13 +2,14 @@
 id = "01M41T4HJEW3W92MXGMVHRF97S"
 title = "goway-setup install --host --native: a Windows helper without WSL over OpenSSH, journaled"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T21:18:48Z"
-updated = "2026-10-04T00:30:57Z"
+updated = "2026-10-04T00:31:30Z"
 scope = ["crates/goway-setup/src/native.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/src/helper.rs", "crates/goway-journal/src/change.rs", "scripts/windows/roundtrip-host.sh", "docs/install-windows.md", "crates/goway-setup/tests/native.rs", "crates/goway-setup/src/lib.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/src/sysapi.rs", "crates/goway-setup/src/render.rs", "crates/goway-setup/src/app.rs", "crates/goway-setup/tests/elevated.rs", "crates/goway-setup/tests/relay.rs", "crates/goway-setup/tests/host_plan.rs", "crates/goway-setup/src/error.rs"]
 
 [[links]]
