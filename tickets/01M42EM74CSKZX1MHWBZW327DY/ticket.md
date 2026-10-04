@@ -2,7 +2,8 @@
 id = "01M42EM74CSKZX1MHWBZW327DY"
 title = "Waves of runs queue instead of failing: wait for a job slot or enough free memory, fairly, with a bounded wait"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
