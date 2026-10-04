@@ -23,6 +23,8 @@ pub struct RemoteSystem {
     pub settings: ssh::Settings,
     /// Allow password authentication (interactive).
     pub password: bool,
+    /// How the password prompt names the host (`None`: ssh's own alias).
+    pub prompt: Option<ssh::PasswordPrompt>,
 }
 
 /// Outcome of one remote shell snippet.
@@ -37,7 +39,7 @@ impl RemoteSystem {
         let remote = format!("sh -c {}", ssh::shell_quote(script));
         let mut cmd = ssh::command(&self.target, &self.settings, KeyPolicy::Strict, &remote);
         if self.password {
-            ssh::allow_password(&mut cmd);
+            ssh::allow_password(&mut cmd, self.prompt.as_ref());
         }
         cmd.stdin(if input.is_some() {
             Stdio::piped()

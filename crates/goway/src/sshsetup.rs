@@ -270,12 +270,62 @@ fn key_blob(line: &str) -> String {
 }
 
 /// `goway ssh setup` (or `--undo`).
-#[allow(clippy::too_many_lines)] // one linear walk-through, easier to audit in one place
 pub fn setup(
     paths: &Paths,
     renderer: Renderer,
     args: &SshSetupArgs,
     lookup: &dyn Lookup,
+) -> Result<u8> {
+    setup_with(paths, renderer, args, lookup, false)
+}
+
+/// Removes goway's temporary prompt `known_hosts` copy when setup ends, however it ends.
+struct RemoveOnDrop(PathBuf);
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// The login name shown to the user: the configured one, else this account's own.
+fn account_name(target: &Target) -> String {
+    target
+        .user
+        .clone()
+        .or_else(|| std::env::var("USER").ok().filter(|u| !u.is_empty()))
+        .or_else(|| std::env::var("USERNAME").ok().filter(|u| !u.is_empty()))
+        .unwrap_or_else(|| "your account".to_owned())
+}
+
+/// Whether to try a password login: on a terminal goway first explains what it is about to do
+/// and asks whether the user knows the password (goway cannot tell a blank password from a
+/// wrong one, so it asks up front); `assume_yes` and scripts skip the question.
+fn knows_password(renderer: Renderer, name: &str, user: &str, assume_yes: bool) -> bool {
+    if assume_yes || !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+        return true;
+    }
+    renderer.note(format_args!(
+        "To let this laptop log in to {name} without a password from now on, goway puts a key on {name} once."
+    ));
+    renderer.note(format_args!(
+        "(If {user} has no password, or you are not sure, answer n: goway shows three lines to paste on {name} instead.)"
+    ));
+    let answer = crate::render::ask(&format!(
+        "Do you know the password of {user} on {name}? [Y/n] "
+    ));
+    // No answer (end of input) is the safe side: no password attempt.
+    answer.is_some_and(|a| !matches!(a.trim(), "n" | "N" | "no" | "No" | "NO"))
+}
+
+/// Run the ssh setup; `assume_yes` skips the password question for callers that already confirmed (`goway add --yes`).
+#[allow(clippy::too_many_lines)] // one linear walk-through, easier to audit in one place
+pub fn setup_with(
+    paths: &Paths,
+    renderer: Renderer,
+    args: &SshSetupArgs,
+    lookup: &dyn Lookup,
+    assume_yes: bool,
 ) -> Result<u8> {
     if args.undo {
         return undo(paths, renderer, &args.host);
@@ -413,21 +463,40 @@ pub fn setup(
         target: &key_target,
         settings: &settings,
     };
+    let user = account_name(&target);
+    let try_password = !args.no_password && knows_password(renderer, name, &user, assume_yes);
     let mut remote_sys = RemoteSystem {
         target: target.clone(),
         settings: settings.clone(),
-        password: !args.no_password,
+        password: try_password,
+        prompt: None,
     };
-    if args.no_password {
+    let prompt_hosts = RemoveOnDrop(
+        paths
+            .state_dir
+            .join(format!("known_hosts.prompt.{}", std::process::id())),
+    );
+    if try_password {
+        // ssh names the host in its prompt after the key alias; show what the user typed.
+        remote_sys.prompt =
+            ssh::PasswordPrompt::create(name, &settings.known_hosts, &prompt_hosts.0)
+                .map_err(|e| tracing::warn!(error = %e, "no custom password prompt"))
+                .ok();
         renderer.note(format_args!(
-            "--no-password: not asking for a password; the key is added by hand"
+            "ssh now asks for {user}'s password on {name} (typing is hidden; goway never sees or stores it)."
         ));
-        by_hand.run()?;
-        remote_sys.target = key_target.clone();
     } else {
-        renderer.note(format_args!(
-            "logging in to {name} with a password once (ssh will ask) to authorize the key"
-        ));
+        if args.no_password {
+            renderer.note(format_args!(
+                "--no-password: not asking for a password; the key is added by hand"
+            ));
+        } else {
+            renderer.note(format_args!(
+                "No password: goway will show you what to paste on {name} instead."
+            ));
+        }
+        by_hand.run(&user)?;
+        remote_sys.target = key_target.clone();
     }
     let first = remote_sys.output(facts_script);
     let facts = match first {
@@ -436,14 +505,13 @@ pub fn setup(
                 && ssh::classify_failure(&e.to_string()) == Failure::AuthRefused =>
         {
             tracing::warn!(host = name, error = %e, "password login refused; key to be added by hand");
-            renderer.warn(format_args!(
-                "the password login to {name} was refused: {e}"
+            renderer.warn(format_args!("That password did not work on {name}."));
+            renderer.note(format_args!(
+                "Most likely {user} has no password set (common with automatic login) or {name} only allows key logins; \
+                 other causes are in docs/troubleshooting.md, \"goway add says Permission denied\"."
             ));
-            renderer.next(format_args!(
-                "{}",
-                crate::error::permission_denied_hint(target.user.as_deref().unwrap_or("USER"))
-            ));
-            by_hand.run()?;
+            renderer.headline(format_args!("Let's do it the other way:"));
+            by_hand.run(&user)?;
             remote_sys.password = false;
             remote_sys.target = key_target.clone();
             remote_sys
@@ -589,7 +657,7 @@ impl HandInstall<'_> {
 
     /// Print the commands and wait until key login works: with a terminal the user presses
     /// Enter after running them; without one goway stops with the next step.
-    fn run(&self) -> Result<()> {
+    fn run(&self, user: &str) -> Result<()> {
         let name = self.name;
         if self.key_works() {
             self.renderer
@@ -597,17 +665,18 @@ impl HandInstall<'_> {
             return Ok(());
         }
         self.renderer.headline(format_args!(
-            "add goway's key on {name} yourself; on {name}, in a terminal, run:"
+            "On {name}, open a terminal and paste these three lines:"
         ));
+        // Blank lines around the block and nothing else on its lines, so it copies cleanly.
+        self.renderer.line("");
         for command in self.commands() {
             self.renderer.line(&command);
         }
+        self.renderer.line("");
         for attempt in 1..=HAND_ATTEMPTS {
-            let Some(_) = crate::render::ask(
-                "press Enter once you have done this on the helper (or Ctrl-C to stop): ",
-            ) else {
+            let Some(_) = crate::render::ask("Then press Enter here (Ctrl-C to stop). ") else {
                 self.renderer.next(format_args!(
-                    "run the commands above on {name}, then rerun the same `goway add {name}` command"
+                    "run the lines above on {name}, then rerun the same `goway add {name}` command"
                 ));
                 return Err(setup_err(
                     name,
@@ -616,12 +685,13 @@ impl HandInstall<'_> {
             };
             if self.key_works() {
                 self.renderer
-                    .ok(format_args!("key login to {name} works now"));
+                    .ok(format_args!("Key works. {name} is ready."));
                 tracing::info!(host = name, attempt, "key added by hand works");
                 return Ok(());
             }
             self.renderer.warn(format_args!(
-                "key login to {name} still fails; check the three commands ran as the right user"
+                "The key still does not work on {name}. goway tried logging in as {user} with the key above. \
+                 Check that the three lines were pasted whole (a typo in the pasted line is the usual cause) and that you ran them as {user} on {name}."
             ));
         }
         Err(setup_err(
@@ -662,6 +732,7 @@ pub(crate) fn undo(paths: &Paths, renderer: Renderer, name: &str) -> Result<u8> 
         // The tagged line goes first in reverse order; later steps may
         // need a password on clients without ssh multiplexing.
         password: true,
+        prompt: None,
     };
     let report = revert(&mut record.remote, &mut remote_sys).map_err(|e| sys_err(name, e))?;
     tracing::info!(?report, "remote changes reverted");

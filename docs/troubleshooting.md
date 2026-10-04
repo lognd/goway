@@ -49,10 +49,19 @@ helper you can also see it in its WSL terminal with
 
 <details><summary>goway add says Permission denied</summary>
 
-`goway add` logs in once with a password to install its key. ssh asks
-for that password itself (goway never sees, stores or sends a password
-other than through ssh's own prompt). "Permission denied
-(publickey,password)" after the prompts means the helper refused the
+On a terminal `goway add` first asks "Do you know the password of USER
+on NAME? [Y/n]". Answer `n` (or pass `--no-password`) when the account
+has no password or you are not sure: goway goes straight to the by-hand
+path below. Otherwise it logs in once with that password to install its
+key. ssh asks for the password itself, under the name you typed (goway
+never sees, stores or sends a password other than through ssh's own
+prompt), and asks exactly once (`NumberOfPasswordPrompts=1`, password
+methods only, no agent keys), so a wrong or empty password is one failed
+attempt, never several toward a fail2ban limit. goway then says "That
+password did not work on NAME", names the most likely cause and
+continues with "Let's do it the other way". `--yes` skips the question
+and goes on to the password; without a terminal there is no question.
+"Permission denied (publickey,password)" means the helper refused the
 login. Check the causes on the helper, in this order (`USER` is the
 Linux account you pass with `--user`):
 
@@ -86,8 +95,8 @@ chmod 600 ~/.ssh/authorized_keys
 ```
 
 The line carries the same restrictions as the one the password path
-installs. In a terminal goway then says "press Enter once you have done
-this on the helper", checks key login with the pinned host key and goes
+installs. In a terminal goway then says "Then press Enter here (Ctrl-C to
+stop)", checks key login with the pinned host key and goes
 on with the normal setup. Without a terminal it stops with exit code 125
 after printing the commands; run them on the helper and repeat the same
 `goway add` command. `goway ssh setup NAME --undo` cannot remove a line
