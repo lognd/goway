@@ -8,7 +8,7 @@ points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-04T00:39:44Z"
+updated = "2026-10-04T00:39:45Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/src/run.rs", "docs/usage.md", "crates/goway/src/sync.rs"]
 
 [[acceptance]]
@@ -17,5 +17,5 @@ bound = true
 
 [[acceptance]]
 text = "Given a run, when it finishes, then goway reports host, os windows and architecture, and exits with the command's exit code"
-bound = false
+bound = true
 +++
