@@ -2,7 +2,8 @@
 id = "01M41QKMG4K8M78GBJJP2C05F5"
 title = "Security audit 3: persistent slot trees, Windows hosts, language adapters, publishing"
 type = "security"
-category = "todo"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
