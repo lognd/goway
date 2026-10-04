@@ -2,13 +2,13 @@
 id = "01M41Q6DMFXAD67P17VTRQRCBB"
 title = "gc, status and doctor for Windows hosts"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-03T20:27:24Z"
-updated = "2026-10-04T05:51:47Z"
+updated = "2026-10-04T06:02:26Z"
 scope = ["crates/goway/src/gc.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs", "docs/usage.md"]
 
 [[acceptance]]
