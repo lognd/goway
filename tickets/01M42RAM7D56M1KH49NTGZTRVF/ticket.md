@@ -2,13 +2,13 @@
 id = "01M42RAM7D56M1KH49NTGZTRVF"
 title = "goway measures each helper clock offset in the probe, status shows offsets over 2 seconds, doctor warns with the fix"
 type = "story"
-category = "in-progress"
+category = "todo"
 priority = "medium"
 points = 2
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T06:06:25Z"
-updated = "2026-10-04T11:16:26Z"
+updated = "2026-10-04T11:16:51Z"
 scope = ["crates/goway/src/facts.rs", "crates/goway/src/status.rs", "crates/goway/src/doctor.rs", "docs/troubleshooting.md", "crates/goway/src/facts/clock.rs"]
 
 [[acceptance]]
