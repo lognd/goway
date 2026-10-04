@@ -7,12 +7,12 @@ priority = "high"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T01:01:37Z"
-updated = "2026-10-04T01:01:41Z"
+updated = "2026-10-04T01:09:48Z"
 scope = ["crates/goway/tests/common/mod.rs"]
 
 [[acceptance]]
 text = "Given a CI runner with 4 cores, when nested and concurrent-run tests execute, then the test host is not skipped for its job limit"
-bound = false
+bound = true
 +++
 
 found while working ~FKHDK2A: main CI run 37166058824 fails nesting::recursive_goway_stops_at_the_depth_limit and gpu_slots tests since ~5MMJ7N2 made max_jobs default to cores/2.
