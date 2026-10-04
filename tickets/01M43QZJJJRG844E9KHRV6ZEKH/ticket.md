@@ -2,12 +2,12 @@
 id = "01M43QZJJJRG844E9KHRV6ZEKH"
 title = "remote.ps1 parity: lifeline ends at once on closed stdin and waits 120 s on silence with the reason in the lost marker, and gc skips a work dir whose runner or job is alive"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-04T15:19:37Z"
-updated = "2026-10-04T15:19:37Z"
+updated = "2026-10-04T15:19:41Z"
 scope = ["crates/goway/src/remote.ps1", "crates/goway/tests/remote_ps1.rs"]
 
 [[acceptance]]
