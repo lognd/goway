@@ -2,7 +2,8 @@
 id = "01M43QZJJJRG844E9KHRV6ZEKH"
 title = "remote.ps1 parity: lifeline ends at once on closed stdin and waits 120 s on silence with the reason in the lost marker, and gc skips a work dir whose runner or job is alive"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
