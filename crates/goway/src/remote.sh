@@ -2234,7 +2234,6 @@ make_room() {
   [ "${free:-0}" -lt "$need" ] || return 0
   before=$GC_FREED
   evict "$root" "$(date +%s)" apply "" "${6:-0}" "$need" "" exact
-  printf 'DEBUGFP protect=%s\n' "$GC_PROTECT" >&2; find "$root/seed" -maxdepth 3 >&2
   printf 'goway: this repository needs about %s on this host and %s was free; the disk budget freed %s first\n' \
     "$(human "$need")" "$(human "${free:-0}")" "$(human $((GC_FREED - before)))" >&2
 }
