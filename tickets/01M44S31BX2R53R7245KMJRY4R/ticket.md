@@ -2,12 +2,12 @@
 id = "01M44S31BX2R53R7245KMJRY4R"
 title = "remote.ps1 fails every verb: the bounded slot-wait block landed at the top of the file instead of in Verb-run"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T00:58:14Z"
-updated = "2026-10-05T00:58:14Z"
+updated = "2026-10-05T01:05:02Z"
 scope = ["crates/goway/src/remote.ps1"]
 
 [[acceptance]]
