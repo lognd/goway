@@ -2,7 +2,8 @@
 id = "01M455YWY9KTYZNB25D119KERS"
 title = "client_loss does not compile on macOS: the stray-sweep test calls the Linux-only process_mentions"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "critical"
 points = 1
 reporter = "lognd"
