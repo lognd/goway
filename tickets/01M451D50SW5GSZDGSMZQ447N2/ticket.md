@@ -2,12 +2,12 @@
 id = "01M451D50SW5GSZDGSMZQ447N2"
 title = "The default per-job task cap (4096) starves real builds and test runs: fork and thread spawn fail with EAGAIN"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T03:23:34Z"
-updated = "2026-10-05T03:23:34Z"
+updated = "2026-10-05T03:23:50Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/config.rs", "crates/goway/tests/job_limits.rs", "docs/config.md"]
 
 [[acceptance]]
