@@ -229,3 +229,81 @@ fn a_plain_run_without_a_scope_finds_no_leftovers_of_its_own() {
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(!err.contains("left processes behind"), "{err}");
 }
+
+fn have_sccache() -> bool {
+    cfg!(target_os = "linux")
+        && std::process::Command::new("sccache")
+            .arg("--version")
+            .output()
+            .is_ok()
+}
+
+/// Restart the repository's sccache server from inside the job, as a build does when the
+/// server idled out: the new server inherits the run's tag.
+const RESTART_SERVER: &str = "sccache --stop-server >/dev/null 2>&1; \
+     TMPDIR=$(cat \"$(dirname \"$SCCACHE_DIR\")/sccache.tmpdir\") sccache --start-server >/dev/null 2>&1";
+
+// frob:ticket 01M4521XH97V8EXXK8RV630TRA
+// frob:tests crates/goway/src/remote.rs::invocation
+#[test]
+fn the_configured_sccache_server_is_no_leftover_and_keeps_serving() {
+    if !have_sccache() {
+        return;
+    }
+    let w = common::world();
+    without_scope(&w);
+    let out = w.run(&["run", "--", "sh", "-c", RESTART_SERVER]);
+    assert!(out.status.success(), "{out:?}");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(!err.contains("left processes behind"), "{err}");
+    assert!(
+        !common::sccache_servers_under(&w.root).is_empty(),
+        "the run ended the server"
+    );
+}
+
+// frob:ticket 01M4521XH97V8EXXK8RV630TRA
+// frob:tests crates/goway/src/remote.rs::invocation
+#[test]
+fn a_real_stray_is_stopped_and_named_while_the_sccache_server_stays() {
+    if !have_sccache() {
+        return;
+    }
+    let w = common::world();
+    without_scope(&w);
+    let script = format!("{RESTART_SERVER}; setsid sleep 4711 >/dev/null 2>&1 &");
+    let out = w.run(&["run", "--", "sh", "-c", &script]);
+    assert!(out.status.success(), "{out:?}");
+    let err = String::from_utf8_lossy(&out.stderr);
+    let line = err
+        .lines()
+        .find(|l| l.contains("left processes behind"))
+        .unwrap_or_else(|| panic!("no leftover message in {err}"));
+    assert!(line.contains("pid "), "{line}");
+    assert!(line.contains("(sleep 4711)"), "{line}");
+    assert!(!line.contains("sccache"), "{line}");
+    common::wait_for("the stray to be stopped", || {
+        !common::process_mentions("sleep\u{0}4711")
+    });
+    assert!(!common::sccache_servers_under(&w.root).is_empty());
+}
+
+// frob:ticket 01M4521XH97V8EXXK8RV630TRA
+// frob:tests crates/goway/src/remote.rs::invocation
+#[test]
+fn the_sweep_prints_no_permission_errors_for_processes_it_may_not_read() {
+    let w = common::world();
+    without_scope(&w);
+    let out = w.run(&[
+        "run",
+        "--",
+        "sh",
+        "-c",
+        "setsid sleep 4712 >/dev/null 2>&1 &",
+    ]);
+    assert!(out.status.success(), "{out:?}");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("left processes behind"), "{err}");
+    assert!(!err.contains("Permission denied"), "{err}");
+    assert!(!err.contains("/proc/"), "{err}");
+}

@@ -694,16 +694,17 @@ run_pids() {
   done
 } 2>/dev/null
 
-# kill_run RUN_ID RUNNER: stop every process tagged with the run (run_pids), the backstop for a
-# job that left its process group and its scope. SIGTERM, a short grace, then SIGKILL.
+# kill_run RUN_ID RUNNER [KEEP]: stop every process tagged with the run (run_pids, minus the
+# sccache server KEEP names), the backstop for a job that left its process group and its
+# scope. SIGTERM, a short grace, then SIGKILL.
 kill_run() {
   local pids
-  pids=$(run_pids "$1" "$2" || true)
+  pids=$(run_pids "$1" "$2" "${3:-}" || true)
   [ -n "$pids" ] || return 0
   # shellcheck disable=SC2086 # the list is words by construction
   kill -TERM $pids 2>/dev/null || true
   sleep 1 || true # the sweep may kill this very sleep (it carries the run's tag)
-  pids=$(run_pids "$1" "$2" || true)
+  pids=$(run_pids "$1" "$2" "${3:-}" || true)
   [ -n "$pids" ] || return 0
   # shellcheck disable=SC2086
   kill -KILL $pids 2>/dev/null || true
@@ -745,26 +746,58 @@ stop_job() {
   cg=$(cat "$work/cgroup" 2>/dev/null || true)
   if [ -n "$unit" ]; then stop_scope "$unit" "$cg"; fi
   if [ -n "$pid" ]; then stop_group "$pid"; fi
-  kill_run "$run" "$runner"
+  kill_run "$run" "$runner" "$work/sccache"
 }
 
-# tagged_left RUN_ID: whether a process tagged with the run outlives a short wait (a
-# watchdog's sampling `ps` or `sleep` ending with it is not a leftover).
+# tagged_left RUN_ID [KEEP]: whether a process tagged with the run (other than the sccache
+# server KEEP names) outlives a short wait. It must be the same process on both looks: a
+# watchdog's loop spawns a fresh `ps` or `sleep` every moment, and none of them is a leftover.
 tagged_left() {
-  [ -n "$(run_pids "$1" || true)" ] || return 1
+  local first p
+  first=$(run_pids "$1" "" "${2:-}" || true)
+  [ -n "$first" ] || return 1
   sleep 0.3 || true
-  [ -n "$(run_pids "$1" || true)" ]
+  for p in $(run_pids "$1" "" "${2:-}" || true); do
+    case " $(printf '%s ' $first)" in *" $p "*) return 0 ;; esac
+  done
+  return 1
+}
+
+# scope_strays CGROUP_DIR [KEEP]: the pids still in the job's cgroup except the sccache server
+# KEEP names, one per line.
+scope_strays() {
+  local p
+  for p in $(cat "$1/cgroup.procs" 2>/dev/null || true); do
+    sccache_kept "$p" "${2:-}" || printf '%s\n' "$p"
+  done
+}
+
+# stray_names WORK PID RUN_ID: "pid N (command)" for each process the job left behind (its
+# scope, or tagged with the run, minus the kept sccache server), or its process group when
+# that is all that remains. One line, for the message that says what is being stopped.
+stray_names() {
+  local work=$1 pid=$2 run=$3 keep=$1/sccache cg p out= seen=" "
+  cg=$(cat "$work/cgroup" 2>/dev/null || true)
+  for p in $({ [ -n "$cg" ] && [ -d "$cg" ] && scope_strays "$cg" "$keep"; } 2>/dev/null || true) \
+    $(run_pids "$run" "${BASHPID:-$$}" "$keep" || true); do
+    case "$seen" in *" $p "*) continue ;; esac
+    seen="$seen$p "
+    out="$out${out:+, }pid $p ($(pid_command "$p"))"
+  done
+  if [ -z "$out" ] && [ -n "$pid" ]; then out="process group $pid"; fi
+  printf '%s' "$out"
 }
 
 # reap_job WORK PID RUN_ID: after the job's own command ended, stop whatever it left behind
 # (a background loop outlives its leader, keeps the run's slot lock through its inherited
-# fd, and burns the helper's CPU). Cheap when nothing is left.
+# fd, and burns the helper's CPU). Cheap when nothing is left. The repository's sccache
+# server is not a leftover: it outlives the run on purpose (WORK/sccache names it).
 reap_job() {
   local work=$1 pid=$2 run=$3 cg
   cg=$(cat "$work/cgroup" 2>/dev/null || true)
-  if { [ -n "$cg" ] && [ -d "$cg" ] && scope_procs "$cg"; } ||
-    { [ -n "$pid" ] && kill -0 -- "-$pid" 2>/dev/null; } || tagged_left "$run"; then
-    printf 'goway-remote: the job of run %s left processes behind; stopping them\n' "$run" >&2 || true
+  if { [ -n "$cg" ] && [ -d "$cg" ] && [ -n "$(scope_strays "$cg" "$work/sccache")" ]; } ||
+    { [ -n "$pid" ] && kill -0 -- "-$pid" 2>/dev/null; } || tagged_left "$run" "$work/sccache"; then
+    printf 'goway-remote: the job of run %s left processes behind; stopping them: %s\n' "$run" "$(stray_names "$work" "$pid" "$run")" >&2 || true
     stop_job "$work" "$pid" "$run"
   fi
   return 0
@@ -1673,6 +1706,8 @@ run() {
       mkdir -p "$sc_tmp" 2>/dev/null
       sccache_heal "$cache" "$sc_tmp"
       TMPDIR=$sc_tmp sccache --start-server >/dev/null 2>&1 || true
+      # The end-of-run sweep leaves exactly this server (this binary, this dir) running.
+      printf '%s\n%s\n' "$SCCACHE_DIR" "$(command -v sccache)" >"$work/sccache" 2>/dev/null || true
       printf '%s\n' "$sc_tmp" >"$cache/sccache.tmpdir" 2>/dev/null || true
       export RUSTC_WRAPPER=sccache
       cc_launcher=sccache

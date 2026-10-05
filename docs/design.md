@@ -243,6 +243,15 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       The tag sweep reads `/proc/PID/environ`, so it exists on Linux only: on
       macOS a job that leaves its session and process group (and any scope)
       is not caught; its group still is.
+      One process is expected to outlive a run: the repository's sccache
+      server (it daemonizes, so a build that restarts it hands it the run's
+      tag). It keeps the cache warm for the next run and ends on its own idle
+      timeout, so the sweep exempts exactly it: the sccache binary goway
+      configured (compared by executable, not by name) with this repository's
+      `SCCACHE_DIR`, both recorded in the run's work directory when the server
+      is set up. Any other leftover is stopped and named in the message (pid
+      and command line). The sweep is silent about processes of other users
+      that it may not read.
    6. Provenance for frob: a header line on stderr naming host, arch and
       address, and `--report FILE` writes the same as JSON.
 5. Pool (`pool`)
