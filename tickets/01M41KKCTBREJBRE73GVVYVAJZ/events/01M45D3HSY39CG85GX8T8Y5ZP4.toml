@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-05T06:48:02Z"
+digest = "04be3ac09b69d6a20e65e38894801cfd97116b491eb0c568d71fef1815fc0f74"
+exit_code = 1
+inline = """
+unknown flag: --clobber
+
+Usage:  gh release download [<tag>] [flags]
+
+Flags:
+  -A, --archive format        Download the source code archive in the specified format (zip or tar.gz)
+  -D, --dir string            The directory to download files into (default ".")
+  -p, --pattern stringArray   Download only assets that match a glob pattern
+  
+"""
+passed = false
+provider = "command"
+ref = "gh release download goway-v0.1.0 --dir /tmp/goway-v0.1.0-evidence --clobber -p goway-x86_64-unknown-linux-musl.tar.gz -p goway-aarch64-unknown-linux-musl.tar.gz -p goway-setup.exe -p goway-setup-arm64.exe -p SHA256SUMS -p install.sh"
+size = 341
+status = "measured"
+at = "2026-10-05T06:48:02Z"
+actor = "lognd"
+rev = 1
