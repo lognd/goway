@@ -1,0 +1,32 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-05T05:03:02Z"
+digest = "a536d2652738327f4c403f06a41ba6183b796295c81070a22111625b3b64ffa7"
+exit_code = 0
+inline = '''
+
+\u{2713} ci/119KERS ci \u{b7} 37265401175
+Triggered via push about 9 minutes ago
+
+JOBS
+\u{2713} wheel in 2m1s (ID 111621054239)
+\u{2713} macos in 8m38s (ID 111621054411)
+\u{2713} linux in 6m59s (ID 111621054457)
+\u{2713} windows in 5m41s (ID 111621054600)
+
+ANNOTATIONS
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+macos: .github#1
+
+
+For more information about a job, try: gh run view --job=<job-id>
+View this run on GitHub: https://github.com/lognd/goway/actions/runs/37265401175
+'''
+passed = true
+provider = "command"
+ref = "gh run view 37265401175 --exit-status"
+size = 537
+status = "measured"
+at = "2026-10-05T05:03:02Z"
+actor = "lognd"
+rev = 1
