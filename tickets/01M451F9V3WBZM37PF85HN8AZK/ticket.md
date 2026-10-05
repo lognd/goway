@@ -2,7 +2,8 @@
 id = "01M451F9V3WBZM37PF85HN8AZK"
 title = "Tests leave one sccache server per test world running, and about 80 of them (34 threads each) exhaust a goway job's 4096 task cap"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 reporter = "lognd"
