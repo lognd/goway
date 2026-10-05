@@ -74,7 +74,7 @@ fn a_cpu_cap_that_is_not_a_percentage_is_refused() {
     assert!(!out.status.success());
     assert!(
         String::from_utf8_lossy(&out.stderr).contains("job_cpu"),
-        "{out:?}"
+        "{out:?} against the unrestricted {unlimited:?}"
     );
 }
 
@@ -136,6 +136,6 @@ fn without_a_user_manager_the_process_cap_is_a_ulimit_and_zero_lifts_it() {
     assert_eq!(
         String::from_utf8_lossy(&out.stdout).trim(),
         String::from_utf8_lossy(&unlimited.stdout).trim(),
-        "{out:?}"
+        "{out:?} against the unrestricted {unlimited:?}"
     );
 }
