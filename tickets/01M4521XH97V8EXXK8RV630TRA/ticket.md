@@ -7,12 +7,12 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T03:34:54Z"
-updated = "2026-10-05T03:56:18Z"
+updated = "2026-10-05T04:11:36Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/client_loss.rs", "docs/design.md"]
 
 [[acceptance]]
 text = "Given a run whose only surviving process is the sccache server goway configured, When the run ends, Then no leftover message is printed and the server keeps serving the next run"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a run that leaves a real stray process, When the run ends, Then it is still stopped and the message names it (pid and command)"
