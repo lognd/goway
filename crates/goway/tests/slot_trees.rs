@@ -240,13 +240,10 @@ fn gc_removes_an_idle_slot_tree_with_its_cache() {
 #[test]
 fn locking_a_seed_survives_gc_removing_it_mid_acquire() {
     let w = world();
-    let script =
-        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/remote.sh"))
-            .unwrap();
     let root = w.root.join("hook-root");
     let seed = root.join("seed/repo/wt");
     let out = Command::new("bash")
-        .args(["-c", &script, "goway", "manifest"])
+        .args([goway::remote::SCRIPT_SH_PATH, "manifest"])
         .arg(&root)
         .arg("repo/wt")
         .env("GOWAY_TEST_HOOK", format!("rm -rf '{}'", seed.display()))

@@ -307,3 +307,26 @@ fn the_sweep_prints_no_permission_errors_for_processes_it_may_not_read() {
     assert!(!err.contains("Permission denied"), "{err}");
     assert!(!err.contains("/proc/"), "{err}");
 }
+
+// frob:ticket 01M454E0P4PG2XC8NFEA1AEG0B
+// frob:tests crates/goway/src/remote.rs::invocation
+#[test]
+fn no_probe_of_another_processs_environ_opens_it_before_silencing_stderr() {
+    // bash opens redirections left to right: `<file 2>/dev/null` prints the open error first.
+    // (A process that is the user's own yet unreadable cannot be made in a test.)
+    let script = std::fs::read_to_string(goway::remote::SCRIPT_SH_PATH).unwrap();
+    for (n, line) in script.lines().enumerate() {
+        assert!(
+            !(line.contains("/environ\"") && line.contains("2>/dev/null") && {
+                let at = |s: &str| line.find(s).unwrap();
+                line.contains("<\"")
+                    && at("/environ\"") < at("2>/dev/null")
+                    && !line.contains("2>/dev/null <")
+                    && !line.trim_start().starts_with('#')
+                    && !line.contains("} 2>/dev/null")
+            }),
+            "remote.sh line {}: silence stderr before opening environ: {line}",
+            n + 1
+        );
+    }
+}

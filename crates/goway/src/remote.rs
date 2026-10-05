@@ -194,7 +194,7 @@ pub const SCRIPT_SH_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/remot
 
 /// The most the remote command line may be: a single argument is capped at
 /// 128 KiB by Linux, and the encoded script is the bulk of the line.
-pub const MAX_LINE: usize = 120_000;
+pub const MAX_LINE: usize = 124_000;
 
 /// The remote command line running `verb` with `args`, safe for any login
 /// shell. The login shell only ever sees `bash -c '<fixed text>' goway`:

@@ -654,7 +654,7 @@ stop_group() {
 sccache_kept() {
   local p=$1 keep=${2:-} dir bin kv
   [ -n "$keep" ] && [ -r "$keep" ] || return 1
-  { read -r dir && read -r bin; } <"$keep" 2>/dev/null || return 1
+  { read -r dir && read -r bin; } 2>/dev/null <"$keep" || return 1
   [ -n "$dir" ] && [ -n "$bin" ] || return 1
   [ "/proc/$p/exe" -ef "$bin" ] 2>/dev/null || return 1
   { while IFS= read -r -d '' kv; do
@@ -2822,7 +2822,7 @@ sccache_server_tmpdir() {
   local p env
   for p in /proc/[0-9]*; do
     [ -O "$p" ] && [ -r "$p/environ" ] || continue
-    env=$(tr '\0' '\n' <"$p/environ" 2>/dev/null || true)
+    env=$(tr '\0' '\n' 2>/dev/null <"$p/environ" || true)
     case "$env" in *$'\n'"SCCACHE_START_SERVER=1"$'\n'* | "SCCACHE_START_SERVER=1"$'\n'*) ;; *) continue ;; esac
     case "$env" in *$'\n'"SCCACHE_SERVER_UDS=$1"$'\n'* | "SCCACHE_SERVER_UDS=$1"$'\n'*) ;; *) continue ;; esac
     printf '%s\n' "$env" | sed -n 's/^TMPDIR=//p' | head -1
