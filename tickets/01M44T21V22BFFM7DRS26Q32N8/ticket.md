@@ -2,12 +2,12 @@
 id = "01M44T21V22BFFM7DRS26Q32N8"
 title = "Slot-wait test fails on small CI runners: the local test host is held back by the per-job memory admission"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T01:15:10Z"
-updated = "2026-10-05T01:15:10Z"
+updated = "2026-10-05T01:15:14Z"
 scope = ["crates/goway/tests/slot_wait.rs"]
 
 [[acceptance]]
