@@ -1,0 +1,21 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-05T06:48:02Z"
+digest = "742d5a344804adb3182c379b412223622e1108805c6dcedb93154b58c67b7e90"
+exit_code = 125
+inline = """
+goway: error: config ~/.config/goway/config.toml: TOML parse error at line 4, column 1
+  |
+4 | max_disk = "300G"
+  | ^^^^^^^^
+unknown field `max_disk`, expected one of `remote_root`, `cache_ttl`, `orphan_ttl`, `kept_ttl`, `target_slots`, `send_env_files`, `port`, `priority`, `max_load`
+
+"""
+passed = false
+provider = "command"
+ref = """goway run --host local -- bash -c 'd=$(mktemp -d) && curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | HOME=$d GOWAY_PREFIX=$d/p bash && $d/p/bin/goway --version | grep -qx "goway 0.1.0"; rc=$?; rm -rf "$d"; exit $rc'"""
+size = 288
+status = "measured"
+at = "2026-10-05T06:48:02Z"
+actor = "lognd"
+rev = 1
