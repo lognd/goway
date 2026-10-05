@@ -1,0 +1,12 @@
+kind = "create"
+title = "Slot-wait test times out waiting for a held run to start on the Linux and macOS CI runners"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 2
+scope = ["crates/goway/tests/common/mod.rs", "crates/goway/tests/slot_wait.rs"]
+acceptance = ["Given a runner without a user manager, when the slot-wait test holds both build slots and runs with --wait 2s, then it exits 125 naming the busy slots"]
+body = "CI run 37251466869 (linux and macos jobs): a_run_waiting_for_a_busy_slot_gives_up_after_wait_with_what_it_saw times out at common/mod.rs wait_started after 120 s. Root cause to be found from the held run's stderr."
+at = "2026-10-05T01:36:28Z"
+actor = "lognd"
+rev = 1
