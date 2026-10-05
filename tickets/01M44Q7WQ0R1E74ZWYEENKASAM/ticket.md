@@ -7,7 +7,7 @@ priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T00:25:56Z"
-updated = "2026-10-05T00:29:10Z"
+updated = "2026-10-05T00:29:20Z"
 scope = ["crates/goway/src/doctor/wsl_down.rs", "crates/goway/tests/doctor_wsl_down.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
@@ -20,7 +20,7 @@ bound = true
 
 [[acceptance]]
 text = "Given the generated probe scripts, When tested, Then every Windows-side command in the WSL-down check carries a server-side timeout"
-bound = false
+bound = true
 +++
 
 Observed 2026-10-04: with a helper's WSL service deadlocked, read-only diagnostics over Windows OpenSSH (wsl.exe -l -v, tasklist, a PowerShell query) hung; the client gave up after 30-45 s but the server-side sessions and their children stayed, and sshd.exe sat at about 45% CPU while refusing new logins. The new WSL-down doctor check runs the same wsl.exe -l -v and would do the same. Every Windows-side probe must carry a server-side time limit (run it as a job with Wait-Job -Timeout and Stop-Job, or Start-Process with WaitForExit(ms) and Kill), so a hung wsl.exe is killed on the helper, and doctor reports a hung WSL service as its own finding with the recovery steps.
