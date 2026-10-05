@@ -643,30 +643,30 @@ stop_group() {
   kill -KILL -- "-$pid" 2>/dev/null || true
 }
 
-# run_pids RUN_ID: the pids of every process that carries the run's GOWAY_RUN_ID in its
+# run_pids RUN_ID [RUNNER]: the pids of every process that carries the run's GOWAY_RUN_ID in its
 # environment, one per line, however it regrouped (setsid, double fork), except this shell
-# and the run's own shell. Linux only; nothing elsewhere.
+# and the run's own shell RUNNER (it must live on to clean up). Linux only; nothing elsewhere.
 run_pids() {
-  local f me=$$ self=${BASHPID:-$$} p
+  local f me=$$ self=${BASHPID:-$$} p runner=${2:-}
   [ -d /proc/self ] || return 0
   # shellcheck disable=SC2231 # the glob is the point
   grep -l -a -z -x "GOWAY_RUN_ID=$1" /proc/[0-9]*/environ 2>/dev/null | while IFS= read -r f; do
     p=${f#/proc/}
     p=${p%/environ}
-    [ "$p" = "$me" ] || [ "$p" = "$self" ] || printf '%s\n' "$p"
+    [ "$p" = "$me" ] || [ "$p" = "$self" ] || [ "$p" = "$runner" ] || printf '%s\n' "$p"
   done || true
 }
 
-# kill_run RUN_ID: stop every process tagged with the run (run_pids), the backstop for a
+# kill_run RUN_ID RUNNER: stop every process tagged with the run (run_pids), the backstop for a
 # job that left its process group and its scope. SIGTERM, a short grace, then SIGKILL.
 kill_run() {
   local pids
-  pids=$(run_pids "$1" || true)
+  pids=$(run_pids "$1" "$2" || true)
   [ -n "$pids" ] || return 0
   # shellcheck disable=SC2086 # the list is words by construction
   kill -TERM $pids 2>/dev/null || true
   sleep 1
-  pids=$(run_pids "$1" || true)
+  pids=$(run_pids "$1" "$2" || true)
   [ -n "$pids" ] || return 0
   # shellcheck disable=SC2086
   kill -KILL $pids 2>/dev/null || true
@@ -702,12 +702,13 @@ stop_scope() {
 # then its process group PID (the session leader, "" if unknown), then every process still
 # tagged with the run (kill_run). Bounded; never fails.
 stop_job() {
-  local work=$1 pid=$2 run=$3 unit cg
+  local work=$1 pid=$2 run=$3 unit cg runner
+  runner=$(cat "$work/runner" 2>/dev/null || true)
   unit=$(cat "$work/scope" 2>/dev/null || true)
   cg=$(cat "$work/cgroup" 2>/dev/null || true)
   if [ -n "$unit" ]; then stop_scope "$unit" "$cg"; fi
   if [ -n "$pid" ]; then stop_group "$pid"; fi
-  kill_run "$run"
+  kill_run "$run" "$runner"
 }
 
 # reap_job WORK PID RUN_ID: after the job's own command ended, stop whatever it left behind
