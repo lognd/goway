@@ -1,0 +1,8 @@
+kind = "land"
+base_ref = "refs/heads/main"
+commit = "55a0d0e565e495d717b5543d06ed937c35365cff"
+branch = "ticket/CDMA5DG"
+pushed = false
+at = "2026-10-05T01:26:38Z"
+actor = "lognd"
+rev = 1
