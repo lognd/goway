@@ -638,7 +638,7 @@ stop_group() {
   kill -TERM -- "-$pid" 2>/dev/null || true
   for n in $(seq 1 25); do
     kill -0 -- "-$pid" 2>/dev/null || return 0
-    sleep 0.2
+    sleep 0.2 || true
   done
   kill -KILL -- "-$pid" 2>/dev/null || true
 }
@@ -665,7 +665,7 @@ kill_run() {
   [ -n "$pids" ] || return 0
   # shellcheck disable=SC2086 # the list is words by construction
   kill -TERM $pids 2>/dev/null || true
-  sleep 1
+  sleep 1 || true # the sweep may kill this very sleep (it carries the run's tag)
   pids=$(run_pids "$1" "$2" || true)
   [ -n "$pids" ] || return 0
   # shellcheck disable=SC2086
@@ -688,7 +688,7 @@ stop_scope() {
   [ -n "$cg" ] && [ -d "$cg" ] || return 0
   for n in 1 2 3 4 5; do
     scope_procs "$cg" || return 0
-    sleep 0.2
+    sleep 0.2 || true
   done
   if [ -w "$cg/cgroup.kill" ]; then
     printf '1' >"$cg/cgroup.kill" 2>/dev/null || true
@@ -719,7 +719,7 @@ reap_job() {
   cg=$(cat "$work/cgroup" 2>/dev/null || true)
   if { [ -n "$cg" ] && [ -d "$cg" ] && scope_procs "$cg"; } ||
     { [ -n "$pid" ] && kill -0 -- "-$pid" 2>/dev/null; } || [ -n "$(run_pids "$run" || true)" ]; then
-    printf 'goway-remote: the job of run %s left processes behind; stopping them\n' "$run" >&2
+    printf 'goway-remote: the job of run %s left processes behind; stopping them\n' "$run" >&2 || true
     stop_job "$work" "$pid" "$run"
   fi
   return 0
