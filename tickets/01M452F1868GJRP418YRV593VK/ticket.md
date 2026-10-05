@@ -3,11 +3,11 @@ id = "01M452F1868GJRP418YRV593VK"
 title = "remote.sh is within 300 bytes of the 128 KiB single-argument limit that tests (and any bash -c delivery) hit"
 type = "bug"
 category = "todo"
-priority = "high"
+priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T03:42:04Z"
-updated = "2026-10-05T03:42:04Z"
+updated = "2026-10-05T03:56:53Z"
 scope = ["crates/goway/src/remote.sh"]
 
 [[acceptance]]
