@@ -44,7 +44,7 @@ fn fake_systemd_run(w: &common::World, log: &std::path::Path, works: bool) {
 }
 
 // frob:ticket 01M44F0HBMG5K7VA1SSHNJDP23
-// frob:tests crates/goway/src/config.rs::Defaults::limits_word
+// frob:tests crates/goway/src/config.rs::limits_word
 #[test]
 fn limits_default_to_a_process_cap_and_hosts_override_each_one() {
     let config: Config = toml::from_str(
@@ -65,7 +65,7 @@ fn limits_default_to_a_process_cap_and_hosts_override_each_one() {
 }
 
 // frob:ticket 01M44F0HBMG5K7VA1SSHNJDP23
-// frob:tests crates/goway/src/config.rs::Defaults::limits_word
+// frob:tests crates/goway/src/config.rs::limits_word
 #[test]
 fn a_cpu_cap_that_is_not_a_percentage_is_refused() {
     let w = common::world();
