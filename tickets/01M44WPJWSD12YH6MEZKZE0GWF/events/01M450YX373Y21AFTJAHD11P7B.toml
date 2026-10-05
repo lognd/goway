@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-05T03:15:47Z"
+digest = "bde5fb2138cb1d9be9c6bfcfa7829ee8276421b6e90c8be90bb64e9345103722"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 00526b2e-d3be-4f2e-9b69-dcdef35e7cc0 with nextest profile: default
+    Starting 1 test across 83 binaries (916 tests skipped)
+        PASS [   0.004s] goway doctor::tests::doctor_warns_for_a_drive_under_its_reserve_and_a_non_sparse_grown_virtual_disk
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.007s] 1 test run: 1 passed, 916 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(doctor_warns_for_a_drive_under_its_reserve_and_a_non_sparse_grown_virtual_disk)'"
+size = 593
+status = "measured"
+tests = ["doctor::tests::doctor_warns_for_a_drive_under_its_reserve_and_a_non_sparse_grown_virtual_disk"]
+at = "2026-10-05T03:15:47Z"
+actor = "lognd"
+rev = 1

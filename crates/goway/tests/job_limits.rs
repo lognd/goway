@@ -85,6 +85,18 @@ fn a_cpu_cap_that_is_not_a_percentage_is_refused() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_job_scope_carries_the_process_cap_a_low_cpu_weight_and_the_configured_caps() {
+    // remote.sh puts a job in a scope only under cgroup v2 (a cgroup v1 or hybrid machine,
+    // such as an older WSL, runs it with the `ulimit -u` fallback instead).
+    if !std::path::Path::new("/sys/fs/cgroup/cgroup.controllers").exists() {
+        #[allow(
+            clippy::print_stderr,
+            reason = "a skipped test says why on the test's own output"
+        )]
+        {
+            eprintln!("skipped: no cgroup v2 here, so no job scope exists to inspect");
+        }
+        return;
+    }
     let w = common::world();
     let log = w.root.join("systemd-run.log");
     fake_systemd_run(&w, &log, true);

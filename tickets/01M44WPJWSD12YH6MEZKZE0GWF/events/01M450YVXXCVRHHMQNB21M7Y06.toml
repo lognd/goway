@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-05T03:15:42Z"
+digest = "6ee39b753ab40a7b5c320eb83c9cf2d9c780b84f2ad6083d7fe0a6f97796aab5"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 50cfa844-b4c0-4257-9740-49201d022cee with nextest profile: default
+    Starting 5 tests across 83 binaries (912 tests skipped)
+        PASS [   0.005s] goway config::tests::the_windows_drive_reserve_is_auto_by_default_and_a_host_can_override_it
+        PASS [   0.005s] goway footprint::tests::a_wsl_helper_must_fit_the_run_on_top_of_the_drives_reserve
+        PASS [   0.005s] goway gc::tests::the_gc_call_carries_the_windows_reserve_for_shell_hosts_only
+        PASS [   0.886s] goway::wsl_drive a_run_evicts_idle_caches_first_then_is_refused_naming_the_drive_and_its_free_space
+        PASS [   2.760s] goway::wsl_drive a_drive_above_its_reserve_runs_and_the_host_can_override_or_switch_the_reserve_off
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   2.763s] 5 tests run: 5 passed, 912 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_run_evicts_idle_caches_first_then_is_refused_naming_the_drive_and_its_free_space) | test(a_drive_above_its_reserve_runs_and_the_host_can_override_or_switch_the_reserve_off) | test(a_wsl_helper_must_fit_the_run_on_top_of_the_drives_reserve) | test(the_windows_drive_reserve_is_auto_by_default_and_a_host_can_override_it) | test(the_gc_call_carries_the_windows_reserve_for_shell_hosts_only)'"
+size = 1049
+status = "measured"
+tests = ["config::tests::the_windows_drive_reserve_is_auto_by_default_and_a_host_can_override_it", "footprint::tests::a_wsl_helper_must_fit_the_run_on_top_of_the_drives_reserve", "gc::tests::the_gc_call_carries_the_windows_reserve_for_shell_hosts_only", "a_run_evicts_idle_caches_first_then_is_refused_naming_the_drive_and_its_free_space", "a_drive_above_its_reserve_runs_and_the_host_can_override_or_switch_the_reserve_off"]
+at = "2026-10-05T03:15:42Z"
+actor = "lognd"
+rev = 1
