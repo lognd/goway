@@ -7,11 +7,11 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-05T03:24:44Z"
-updated = "2026-10-05T03:25:07Z"
-scope = ["crates/goway/src/main.rs"]
+updated = "2026-10-05T03:35:31Z"
+scope = ["crates/goway/tests/common/mod.rs", "crates/goway/tests/world_teardown.rs", "docs/design.md"]
 
 [[acceptance]]
-text = "Given a many-core helper, when goway clients run concurrently, then each client's thread count does not grow with the machine's core count"
+text = "Given a test world that ran goway with sccache installed, When the world is dropped, Then no sccache server whose SCCACHE_DIR lies under the world remains"
 bound = false
 +++
 
