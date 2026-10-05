@@ -768,7 +768,11 @@ mem_sample() {
   local pid=$1 dir=$2 cg v="" old
   cg=$(mem_cgroup "$pid" || true)
   if [ -n "$cg" ] && [ -r "$cg/memory.peak" ]; then
-    [ -e "$dir/cgroup" ] || printf '%s' "$cg" >"$dir/cgroup" 2>/dev/null || true
+    # Only the run's own scope: before the job moves into it, it still sits in the scope of
+    # an outer goway job (a nested run), which must never be recorded for killing.
+    if [ ! -e "$dir/cgroup" ] && [ "${cg##*/}" = "$(cat "$dir/scope" 2>/dev/null || true)" ]; then
+      printf '%s' "$cg" >"$dir/cgroup" 2>/dev/null || true
+    fi
     v=$(cat "$cg/memory.peak" 2>/dev/null || true)
     if awk '/^oom_kill / && $2 > 0 {f=1} END {exit !f}' "$cg/memory.events" 2>/dev/null; then : >"$dir/oom"; fi
   else
