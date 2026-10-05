@@ -2,7 +2,7 @@
 id = "01M454TH22DPTG1J88CBJKDGAR"
 title = "The end-of-run sweep mistakes the watchdog's half-second sleep for a leftover under load"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 1
 reporter = "lognd"
