@@ -2,12 +2,12 @@
 id = "01M44Q7WQ0R1E74ZWYEENKASAM"
 title = "Doctor's Windows-side WSL probe can hang server-side and pile up stuck sshd sessions on the helper"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T00:25:56Z"
-updated = "2026-10-05T00:25:56Z"
+updated = "2026-10-05T00:26:13Z"
 scope = ["crates/goway/src/doctor/wsl_down.rs", "crates/goway/tests/doctor_wsl_down.rs"]
 
 [[acceptance]]
