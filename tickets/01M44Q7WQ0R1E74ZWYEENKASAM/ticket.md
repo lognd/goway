@@ -7,16 +7,16 @@ priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T00:25:56Z"
-updated = "2026-10-05T00:27:09Z"
+updated = "2026-10-05T00:29:10Z"
 scope = ["crates/goway/src/doctor/wsl_down.rs", "crates/goway/tests/doctor_wsl_down.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
 text = "Given a Windows-side probe whose wsl.exe never returns, When doctor runs, Then the generated command kills it on the helper after a bounded time and doctor reports that the WSL service is not responding"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given the hung-service finding, When doctor prints it, Then it gives the recovery steps (stop stuck wsl and sshd processes, restart sshd, wsl --shutdown, wslservice as a last resort)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given the generated probe scripts, When tested, Then every Windows-side command in the WSL-down check carries a server-side timeout"
