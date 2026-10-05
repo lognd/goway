@@ -62,7 +62,16 @@ static HELD: AtomicUsize = AtomicUsize::new(0);
 impl Held {
     /// Wait until the command is running (it holds its slot from then on).
     pub fn wait_started(&self) {
-        wait_for("the held run to start", || self.started.exists());
+        let deadline = Instant::now() + WAIT;
+        while !self.started.exists() {
+            // Say what the run printed: a run that never starts is explained by its stderr.
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for the held run to start; its stderr so far:\n{}",
+                self.stderr()
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
     }
 
     /// Wait until the run's stderr so far contains `text`.
