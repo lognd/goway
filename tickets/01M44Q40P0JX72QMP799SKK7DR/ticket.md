@@ -7,7 +7,7 @@ priority = "critical"
 points = 5
 reporter = "lognd"
 created = "2026-10-05T00:23:49Z"
-updated = "2026-10-05T00:49:50Z"
+updated = "2026-10-05T00:49:51Z"
 scope = ["crates/goway/src/queue.rs", "crates/goway/src/footprint.rs", "crates/goway/src/pool.rs", "crates/goway/tests/queue.rs", "docs/troubleshooting.md", "crates/goway/tests/gpu_slots.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/mem_footprint.rs"]
 
 [[acceptance]]
@@ -24,7 +24,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a host with no recorded peak for a repository but a peak recorded on another host, When admission is decided, Then the other host's peak is used as the estimate (so a fresh or restarted host is not flooded)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a host with no recorded peak anywhere for a repository, When several runs of it are queued, Then only one is admitted to that host until its peak is known"
