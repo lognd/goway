@@ -7,7 +7,7 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T01:16:10Z"
-updated = "2026-10-05T01:25:39Z"
+updated = "2026-10-05T01:25:43Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/client_loss.rs", "docs/design.md"]
 
 [[acceptance]]
@@ -16,5 +16,5 @@ bound = true
 
 [[acceptance]]
 text = "Given the client_loss tests on a machine without /proc or flock (macOS), when they run, then they check liveness with kill/ps and skip what the platform cannot do (the session-escaping straggler, the slot lock probe), and pass"
-bound = false
+bound = true
 +++

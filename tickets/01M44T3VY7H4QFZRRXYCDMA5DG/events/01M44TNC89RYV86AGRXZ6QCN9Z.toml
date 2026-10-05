@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-05T01:25:43Z"
+digest = "e921e52e99ea5fa062ff86e9ae950b8c0fb0068ee48f99c4e76214b4802c3f3d"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 688716ca-9cdd-47d4-9fbb-954be8f8d086 with nextest profile: default
+    Starting 6 tests across 1 binary (81 binaries skipped)
+        PASS [   2.004s] goway::client_loss a_plain_run_without_a_scope_finds_no_leftovers_of_its_own
+        PASS [   2.112s] goway::client_loss a_sigkilled_client_stops_its_job_within_the_bound_and_frees_the_work_dir
+        PASS [   2.258s] goway::client_loss a_finished_run_leaves_no_background_process_in_its_scope
+        PASS [   2.268s] goway::client_loss a_sigkilled_client_leaves_no_process_of_its_job_in_its_scope
+        PASS [   3.024s] goway::client_loss a_sigkilled_client_leaves_no_process_of_its_job_without_a_scope
+        PASS [   3.740s] goway::client_loss a_finished_run_leaves_no_background_process_without_a_scope
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   3.741s] 6 tests run: 6 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(client_loss)'"
+size = 1104
+status = "measured"
+tests = ["a_plain_run_without_a_scope_finds_no_leftovers_of_its_own", "a_sigkilled_client_stops_its_job_within_the_bound_and_frees_the_work_dir", "a_finished_run_leaves_no_background_process_in_its_scope", "a_sigkilled_client_leaves_no_process_of_its_job_in_its_scope", "a_sigkilled_client_leaves_no_process_of_its_job_without_a_scope", "a_finished_run_leaves_no_background_process_without_a_scope"]
+at = "2026-10-05T01:25:43Z"
+actor = "lognd"
+rev = 1
