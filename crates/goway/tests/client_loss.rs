@@ -230,21 +230,24 @@ fn a_plain_run_without_a_scope_finds_no_leftovers_of_its_own() {
     assert!(!err.contains("left processes behind"), "{err}");
 }
 
+#[cfg(target_os = "linux")]
 fn have_sccache() -> bool {
-    cfg!(target_os = "linux")
-        && std::process::Command::new("sccache")
-            .arg("--version")
-            .output()
-            .is_ok()
+    std::process::Command::new("sccache")
+        .arg("--version")
+        .output()
+        .is_ok()
 }
 
 /// Restart the repository's sccache server from inside the job, as a build does when the
 /// server idled out: the new server inherits the run's tag.
+#[cfg(target_os = "linux")]
 const RESTART_SERVER: &str = "sccache --stop-server >/dev/null 2>&1; \
      TMPDIR=$(cat \"$(dirname \"$SCCACHE_DIR\")/sccache.tmpdir\") sccache --start-server >/dev/null 2>&1";
 
 // frob:ticket 01M4521XH97V8EXXK8RV630TRA
 // frob:tests crates/goway/src/remote.rs::invocation
+// Finding the server goes through /proc (common::sccache_servers_under), Linux only.
+#[cfg(target_os = "linux")]
 #[test]
 fn the_configured_sccache_server_is_no_leftover_and_keeps_serving() {
     if !have_sccache() {
@@ -264,6 +267,8 @@ fn the_configured_sccache_server_is_no_leftover_and_keeps_serving() {
 
 // frob:ticket 01M4521XH97V8EXXK8RV630TRA
 // frob:tests crates/goway/src/remote.rs::invocation
+// The sweep finds strays through /proc, which macOS lacks (docs/design.md).
+#[cfg(target_os = "linux")]
 #[test]
 fn a_real_stray_is_stopped_and_named_while_the_sccache_server_stays() {
     if !have_sccache() {
