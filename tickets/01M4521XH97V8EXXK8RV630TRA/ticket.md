@@ -2,7 +2,8 @@
 id = "01M4521XH97V8EXXK8RV630TRA"
 title = "The end-of-run sweep prints environ permission errors and stops the shared sccache server as a leftover on every run"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 reporter = "lognd"
