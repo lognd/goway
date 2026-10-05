@@ -645,16 +645,21 @@ stop_group() {
 
 # run_pids RUN_ID [RUNNER]: the pids of every process that carries the run's GOWAY_RUN_ID in its
 # environment, one per line, however it regrouped (setsid, double fork), except this shell
-# and the run's own shell RUNNER (it must live on to clean up). Linux only; nothing elsewhere.
+# and the run's own shell RUNNER (it must live on to clean up). Linux only (it reads /proc):
+# nothing on macOS, where a job that leaves its session and process group is not caught.
 run_pids() {
-  local f me=$$ self=${BASHPID:-$$} p runner=${2:-}
+  local f me=$$ self=${BASHPID:-$$} p runner=${2:-} kv
   [ -d /proc/self ] || return 0
-  # shellcheck disable=SC2231 # the glob is the point
-  grep -l -a -z -x "GOWAY_RUN_ID=$1" /proc/[0-9]*/environ 2>/dev/null | while IFS= read -r f; do
+  # Builtins only (no grep, no pipeline): a helper process of this scan would carry the
+  # run's tag itself and be taken for a leftover.
+  for f in /proc/[0-9]*/environ; do
     p=${f#/proc/}
     p=${p%/environ}
-    [ "$p" = "$me" ] || [ "$p" = "$self" ] || [ "$p" = "$runner" ] || printf '%s\n' "$p"
-  done || true
+    if [ "$p" = "$me" ] || [ "$p" = "$self" ] || [ "$p" = "$runner" ] || [ ! -r "$f" ]; then continue; fi
+    { while IFS= read -r -d '' kv; do
+      if [ "$kv" = "GOWAY_RUN_ID=$1" ]; then printf '%s\n' "$p"; break; fi
+    done <"$f"; } 2>/dev/null || true
+  done
 }
 
 # kill_run RUN_ID RUNNER: stop every process tagged with the run (run_pids), the backstop for a

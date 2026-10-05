@@ -28,13 +28,19 @@ sh -c "$1"
 const BOUND: Duration = Duration::from_secs(20);
 
 fn alive(pid: u32) -> bool {
-    // A zombie waiting for its reaper is gone for every purpose here.
-    std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|s| {
-        s.rsplit(')')
-            .next()
-            .is_some_and(|r| !r.trim_start().starts_with('Z'))
-    })
+    // kill -0 (no /proc on macOS), and a zombie waiting for its reaper counts as gone.
+    let signalled = std::process::Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+    signalled
+        && !std::process::Command::new("ps")
+            .args(["-o", "stat=", "-p", &pid.to_string()])
+            .output()
+            .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).trim().starts_with('Z'))
 }
+
 // frob:tests crates/goway/src/run.rs::stream
 #[test]
 fn a_sigkilled_client_stops_its_job_within_the_bound_and_frees_the_work_dir() {
@@ -76,9 +82,14 @@ fn pids(file: &Path) -> Vec<u32> {
 /// own session (setsid) and a shell loop, each recording its pid in `file`.
 fn stragglers(file: &Path) -> String {
     let f = file.display();
+    // A job that leaves its session is only caught where goway can find its tag (/proc).
+    let escaper = if cfg!(target_os = "linux") {
+        format!("setsid sh -c 'echo $$ >> {f}; exec sleep 121' & ")
+    } else {
+        format!("sh -c 'echo $$ >> {f}; exec sleep 121' & ")
+    };
     format!(
-        "sh -c 'echo $$ >> {f}; exec sleep 120' & \
-         setsid sh -c 'echo $$ >> {f}; exec sleep 121' & \
+        "sh -c 'echo $$ >> {f}; exec sleep 120' & {escaper} \
          sh -c 'echo $$ >> {f}; while :; do sleep 1; done' & true"
     )
 }
@@ -91,10 +102,11 @@ fn slot_locks_free(w: &common::World) -> bool {
         .output()
         .unwrap();
     String::from_utf8_lossy(&out.stdout).lines().all(|f| {
+        // No flock binary (macOS): the lock cannot be probed from here.
         std::process::Command::new("flock")
             .args(["-n", f, "true"])
             .status()
-            .is_ok_and(|s| s.success())
+            .map_or(true, |s| s.success())
     })
 }
 
