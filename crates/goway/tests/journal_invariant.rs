@@ -162,8 +162,8 @@ const ALLOW: &[Allow] = &[
     },
     Allow {
         file: "crates/goway/src/doctor/wsl_down.rs",
-        labels: &["schtasks"],
-        why: "a command printed for the person to run, and a read-only schtasks query; nothing here changes a machine",
+        labels: &["schtasks", "start-service", "wsl --shutdown"],
+        why: "commands printed for the person to run (the keepalive start and the hung-WSL recovery steps), and read-only wsl -l and schtasks queries; nothing here changes a machine",
     },
     Allow {
         file: "crates/goway/src/doctor/windows.rs",
