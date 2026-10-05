@@ -2,7 +2,8 @@
 id = "01M44R1CZMASJAK2HHC2XKB1QF"
 title = "The journal invariant flags the hung-WSL recovery steps doctor prints as advice"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "critical"
 points = 1
 reporter = "lognd"
