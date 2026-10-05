@@ -7,7 +7,7 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T04:16:28Z"
-updated = "2026-10-05T04:18:51Z"
+updated = "2026-10-05T04:18:52Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/remote.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/client_loss.rs"]
 
 [[acceptance]]
