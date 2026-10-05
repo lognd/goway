@@ -240,6 +240,9 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       processes keep running (they would otherwise hold the run's build slot
       lock through an inherited fd and burn CPU), so no process of a finished
       or abandoned run survives it.
+      The tag sweep reads `/proc/PID/environ`, so it exists on Linux only: on
+      macOS a job that leaves its session and process group (and any scope)
+      is not caught; its group still is.
    6. Provenance for frob: a header line on stderr naming host, arch and
       address, and `--report FILE` writes the same as JSON.
 5. Pool (`pool`)
