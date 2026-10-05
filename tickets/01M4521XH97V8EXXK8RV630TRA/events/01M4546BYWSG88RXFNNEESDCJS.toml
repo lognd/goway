@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-05T04:12:14Z"
+digest = "b7cd4fc2e1f1fe2546aa44f0011d83f4637b7a2870c7ed3137afd4f097d96ebf"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9b472391-d52c-407a-9f29-413485625811 with nextest profile: default
+    Starting 1 test across 84 binaries (922 tests skipped)
+        PASS [   3.230s] goway::client_loss the_sweep_prints_no_permission_errors_for_processes_it_may_not_read
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   3.233s] 1 test run: 1 passed, 922 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_sweep_prints_no_permission_errors_for_processes_it_may_not_read)'"
+size = 580
+status = "measured"
+tests = ["the_sweep_prints_no_permission_errors_for_processes_it_may_not_read"]
+at = "2026-10-05T04:12:14Z"
+actor = "lognd"
+rev = 1
