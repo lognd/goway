@@ -86,10 +86,26 @@ pub enum MemRoom {
     TooSmall {
         /// The helper's total memory.
         total: u64,
+        /// The recorded peak itself.
+        peak: u64,
         /// Peak plus margin.
         need: u64,
     },
-    /// Enough in total, but too little is available now: wait.
+    /// No peak is on record on any host and other goway jobs already run here: the repository
+    /// waits to be measured alone, so a host with no records is not flooded.
+    Unmeasured {
+        /// Goway jobs running (or claimed) on the helper.
+        jobs: u32,
+    },
+    /// Too little is available, but no goway job runs here, so waiting frees nothing: the run
+    /// goes alone, with a warning.
+    Alone {
+        /// Bytes available now.
+        avail: u64,
+        /// Peak plus margin.
+        need: u64,
+    },
+    /// Enough in total, but too little is available now while goway jobs run: wait.
     Short {
         /// Bytes available now.
         avail: u64,
@@ -98,20 +114,48 @@ pub enum MemRoom {
     },
 }
 
+/// Fill each probe's missing memory peaks with the largest one any probe reports, so a fresh
+/// or restarted helper is judged by what other helpers measured, not admitted blind.
+pub fn share_mem_peaks<'a>(probes: impl IntoIterator<Item = &'a mut Probe>) {
+    let mut probes: Vec<&mut Probe> = probes.into_iter().collect();
+    let mut largest: BTreeMap<String, u64> = BTreeMap::new();
+    for p in &probes {
+        for (id, &peak) in &p.mem_peaks {
+            let slot = largest.entry(id.clone()).or_insert(peak);
+            *slot = (*slot).max(peak);
+        }
+    }
+    for p in &mut probes {
+        for (id, &peak) in &largest {
+            if !p.mem_peaks.contains_key(id) {
+                tracing::debug!(repo = id, peak, host = %p.hostname, "memory peak estimated from another host");
+                p.mem_peaks.insert(id.clone(), peak);
+            }
+        }
+    }
+}
+
 /// Judge `probe` for repository `repo_id`: total memory, then available memory, against
-/// the repository's recorded peak plus margin.
+/// the repository's recorded peak plus margin (see [`MemRoom`] for the rules when none is
+/// recorded and when the helper is idle).
 pub fn assess_mem(probe: &Probe, repo_id: &str) -> MemRoom {
     let Some(&peak) = probe.mem_peaks.get(repo_id) else {
-        return MemRoom::Unknown;
+        return if probe.jobs > 0 {
+            MemRoom::Unmeasured { jobs: probe.jobs }
+        } else {
+            MemRoom::Unknown
+        };
     };
     let need = mem_required(peak);
     if probe.facts.mem_total.is_some_and(|total| total < need) {
         return MemRoom::TooSmall {
             total: probe.facts.mem_total.unwrap_or(0),
+            peak,
             need,
         };
     }
     match probe.facts.mem_avail {
+        Some(avail) if avail < need && probe.jobs == 0 => MemRoom::Alone { avail, need },
         Some(avail) if avail < need => MemRoom::Short { avail, need },
         Some(_) => MemRoom::Fits,
         None => MemRoom::Unknown,
@@ -121,9 +165,10 @@ pub fn assess_mem(probe: &Probe, repo_id: &str) -> MemRoom {
 /// One phrase saying why a helper lacks memory for the repository (queue wait lines).
 pub fn mem_short_text(room: MemRoom) -> Option<String> {
     match room {
-        MemRoom::TooSmall { total, need } => Some(format!(
-            "{} of memory in total, this repository peaked at about {} and needs it all",
+        MemRoom::TooSmall { total, peak, need } => Some(format!(
+            "{} of memory in total, this repository's recorded peak is {} ({} with margin)",
             human_bytes(total),
+            human_bytes(peak),
             human_bytes(need)
         )),
         MemRoom::Short { avail, need } => Some(format!(
@@ -131,8 +176,20 @@ pub fn mem_short_text(room: MemRoom) -> Option<String> {
             human_bytes(avail),
             human_bytes(need)
         )),
-        MemRoom::Unknown | MemRoom::Fits => None,
+        MemRoom::Unmeasured { jobs } => Some(format!(
+            "{jobs} goway jobs already run here and no host has a memory peak on record for this repository, so it waits to be measured alone"
+        )),
+        MemRoom::Unknown | MemRoom::Fits | MemRoom::Alone { .. } => None,
     }
+}
+
+/// The warning for a run that goes alone on an idle helper whose free memory is below the peak.
+pub fn mem_alone_text(avail: u64, need: u64) -> String {
+    format!(
+        "{} of memory free on an idle helper, this repository needs about {}; running alone there instead of waiting for memory that will not free",
+        human_bytes(avail),
+        human_bytes(need)
+    )
 }
 
 /// How a helper's disk stands against one repository's footprint.
@@ -228,11 +285,49 @@ mod tests {
         p.facts.mem_avail = Some(3 * GIB);
         assert!(matches!(assess_mem(&p, "r"), MemRoom::TooSmall { .. }));
         p.facts.mem_total = Some(16 * GIB);
+        assert!(
+            matches!(assess_mem(&p, "r"), MemRoom::Alone { .. }),
+            "idle: goes alone"
+        );
+        p.jobs = 1;
         assert!(matches!(assess_mem(&p, "r"), MemRoom::Short { .. }));
         p.facts.mem_avail = Some(8 * GIB);
         assert_eq!(assess_mem(&p, "r"), MemRoom::Fits);
+        assert_eq!(assess_mem(&p, "other"), MemRoom::Unmeasured { jobs: 1 });
+        p.jobs = 0;
         assert_eq!(assess_mem(&p, "other"), MemRoom::Unknown);
         assert_eq!(mem_required(GIB), GIB + 256 * (1 << 20));
         assert_eq!(mem_required(20 * GIB), 22 * GIB);
+    }
+
+    // frob:ticket 01M44Q40P0JX72QMP799SKK7DR
+    // frob:tests crates/goway/src/footprint.rs::share_mem_peaks
+    #[test]
+    fn missing_peaks_are_borrowed_from_other_hosts_and_unmeasured_repositories_wait_when_busy() {
+        let text = |jobs: u32, peak: &str| {
+            format!(
+                "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\njobs={jobs}\n{peak}"
+            )
+        };
+        let mut low = crate::pool::parse_probe(&text(0, "mempeak.r=1073741824\n")).unwrap();
+        let mut high = crate::pool::parse_probe(&text(0, "mempeak.r=3221225472\n")).unwrap();
+        let mut busy = crate::pool::parse_probe(&text(2, "")).unwrap();
+        assert_eq!(assess_mem(&busy, "r"), MemRoom::Unmeasured { jobs: 2 });
+        share_mem_peaks([&mut low, &mut high, &mut busy]);
+        assert_eq!(low.mem_peaks["r"], 1 << 30, "a recorded peak is kept");
+        assert_eq!(busy.mem_peaks["r"], 3 * GIB, "the largest is borrowed");
+        let idle = crate::pool::parse_probe(&text(0, "")).unwrap();
+        assert_eq!(
+            assess_mem(&idle, "r"),
+            MemRoom::Unknown,
+            "an idle host measures it"
+        );
+        // Idle with too little free memory: alone; busy: wait.
+        let mut tight = high.clone();
+        tight.facts.mem_total = Some(16 * GIB);
+        tight.facts.mem_avail = Some(GIB);
+        assert!(matches!(assess_mem(&tight, "r"), MemRoom::Alone { .. }));
+        tight.jobs = 1;
+        assert!(matches!(assess_mem(&tight, "r"), MemRoom::Short { .. }));
     }
 }

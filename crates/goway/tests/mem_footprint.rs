@@ -123,8 +123,11 @@ fn a_job_in_its_own_scope_gets_its_command_line_untouched() {
 #[test]
 fn an_inflated_peak_ages_out_after_a_few_runs_and_gc_forgets_it() {
     let w = common::world();
+    // The inflated peak is above the helper's memory, so a run that honours it fails at once
+    // (`gc --repo` or `--ignore-footprint` clears the way); aging happens through the latter.
     let cmd = [
         "run",
+        "--ignore-footprint",
         "--",
         "sh",
         "-c",

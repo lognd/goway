@@ -23,6 +23,12 @@ fn sh(w: &World, script: &str) -> String {
     ok(&w.run(&["run", "--", "sh", "-c", script]))
 }
 
+/// [`sh`] for a run that overlaps another of the same repository: with no memory peak on
+/// record yet only one such run is admitted at a time, unless the footprint check is off.
+fn sh_overlapping(w: &World, script: &str) -> String {
+    ok(&w.run(&["run", "--ignore-footprint", "--", "sh", "-c", script]))
+}
+
 fn cache_dir(w: &World) -> PathBuf {
     let mut dirs: Vec<PathBuf> = std::fs::read_dir(w.remote.join("cache"))
         .unwrap()
@@ -154,7 +160,7 @@ fn overlapping_runs_use_different_slots_and_the_seed_is_not_shared() {
     let busy = w.hold(&[], "pwd");
     busy.wait_started();
     std::fs::write(w.repo.join("hello.txt"), "changed\n").unwrap();
-    let second = sh(&w, "pwd; cat hello.txt");
+    let second = sh_overlapping(&w, "pwd; cat hello.txt");
     assert!(second.contains("/tree-1\n"), "{second}");
     assert!(second.contains("changed"), "{second}");
     assert!(busy.finish().status.success());
@@ -193,7 +199,7 @@ fn a_run_prefers_the_slot_its_worktree_used_last() {
     let w = world();
     let busy = w.hold(&[], "true");
     busy.wait_started();
-    assert!(sh(&w, "pwd").contains("/tree-1\n"));
+    assert!(sh_overlapping(&w, "pwd").contains("/tree-1\n"));
     assert!(busy.finish().status.success());
     // Slot 0 is free again, but this worktree last used slot 1.
     assert!(sh(&w, "pwd").contains("/tree-1\n"));

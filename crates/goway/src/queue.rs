@@ -13,6 +13,13 @@
 //!   that host's probe (it is still syncing, or has only just started); the
 //!   chooser counts claims as jobs and as memory already spoken for.
 //!
+//! Service is first come, first served with bounded overtaking: a waiter holds
+//! back later runs only from the hosts it could take right now (its `ready`
+//! hosts). A waiter that cannot fit anywhere at the moment (say its
+//! repository's memory peak is above what is free) is passed by later runs
+//! that do fit, at most [`MAX_OVERTAKEN`] times; after that it is starved
+//! no longer: everything behind it waits, so capacity frees up for it.
+//!
 //! A file whose lock nobody holds belongs to a dead process and is removed.
 //! The data of a file lives in sidecar files, because on Windows a locked
 //! file cannot be read by another process.
@@ -34,6 +41,13 @@ pub const CLAIM_GRACE: Duration = Duration::from_secs(10);
 /// A file nobody has locked is only called dead after it is this old, so a
 /// file that is just being created and locked is never mistaken for one.
 const DEAD_AFTER: Duration = Duration::from_secs(2);
+
+/// How many later runs may pass a waiter that cannot fit anywhere right now, before the
+/// runs behind it stop passing and wait for it.
+pub const MAX_OVERTAKEN: u32 = 3;
+
+/// The sidecar extensions of a ticket.
+const TICKET_SIDECARS: &[&str] = &["eligible", "ready", "overtaken"];
 
 static SEQ: AtomicU32 = AtomicU32::new(0);
 
@@ -63,13 +77,54 @@ pub struct Claim {
 /// What the queue holds right now, as seen by one waiter.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Snapshot {
-    /// The hosts each earlier live ticket could use (`None`: not known yet, so any).
-    pub earlier: Vec<Option<Vec<String>>>,
+    /// The earlier live tickets, in arrival order.
+    pub earlier: Vec<Waiter>,
     /// Claims not yet visible in a probe, per host (lowercase).
     pub pending: BTreeMap<String, u32>,
     /// The repository ids of those pending claims that named one, per host (lowercase),
     /// so their disk footprint can be set aside like their memory.
     pub pending_repos: BTreeMap<String, Vec<String>>,
+}
+
+/// An earlier waiter as a later one sees it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Waiter {
+    /// The ticket id (its sort key).
+    pub id: String,
+    /// The hosts its run could ever use (`None`: not known yet, so any).
+    pub eligible: Option<Vec<String>>,
+    /// The hosts it could take right now (`None`: not known, so every eligible one).
+    pub ready: Option<Vec<String>>,
+    /// How many later runs have passed it.
+    pub overtaken: u32,
+}
+
+fn names(list: &[String], host: &str) -> bool {
+    list.iter().any(|h| h.eq_ignore_ascii_case(host))
+}
+
+impl Waiter {
+    /// Whether it has been passed [`MAX_OVERTAKEN`] times and so is not passed again.
+    pub fn starved(&self) -> bool {
+        self.overtaken >= MAX_OVERTAKEN
+    }
+
+    /// Whether it goes first on `host`: it could use it and either can take it now or has
+    /// been passed enough.
+    pub fn holds(&self, host: &str) -> bool {
+        match &self.eligible {
+            None => true,
+            Some(eligible) => {
+                names(eligible, host)
+                    && (self.starved() || self.ready.as_ref().is_none_or(|r| names(r, host)))
+            }
+        }
+    }
+
+    /// Whether a run taking `host` passes it: it could use the host but cannot take it now.
+    pub fn passed_on(&self, host: &str) -> bool {
+        !self.holds(host) && self.eligible.as_ref().is_some_and(|e| names(e, host))
+    }
 }
 
 impl Snapshot {
@@ -78,12 +133,22 @@ impl Snapshot {
         self.earlier.len()
     }
 
-    /// Whether an earlier waiter could use `host` (and so goes first).
+    /// Whether an earlier waiter goes first on `host` (see [`Waiter::holds`]).
     pub fn held_for_earlier(&self, host: &str) -> bool {
-        self.earlier.iter().any(|e| {
-            e.as_ref()
-                .is_none_or(|hosts| hosts.iter().any(|h| h.eq_ignore_ascii_case(host)))
-        })
+        self.earlier.iter().any(|w| w.holds(host))
+    }
+
+    /// Record that a run taking `host` passes the earlier waiters that could not take it.
+    pub fn note_overtaking(&self, queue: &Queue, host: &str) {
+        for w in self.earlier.iter().filter(|w| w.passed_on(host)) {
+            let n = queue.note_overtaken(&w.id);
+            tracing::info!(
+                waiter = w.id,
+                host,
+                overtaken = n,
+                "a waiter that cannot fit was passed"
+            );
+        }
     }
 }
 
@@ -211,6 +276,16 @@ impl Queue {
         })
     }
 
+    /// Count one more pass of the waiter `id` (call under [`Queue::decide`]); returns the new count.
+    pub fn note_overtaken(&self, id: &str) -> u32 {
+        let path = self.dir.join(format!("w-{id}.overtaken"));
+        let n = read_overtaken(&self.dir.join(format!("w-{id}.ticket"))) + 1;
+        if let Err(e) = write_atomic(&path, n.to_string().as_bytes()) {
+            tracing::warn!(error = %e, id, "cannot record the pass");
+        }
+        n
+    }
+
     /// The live tickets before `mine` (all of them without one) and the claims still pending.
     pub fn snapshot(&self, mine: Option<&Ticket>) -> Snapshot {
         let mut snap = Snapshot::default();
@@ -226,7 +301,7 @@ impl Queue {
             match path.extension().and_then(|e| e.to_str()) {
                 Some("ticket") => {
                     let id = name.trim_start_matches("w-").to_owned();
-                    if mine.is_none_or(|m| id < m.id) && live(&path, &["eligible"]) {
+                    if mine.is_none_or(|m| id < m.id) && live(&path, TICKET_SIDECARS) {
                         tickets.push((id, path));
                     }
                 }
@@ -248,15 +323,27 @@ impl Queue {
         tickets.sort();
         snap.earlier = tickets
             .into_iter()
-            .map(|(_, path)| read_eligible(&path))
+            .map(|(id, path)| Waiter {
+                eligible: read_hosts(&path, "eligible"),
+                ready: read_hosts(&path, "ready"),
+                overtaken: read_overtaken(&path),
+                id,
+            })
             .collect();
         snap
     }
 }
 
-fn read_eligible(ticket: &Path) -> Option<Vec<String>> {
-    let text = std::fs::read_to_string(ticket.with_extension("eligible")).ok()?;
+fn read_hosts(ticket: &Path, ext: &str) -> Option<Vec<String>> {
+    let text = std::fs::read_to_string(ticket.with_extension(ext)).ok()?;
     Some(text.lines().map(str::to_owned).collect())
+}
+
+fn read_overtaken(ticket: &Path) -> u32 {
+    std::fs::read_to_string(ticket.with_extension("overtaken"))
+        .ok()
+        .and_then(|t| t.trim().parse().ok())
+        .unwrap_or(0)
 }
 
 /// A claim counts until its run has started and the grace period after that has passed.
@@ -279,12 +366,26 @@ impl Ticket {
             hosts.join("\n").as_bytes(),
         )
     }
+
+    /// Record which hosts this run could take right now, so later runs may pass it on the others.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Io`] when the sidecar file cannot be written.
+    pub fn set_ready(&self, hosts: &[String]) -> Result<()> {
+        write_atomic(
+            &self.base.with_extension("ready"),
+            hosts.join("\n").as_bytes(),
+        )
+    }
 }
 
 impl Drop for Ticket {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(self.base.with_extension("ticket"));
-        let _ = std::fs::remove_file(self.base.with_extension("eligible"));
+        for ext in TICKET_SIDECARS {
+            let _ = std::fs::remove_file(self.base.with_extension(ext));
+        }
         tracing::debug!(id = self.id, "queue ticket released");
     }
 }
@@ -392,6 +493,43 @@ mod tests {
                 .flatten()
                 .all(|e| { e.path().extension().is_none_or(|x| x != "repo") }),
             "sidecar removed"
+        );
+    }
+
+    // frob:ticket 01M44Q40P0JX72QMP799SKK7DR
+    // frob:tests crates/goway/src/queue.rs::Waiter
+    #[test]
+    fn a_waiter_that_cannot_take_a_host_is_passed_until_it_is_starved() {
+        let (_d, q) = queue();
+        let a = q.enter().unwrap();
+        let b = q.enter().unwrap();
+        a.set_eligible(&["helios".to_owned(), "orion".to_owned()])
+            .unwrap();
+        a.set_ready(&["orion".to_owned()]).unwrap();
+        let snap = q.snapshot(Some(&b));
+        assert!(snap.held_for_earlier("orion"), "it can take orion now");
+        assert!(
+            !snap.held_for_earlier("helios"),
+            "it cannot take helios now"
+        );
+        for _ in 0..MAX_OVERTAKEN {
+            q.snapshot(Some(&b)).note_overtaking(&q, "helios");
+        }
+        let snap = q.snapshot(Some(&b));
+        assert!(snap.earlier[0].starved());
+        assert!(
+            snap.held_for_earlier("helios"),
+            "passed enough: now it is waited for"
+        );
+        assert!(!snap.held_for_earlier("other"), "not a host it could use");
+        drop(a);
+        assert!(!q.snapshot(Some(&b)).held_for_earlier("helios"));
+        assert!(
+            std::fs::read_dir(&q.dir)
+                .unwrap()
+                .flatten()
+                .all(|e| e.path().extension().is_none_or(|x| x != "overtaken")),
+            "sidecars removed"
         );
     }
 }

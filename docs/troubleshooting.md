@@ -17,6 +17,21 @@ order:
 Then run `goway status`. It shows each helper that answers.
 </details>
 
+<details><summary>Runs queue for a long time while a helper looks idle, or a run fails with "recorded peak"</summary>
+
+The queue is first come, first served, but a waiter that cannot fit
+anywhere right now (its repository's recorded memory peak is above the free
+memory while other jobs run) is passed by up to three later runs that do
+fit, then holds the line until it can go. A helper that runs no goway jobs
+takes such a run alone, with a warning, instead of waiting. A repository
+with no peak anywhere runs alone on a host until its first run records one.
+If the peak is above every helper's total memory the run fails at once and
+names the peak and the sizes; the peak may be stale (an OOM-killed run is
+recorded a quarter higher): `goway gc --repo ID` forgets it, and
+`--ignore-footprint` skips the check for one run. See "Waves of runs queue"
+and "Memory: a repository's peak" in usage.md.
+</details>
+
 <details><summary>"key authentication refused"</summary>
 
 The helper answered but did not accept your key. Run
