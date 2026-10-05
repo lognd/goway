@@ -7,8 +7,8 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T03:34:54Z"
-updated = "2026-10-05T03:34:54Z"
-scope = ["crates/goway/src/remote.sh", "crates/goway/tests/client_loss.rs"]
+updated = "2026-10-05T03:35:31Z"
+scope = ["crates/goway/src/remote.sh", "crates/goway/tests/client_loss.rs", "docs/design.md"]
 
 [[acceptance]]
 text = "Given a run whose only surviving process is the sccache server goway configured, When the run ends, Then no leftover message is printed and the server keeps serving the next run"
