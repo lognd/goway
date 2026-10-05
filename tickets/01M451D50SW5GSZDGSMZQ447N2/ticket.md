@@ -2,7 +2,8 @@
 id = "01M451D50SW5GSZDGSMZQ447N2"
 title = "The default per-job task cap (4096) starves real builds and test runs: fork and thread spawn fail with EAGAIN"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "critical"
 points = 2
 reporter = "lognd"
