@@ -2,12 +2,12 @@
 id = "01M44VAJ9FGTQSC9KGPCBV8T5J"
 title = "Job-limit tests assume systemd and a high process hard limit, which macOS has neither"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T01:37:18Z"
-updated = "2026-10-05T01:37:18Z"
+updated = "2026-10-05T01:37:21Z"
 scope = ["crates/goway/tests/job_limits.rs"]
 
 [[acceptance]]
