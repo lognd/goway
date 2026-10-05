@@ -7,8 +7,8 @@ priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T00:25:56Z"
-updated = "2026-10-05T00:26:13Z"
-scope = ["crates/goway/src/doctor/wsl_down.rs", "crates/goway/tests/doctor_wsl_down.rs"]
+updated = "2026-10-05T00:27:09Z"
+scope = ["crates/goway/src/doctor/wsl_down.rs", "crates/goway/tests/doctor_wsl_down.rs", "docs/troubleshooting.md"]
 
 [[acceptance]]
 text = "Given a Windows-side probe whose wsl.exe never returns, When doctor runs, Then the generated command kills it on the helper after a bounded time and doctor reports that the WSL service is not responding"
