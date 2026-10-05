@@ -1,23 +1,3 @@
-  if [ -z "$slot" ]; then
-    # Every slot is busy: wait for the first to free, at most the run's --wait.
-    printf 'goway: all %s build slots busy (%s); waiting up to %ss for one\n' "$slots" "$(slots_busy_note "$cache" "$slots")" "$slot_wait" >&2
-    wait_until=$((SECONDS + slot_wait))
-    while [ -z "$slot" ]; do
-      for k in "${order[@]}"; do
-        mkdir -p "$cache"
-        exec 7>"$cache/target-$k.lock"
-        if flock -n 7 && same_fd "$cache/target-$k.lock" 7; then slot=$k; break; fi
-        exec 7>&-
-      done
-      [ -z "$slot" ] || break
-      if [ "$SECONDS" -ge "$wait_until" ]; then
-        printf 'goway: no build slot freed within %ss: all %s build slots busy (%s); raise --wait or try another host\n' "$slot_wait" "$slots" "$(slots_busy_note "$cache" "$slots")" >&2
-        remove_work "$work"
-        exit 125
-      fi
-      sleep 1
-    done
-  fi
 # goway remote side. Sent inline with every ssh call and run as
 #   bash -c 'eval "$(printf %s <base64 of: set -- VERB ARGS; this script> | base64 -d)"' goway
 # so the remote needs nothing installed beyond bash, GNU findutils, tar,
@@ -1410,13 +1390,23 @@ run() {
     exec 7>&-
   done
   if [ -z "$slot" ]; then
-    slot=$((RANDOM % slots))
-    printf 'goway: all %s build slots busy; waiting for slot %s\n' "$slots" "$slot" >&2
-    while :; do
-      mkdir -p "$cache"
-      exec 7>"$cache/target-$slot.lock"
-      flock 7
-      same_fd "$cache/target-$slot.lock" 7 && break
+    # Every slot is busy: wait for the first to free, at most the run's --wait.
+    printf 'goway: all %s build slots busy (%s); waiting up to %ss for one\n' "$slots" "$(slots_busy_note "$cache" "$slots")" "$slot_wait" >&2
+    wait_until=$((SECONDS + slot_wait))
+    while [ -z "$slot" ]; do
+      for k in "${order[@]}"; do
+        mkdir -p "$cache"
+        exec 7>"$cache/target-$k.lock"
+        if flock -n 7 && same_fd "$cache/target-$k.lock" 7; then slot=$k; break; fi
+        exec 7>&-
+      done
+      [ -z "$slot" ] || break
+      if [ "$SECONDS" -ge "$wait_until" ]; then
+        printf 'goway: no build slot freed within %ss: all %s build slots busy (%s); raise --wait or try another host\n' "$slot_wait" "$slots" "$(slots_busy_note "$cache" "$slots")" >&2
+        remove_work "$work"
+        exit 125
+      fi
+      sleep 1
     done
   fi
   [ -f "$cache/meta.json" ] || printf '%s' "$cache_meta" | base64 -d >"$cache/meta.json"
