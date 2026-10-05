@@ -74,7 +74,7 @@ fn a_cpu_cap_that_is_not_a_percentage_is_refused() {
     assert!(!out.status.success());
     assert!(
         String::from_utf8_lossy(&out.stderr).contains("job_cpu"),
-        "{out:?} against the unrestricted {unlimited:?}"
+        "{out:?}"
     );
 }
 
