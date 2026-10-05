@@ -7,7 +7,7 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T02:29:50Z"
-updated = "2026-10-05T02:30:32Z"
+updated = "2026-10-05T02:31:15Z"
 scope = ["crates/goway/tests/job_limits.rs"]
 
 [[acceptance]]
