@@ -199,7 +199,9 @@ hashes() {
   local root seed
   root=$(root_dir "$1"); seed="$root/seed/$2"
   lock_dir 8 "$seed" -s
-  cd "$seed/tree"
+  # The seed's lock is held per call: gc or eviction may have removed the tree since the
+  # manifest. Answer nothing; receive then sees the changed generation and the sync retries.
+  cd "$seed/tree" 2>/dev/null || { cat >/dev/null; return 0; }
   xargs -0 -r sha256sum -z -- 2>/dev/null || true
 }
 

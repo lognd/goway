@@ -154,3 +154,28 @@ fn the_lifeline_says_why_it_stopped_a_job_and_tells_silence_from_a_closed_pipe()
     let why = std::fs::read_to_string(w.remote.join("work/silent/lost")).unwrap();
     assert!(why.contains("silent for 2s"), "{why}");
 }
+
+// frob:ticket 01M44W77K3QCMJXX5QNZJ1S3ZR
+// frob:tests crates/goway/src/sync.rs::sync_with
+#[test]
+fn hashes_of_a_seed_evicted_since_the_manifest_answer_nothing_instead_of_failing() {
+    let w = common::world();
+    let mut child = std::process::Command::new("bash")
+        .args(["-c", SCRIPT, "goway", "hashes"])
+        .arg(&w.remote)
+        .arg("gone/seed")
+        .env("HOME", &w.root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        use std::io::Write as _;
+        let mut stdin = child.stdin.take().unwrap();
+        let _ = stdin.write_all(b"hello.txt\0");
+    }
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success(), "{out:?}");
+    assert!(out.stdout.is_empty(), "{out:?}");
+}
