@@ -7,7 +7,7 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T01:37:18Z"
-updated = "2026-10-05T02:21:56Z"
+updated = "2026-10-05T02:22:54Z"
 scope = ["crates/goway/tests/queue.rs"]
 
 [[acceptance]]
