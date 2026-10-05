@@ -2,7 +2,8 @@
 id = "01M44W77K3QCMJXX5QNZJ1S3ZR"
 title = "A seed evicted between the manifest and the hashes call fails the run instead of retrying"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
