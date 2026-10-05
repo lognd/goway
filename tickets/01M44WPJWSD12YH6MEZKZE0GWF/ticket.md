@@ -2,12 +2,12 @@
 id = "01M44WPJWSD12YH6MEZKZE0GWF"
 title = "On WSL helpers goway measures the virtual disk, not the Windows drive, and cleanup never returns space to Windows"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 8
 reporter = "lognd"
 created = "2026-10-05T02:01:20Z"
-updated = "2026-10-05T02:03:04Z"
+updated = "2026-10-05T02:26:28Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/footprint.rs", "crates/goway/src/doctor/windows.rs", "crates/goway-setup/src/host.rs", "crates/goway/src/doctor.rs", "crates/goway/src/status.rs", "crates/goway/src/pool.rs", "crates/goway/src/config.rs", "crates/goway/src/run.rs", "crates/goway/src/gc.rs", "crates/goway-journal/src/change.rs", "crates/goway-journal/tests/properties.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/render.rs", "crates/goway/tests/wsl_drive.rs", "crates/goway-setup/tests/host_plan.rs", "crates/goway-setup/tests/hostsys.rs", "docs/usage.md", "docs/config.md", "docs/troubleshooting.md", "docs/changes.md"]
 
 [[acceptance]]
