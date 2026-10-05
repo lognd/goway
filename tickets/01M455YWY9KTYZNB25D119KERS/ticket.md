@@ -2,12 +2,12 @@
 id = "01M455YWY9KTYZNB25D119KERS"
 title = "client_loss does not compile on macOS: the stray-sweep test calls the Linux-only process_mentions"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T04:43:10Z"
-updated = "2026-10-05T04:43:10Z"
+updated = "2026-10-05T04:43:12Z"
 scope = ["crates/goway/tests/client_loss.rs"]
 
 [[acceptance]]
