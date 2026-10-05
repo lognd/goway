@@ -2,7 +2,8 @@
 id = "01M44T3VY7H4QFZRRXYCDMA5DG"
 title = "The end-of-run sweep mistakes its own processes for leftovers, and the client_loss tests assume /proc and flock"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
