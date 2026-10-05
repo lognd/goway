@@ -7,7 +7,7 @@ priority = "critical"
 points = 5
 reporter = "lognd"
 created = "2026-10-05T00:23:49Z"
-updated = "2026-10-05T00:49:51Z"
+updated = "2026-10-05T00:49:53Z"
 scope = ["crates/goway/src/queue.rs", "crates/goway/src/footprint.rs", "crates/goway/src/pool.rs", "crates/goway/tests/queue.rs", "docs/troubleshooting.md", "crates/goway/tests/gpu_slots.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/mem_footprint.rs"]
 
 [[acceptance]]
@@ -28,7 +28,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a host with no recorded peak anywhere for a repository, When several runs of it are queued, Then only one is admitted to that host until its peak is known"
-bound = false
+bound = true
 +++
 
 Observed 2026-10-04: six runs queued for up to 58 minutes while the only usable helper sat idle at 0/12 jobs. The head's repository had a recorded 6.8 GiB peak (7.0 GiB with margin) against 6.9 GiB free, so it never fit; FIFO kept every entry behind it waiting, including two with --ignore-footprint. After forgetting the peak, three runs of that repository started at once on the 7.6 GiB host. The same missing-record admission probably hung another helper outright: after its WSL restart it had no peaks on record, took several concurrent agent runs in 5.4 GB and Windows itself stopped answering ssh.
