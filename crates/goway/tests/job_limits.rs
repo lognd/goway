@@ -59,9 +59,9 @@ fn limits_default_to_a_process_cap_and_hosts_override_each_one() {
     );
     assert_eq!(
         config.for_host(orion).defaults.limits_word(),
-        "limits:4096:800:"
+        "limits:auto:800:"
     );
-    assert_eq!(Config::default().defaults.limits_word(), "limits:4096::");
+    assert_eq!(Config::default().defaults.limits_word(), "limits:auto::");
 }
 
 // frob:ticket 01M44F0HBMG5K7VA1SSHNJDP23
@@ -100,7 +100,11 @@ fn a_job_scope_carries_the_process_cap_a_low_cpu_weight_and_the_configured_caps(
     let w = common::world();
     let log = w.root.join("systemd-run.log");
     fake_systemd_run(&w, &log, true);
-    configure(&w, "job_cpu = \"800%\"", "job_memory = \"2G\"");
+    configure(
+        &w,
+        "job_cpu = \"800%\"\njob_tasks = 4096",
+        "job_memory = \"2G\"",
+    );
     let out = w.run(&["run", "--", "true"]);
     assert!(out.status.success(), "{out:?}");
     let log = std::fs::read_to_string(&log).unwrap();
@@ -153,4 +157,59 @@ fn without_a_user_manager_the_process_cap_is_a_ulimit_and_zero_lifts_it() {
         String::from_utf8_lossy(&unlimited.stdout).trim(),
         "{out:?} against the unrestricted {unlimited:?}"
     );
+}
+
+/// Run `true` under a fake systemd-run with `threads-max` faked as `max` (and no cgroup
+/// bound), returning the `TasksMax` the scope was given, or `None` when no scope exists.
+#[cfg(target_os = "linux")]
+fn derived_tasks_max(max: &str) -> Option<String> {
+    let w = common::world();
+    let log = w.root.join("systemd-run.log");
+    fake_systemd_run(&w, &log, true);
+    let proc = w.root.join("fake-proc-kernel");
+    std::fs::create_dir_all(&proc).unwrap();
+    std::fs::write(proc.join("threads-max"), format!("{max}\n")).unwrap();
+    let out = w
+        .goway(&["run", "--", "true"])
+        .env("GOWAY_TASKS_PROC", &proc)
+        .env("GOWAY_TASKS_CGROUP", w.root.join("no-cgroup"))
+        .env(
+            "GOWAY_SSH_PASS_ENV",
+            "FAKE_HOSTNAME,FAKE_WINDOWS_PORT,RUSTC_WRAPPER,CARGO_TARGET_DIR,GOWAY_WINDOWS_LOOKUP,GOWAY_WSL_PROC,GOWAY_TASKS_PROC,GOWAY_TASKS_CGROUP",
+        )
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{out:?}");
+    let log = std::fs::read_to_string(&log).ok()?;
+    log.split_whitespace()
+        .find_map(|a| a.strip_prefix("--property=TasksMax="))
+        .map(str::to_owned)
+}
+
+// frob:ticket 01M451D50SW5GSZDGSMZQ447N2
+// frob:tests crates/goway/src/config.rs::limits_word
+// Linux with cgroup v2 only, like the scope test above. The host's own hard process limit
+// also bounds the cap, so the expected values are clamped to it.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_default_task_cap_is_half_of_the_hosts_threads_max_with_a_floor() {
+    if !std::path::Path::new("/sys/fs/cgroup/cgroup.controllers").exists() {
+        return;
+    }
+    let hard = std::process::Command::new("bash")
+        .args(["-c", "ulimit -H -u"])
+        .output()
+        .unwrap();
+    let hard: u64 = String::from_utf8_lossy(&hard.stdout)
+        .trim()
+        .parse()
+        .unwrap_or(u64::MAX);
+    let expect = |max: u64| {
+        let bound = max.min(hard);
+        (max / 2).min(hard).max(16384.min(bound)).to_string()
+    };
+    assert_eq!(derived_tasks_max("62570"), Some(expect(62570)));
+    assert_eq!(derived_tasks_max("1000000"), Some(expect(1_000_000)));
+    // Below the floor the cap follows the bound, never above it.
+    assert_eq!(derived_tasks_max("8000"), Some(expect(8000)));
 }

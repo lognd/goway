@@ -810,11 +810,37 @@ mem_sample() {
   return 0
 }
 
+# auto_task_cap: the default per-job task cap: half of min(threads-max, user slice pids.max),
+# at most the hard RLIMIT_NPROC (the kernel default is already half of threads-max), never
+# below 16384 or the smallest bound; 4096 where none is stated (macOS). Test hooks:
+# GOWAY_TASKS_PROC (/proc/sys/kernel), GOWAY_TASKS_CGROUP (/sys/fs/cgroup).
+auto_task_cap() {
+  local b="" h="" v f cap floor=16384
+  if [ "$IS_DARWIN" != 1 ]; then
+    for f in "${GOWAY_TASKS_PROC:-/proc/sys/kernel}/threads-max" \
+      "${GOWAY_TASKS_CGROUP:-/sys/fs/cgroup}/user.slice/user-$(id -u).slice/pids.max"; do
+      v=$(cat "$f" 2>/dev/null || true)
+      case "$v" in "" | *[!0-9]*) ;; *) if [ -z "$b" ] || [ "$v" -lt "$b" ]; then b=$v; fi ;; esac
+    done
+    v=$(ulimit -H -u 2>/dev/null || true)
+    case "$v" in "" | *[!0-9]*) ;; *) h=$v ;; esac
+  fi
+  if [ -z "$b$h" ]; then printf 4096; return 0; fi
+  cap=${h:-$((b / 2))}
+  if [ -n "$b" ]; then cap=$((b / 2)); if [ "$b" -lt "$floor" ]; then floor=$b; fi; fi
+  if [ -n "$h" ]; then
+    if [ "$h" -lt "$cap" ]; then cap=$h; fi
+    if [ "$h" -lt "$floor" ]; then floor=$h; fi
+  fi
+  if [ "$cap" -lt "$floor" ]; then cap=$floor; fi
+  printf '%s' "$cap"
+}
+
 # job_scope RUN_ID [LIMITS [PRIORITY]]: set SCOPE to a wrapper that puts the job in its own
 # transient systemd scope (so its memory is measured exactly and the whole job can be
 # stopped), probed once with `true`; empty where there is no user manager (a WSL without
 # systemd). LIMITS is TASKS:CPU_PERCENT:MEMORY_BYTES (the run's `limits:` word; an empty
-# field is no cap, TASKS 0 lifts the process cap): the scope gets TasksMax, CPUQuota and
+# field is no cap, TASKS 0 lifts goway's cap, `auto` derives it, see auto_task_cap): the scope gets TasksMax, CPUQuota and
 # MemoryMax, and a low CPUWeight when PRIORITY is low or owner, so one runaway job cannot
 # take the helper down. A manager that refuses the caps still gets a plain scope.
 job_scope() {
@@ -822,6 +848,7 @@ job_scope() {
   SCOPE=()
   [ "$IS_DARWIN" != 1 ] && [ -e /sys/fs/cgroup/cgroup.controllers ] && command -v systemd-run >/dev/null 2>&1 || return 0
   IFS=: read -r tasks cpu mem <<<"$limits"
+  if [ "$tasks" = auto ]; then tasks=$(auto_task_cap); fi
   case "$tasks" in "" | *[!0-9]*) tasks=0 ;; esac
   case "$cpu" in *[!0-9]*) cpu="" ;; esac
   case "$mem" in *[!0-9]*) mem="" ;; esac
@@ -844,6 +871,7 @@ job_scope() {
 job_tasks() {
   local tasks
   tasks=${1%%:*}
+  if [ "$tasks" = auto ]; then tasks=$(auto_task_cap); fi
   case "$tasks" in "" | *[!0-9]*) tasks=0 ;; esac
   printf '%s' "$tasks"
 }
@@ -1439,7 +1467,7 @@ run() {
       shard-detect:[0-9]*:[0-9]*:[A-Za-z0-9]*) detect=${1#shard-detect:} ;;
       gpu-slots:[0-9]*) gpu_per=${1#gpu-slots:} ;;
       slot-wait:[0-9]*) slot_wait=${1#slot-wait:} ;;
-      limits:[0-9]*:*:*) limits=${1#limits:} ;;
+      limits:[0-9a-z]*:*:*) limits=${1#limits:} ;;
       room:[0-9]*:[0-9]*) room=${1#room:} ;;
       reserve:*) WIN_RESERVE=${1#reserve:} ;;
       verify:[12]:changed | verify:[12]:all | verify:[12]:changed:fresh | verify:[12]:all:fresh)
@@ -1915,7 +1943,7 @@ probe() {
       flock -n "$l" true || jobs=$((jobs + 1))
     done
   fi
-  printf 'jobs=%s\n' "$jobs"
+  printf 'jobs=%s\ntask_cap=%s\n' "$jobs" "$(auto_task_cap)"
   if [ "$want_owner" = 1 ]; then power_state; idle_secs; fi
   probe_footprints "$root" "$room" "$want_disk"
   probe_mempeaks "$root"

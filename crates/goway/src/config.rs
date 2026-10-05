@@ -139,8 +139,9 @@ pub struct Defaults {
     /// holds one GPU slot; 1 gives every GPU run its own GPU).
     pub gpu_jobs: u32,
     /// Most processes and threads one job may have at once (systemd `TasksMax` of its
-    /// scope, else `ulimit -u`); `0` lifts the cap.
-    pub job_tasks: u32,
+    /// scope, else `ulimit -u`); unset derives it on the helper from its kernel limits,
+    /// `0` sets no goway cap (systemd's own default for user scopes still applies).
+    pub job_tasks: Option<u32>,
     /// CPU one job may use at most, in percent of one core (`800%` = 8 cores), or `""`
     /// for no cap (systemd `CPUQuota`; a low `CPUWeight` always applies on low priority).
     pub job_cpu: String,
@@ -182,13 +183,14 @@ fn check_job_memory(value: &str) -> std::result::Result<(), String> {
 
 impl Defaults {
     /// The `limits:TASKS:CPU:MEMORY` word that sends a job's caps to the helper (CPU in
-    /// percent, memory in bytes; an empty field is no cap, tasks 0 lifts the cap).
+    /// percent, memory in bytes; an empty field is no cap, tasks `auto` is derived on the helper, 0 sets no cap).
     pub fn limits_word(&self) -> String {
         let cpu = self.job_cpu.strip_suffix('%').unwrap_or("");
         let mem = crate::needs::parse_size(&self.job_memory).filter(|b| *b > 0);
         format!(
             "limits:{}:{cpu}:{}",
-            self.job_tasks,
+            self.job_tasks
+                .map_or_else(|| "auto".to_owned(), |t| t.to_string()),
             mem.map(|b| b.to_string()).unwrap_or_default()
         )
     }
@@ -231,7 +233,7 @@ impl Default for Defaults {
             job_mem: "1.5G".to_owned(),
             owner_idle: Duration::from_mins(5),
             gpu_jobs: 1,
-            job_tasks: 4096,
+            job_tasks: None,
             job_cpu: String::new(),
             job_memory: String::new(),
             keep: Vec::new(),
@@ -714,7 +716,7 @@ impl Config {
             .cache_size
             .clone()
             .unwrap_or_else(|| d.cache_size.clone());
-        d.job_tasks = host.job_tasks.unwrap_or(d.job_tasks);
+        d.job_tasks = host.job_tasks.or(d.job_tasks);
         d.job_cpu = host.job_cpu.clone().unwrap_or_else(|| d.job_cpu.clone());
         d.job_memory = host
             .job_memory

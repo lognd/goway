@@ -635,11 +635,15 @@ records only what was written before it ran out.
 ### Job limits: one job cannot take a helper down
 
 Every job runs in its own systemd user scope (when the helper has a user manager) with
-`TasksMax` set to `job_tasks` (default 4096 processes and threads; a stress loop of 600
-processes once drove a 12-core helper to load 620), a low `CPUWeight` (20 against the default
+`TasksMax` set to `job_tasks` (processes and threads; a stress loop of 600
+processes once drove a 12-core helper to load 620). Unset, the cap is derived on the helper:
+half of the smaller of the kernel's `threads-max` and the user slice's `pids.max`, at most the
+hard `ulimit -u` (the kernel's default is already half of `threads-max`), never below 16384 (or the bound itself when that is lower), because threads
+count as tasks and a full build or test wave needs thousands; a helper that states no bound
+(macOS) gets 4096; the helper probe reports it as `task_cap`), a low `CPUWeight` (20 against the default
 100) on low and owner priority, and the optional caps `job_cpu` (`CPUQuota`, `"800%"` is
 eight cores) and `job_memory` (`MemoryMax`, `"6G"`). All three keys live in `[defaults]` and
-can be overridden in a `[[host]]`; `job_tasks = 0` lifts the process cap. Without systemd the
+can be overridden in a `[[host]]`; `job_tasks = 0` sets no goway cap (systemd's own default for user scopes, 15% of `threads-max`, still applies). Without systemd the
 process cap becomes `ulimit -u` (the user's processes at the job's start plus `job_tasks`, since the limit counts every process of the user) and nice still applies; `job_cpu` and `job_memory` need the
 scope and are ignored there. A manager that refuses the caps still gets the job in a plain
 scope, with a warning.

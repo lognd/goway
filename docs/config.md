@@ -47,7 +47,7 @@ port = 2222                    # ssh port when a host does not set one (WSL sshd
 priority = "low"               # "low": jobs run under nice 10 with idle-class I/O; "normal"
 # max_load = 0.8               # skip hosts whose 1-minute load per core is above this
 # gpu_jobs = 1                 # GPU runs that may share each GPU (override per host)
-job_tasks = 4096               # most processes and threads one job may have (0 = no cap; override per host)
+# job_tasks = 32000            # most processes and threads one job may have (unset: derived from the host; 0 = goway sets no cap; override per host)
 # job_cpu = "800%"             # CPU one job may use at most, % of one core (default: no cap; override per host)
 # job_memory = "6G"            # memory one job may use at most (default: no cap; override per host)
 # mem_per_core = 0.5           # GiB of free RAM per core below which a host scores worse (0 = off)
