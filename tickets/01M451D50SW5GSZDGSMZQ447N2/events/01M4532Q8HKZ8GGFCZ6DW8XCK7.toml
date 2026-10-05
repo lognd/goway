@@ -1,0 +1,14 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-05T03:50:20Z"
+digest = "b05a3855a88d250cc4ae109ff6bcdc625b5581d98750291b4d045ec48c0d23be"
+exit_code = 100
+passed = false
+provider = "command"
+ref = "goway --wait 30m"
+size = 102534
+status = "measured"
+uri = "dir:.git/frob/artifacts/b05a3855a88d250cc4ae109ff6bcdc625b5581d98750291b4d045ec48c0d23be"
+at = "2026-10-05T03:50:20Z"
+actor = "lognd"
+rev = 1

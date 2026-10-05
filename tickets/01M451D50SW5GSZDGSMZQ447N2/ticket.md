@@ -7,7 +7,7 @@ priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T03:23:34Z"
-updated = "2026-10-05T03:44:14Z"
+updated = "2026-10-05T03:52:58Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/config.rs", "crates/goway/tests/job_limits.rs", "docs/config.md", "crates/goway/src/remote.ps1", "docs/usage.md"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "Given goway's own workspace test suite run as one job on a helper, When it runs with the default cap, Then no fork or thread spawn fails with EAGAIN"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a fork bomb in a job, When it runs, Then the cap still stops it before the host's own sshd and user sessions are starved (the existing job_limits test keeps proving this)"
