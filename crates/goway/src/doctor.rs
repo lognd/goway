@@ -8,6 +8,7 @@
 //! its reason and asks the user to rerun with `--sudo`, which runs them
 //! through an interactive ssh session so sudo can ask for the password.
 
+use goway_journal::ResourceKind;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::process::Stdio;
@@ -19,12 +20,13 @@ pub mod output;
 mod prereq;
 mod projneeds;
 pub mod windows;
+pub mod wsl_down;
 
 pub use prereq::Packages;
 pub use projneeds::{Needs, Toolchain, first_version};
 
 use crate::cli::DoctorArgs;
-use crate::config::{Config, HostConfig};
+use crate::config::{Config, HostConfig, Os, Transport};
 use crate::error::{Error, Result};
 use crate::paths::Paths;
 use crate::pool;
@@ -793,6 +795,11 @@ fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
 pub trait FixRunner {
     /// Run `command` as the user (`sudo == false`) or under sudo with a tty.
     fn run(&self, command: &str, sudo: bool) -> bool;
+    /// Run the user-level `command` that creates the named resource of `kind` (a pinned tool, a
+    /// rustup target), journaled so undo removes exactly what it added. Plain run by default.
+    fn run_resource(&self, _: ResourceKind, _: &str, _: &str, command: &str) -> bool {
+        self.run(command, false)
+    }
 }
 
 /// What `apply_fixes` did.
@@ -854,7 +861,7 @@ pub fn apply_fixes(
     let mut applied = Applied::default();
     let mut seen = std::collections::BTreeSet::new();
     let mut root: Vec<(String, Fix)> = Vec::new();
-    let mut user = Vec::new();
+    let mut user: Vec<(String, Fix)> = Vec::new();
     for (name, fix) in checks
         .iter()
         .filter(|c| c.level != Level::Ok)
@@ -864,7 +871,7 @@ pub fn apply_fixes(
             if fix.root {
                 root.push((name.clone(), fix.clone()));
             } else {
-                user.push(fix.clone());
+                user.push((name.clone(), fix.clone()));
             }
         }
     }
@@ -883,9 +890,15 @@ pub fn apply_fixes(
             applied.need_sudo = fixes;
         }
     }
-    for fix in user {
+    for (name, fix) in user {
         tracing::info!(command = %fix.command, "running fix");
-        if runner.run(&fix.command, false) {
+        let resource = projneeds::pin_resource(&name, &fix.command)
+            .or_else(|| prereq::target_resource(&name, &fix.command));
+        let ok = match resource {
+            Some((kind, rname, spec)) => runner.run_resource(kind, &rname, &spec, &fix.command),
+            None => runner.run(&fix.command, false),
+        };
+        if ok {
             applied.done.push(fix.command.clone());
         } else {
             applied.failed.push(fix.command.clone());
@@ -898,10 +911,95 @@ pub fn apply_fixes(
 pub(crate) struct SshFixRunner<'a> {
     pub(crate) found: &'a Found,
     pub(crate) settings: &'a ssh::Settings,
+    /// The config directory whose change log records each command before it runs; `None` for
+    /// an undo, which takes earlier changes back and is not a new change.
+    pub(crate) record_in: Option<&'a std::path::Path>,
+}
+
+/// How a person takes back what `doctor --fix` ran, for the change log.
+pub(crate) const FIX_UNDO_HINT: &str = "`goway uninstall` takes back what doctor --fix installed";
+
+impl SshFixRunner<'_> {
+    /// Record `command` in the change log before it runs; `false` (do not run it) on failure.
+    fn record(&self, command: &str, reason: &str) -> bool {
+        let Some(dir) = self.record_in else {
+            return true;
+        };
+        match crate::changelog::record_action(
+            dir,
+            goway_journal::ActionKind::RunFix,
+            command,
+            &self.found.target.name,
+            reason,
+            Some(FIX_UNDO_HINT),
+        ) {
+            Ok(()) => true,
+            Err(e) => {
+                tracing::error!(error = %e, "could not record the fix; not running it");
+                false
+            }
+        }
+    }
 }
 
 impl FixRunner for SshFixRunner<'_> {
+    fn run_resource(&self, kind: ResourceKind, name: &str, spec: &str, command: &str) -> bool {
+        let Some(dir) = self.record_in else {
+            return self.run(command, false);
+        };
+        let host = &self.found.target.name;
+        let log = fixes_path(dir, host);
+        if !self.record(
+            command,
+            &format!("doctor --fix (journaled in {})", file_name(&log)),
+        ) {
+            return false;
+        }
+        let mut sys = crate::remotesys::RemoteSystem {
+            target: self.found.target.clone(),
+            settings: self.settings.clone(),
+            password: false,
+            prompt: None,
+        };
+        let plan = [goway_journal::Change::EnsureResource {
+            kind,
+            name: name.to_owned(),
+            spec: spec.to_owned(),
+        }];
+        let journal = match goway_journal::Journal::load_or_new(&log) {
+            Ok(j) => j,
+            Err(e) => {
+                tracing::error!(error = %e, "could not read the fix journal; not running the fix");
+                return false;
+            }
+        };
+        let before = journal.entries.len();
+        let path = log.clone();
+        match goway_journal::apply_with(&plan, &mut sys, journal, &mut |j| j.save(&path)) {
+            Ok(_) => true,
+            Err(e) => {
+                tracing::error!(error = %e, "the journaled fix failed; undoing its part");
+                let mut journal = *e.journal;
+                let mut mine = goway_journal::Journal {
+                    entries: journal.entries.split_off(before),
+                    ..journal.clone()
+                };
+                let _ = goway_journal::revert(&mut mine, &mut sys);
+                let _ = journal.save(&log);
+                false
+            }
+        }
+    }
+
     fn run(&self, command: &str, sudo: bool) -> bool {
+        let reason = if sudo {
+            "doctor --fix, as root"
+        } else {
+            "doctor --fix"
+        };
+        if !self.record(command, reason) {
+            return false;
+        }
         let script = if sudo {
             Fix {
                 command: command.to_owned(),
@@ -927,6 +1025,43 @@ impl FixRunner for SshFixRunner<'_> {
             .status_locked()
             .is_ok_and(|s| s.success())
     }
+}
+
+/// Where the journal of the resources `doctor --fix` created on `host` lives.
+pub fn fixes_path(dir: &std::path::Path, host: &str) -> std::path::PathBuf {
+    dir.join(format!("fixes-{}.json", host.to_ascii_lowercase()))
+}
+
+fn file_name(path: &std::path::Path) -> String {
+    path.file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned())
+}
+
+/// Undo what the journaled fixes created on a host (pinned tools, rustup targets) and delete the
+/// journal; the number of entries reverted, 0 when there was none.
+pub fn revert_fixes(
+    dir: &std::path::Path,
+    found: &Found,
+    settings: &ssh::Settings,
+) -> std::result::Result<usize, goway_journal::JournalError> {
+    let log = fixes_path(dir, &found.target.name);
+    if !log.exists() {
+        return Ok(0);
+    }
+    let mut journal = goway_journal::Journal::load(&log)?;
+    let mut sys = crate::remotesys::RemoteSystem {
+        target: found.target.clone(),
+        settings: settings.clone(),
+        password: false,
+        prompt: None,
+    };
+    let report = goway_journal::revert(&mut journal, &mut sys)?;
+    journal.save(&log)?;
+    std::fs::remove_file(&log).map_err(|source| goway_journal::JournalError::Io {
+        path: log.clone(),
+        source,
+    })?;
+    Ok(report.outcomes.len())
 }
 
 /// Something `doctor --fix` installed on a host. Only the name of the check
@@ -1250,6 +1385,7 @@ fn fix_host(ctx: &FixCtx<'_>, probed: &mut Probed<'_>) -> bool {
     let runner = SshFixRunner {
         found: &probed.found,
         settings: ctx.settings,
+        record_in: Some(&ctx.paths.config_dir),
     };
     let (hard, tools): (Vec<Check>, Vec<Check>) = probed
         .checks
@@ -1322,6 +1458,7 @@ fn fix_windows_host(ctx: &FixCtx<'_>, probed: &mut Probed<'_>) -> bool {
         found: &probed.found,
         settings: ctx.settings,
         admin_user: args.windows_admin.as_deref(),
+        record_in: &ctx.paths.config_dir,
     };
     let confirm = |steps: &[windows::Step]| {
         for line in output::windows_plan_lines(&host.name, steps, args.rsudo) {
@@ -1428,6 +1565,7 @@ fn record_windows(
 /// (with their checks); also the local ssh findings of unreachable hosts.
 fn collect<'a>(
     config: &Config,
+    prober: &dyn Prober,
     needs: &projneeds::Needs,
     results: Vec<(&'a HostConfig, Result<Found>)>,
 ) -> (
@@ -1447,7 +1585,7 @@ fn collect<'a>(
                     address: host.address.clone().unwrap_or_default(),
                     os: "?".to_owned(),
                     arch: "?".to_owned(),
-                    outcome: output::Outcome::Down(e.to_string()),
+                    outcome: output::Outcome::Down(down_reason(config, host, prober, &e)),
                 });
                 for finding in sshenv::check(
                     host.address.as_deref().unwrap_or(&host.name),
@@ -1497,6 +1635,41 @@ fn collect<'a>(
     (reports, reached, local_ssh)
 }
 
+/// Why `host` is down: goway's error, plus a look through Windows OpenSSH at the same address
+/// when the host is a WSL helper (a Windows or interop host has no WSL side to ask about).
+fn down_reason(config: &Config, host: &HostConfig, prober: &dyn Prober, error: &Error) -> String {
+    let why = error.to_string();
+    if Kind::of(host) != Kind::Unix {
+        return why;
+    }
+    let address = host.address.clone().unwrap_or_else(|| host.name.clone());
+    // A configured Windows ssh host at the same address already has its key pinned and its own
+    // port and login; otherwise ask Windows OpenSSH on its default port as the same user.
+    let configured = config.hosts.iter().find(|h| {
+        h.os == Os::Windows
+            && h.transport == Transport::Ssh
+            && h.address.as_deref() == Some(address.as_str())
+    });
+    let windows = match configured {
+        Some(h) => ssh::Target {
+            name: h.name.clone(),
+            address,
+            port: config.port_of(h),
+            user: h.user.clone(),
+            identity: h.identity.as_ref().map(std::path::PathBuf::from),
+        },
+        None => ssh::Target {
+            name: format!("{}-windows", host.name),
+            address,
+            port: wsl_down::WINDOWS_SSH_PORT,
+            user: host.user.clone(),
+            identity: host.identity.as_ref().map(std::path::PathBuf::from),
+        },
+    };
+    let checks = wsl_down::diagnose(prober, &windows, config.port_of(host));
+    wsl_down::describe(&why, &checks)
+}
+
 /// `goway doctor`.
 #[allow(clippy::too_many_lines)] // one pass over hosts: probe, report, record, fix
 pub fn doctor(
@@ -1540,7 +1713,7 @@ pub fn doctor(
     if let Err(e) = state.save(&paths.state_file()) {
         tracing::warn!(error = %e, "cannot cache host addresses");
     }
-    let (mut reports, mut reached, local_ssh) = collect(&config, &needs, results);
+    let (mut reports, mut reached, local_ssh) = collect(&config, prober, &needs, results);
     add_cmake_checks(
         &run::Env {
             paths,
@@ -1672,6 +1845,64 @@ fn exit_code(reports: &[output::HostReport]) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// A fix runner pointed at a host that cannot be reached, recording into `dir`.
+    fn recording_runner<'a>(
+        found: &'a Found,
+        settings: &'a ssh::Settings,
+        dir: &'a std::path::Path,
+    ) -> SshFixRunner<'a> {
+        SshFixRunner {
+            found,
+            settings,
+            record_in: Some(dir),
+        }
+    }
+
+    fn unreachable_found() -> (Found, ssh::Settings) {
+        let found = Found {
+            kind: crate::transport::Kind::Unix,
+            target: ssh::Target {
+                name: "helios".to_owned(),
+                address: "192.0.2.1".to_owned(),
+                port: 22,
+                user: None,
+                identity: None,
+            },
+            source: crate::resolve::Source::Cached,
+            output: String::new(),
+        };
+        let settings = ssh::Settings {
+            known_hosts: std::path::PathBuf::from("/nonexistent/known_hosts"),
+            control_dir: None,
+            connect_timeout_secs: 1,
+        };
+        (found, settings)
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::SshFixRunner
+    #[test]
+    fn a_fix_is_recorded_in_the_change_log_before_it_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let (found, settings) = unreachable_found();
+        let runner = recording_runner(&found, &settings, dir.path());
+        // The host is unreachable, so the fix fails; the record is there all the same.
+        let _ = runner.run("true", false);
+        let rows = crate::changelog::rows(dir.path()).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].what.contains("helios") && rows[0].what.contains("doctor --fix"));
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::SshFixRunner
+    #[test]
+    fn a_fix_that_cannot_be_recorded_does_not_run() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join(crate::changelog::FILE_NAME)).unwrap();
+        let (found, settings) = unreachable_found();
+        let runner = recording_runner(&found, &settings, dir.path());
+        // The early return is the guard: a failed record is an error log and a `false`.
+        assert!(!runner.run("touch /tmp/never", false));
+    }
+
     use std::cell::RefCell;
 
     // frob:tests crates/goway/src/doctor.rs::clock_check

@@ -175,8 +175,37 @@ pub fn keepalive_arguments(distro: &str, wsl_exe: &str) -> String {
     format!("--headless \"{wsl_exe}\" -d {distro} --exec /bin/sh -c \"exec sleep infinity\"")
 }
 
-/// Script registering the keepalive task for the invoking user; `conhost_exe` and `wsl_exe` are
-/// absolute System32 paths.
+/// PowerShell lines that copy a repetition every `minutes` minutes (for ten years) onto `$trigger`;
+/// shared by the keepalive and the relay refresh task so both come back after a WSL shutdown.
+fn repeat_trigger(minutes: u32) -> String {
+    format!(
+        "$repeat = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes {minutes}) -RepetitionDuration (New-TimeSpan -Days 3650)\n\
+         $trigger.Repetition = $repeat.Repetition\n"
+    )
+}
+
+/// Script printing the exported XML definition of the task of this name when it exists but none
+/// of its triggers repeats (the old boot-only keepalive, which never restarts a distro that WSL
+/// shut down), and nothing otherwise. The journal keeps the XML so an undo restores the task.
+pub fn task_outdated_snapshot(name: &str) -> String {
+    strict(&format!(
+        "$t = {lookup}\n\
+         if ($t -and -not ($t.Triggers | Where-Object {{ $_.Repetition -and $_.Repetition.Interval }})) {{ Export-ScheduledTask -InputObject $t }}",
+        lookup = exact_lookup("Get-ScheduledTask", "-TaskName", "TaskName", name)
+    ))
+}
+
+/// Script registering a task from an XML definition exported by [`task_outdated_snapshot`].
+pub fn task_restore(name: &str, xml: &str) -> String {
+    strict(&format!(
+        "Register-ScheduledTask -TaskName {name} -Xml {xml} | Out-Null",
+        name = quote(name),
+        xml = quote(xml),
+    ))
+}
+
+/// Script registering the keepalive task for the invoking user; the trigger repeats every [`crate::relay::REFRESH_MINUTES`] minutes so a distro that WSL
+/// shut down is started again. `conhost_exe` and `wsl_exe` are absolute System32 paths.
 pub fn task_create(name: &str, spec: &TaskSpec, conhost_exe: &str, wsl_exe: &str) -> String {
     let (trigger, logon) = match spec.keepalive {
         Keepalive::Logon => (
@@ -189,11 +218,13 @@ pub fn task_create(name: &str, spec: &TaskSpec, conhost_exe: &str, wsl_exe: &str
         "$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name\n\
          $action = New-ScheduledTaskAction -Execute {conhost} -Argument {args}\n\
          $trigger = {trigger}\n\
+         {repeat}\
          $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType {logon} -RunLevel Limited\n\
          $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew\n\
          Register-ScheduledTask -TaskName {name} -Description {desc} -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null",
         conhost = quote(conhost_exe),
         args = quote(&keepalive_arguments(&spec.distro, wsl_exe)),
+        repeat = repeat_trigger(crate::relay::REFRESH_MINUTES),
         name = quote(name),
         desc = quote(&spec.description),
     ))
@@ -228,14 +259,13 @@ pub fn relay_task_create(
         "$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name\n\
          $action = New-ScheduledTaskAction -Execute {conhost} -Argument {args}\n\
          $trigger = {trigger}\n\
-         $repeat = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes {minutes}) -RepetitionDuration (New-TimeSpan -Days 3650)\n\
-         $trigger.Repetition = $repeat.Repetition\n\
+         {repeat}\
          $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType {logon} -RunLevel Highest\n\
          $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew\n\
          Register-ScheduledTask -TaskName {name} -Description {desc} -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null",
         conhost = quote(conhost_exe),
         args = quote(&relay_arguments(cmd_exe, powershell_exe, &spec.script)),
-        minutes = spec.interval_minutes,
+        repeat = repeat_trigger(spec.interval_minutes),
         name = quote(name),
         desc = quote(&spec.description),
     ))

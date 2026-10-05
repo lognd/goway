@@ -33,6 +33,8 @@ pub struct ModelSystem {
     pub acls: BTreeMap<PathBuf, String>,
     /// External resources and their specs.
     pub resources: BTreeMap<(ResourceKind, String), String>,
+    /// Resources that exist but are out of date, so an ensure replaces them.
+    pub outdated: BTreeSet<(ResourceKind, String)>,
 }
 
 impl ModelSystem {
@@ -223,12 +225,34 @@ impl System for ModelSystem {
     }
 
     fn resource_create(&mut self, kind: ResourceKind, name: &str, spec: &str) -> SysResult<()> {
+        self.outdated.remove(&(kind, name.to_owned()));
         self.resources
             .insert((kind, name.to_owned()), spec.to_owned());
         Ok(())
     }
 
+    fn resource_outdated(&self, kind: ResourceKind, name: &str) -> SysResult<Option<String>> {
+        let key = (kind, name.to_owned());
+        Ok(self
+            .outdated
+            .contains(&key)
+            .then(|| self.resources.get(&key).cloned().unwrap_or_default()))
+    }
+
+    fn resource_restore(
+        &mut self,
+        kind: ResourceKind,
+        name: &str,
+        snapshot: &str,
+    ) -> SysResult<()> {
+        self.resources
+            .insert((kind, name.to_owned()), snapshot.to_owned());
+        self.outdated.insert((kind, name.to_owned()));
+        Ok(())
+    }
+
     fn resource_delete(&mut self, kind: ResourceKind, name: &str) -> SysResult<()> {
+        self.outdated.remove(&(kind, name.to_owned()));
         self.resources.remove(&(kind, name.to_owned()));
         Ok(())
     }

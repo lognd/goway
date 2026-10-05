@@ -2,12 +2,13 @@
 id = "01M43S56WE4YZD6YZMF61GZVB4"
 title = "disk_budget eviction_keeps_a_locked_slot test leaks flock's sleep child holding the test's pipes (nextest LEAK)"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-04T15:40:11Z"
-updated = "2026-10-04T22:01:42Z"
+updated = "2026-10-04T22:12:16Z"
 scope = ["crates/goway/tests/disk_budget.rs"]
 
 [[acceptance]]

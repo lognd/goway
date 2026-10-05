@@ -27,6 +27,7 @@ pub(crate) enum Op {
     SetAcl(PathBuf, String),
     CreateResource(ResourceKind, String, String),
     DeleteResource(ResourceKind, String),
+    RestoreResource(ResourceKind, String, String),
 }
 
 /// What happened to one entry during revert.
@@ -40,6 +41,9 @@ pub enum Outcome {
     AlreadyReverted,
     /// The target no longer holds what goway wrote (or is gone); left untouched.
     LeftAlone(String),
+    /// The entry recorded an action that cannot be inverted; the text says what was done and
+    /// how a person can take it back, when there is a way.
+    NotReversible(String),
 }
 
 /// Run ops against a system.
@@ -72,6 +76,7 @@ pub(crate) fn run(sys: &mut (impl System + ?Sized), ops: &[Op]) -> Result<(), Jo
             Op::SetAcl(p, s) => sys.set_acl(p, s)?,
             Op::CreateResource(k, n, s) => sys.resource_create(*k, n, s)?,
             Op::DeleteResource(k, n) => sys.resource_delete(*k, n)?,
+            Op::RestoreResource(k, n, s) => sys.resource_restore(*k, n, s)?,
         }
     }
     Ok(())
@@ -252,13 +257,29 @@ pub(crate) fn plan_apply(
         }
         Change::EnsureResource { kind, name, spec } => {
             if sys.resource_exists(*kind, name)? {
-                return Ok(noop());
+                // An outdated resource is replaced, and its snapshot journaled so undo restores it.
+                return match sys.resource_outdated(*kind, name)? {
+                    Some(previous) => Ok((
+                        Prior::ResourceReplaced { previous },
+                        vec![
+                            Op::DeleteResource(*kind, name.clone()),
+                            Op::CreateResource(*kind, name.clone(), spec.clone()),
+                        ],
+                    )),
+                    None => Ok(noop()),
+                };
             }
             Ok((
                 Prior::ResourceCreated,
                 vec![Op::CreateResource(*kind, name.clone(), spec.clone())],
             ))
         }
+        Change::Action { .. } => Ok((
+            Prior::Action {
+                at_unix_secs: crate::journal::now_secs(),
+            },
+            Vec::new(),
+        )),
     }
 }
 
@@ -334,6 +355,28 @@ pub(crate) fn plan_revert(
     let restore = |ops| Ok((Outcome::Restored, ops));
     match (&entry.change, &entry.prior) {
         (_, Prior::Noop) => Ok((Outcome::Noop, Vec::new())),
+        (
+            Change::Action {
+                kind,
+                target,
+                host,
+                reason,
+                undo,
+            },
+            Prior::Action { .. },
+        ) => {
+            let how = undo.as_deref().map_or_else(
+                || "it cannot be undone".to_owned(),
+                |u| format!("to take it back: {u}"),
+            );
+            Ok((
+                Outcome::NotReversible(format!(
+                    "{} on {host} ({target}; {reason}): {how}",
+                    kind.describe()
+                )),
+                Vec::new(),
+            ))
+        }
         (Change::WriteFile { path, contents }, Prior::File { contents: before }) => {
             if sys.read_file(path)?.as_deref() != Some(contents) {
                 return left("file no longer holds the written contents");
@@ -446,6 +489,15 @@ pub(crate) fn plan_revert(
             }
             restore(vec![Op::DeleteResource(*kind, name.clone())])
         }
+        (Change::EnsureResource { kind, name, .. }, Prior::ResourceReplaced { previous }) => {
+            if !sys.resource_exists(*kind, name)? {
+                return left("resource is gone");
+            }
+            restore(vec![
+                Op::DeleteResource(*kind, name.clone()),
+                Op::RestoreResource(*kind, name.clone(), previous.clone()),
+            ])
+        }
         (change, prior) => Err(invalid(format!(
             "entry prior {prior:?} does not match change {change:?}"
         ))),
@@ -551,5 +603,7 @@ pub fn still_applied(change: &Change, sys: &(impl System + ?Sized)) -> Result<bo
         Change::SetUnixMode { path, mode } => sys.get_mode(path).ok() == Some(*mode),
         Change::SetAcl { path, sddl } => sys.get_acl(path).ok().as_deref() == Some(sddl.as_str()),
         Change::EnsureResource { kind, name, .. } => sys.resource_exists(*kind, name)?,
+        // It happened and nothing can un-happen it, so it always "holds".
+        Change::Action { .. } => true,
     })
 }

@@ -1011,7 +1011,10 @@ fn prior_fits(change: &Change, prior: &Prior) -> Result<(), String> {
             )
             | (Change::SetUnixMode { .. }, Prior::Mode { .. })
             | (Change::SetAcl { .. }, Prior::Acl { .. })
-            | (Change::EnsureResource { .. }, Prior::ResourceCreated)
+            | (
+                Change::EnsureResource { .. },
+                Prior::ResourceCreated | Prior::ResourceReplaced { .. }
+            )
     );
     if !kind_ok {
         return Err(format!("prior {prior:?} is not what {change:?} records"));
@@ -1038,10 +1041,33 @@ fn prior_fits(change: &Change, prior: &Prior) -> Result<(), String> {
                 ))
             }
         }
+        (_, Prior::ResourceReplaced { previous }) if previous.len() > MAX_PRIOR_BYTES => {
+            Err("a recorded prior resource is implausibly large".to_owned())
+        }
         (_, Prior::Mode { mode }) if *mode > 0o7777 => Err(format!(
             "the recorded mode {mode:o} is not a permission mode"
         )),
         _ => Ok(()),
+    }
+}
+
+/// Whether the host install for `settings` takes the action `kind` on `target`: it starts only
+/// the scheduled tasks it creates and activates sshd only on its own port.
+fn action_expected(
+    kind: goway_journal::ActionKind,
+    target: &str,
+    allowed: &[Change],
+    settings: &HostSettings,
+) -> bool {
+    use goway_journal::ActionKind;
+    match kind {
+        ActionKind::StartScheduledTask => allowed.iter().any(|c| {
+            matches!(c, Change::EnsureResource { kind: ResourceKind::ScheduledTask, name, .. } if name == target)
+        }),
+        ActionKind::ActivateSshd => {
+            settings.native.is_none() && target == settings.port.to_string()
+        }
+        _ => false,
     }
 }
 
@@ -1066,6 +1092,23 @@ pub fn validate_journal(
         })
     };
     for (index, entry) in journal.entries.iter().enumerate() {
+        if let Change::Action { kind, target, .. } = &entry.change {
+            // Actions are recorded, never replayed: undo only reports them. They are still held
+            // to what this install does, so a planted entry cannot pass for a real one.
+            if !matches!(entry.prior, Prior::Action { .. }) {
+                return refuse(
+                    index,
+                    "an action entry holds a prior of another kind".to_owned(),
+                );
+            }
+            if !action_expected(*kind, target, &allowed, settings) {
+                return refuse(
+                    index,
+                    format!("{kind:?} on {target:?} is not an action the host install takes"),
+                );
+            }
+            continue;
+        }
         if let Change::EnsureResource { name, .. } = &entry.change
             && has_wildcard(name)
         {

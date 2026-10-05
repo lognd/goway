@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T23:03:16Z"
+digest = "cdea3bc3ab45a1fbdf4ef7348263fa4565cf86fdc887a5575c422b9f9a84a6d3"
+exit_code = 0
+inline = '''
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.19s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID fda3eb13-3011-41ce-94da-cbac21c844af with nextest profile: default
+    Starting 1 test across 75 binaries (844 tests skipped)
+        PASS [   0.023s] goway-setup::hostsys scripts_name_the_right_cmdlets_and_quote_their_values
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.029s] 1 test run: 1 passed, 844 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(scripts_name_the_right_cmdlets_and_quote_their_values)'"
+size = 636
+status = "measured"
+tests = ["scripts_name_the_right_cmdlets_and_quote_their_values"]
+at = "2026-10-04T23:03:16Z"
+actor = "lognd"
+rev = 1

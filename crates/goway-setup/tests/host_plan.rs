@@ -775,3 +775,35 @@ fn boot_keepalive_on_an_administrator_needs_interop_off_or_an_explicit_flag() {
     let user = HostFacts::assumed();
     assert!(check_boot_keepalive(Keepalive::Boot, &user, false).is_ok());
 }
+
+// frob:tests crates/goway-setup/src/host.rs::host_plan
+#[test]
+fn an_old_boot_only_keepalive_is_replaced_through_the_journal_and_undo_restores_it() {
+    let mut sys = base_machine();
+    let task = (
+        ResourceKind::ScheduledTask,
+        "goway-test WSL Keepalive".to_owned(),
+    );
+    sys.resources.insert(task.clone(), "boot-only xml".into());
+    sys.outdated.insert(task.clone());
+    let before = sys.clone();
+    let plan = host_plan(
+        &layout("goway-test"),
+        &params(2299, Keepalive::Logon, false),
+        &HostFacts::assumed(),
+    );
+    let mut journal = apply(&plan, &mut sys).unwrap();
+    let replaced: Vec<_> = journal
+        .entries
+        .iter()
+        .filter(|e| {
+            matches!(&e.prior, Prior::ResourceReplaced { previous } if previous == "boot-only xml")
+        })
+        .collect();
+    assert_eq!(replaced.len(), 1, "the replacement is journaled");
+    assert_ne!(sys.resources[&task], "boot-only xml");
+    assert!(!sys.outdated.contains(&task));
+    revert(&mut journal, &mut sys).unwrap();
+    assert_eq!(sys.resources[&task], "boot-only xml");
+    assert_eq!(sys.resources.get(&task), before.resources.get(&task));
+}

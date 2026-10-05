@@ -115,6 +115,23 @@ pub fn remove_settings(layout: &Layout) {
     let _ = std::fs::remove_dir(&layout.admin_root);
 }
 
+/// Record, in the journal at `journal_path`, an action this machine is about to take that undo
+/// cannot reverse (starting a task, restarting WSL or sshd). Call it before the action runs; when
+/// it fails the action must not run, because a change the journal does not hold cannot be listed.
+pub fn record_action(
+    journal_path: &Path,
+    kind: goway_journal::ActionKind,
+    target: &str,
+    reason: &str,
+) -> Result<(), SetupError> {
+    tracing::info!(?kind, target, reason, path = %journal_path.display(), "recording an action");
+    Journal::record_action_at(journal_path, kind, target, LOCAL_HOST, reason, None)?;
+    Ok(())
+}
+
+/// The host name recorded for actions on the machine goway-setup runs on.
+pub const LOCAL_HOST: &str = "localhost";
+
 /// Load the profile's journal; `None` when it has none.
 ///
 /// A journal in the administrator-only directory is read only after the directory's owner and

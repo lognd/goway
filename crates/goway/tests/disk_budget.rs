@@ -1,6 +1,7 @@
 //! The disk budget: least-recently-used eviction of unlocked entries.
 #![cfg(unix)]
 
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -121,7 +122,9 @@ fn eviction_keeps_a_locked_slot_and_takes_the_next_oldest() {
     let root = fake_root(home.path(), &[("alpha", &[9000, 5000]), ("beta", &[1000])]);
     let lock = root.join("cache/alpha/target-0.lock");
     // A run holds the oldest slot for the whole eviction.
+    // Its own process group, so the whole group (flock and its sleep) can be killed.
     let mut holder = Command::new("flock")
+        .process_group(0)
         .arg("-x")
         .arg(&lock)
         .args(["sleep", "30"])
@@ -140,7 +143,10 @@ fn eviction_keeps_a_locked_slot_and_takes_the_next_oldest() {
         std::thread::sleep(std::time::Duration::from_millis(20));
     }
     let out = gc(home.path(), "apply", 5 * MIB / 2);
-    holder.kill().unwrap();
+    let _ = Command::new("kill")
+        .args(["-KILL", "--"])
+        .arg(format!("-{}", holder.id()))
+        .status();
     holder.wait().unwrap();
     let busy = lines(&out, "busy");
     assert!(

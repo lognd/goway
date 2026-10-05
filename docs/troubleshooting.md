@@ -350,3 +350,77 @@ broken one, starts a fresh one and prints one note:
 `restarting the shared sccache server (...)`. Nothing to do by hand; to
 force it, run `sccache --stop-server` with `SCCACHE_SERVER_UDS` pointing at
 the repository's socket under the helper's goway cache.
+
+## A WSL helper stopped answering: check it by hand
+
+`goway doctor HOST` does these steps itself when the helper's ssh port
+is closed but the same address answers Windows OpenSSH (port 22): it
+reports "unreachable" when nothing answers, "distro stopped" with the
+command that starts it, a keepalive task that never repeats, or "WSL
+service is not responding" (see step 7). It only reads; it never starts
+anything, and every Windows command it runs is killed on the helper
+after 10 seconds, so a deadlocked `wsl.exe` cannot pile up sshd sessions. To do the same by hand, from your main
+laptop (HELIOS is the helper, USER its Windows user, 192.0.2.7 its
+address; use your own):
+
+1. Is the machine up at all?
+
+       ping 192.0.2.7
+
+   No answer: it is off, asleep, off the network, or the network blocks
+   ping. This is not a WSL problem; wake it or check the network.
+
+2. Do the two ports answer? WSL's sshd (2222 by default) and Windows
+   OpenSSH (22):
+
+       bash -c 'for p in 2222 22; do timeout 3 bash -c "</dev/tcp/192.0.2.7/$p" && echo "$p open" || echo "$p closed"; done'
+
+   On Windows: `Test-NetConnection 192.0.2.7 -Port 22`. 22 open and 2222
+   closed means Windows is up and WSL is not serving.
+
+3. Ask Windows whether the distro runs (the output is UTF-16; Windows
+   prints it fine in a terminal):
+
+       ssh -p 22 USER@192.0.2.7 wsl -l -v
+
+   `Stopped` next to your distro means a WSL shutdown (a Windows update,
+   `wsl --shutdown`, a tune) ended it and nothing started it again.
+
+4. Look at the keepalive task and its triggers:
+
+       ssh -p 22 USER@192.0.2.7 schtasks /query /tn "WSL Keepalive" /v /fo list
+
+   (`"WSL Keepalive (boot)"` for a boot keepalive; a named profile puts
+   its name in front.) `Repeat: Every:` should show 5 minutes. `Disabled`
+   there means an old boot-only task: a shutdown leaves the helper off
+   until the next boot.
+
+5. Start it now:
+
+       ssh -p 22 USER@192.0.2.7 schtasks /run /tn "WSL Keepalive"
+
+   then try `goway status` after a few seconds.
+
+6. Re-run the installer when step 4 shows no repetition or no task:
+   on the helper, as an administrator, run `goway-setup install --host`
+   again (after `uninstall` if it says the install already exists). The
+   new install replaces the old task and records the old one in the
+   journal, so `uninstall` puts it back exactly.
+
+7. `wsl -l -v` never returns (doctor says "WSL service is not
+   responding"): the WSL service is deadlocked. Do not keep probing from
+   the laptop: every hung ssh command leaves a stuck `sshd.exe` session on
+   the helper, which eventually burns CPU and refuses new logins. On the
+   helper, in an administrator PowerShell, in this order, stopping when
+   `wsl -l -v` answers again:
+
+       Stop-Process -Name wsl -Force
+       Stop-Process -Name sshd -Force; Start-Service sshd
+       wsl --shutdown
+       Stop-Process -Name wslservice -Force
+
+   The last line is the last resort; the service starts again on the next
+   `wsl` call. Then run the keepalive (step 5).
+
+If Windows asks for a password or an unknown host key at step 3, fix
+that once by hand with ssh before relying on `goway doctor`.

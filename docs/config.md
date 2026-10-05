@@ -221,3 +221,10 @@ through WSL interop (`powershell.exe`) or the HID idle time on a Mac. Where
 interop is switched off (on purpose, on some helpers), on a plain Linux
 helper, on a Windows helper or when the probe times out, the state is
 **unknown**: it neither blocks nor penalises, and status shows `-`.
+
+## Changes goway makes
+
+Edits of this config and of goway's pinned `known_hosts` are recorded in
+`changes.json` beside them, so `goway changes` lists them and `goway changes
+undo` reverts the newest one. `docs/changes.md` lists every kind of change
+goway makes to a machine and how to undo each.

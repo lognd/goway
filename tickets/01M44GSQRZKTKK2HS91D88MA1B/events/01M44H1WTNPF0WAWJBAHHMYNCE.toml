@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway-setup/src/ps.rs", "crates/goway-setup/tests/host_plan.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/hostsys.rs", "crates/goway-journal/src/system.rs", "crates/goway-journal/src/plan.rs", "crates/goway-journal/src/journal.rs", "crates/goway-journal/src/model.rs", "crates/goway-journal/tests/resource_replace.rs", "crates/goway-setup/src/host.rs"]
+new = ["crates/goway-setup/src/ps.rs", "crates/goway-setup/tests/host_plan.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/tests/hostsys.rs", "crates/goway-journal/src/system.rs", "crates/goway-journal/src/plan.rs", "crates/goway-journal/src/journal.rs", "crates/goway-journal/src/model.rs", "crates/goway-setup/src/host.rs", "crates/goway-journal/tests/scenarios.rs", "docs/setup.md"]
+at = "2026-10-04T22:37:48Z"
+actor = "lognd"
+rev = 1

@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T23:39:05Z"
+digest = "cb96cf97b525bc152ad845613c0f6c995bfe82f51437a6922fbdf9915c974ec7"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8f57ae9c-9488-48d4-b5a7-459e51796403 with nextest profile: default
+    Starting 1 test across 80 binaries (877 tests skipped)
+        PASS [   0.008s] goway-journal::actions undo_reports_an_action_as_not_reversible_and_settles_it
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.014s] 1 test run: 1 passed, 877 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(undo_reports_an_action_as_not_reversible_and_settles_it)'"
+size = 572
+status = "measured"
+tests = ["undo_reports_an_action_as_not_reversible_and_settles_it"]
+at = "2026-10-04T23:39:05Z"
+actor = "lognd"
+rev = 1

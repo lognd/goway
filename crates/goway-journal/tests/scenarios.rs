@@ -451,3 +451,38 @@ fn registry_key_is_removed_only_when_goway_created_it_and_it_is_empty() {
     revert(&mut j, &mut m).unwrap();
     assert!(m.reg_keys.contains("K"), "a pre-existing key survives");
 }
+
+// frob:tests crates/goway-journal/src/plan.rs::plan_apply
+// frob:tests crates/goway-journal/src/plan.rs::plan_revert
+// frob:tests crates/goway-journal/src/system.rs::System.resource_outdated
+// frob:tests crates/goway-journal/src/system.rs::System.resource_restore
+#[test]
+fn an_outdated_resource_is_replaced_with_its_old_state_journaled_and_undo_restores_it() {
+    let key = (ResourceKind::ScheduledTask, "T".to_owned());
+    let mut m = base();
+    m.resources.insert(key.clone(), "old-boot-only".into());
+    m.outdated.insert(key.clone());
+    let before = m.clone();
+    let plan = [Change::EnsureResource {
+        kind: ResourceKind::ScheduledTask,
+        name: "T".into(),
+        spec: "repeating".into(),
+    }];
+    let mut journal = apply(&plan, &mut m).unwrap();
+    assert_eq!(m.resources[&key], "repeating");
+    assert_eq!(
+        journal.entries[0].prior,
+        Prior::ResourceReplaced {
+            previous: "old-boot-only".into()
+        }
+    );
+    // The record survives a save and load, and applying again is a no-op.
+    let json = serde_json::to_string(&journal).unwrap();
+    let mut loaded: Journal = serde_json::from_str(&json).unwrap();
+    assert_eq!(loaded, journal);
+    let again = apply(&plan, &mut m).unwrap();
+    assert_eq!(again.entries[0].prior, Prior::Noop);
+    revert(&mut loaded, &mut m).unwrap();
+    assert_eq!(m, before);
+    let _ = &mut journal;
+}

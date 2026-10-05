@@ -483,6 +483,7 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                                 extra.push(detect::request_word(index, count, &nonce));
                             }
                             extra.push(verify.word());
+                            extra.push(run::slot_wait_word(args.wait));
                             let priority = pool::priority_word(config, host, found, probe);
                             if verify.attempt == 1
                                 && let Some(note) = pool::owner_note(&host.name, probe, priority)

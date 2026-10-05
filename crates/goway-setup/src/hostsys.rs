@@ -1091,7 +1091,47 @@ impl<R: Runner> System for HostSystem<R> {
                     &ps::firewall_scope_exists(name),
                 )
             }
-            ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
+            ResourceKind::SshKeyPair | ResourceKind::PinnedTool | ResourceKind::RustupTarget => {
+                Err(SystemError::Unsupported("user-level resources on the host"))
+            }
+        }
+    }
+
+    fn resource_outdated(&self, kind: ResourceKind, name: &str) -> SysResult<Option<String>> {
+        reject_wildcard(kind, name)?;
+        if kind != ResourceKind::ScheduledTask {
+            return Ok(None);
+        }
+        let xml = self
+            .powershell(
+                "snapshot a non-repeating scheduled task",
+                &ps::task_outdated_snapshot(name),
+            )?
+            .text();
+        if xml.is_empty() {
+            return Ok(None);
+        }
+        tracing::warn!(name, "scheduled task does not repeat; it will be replaced");
+        Ok(Some(xml))
+    }
+
+    fn resource_restore(
+        &mut self,
+        kind: ResourceKind,
+        name: &str,
+        snapshot: &str,
+    ) -> SysResult<()> {
+        reject_wildcard(kind, name)?;
+        match kind {
+            ResourceKind::ScheduledTask => {
+                tracing::info!(
+                    name,
+                    "restoring a scheduled task from its journaled definition"
+                );
+                self.powershell("restore scheduled task", &ps::task_restore(name, snapshot))
+                    .map(drop)
+            }
+            _ => Err(SystemError::Unsupported("restoring this resource kind")),
         }
     }
 
@@ -1194,7 +1234,9 @@ impl<R: Runner> System for HostSystem<R> {
                 )
                 .map(drop)
             }
-            ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
+            ResourceKind::SshKeyPair | ResourceKind::PinnedTool | ResourceKind::RustupTarget => {
+                Err(SystemError::Unsupported("user-level resources on the host"))
+            }
         }
     }
 
@@ -1271,7 +1313,9 @@ impl<R: Runner> System for HostSystem<R> {
                 )
                 .map(drop)
             }
-            ResourceKind::SshKeyPair => Err(SystemError::Unsupported("ssh key pairs on the host")),
+            ResourceKind::SshKeyPair | ResourceKind::PinnedTool | ResourceKind::RustupTarget => {
+                Err(SystemError::Unsupported("user-level resources on the host"))
+            }
         }
     }
 }
