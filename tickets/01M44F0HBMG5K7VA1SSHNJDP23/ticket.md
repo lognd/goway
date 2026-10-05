@@ -2,7 +2,8 @@
 id = "01M44F0HBMG5K7VA1SSHNJDP23"
 title = "One job cannot take a helper down: cap a job's processes, CPU share and memory in its own scope"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
