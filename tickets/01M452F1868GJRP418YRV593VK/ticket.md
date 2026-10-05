@@ -2,7 +2,7 @@
 id = "01M452F1868GJRP418YRV593VK"
 title = "remote.sh is within 300 bytes of the 128 KiB single-argument limit that tests (and any bash -c delivery) hit"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 2
 reporter = "lognd"
