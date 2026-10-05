@@ -2,7 +2,8 @@
 id = "01M44WPJWSD12YH6MEZKZE0GWF"
 title = "On WSL helpers goway measures the virtual disk, not the Windows drive, and cleanup never returns space to Windows"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "critical"
 points = 8
 reporter = "lognd"
