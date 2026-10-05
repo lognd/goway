@@ -7,8 +7,8 @@ priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T03:23:34Z"
-updated = "2026-10-05T03:23:50Z"
-scope = ["crates/goway/src/remote.sh", "crates/goway/src/config.rs", "crates/goway/tests/job_limits.rs", "docs/config.md"]
+updated = "2026-10-05T03:24:07Z"
+scope = ["crates/goway/src/remote.sh", "crates/goway/src/config.rs", "crates/goway/tests/job_limits.rs", "docs/config.md", "crates/goway/src/remote.ps1", "docs/usage.md"]
 
 [[acceptance]]
 text = "Given no job_tasks configured, When a job starts, Then its task cap is derived from the host (half of kernel threads-max, and never below a documented floor well above what a full build or test wave of the host's cores uses), and the probe or run note shows the value"
