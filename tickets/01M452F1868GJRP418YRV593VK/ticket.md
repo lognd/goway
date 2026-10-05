@@ -7,11 +7,15 @@ priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T03:42:04Z"
-updated = "2026-10-05T03:56:53Z"
-scope = ["crates/goway/src/remote.sh"]
+updated = "2026-10-05T03:57:39Z"
+scope = ["crates/goway/src/remote.rs", "crates/goway/tests/disk_budget.rs", "crates/goway/tests/remote_root.rs", "crates/goway/tests/footprint.rs", "crates/goway/tests/scratch_fs.rs", "crates/goway/tests/mem_footprint.rs", "crates/goway/tests/translate_repick.rs", "crates/goway/tests/drift_refresh.rs", "crates/goway/tests/translate.rs", "crates/goway/tests/evict_live.rs", "crates/goway/tests/wsl_drive.rs", "crates/goway/tests/probe_epoch.rs", "crates/goway/tests/user_tool_path.rs", "crates/goway/tests/clock.rs"]
 
 [[acceptance]]
 text = "Given remote.sh grows past 131072 bytes, When the tests and the client run it, Then nothing fails with Argument list too long"
+bound = false
+
+[[acceptance]]
+text = "Given the guard test, When the encoded remote command line for the longest realistic verb and arguments exceeds MAX_LINE, Then it fails naming the current size and the limit"
 bound = false
 +++
 
