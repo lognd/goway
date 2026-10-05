@@ -7,7 +7,7 @@ priority = "critical"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T04:43:10Z"
-updated = "2026-10-05T05:03:04Z"
+updated = "2026-10-05T05:03:45Z"
 scope = ["crates/goway/tests/client_loss.rs", "crates/goway/tests/wsl_drive.rs"]
 
 [[acceptance]]
