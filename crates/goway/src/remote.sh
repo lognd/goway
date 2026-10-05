@@ -660,16 +660,14 @@ run_pids() {
 # kill_run RUN_ID: stop every process tagged with the run (run_pids), the backstop for a
 # job that left its process group and its scope. SIGTERM, a short grace, then SIGKILL.
 kill_run() {
-  local pids n
+  local pids
   pids=$(run_pids "$1" || true)
   [ -n "$pids" ] || return 0
   # shellcheck disable=SC2086 # the list is words by construction
   kill -TERM $pids 2>/dev/null || true
-  for n in 1 2 3 4 5 6 7 8 9 10; do
-    pids=$(run_pids "$1" || true)
-    [ -n "$pids" ] || return 0
-    sleep 0.2
-  done
+  sleep 1
+  pids=$(run_pids "$1" || true)
+  [ -n "$pids" ] || return 0
   # shellcheck disable=SC2086
   kill -KILL $pids 2>/dev/null || true
 }
@@ -799,7 +797,7 @@ job_scope() {
   SCOPE=()
   [ "$IS_DARWIN" != 1 ] && [ -e /sys/fs/cgroup/cgroup.controllers ] && command -v systemd-run >/dev/null 2>&1 || return 0
   if bounded_for 3 systemd-run --user --scope --quiet --collect --unit="goway-probe-$1" true >/dev/null 2>&1; then
-    SCOPE=(systemd-run --user --scope --quiet --collect -p TimeoutStopSec=5 --unit="goway-$1")
+    SCOPE=(systemd-run --user --scope --quiet --collect --property=TimeoutStopSec=5 --unit="goway-$1")
   fi
   return 0
 }
