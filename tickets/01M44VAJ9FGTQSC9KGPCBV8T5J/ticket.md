@@ -2,7 +2,8 @@
 id = "01M44VAJ9FGTQSC9KGPCBV8T5J"
 title = "Job-limit tests assume systemd and a high process hard limit, which macOS has neither"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
