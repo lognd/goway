@@ -330,3 +330,21 @@ fn no_probe_of_another_processs_environ_opens_it_before_silencing_stderr() {
         );
     }
 }
+
+// frob:ticket
+// frob:tests crates/goway/src/remote.rs::invocation
+#[test]
+fn a_sleep_of_under_a_second_spanning_both_looks_is_no_leftover() {
+    let w = common::world();
+    without_scope(&w);
+    let out = w.run(&[
+        "run",
+        "--",
+        "sh",
+        "-c",
+        "setsid sleep 0.8 >/dev/null 2>&1 &",
+    ]);
+    assert!(out.status.success(), "{out:?}");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(!err.contains("left processes behind"), "{err}");
+}

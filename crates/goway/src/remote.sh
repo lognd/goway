@@ -751,14 +751,18 @@ stop_job() {
 
 # tagged_left RUN_ID [KEEP]: whether a process tagged with the run (other than the sccache
 # server KEEP names) outlives a short wait. It must be the same process on both looks: a
-# watchdog's loop spawns a fresh `ps` or `sleep` every moment, and none of them is a leftover.
+# watchdog's loop spawns a fresh `ps` or `sleep` every moment, and none of them is a leftover
+# (a short sleep of its own is skipped by name, since it can span both looks).
 tagged_left() {
   local first p
   first=$(run_pids "$1" "" "${2:-}" || true)
   [ -n "$first" ] || return 1
   sleep 0.3 || true
   for p in $(run_pids "$1" "" "${2:-}" || true); do
-    case " $(printf '%s ' $first)" in *" $p "*) return 0 ;; esac
+    case " $(printf '%s ' $first)" in *" $p "*) ;; *) continue ;; esac
+    # A watchdog's own `sleep` of a second or less spans both looks; it ends by itself.
+    case "$(pid_command "$p")" in "sleep 0"* | "sleep 1") continue ;; esac
+    return 0
   done
   return 1
 }
