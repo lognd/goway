@@ -356,8 +356,10 @@ the repository's socket under the helper's goway cache.
 `goway doctor HOST` does these steps itself when the helper's ssh port
 is closed but the same address answers Windows OpenSSH (port 22): it
 reports "unreachable" when nothing answers, "distro stopped" with the
-command that starts it, or a keepalive task that never repeats. It only
-reads; it never starts anything. To do the same by hand, from your main
+command that starts it, a keepalive task that never repeats, or "WSL
+service is not responding" (see step 7). It only reads; it never starts
+anything, and every Windows command it runs is killed on the helper
+after 10 seconds, so a deadlocked `wsl.exe` cannot pile up sshd sessions. To do the same by hand, from your main
 laptop (HELIOS is the helper, USER its Windows user, 192.0.2.7 its
 address; use your own):
 
@@ -404,6 +406,21 @@ address; use your own):
    again (after `uninstall` if it says the install already exists). The
    new install replaces the old task and records the old one in the
    journal, so `uninstall` puts it back exactly.
+
+7. `wsl -l -v` never returns (doctor says "WSL service is not
+   responding"): the WSL service is deadlocked. Do not keep probing from
+   the laptop: every hung ssh command leaves a stuck `sshd.exe` session on
+   the helper, which eventually burns CPU and refuses new logins. On the
+   helper, in an administrator PowerShell, in this order, stopping when
+   `wsl -l -v` answers again:
+
+       Stop-Process -Name wsl -Force
+       Stop-Process -Name sshd -Force; Start-Service sshd
+       wsl --shutdown
+       Stop-Process -Name wslservice -Force
+
+   The last line is the last resort; the service starts again on the next
+   `wsl` call. Then run the keepalive (step 5).
 
 If Windows asks for a password or an unknown host key at step 3, fix
 that once by hand with ssh before relying on `goway doctor`.
