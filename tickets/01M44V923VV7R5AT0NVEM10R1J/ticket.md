@@ -2,7 +2,8 @@
 id = "01M44V923VV7R5AT0NVEM10R1J"
 title = "Slot-wait test times out waiting for a held run to start on the Linux and macOS CI runners"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
