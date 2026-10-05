@@ -7,7 +7,7 @@ priority = "critical"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T00:58:14Z"
-updated = "2026-10-05T01:07:06Z"
+updated = "2026-10-05T01:07:29Z"
 scope = ["crates/goway/src/remote.ps1"]
 
 [[acceptance]]
