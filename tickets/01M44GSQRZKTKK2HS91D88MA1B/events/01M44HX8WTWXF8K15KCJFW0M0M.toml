@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T22:52:45Z"
+digest = "8227fef14f2f2150e8977b81fd861d2b5dfe1f23be670cc95af4d8742ea41d06"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9a3cc4ac-b290-456a-8f4b-796b7436354d with nextest profile: default
+    Starting 1 test across 75 binaries (844 tests skipped)
+        PASS [   0.015s] goway-journal::scenarios an_outdated_resource_is_replaced_with_its_old_state_journaled_and_undo_restores_it
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.020s] 1 test run: 1 passed, 844 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(an_outdated_resource_is_replaced_with_its_old_state_journaled_and_undo_restores_it)'"
+size = 601
+status = "measured"
+tests = ["an_outdated_resource_is_replaced_with_its_old_state_journaled_and_undo_restores_it"]
+at = "2026-10-04T22:52:45Z"
+actor = "lognd"
+rev = 1

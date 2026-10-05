@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-04T23:38:52Z"
+digest = "7273c8328263322a668e84f980293dd194c1c71fd806bbebeaae7688d9de3640"
+exit_code = 0
+inline = '''
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.83s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID ae83d400-4b97-4f8e-9998-1a449fb44e45 with nextest profile: default
+    Starting 1 test across 80 binaries (877 tests skipped)
+        PASS [   0.018s] goway::journal_invariant a_violation_planted_in_a_crate_fails_the_scan_with_its_file_and_verb
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.029s] 1 test run: 1 passed, 877 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_violation_planted_in_a_crate_fails_the_scan_with_its_file_and_verb)'"
+size = 720
+status = "measured"
+tests = ["a_violation_planted_in_a_crate_fails_the_scan_with_its_file_and_verb"]
+at = "2026-10-04T23:38:52Z"
+actor = "lognd"
+rev = 1

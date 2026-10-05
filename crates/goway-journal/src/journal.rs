@@ -74,6 +74,11 @@ pub enum Prior {
     },
     /// The resource did not exist and was created.
     ResourceCreated,
+    /// An outdated resource was replaced; `previous` is the snapshot that restores it exactly.
+    ResourceReplaced {
+        /// Snapshot taken by `System::resource_outdated` before the replacement.
+        previous: String,
+    },
 }
 
 /// One applied change with the state captured before it.

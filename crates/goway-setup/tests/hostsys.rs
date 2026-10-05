@@ -150,6 +150,8 @@ fn powershell_encoding_and_quoting_are_exact() {
 // frob:tests crates/goway-setup/src/ps.rs::hyperv_delete
 // frob:tests crates/goway-setup/src/ps.rs::task_create
 // frob:tests crates/goway-setup/src/ps.rs::task_exists
+// frob:tests crates/goway-setup/src/ps.rs::task_outdated_snapshot
+// frob:tests crates/goway-setup/src/ps.rs::task_restore
 // frob:tests crates/goway-setup/src/ps.rs::task_delete
 // frob:tests crates/goway-setup/src/ps.rs::task_start
 // frob:tests crates/goway-setup/src/ps.rs::keepalive_arguments
@@ -209,6 +211,22 @@ fn scripts_name_the_right_cmdlets_and_quote_their_values() {
     assert!(logon.contains("-MultipleInstances IgnoreNew"));
     let boot = ps::task_create("T", &spec(Keepalive::Boot), conhost, wsl);
     assert!(boot.contains("-AtStartup") && boot.contains("-LogonType S4U"));
+    // Both triggers repeat so a distro shut down by WSL is started again, and the task replaces
+    // registered the same way as before.
+    for script in [&logon, &boot] {
+        assert!(script.contains("-RepetitionInterval (New-TimeSpan -Minutes 5)"));
+        assert!(script.contains("$trigger.Repetition = $repeat.Repetition"));
+        assert!(script.contains("Register-ScheduledTask -TaskName 'T'"));
+        assert!(script.contains("-MultipleInstances IgnoreNew"));
+    }
+    let stale = ps::task_outdated_snapshot("T");
+    assert!(stale.contains("Get-ScheduledTask -TaskName ([WildcardPattern]::Escape('T'))"));
+    assert!(stale.contains("Export-ScheduledTask"));
+    let restore = ps::task_restore("T", "<Task a='b'/>");
+    assert!(restore.contains("Register-ScheduledTask -TaskName 'T' -Xml '<Task a=''b''/>'"));
+    assert!(stale.contains(
+        "-not ($t.Triggers | Where-Object { $_.Repetition -and $_.Repetition.Interval })"
+    ));
     assert!(
         ps::task_exists("T")
             .contains("Get-ScheduledTask -TaskName ([WildcardPattern]::Escape('T'))")

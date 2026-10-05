@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-04T22:52:44Z"
+digest = "6fadf5a319312dae06accba98c177437af9b9067e20ce6238dae1fe39a641b82"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8a5cb69e-c943-4879-9a21-022c66ddabb0 with nextest profile: default
+    Starting 1 test across 75 binaries (844 tests skipped)
+        PASS [   0.009s] goway-setup::host_plan an_old_boot_only_keepalive_is_replaced_through_the_journal_and_undo_restores_it
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.015s] 1 test run: 1 passed, 844 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(an_old_boot_only_keepalive_is_replaced_through_the_journal_and_undo_restores_it)'"
+size = 596
+status = "measured"
+tests = ["an_old_boot_only_keepalive_is_replaced_through_the_journal_and_undo_restores_it"]
+at = "2026-10-04T22:52:44Z"
+actor = "lognd"
+rev = 1

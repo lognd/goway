@@ -1011,7 +1011,10 @@ fn prior_fits(change: &Change, prior: &Prior) -> Result<(), String> {
             )
             | (Change::SetUnixMode { .. }, Prior::Mode { .. })
             | (Change::SetAcl { .. }, Prior::Acl { .. })
-            | (Change::EnsureResource { .. }, Prior::ResourceCreated)
+            | (
+                Change::EnsureResource { .. },
+                Prior::ResourceCreated | Prior::ResourceReplaced { .. }
+            )
     );
     if !kind_ok {
         return Err(format!("prior {prior:?} is not what {change:?} records"));
@@ -1037,6 +1040,9 @@ fn prior_fits(change: &Change, prior: &Prior) -> Result<(), String> {
                     "the recorded original line {original_line:?} is not one line setting {key}"
                 ))
             }
+        }
+        (_, Prior::ResourceReplaced { previous }) if previous.len() > MAX_PRIOR_BYTES => {
+            Err("a recorded prior resource is implausibly large".to_owned())
         }
         (_, Prior::Mode { mode }) if *mode > 0o7777 => Err(format!(
             "the recorded mode {mode:o} is not a permission mode"
