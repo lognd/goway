@@ -4,11 +4,9 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
-const SCRIPT: &str = include_str!("../src/remote.sh");
-
 fn remote(home: &Path, verb: &str, args: &[&str]) -> Output {
     Command::new("bash")
-        .args(["-c", SCRIPT, "goway", verb])
+        .args([goway::remote::SCRIPT_SH_PATH, verb])
         .args(args)
         .env("HOME", home)
         .output()

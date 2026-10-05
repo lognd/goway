@@ -188,6 +188,10 @@ fn without_comments(script: &str) -> String {
     out
 }
 
+/// The path of `remote.sh` in this source tree: tests run it as `bash <path> verb...`, since the
+/// script is too large to pass as one `bash -c` argument (Linux caps one argument at 128 KiB).
+pub const SCRIPT_SH_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/remote.sh");
+
 /// The most the remote command line may be: a single argument is capped at
 /// 128 KiB by Linux, and the encoded script is the bulk of the line.
 pub const MAX_LINE: usize = 120_000;
@@ -328,6 +332,19 @@ mod tests {
         assert!(
             line.len() < MAX_LINE,
             "the encoded script is {} bytes; the limit is {MAX_LINE}",
+            line.len()
+        );
+    }
+
+    // frob:tests crates/goway/src/remote.rs::invocation
+    #[test]
+    fn the_longest_realistic_command_line_stays_under_the_limit() {
+        // The arguments travel as base64 too: 4 KiB of them is well past any real command.
+        let long = "x".repeat(4 * 1024);
+        let line = invocation("run", &[long.as_str(), "--", "cargo", "nextest", "run"]);
+        assert!(
+            line.len() < MAX_LINE,
+            "the encoded command line is {} bytes; the limit is {MAX_LINE} (one argument may not exceed 131072)",
             line.len()
         );
     }

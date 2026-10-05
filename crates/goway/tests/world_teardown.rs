@@ -4,6 +4,7 @@
 mod common;
 
 // frob:ticket 01M451F9V3WBZM37PF85HN8AZK
+// frob:ticket 01M452F1868GJRP418YRV593VK
 // frob:tests crates/goway/tests/common/mod.rs::stop_sccache_servers
 #[test]
 fn a_dropped_world_leaves_no_sccache_server_of_its_own() {

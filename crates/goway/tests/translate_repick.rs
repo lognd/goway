@@ -10,8 +10,6 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
 use std::process::Output;
 
-const SCRIPT_SH: &str = include_str!("../src/remote.sh");
-
 /// A fake ssh like the common one; the host at 127.0.0.2 reports `os=windows` in its probe.
 const SSH_WITH_A_WINDOWS_HOST: &str = r#"#!/bin/sh
 host=""
@@ -111,7 +109,12 @@ fn a_pinned_run_in_translation_doubt_still_stops_and_leaves_no_work_dir() {
 /// `discard ROOT RUN_ID` of remote.sh under `home`.
 fn discard(home: &Path, run_id: &str) -> Output {
     std::process::Command::new("bash")
-        .args(["-c", SCRIPT_SH, "goway", "discard", ".cache/goway", run_id])
+        .args([
+            goway::remote::SCRIPT_SH_PATH,
+            "discard",
+            ".cache/goway",
+            run_id,
+        ])
         .env("HOME", home)
         .output()
         .unwrap()

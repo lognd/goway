@@ -36,7 +36,7 @@ fn probe(w: &common::World) -> String {
     let home = w.root.join("probe-home");
     std::fs::create_dir_all(&home).unwrap();
     let out = std::process::Command::new("bash")
-        .args(["-c", include_str!("../src/remote.sh"), "goway", "probe"])
+        .args([goway::remote::SCRIPT_SH_PATH, "probe"])
         .arg(&w.remote)
         .env("HOME", &home)
         .env(

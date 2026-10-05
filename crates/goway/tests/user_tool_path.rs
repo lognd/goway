@@ -9,7 +9,7 @@ const SCRIPT: &str = include_str!("../src/remote.sh");
 
 fn doctor(home: &std::path::Path, tool: &str) -> String {
     let out = Command::new("bash")
-        .args(["-c", SCRIPT, "goway", "doctor", "state", tool])
+        .args([goway::remote::SCRIPT_SH_PATH, "doctor", "state", tool])
         .env("HOME", home)
         .env("HTTPS_PROXY", "http://user:hunter2@proxy.example:3128")
         .output()

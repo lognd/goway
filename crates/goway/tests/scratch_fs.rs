@@ -10,13 +10,11 @@ mod common;
 
 use common::world;
 
-const SCRIPT: &str = include_str!("../src/remote.sh");
-
 fn remote(home: &Path, verb: &str, args: &[&str], stdin: &[u8], env: &[(&str, &str)]) -> Output {
     use std::io::Write as _;
     use std::process::Stdio;
     let mut child = Command::new("bash")
-        .args(["-c", SCRIPT, "goway", verb])
+        .args([goway::remote::SCRIPT_SH_PATH, verb])
         .args(args)
         .env("HOME", home)
         .envs(env.iter().copied())

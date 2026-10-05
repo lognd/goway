@@ -89,7 +89,7 @@ fn remote(w: &common::World, f: &Wsl, verb: &str, args: &[&str]) -> Output {
     let home = w.root.join("home");
     std::fs::create_dir_all(&home).unwrap();
     let mut cmd = std::process::Command::new("bash");
-    cmd.args(["-c", include_str!("../src/remote.sh"), "goway", verb])
+    cmd.args([goway::remote::SCRIPT_SH_PATH, verb])
         .arg(&w.remote)
         .args(args)
         .env("HOME", &home);
