@@ -7,7 +7,7 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-05T03:24:44Z"
-updated = "2026-10-05T03:36:58Z"
+updated = "2026-10-05T03:38:36Z"
 scope = ["crates/goway/tests/common/mod.rs", "crates/goway/tests/world_teardown.rs"]
 
 [[acceptance]]
