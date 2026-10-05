@@ -2,12 +2,12 @@
 id = "01M44YARTF6NAN21B2WYT0QS1A"
 title = "The job-scope test assumes cgroup v2, which a hybrid-cgroup Linux machine lacks"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T02:29:50Z"
-updated = "2026-10-05T02:29:50Z"
+updated = "2026-10-05T02:30:07Z"
 scope = ["crates/goway/tests/job_limits.rs"]
 
 [[acceptance]]
