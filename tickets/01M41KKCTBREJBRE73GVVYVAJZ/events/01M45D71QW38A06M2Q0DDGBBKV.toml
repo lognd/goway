@@ -1,0 +1,14 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-05T06:49:55Z"
+digest = "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+exit_code = 0
+inline = ""
+passed = true
+provider = "command"
+ref = "gh release download goway-v0.1.0 --dir /tmp/goway-v0.1.0-evidence -p goway-x86_64-unknown-linux-musl.tar.gz -p goway-aarch64-unknown-linux-musl.tar.gz -p goway-setup.exe -p goway-setup-arm64.exe -p SHA256SUMS -p install.sh"
+size = 0
+status = "measured"
+at = "2026-10-05T06:49:55Z"
+actor = "lognd"
+rev = 1
