@@ -361,6 +361,8 @@ fn a_drive_above_its_reserve_runs_and_the_host_can_override_or_switch_the_reserv
 }
 
 // frob:ticket 01M44WPJWSD12YH6MEZKZE0GWF
+// The trim only exists on WSL, which is always Linux, and finds the mount with GNU df.
+#[cfg(target_os = "linux")]
 #[test]
 fn eviction_hands_freed_blocks_back_with_fstrim_when_it_may_and_never_otherwise() {
     let w = common::world();

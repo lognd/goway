@@ -295,6 +295,8 @@ fn a_real_stray_is_stopped_and_named_while_the_sccache_server_stays() {
 
 // frob:ticket 01M4521XH97V8EXXK8RV630TRA
 // frob:tests crates/goway/src/remote.rs::invocation
+// It needs the sweep to find the stray, which it does through /proc: Linux only.
+#[cfg(target_os = "linux")]
 #[test]
 fn the_sweep_prints_no_permission_errors_for_processes_it_may_not_read() {
     let w = common::world();
