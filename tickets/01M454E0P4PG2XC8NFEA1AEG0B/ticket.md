@@ -2,12 +2,12 @@
 id = "01M454E0P4PG2XC8NFEA1AEG0B"
 title = "Full-suite run: a stray file-redirect noise, the line guard, and one E2BIG test remain"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T04:16:28Z"
-updated = "2026-10-05T04:16:28Z"
+updated = "2026-10-05T04:16:30Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/remote.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/client_loss.rs"]
 
 [[acceptance]]
