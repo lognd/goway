@@ -2,7 +2,8 @@
 id = "01M44VAJJGDGQTGJ5NK91SRWC6"
 title = "Making room never evicts the run's own seed: fails on the macOS runner"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 reporter = "lognd"
