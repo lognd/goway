@@ -12,7 +12,7 @@ use goway::config::{Config, HostConfig};
 use goway::error::Error;
 use goway::needs::Selection;
 use goway::pool::{self, Wait};
-use goway::queue::Queue;
+use goway::queue::{MAX_OVERTAKEN, Queue};
 use goway::resolve::{self, Lookup, Prober};
 use goway::ssh::{Failure, KeyPolicy, Target};
 use goway::state::State;
@@ -151,12 +151,12 @@ fn twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound(
     });
     let order = order.into_inner().unwrap();
     // Up to three hosts free a slot together, so their claimants may record
-    // themselves in either order; nobody may be served more than two places
-    // away from their turn.
+    // themselves in either order, and a waiter that has not probed yet may be passed up to
+    // `MAX_OVERTAKEN` times (the queue's own bound); nobody is served further from their turn.
     assert_eq!(order.len(), 20);
     for (at, n) in order.iter().enumerate() {
         assert!(
-            at.abs_diff(usize::try_from(*n).unwrap()) <= 2,
+            at.abs_diff(usize::try_from(*n).unwrap()) <= MAX_OVERTAKEN as usize,
             "first come, first served: {order:?}"
         );
     }
