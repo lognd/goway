@@ -217,3 +217,15 @@ fn a_finished_run_leaves_no_background_process_in_its_scope() {
     let w = common::world();
     finished_run_leaves_nothing(&w);
 }
+
+// frob:ticket
+// frob:tests crates/goway/src/run.rs::stream
+#[test]
+fn a_plain_run_without_a_scope_finds_no_leftovers_of_its_own() {
+    let w = common::world();
+    without_scope(&w);
+    let out = w.run(&["run", "--", "true"]);
+    assert!(out.status.success(), "{out:?}");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(!err.contains("left processes behind"), "{err}");
+}
