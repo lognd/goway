@@ -219,17 +219,15 @@ fn making_room_never_evicts_the_runs_own_seed() {
     };
     common::wait_for("the run's seed", || seed_ready(&w.remote));
     fake_df(&w, 100 * MIB, 10 * GIB);
-    let out = goway_run(&w, &["run", "--host", "local", "--", "true"]);
+    // The command runs after the run has made room and before its own post-run sweep (which
+    // may evict the seed, detached, as soon as the run is over): it fails when the seed it was
+    // synced from is gone.
+    let probe = format!("ls -d '{}'/seed/*/*/tree", w.remote.display());
+    let out = goway_run(&w, &["run", "--host", "local", "--", "sh", "-c", &probe]);
     let err = String::from_utf8_lossy(&out.stderr).into_owned();
-    assert!(out.status.success(), "{err}");
-    let seeds: Vec<_> = std::fs::read_dir(w.remote.join("seed"))
-        .unwrap()
-        .flatten()
-        .flat_map(|r| std::fs::read_dir(r.path()).unwrap().flatten())
-        .collect();
-    assert!(!seeds.is_empty(), "the run's seed was kept: {err}");
     assert!(
-        seeds.iter().all(|s| s.path().join("tree").exists()),
-        "{err}"
+        out.status.success(),
+        "the run's seed was kept while it made room: {err}"
     );
+    assert!(err.contains("the disk budget freed 0 B"), "{err}");
 }
