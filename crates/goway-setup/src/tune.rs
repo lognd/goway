@@ -142,12 +142,21 @@ pub fn apply_tune(
 
 /// Revert and delete the tune journal at `path`; `Ok(false)` when there is none.
 pub fn revert_tune(sys: &mut (impl System + ?Sized), path: &Path) -> Result<bool, SetupError> {
+    Ok(revert_tune_reported(sys, path)?.is_some())
+}
+
+/// [`revert_tune`], returning the per-entry outcomes so a caller can tell the person about the
+/// recorded actions (a WSL restart) that undo cannot reverse; `None` when there is no journal.
+pub fn revert_tune_reported(
+    sys: &mut (impl System + ?Sized),
+    path: &Path,
+) -> Result<Option<goway_journal::RevertReport>, SetupError> {
     if !path.exists() {
-        return Ok(false);
+        return Ok(None);
     }
     let mut journal = Journal::load(path)?;
-    revert(&mut journal, sys)?;
+    let report = revert(&mut journal, sys)?;
     std::fs::remove_file(path).map_err(|e| SetupError::io(path, e))?;
     tracing::info!(path = %path.display(), "tune journal reverted and removed");
-    Ok(true)
+    Ok(Some(report))
 }

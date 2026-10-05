@@ -673,7 +673,7 @@ pub fn add_host(path: &Path, host: &HostConfig) -> Result<()> {
     array.push(table);
     let out = doc.to_string();
     Config::parse(&out, path)?;
-    write_atomic(path, out.as_bytes())?;
+    crate::changelog::write_file(path, out.as_bytes())?;
     tracing::info!(host = %host.name, path = %path.display(), "host added to config");
     Ok(())
 }
@@ -711,7 +711,7 @@ pub fn set_host_identity(path: &Path, name: &str, identity: Option<&str>) -> Res
     }
     let out = doc.to_string();
     Config::parse(&out, path)?;
-    write_atomic(path, out.as_bytes())?;
+    crate::changelog::write_file(path, out.as_bytes())?;
     tracing::info!(host = name, ?identity, "host identity updated");
     Ok(())
 }
@@ -736,7 +736,7 @@ pub fn remove_host(path: &Path, name: &str) -> Result<()> {
                 .is_some_and(|n| n.eq_ignore_ascii_case(name))
         });
     }
-    write_atomic(path, doc.to_string().as_bytes())?;
+    crate::changelog::write_file(path, doc.to_string().as_bytes())?;
     tracing::info!(host = name, path = %path.display(), "host removed from config");
     Ok(())
 }

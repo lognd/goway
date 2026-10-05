@@ -11,6 +11,8 @@
 
 use std::path::Path;
 
+use goway_journal::ActionKind;
+
 use crate::cli::{AddArgs, DoctorArgs, SshSetupArgs};
 use crate::error::{Error, Result};
 use crate::paths::Paths;
@@ -44,7 +46,7 @@ fn on_path(tool: &str) -> bool {
 
 /// Make sure this laptop has ssh and git; with `--lsudo`, install them
 /// (after one confirmation) with the system package manager.
-fn local_check(renderer: Renderer, lsudo: bool, yes: bool) -> Result<()> {
+fn local_check(paths: &Paths, renderer: Renderer, lsudo: bool, yes: bool) -> Result<()> {
     let missing = missing_tools(&on_path);
     if missing.is_empty() {
         return Ok(());
@@ -60,7 +62,7 @@ fn local_check(renderer: Renderer, lsudo: bool, yes: bool) -> Result<()> {
         tools.join(" and ")
     ));
     if cfg!(windows) {
-        return local_check_windows(renderer, lsudo, yes, &tools);
+        return local_check_windows(paths, renderer, lsudo, yes, &tools);
     }
     if !lsudo {
         renderer.next(format_args!(
@@ -82,6 +84,18 @@ fn local_check(renderer: Renderer, lsudo: bool, yes: bool) -> Result<()> {
                 .to_owned(),
         ));
     };
+    // Recorded before it runs: an install the change log does not hold must not happen.
+    crate::changelog::record_action(
+        &paths.config_dir,
+        ActionKind::RunFix,
+        &command,
+        crate::changelog::LOCAL_HOST,
+        "install the tools goway needs on this laptop (--lsudo)",
+        Some(&format!(
+            "remove the packages with the system package manager: apt-get remove {}",
+            packages.join(" ")
+        )),
+    )?;
     let ok = std::process::Command::new(sudo)
         .args(["/bin/bash", "-c", &command])
         .status_locked()
@@ -109,7 +123,13 @@ fn ssh_client_step() -> WinStep {
 
 /// [`local_check`] on Windows: the OpenSSH client is an administrator step (with `--lsudo`, this
 /// laptop's own UAC prompt; nothing is typed into goway); git is a per-user `winget` install.
-fn local_check_windows(renderer: Renderer, lsudo: bool, yes: bool, tools: &[&str]) -> Result<()> {
+fn local_check_windows(
+    paths: &Paths,
+    renderer: Renderer,
+    lsudo: bool,
+    yes: bool,
+    tools: &[&str],
+) -> Result<()> {
     let ssh_step = ssh_client_step();
     if tools.contains(&"git") {
         renderer.next("install git with: winget install --id Git.Git -e (no administrator needed)");
@@ -133,6 +153,14 @@ fn local_check_windows(renderer: Renderer, lsudo: bool, yes: bool, tools: &[&str
     if !approved {
         return Err(Error::Usage("local tools not installed".to_owned()));
     }
+    crate::changelog::record_action(
+        &paths.config_dir,
+        ActionKind::RunFix,
+        &ssh_step.command,
+        crate::changelog::LOCAL_HOST,
+        "add the OpenSSH client goway needs on this laptop (--lsudo)",
+        Some("Remove-WindowsCapability -Online -Name 'OpenSSH.Client~~~~0.0.1.0'"),
+    )?;
     match winadmin::run_local(&ssh_step) {
         Local::Done if on_path("ssh") => {
             renderer.ok("installed the OpenSSH client");
@@ -176,7 +204,7 @@ pub fn add(
             "--rsudo and --lsudo need a terminal to confirm (or add --yes); sudo itself asks for the password".to_owned(),
         ));
     }
-    local_check(renderer, args.lsudo, args.yes)?;
+    local_check(paths, renderer, args.lsudo, args.yes)?;
 
     // 1. Key login and pinned identity (skipped when already done).
     if sshsetup::record_path(paths, &args.host).exists() {

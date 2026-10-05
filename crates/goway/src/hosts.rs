@@ -83,7 +83,7 @@ impl AddProber<'_> {
     /// side of a machine is never taken for its WSL host (or the reverse).
     fn windows(&self, target: &Target, policy: KeyPolicy, stderr: &str) -> ProbeResult {
         let reject = |why: String| {
-            forget_key(
+            forget_scratch_key(
                 &self.inner.settings.known_hosts,
                 &config::key_alias(self.name),
             );
@@ -121,7 +121,7 @@ impl Prober for AddProber<'_> {
     fn probe(&self, target: &Target, policy: KeyPolicy, remote: &str) -> ProbeResult {
         let out = self.inner.probe(target, policy, remote);
         let reject = |why: String| {
-            forget_key(
+            forget_scratch_key(
                 &self.inner.settings.known_hosts,
                 &config::key_alias(self.name),
             );
@@ -145,7 +145,7 @@ impl Prober for AddProber<'_> {
                 None => reject(format!("{} gave no identity", target.address)),
             },
             Err((failure, stderr)) => {
-                forget_key(
+                forget_scratch_key(
                     &self.inner.settings.known_hosts,
                     &config::key_alias(self.name),
                 );
@@ -161,8 +161,35 @@ impl Prober for AddProber<'_> {
     }
 }
 
-/// Remove `alias` from a `known_hosts` file (no-op if absent).
+/// Whether a `known_hosts` line pins `alias` (the first field is a comma-separated name list).
+fn names_alias(line: &str, alias: &str) -> bool {
+    line.split_whitespace()
+        .next()
+        .is_some_and(|names| names.split(',').any(|n| n == alias))
+}
+
+/// Remove `alias` from goway's pinned `known_hosts` (no-op if absent), recording the edit in the
+/// change log so it can be listed and undone. A failure is logged: forgetting is best effort.
 pub fn forget_key(known_hosts: &Path, alias: &str) {
+    let Ok(text) = std::fs::read_to_string(known_hosts) else {
+        return;
+    };
+    let kept: String = text
+        .split_inclusive('\n')
+        .filter(|line| !names_alias(line, alias))
+        .collect();
+    if kept == text {
+        return;
+    }
+    match crate::changelog::write_file(known_hosts, kept.as_bytes()) {
+        Ok(()) => tracing::debug!(alias, file = %known_hosts.display(), "key forgotten"),
+        Err(e) => tracing::error!(alias, error = %e, "could not forget the pinned key"),
+    }
+}
+
+/// Remove `alias` from a scratch `known_hosts` of one probe run (goway's own run state, no
+/// change to record), with `ssh-keygen -R` (no-op if absent).
+fn forget_scratch_key(known_hosts: &Path, alias: &str) {
     if !known_hosts.exists() {
         return;
     }
@@ -339,7 +366,7 @@ fn adopt_key(scratch: &Path, known_hosts: &Path, alias: &str) -> Result<()> {
         current.push('\n');
     }
     current.push_str(&entry);
-    config::write_atomic(known_hosts, current.as_bytes())?;
+    crate::changelog::write_file(known_hosts, current.as_bytes())?;
     tracing::info!(alias, file = %known_hosts.display(), "host key pinned");
     Ok(())
 }

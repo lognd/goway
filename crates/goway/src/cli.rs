@@ -65,6 +65,12 @@ pub enum Command {
     /// Walk through ssh key setup for a host, reversibly.
     #[command(subcommand)]
     Ssh(SshCommand),
+    /// List or undo every change goway made on a machine (lists with no subcommand).
+    Changes {
+        /// What to do with the change log; lists it when omitted.
+        #[command(subcommand)]
+        command: Option<ChangesCommand>,
+    },
     /// Show where goway keeps its files.
     #[command(subcommand)]
     Config(ConfigCommand),
@@ -82,6 +88,7 @@ impl Command {
             Self::Doctor(_) => "doctor",
             Self::Host(_) => "host",
             Self::Ssh(_) => "ssh",
+            Self::Changes { .. } => "changes",
             Self::Config(_) => "config",
         }
     }
@@ -371,6 +378,22 @@ pub struct SshSetupArgs {
     /// Answer yes to the questions (try the password, run the administrator step).
     #[arg(long, short = 'y', conflicts_with = "undo")]
     pub yes: bool,
+}
+
+/// `goway changes` verbs.
+#[derive(Debug, Subcommand)]
+pub enum ChangesCommand {
+    /// List every recorded change, oldest first.
+    List,
+    /// Undo the newest recorded changes (one by default), newest first.
+    Undo {
+        /// How many of the newest active changes to undo.
+        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(usize))]
+        last: usize,
+        /// Undo every recorded change.
+        #[arg(long, conflicts_with = "last")]
+        all: bool,
+    },
 }
 
 /// `goway config` verbs.

@@ -153,3 +153,30 @@ fn the_tune_command_parses_and_a_dry_run_changes_nothing() {
     let none = Cli::try_parse_from(["goway-setup", "tune", "--dry-run"]).unwrap();
     assert!(run(&none, Renderer::new(ColorWhen::Never)).is_err());
 }
+
+// frob:tests crates/goway-setup/src/tune.rs::revert_tune_reported
+// frob:tests crates/goway-setup/src/app.rs::record_action
+#[test]
+fn a_recorded_wsl_restart_is_reported_by_undo_not_silently_skipped() {
+    use goway_journal::{ActionKind, Outcome};
+    let home = tempfile::tempdir().unwrap();
+    let config = wslconfig_path(home.path());
+    let journal_path = home.path().join("state").join("tune-journal.json");
+    let mut sys = LocalSystem;
+    let request = TuneRequest {
+        memory: Some("8GB".into()),
+        ..TuneRequest::default()
+    };
+    apply_tune(&mut sys, &journal_path, &tune_plan(&config, &request)).unwrap();
+    goway_setup::app::record_action(&journal_path, ActionKind::ShutdownWsl, "", "apply").unwrap();
+    let report = goway_setup::tune::revert_tune_reported(&mut sys, &journal_path)
+        .unwrap()
+        .unwrap();
+    let kinds: Vec<_> = report.outcomes.iter().map(|(_, o)| o.clone()).collect();
+    assert!(
+        kinds
+            .iter()
+            .any(|o| matches!(o, Outcome::NotReversible(t) if t.contains("shut down WSL")))
+    );
+    assert!(!config.exists(), "the file goway created is removed");
+}

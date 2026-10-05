@@ -4,7 +4,7 @@ use std::io::IsTerminal as _;
 use std::path::{Path, PathBuf};
 
 use clap::{Args, Parser, Subcommand};
-use goway_journal::{LocalSystem, SystemError, sha256_hex, still_applied};
+use goway_journal::{ActionKind, LocalSystem, SystemError, sha256_hex, still_applied};
 
 use crate::admin;
 use crate::app::{self, Retry};
@@ -451,7 +451,30 @@ fn offer_restart(
         ));
         return;
     }
+    let (kind, target) = if need.shutdown {
+        (ActionKind::ShutdownWsl, String::new())
+    } else {
+        (ActionKind::TerminateWslDistro, sys.distro.clone())
+    };
+    let journal = &layout.tune_journal_path;
+    let reason = "apply the changed WSL settings";
+    // Recorded before it runs: a restart the journal does not hold must not happen.
+    if let Err(e) = app::record_action(journal, kind, &target, reason) {
+        tracing::error!(error = %e, "could not record the WSL restart; not restarting");
+        r.notice(&format!(
+            "not restarting WSL because the change could not be recorded ({e}); when you are ready, run: {command}"
+        ));
+        return;
+    }
     restart_wsl(r, need, &sys.distro, &command);
+    let reason = "bring WSL back after the restart";
+    if let Err(e) = app::record_action(journal, ActionKind::StartScheduledTask, &task, reason) {
+        tracing::error!(error = %e, "could not record starting the keepalive task");
+        r.notice(&format!(
+            "not starting the `{task}` task because the change could not be recorded ({e}); it starts at your next logon"
+        ));
+        return;
+    }
     match sys.start_task(&task) {
         Ok(()) => r.notice(&format!(
             "started the `{task}` task; WSL comes back limited"
@@ -473,8 +496,13 @@ fn uninstall_tune(r: Renderer, layout: &Layout) -> Result<bool, SetupError> {
     }
     let journal = goway_journal::Journal::load(&layout.tune_journal_path)?;
     let need = host::restart_need(&journal);
-    tune::revert_tune(&mut LocalSystem, &layout.tune_journal_path)?;
+    let report = tune::revert_tune_reported(&mut LocalSystem, &layout.tune_journal_path)?;
     r.notice("restored the previous .wslconfig settings");
+    for (_, outcome) in report.iter().flat_map(|rep| &rep.outcomes) {
+        if let goway_journal::Outcome::NotReversible(what) = outcome {
+            r.notice(&format!("not undone: {what}"));
+        }
+    }
     if let Some(command) = need.command("") {
         r.notice(&format!(
             "they apply after the next WSL restart ({command})"
@@ -935,10 +963,22 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
     exposure_warnings(r, layout, &params, &facts, &sys);
     if req.activate {
         if host::sshd_changed(&journal) {
+            app::record_action(
+                &view.journal_path,
+                ActionKind::ActivateSshd,
+                &params.port.to_string(),
+                "make the running sshd match its new configuration",
+            )?;
             let how = sys.activate_sshd(params.port)?;
             tracing::info!(?how, "sshd activated");
         }
         for task in host::created_tasks(&journal) {
+            app::record_action(
+                &view.journal_path,
+                ActionKind::StartScheduledTask,
+                task,
+                "start the keepalive now instead of at the next logon or boot",
+            )?;
             sys.start_task(task)?;
         }
     } else {

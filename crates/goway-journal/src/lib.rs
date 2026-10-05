@@ -19,7 +19,7 @@ mod psquote;
 mod system;
 
 pub use apply::{RevertReport, apply, apply_with, revert};
-pub use change::{Change, ListPosition, RegValue, ResourceKind};
+pub use change::{ActionKind, Change, ListPosition, RegValue, ResourceKind};
 pub use digest::sha256_hex;
 pub use error::{ApplyError, JournalError, SystemError};
 pub use journal::{Entry, Journal, Prior};

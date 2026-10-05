@@ -1,0 +1,1 @@
+Every change goway or goway-setup makes to a machine is now journaled and listed by goway changes, non-invertible actions are recorded and reported by undo, doctor installs of pinned tools and rustup targets undo exactly, and a test fails the build when a machine change appears outside the journal-backed modules.

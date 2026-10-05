@@ -8,6 +8,7 @@
 //! yields is labelled approximate. Every download a fix makes is pinned to
 //! a release and verified against a checksum before it is unpacked.
 
+use goway_journal::ResourceKind;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
@@ -1078,6 +1079,26 @@ pub fn checks(needs: &Needs, facts: &BTreeMap<String, String>, skip: &[String]) 
 /// Whether a check is a system package goway may install (listed, never removed).
 pub fn is_package_check(name: &str) -> bool {
     PACKAGES.iter().any(|(t, ..)| *t == name) && !PINS.iter().any(|p| p.tool == name)
+}
+
+/// The journaled resource of the user fix for `check`: a pinned install is a
+/// [`ResourceKind::PinnedTool`] named `TOOL:link,link` whose spec is the install `command`.
+/// `None` when the check is not a pinned install or the command is not the install script.
+pub fn pin_resource(check: &str, command: &str) -> Option<(ResourceKind, String, String)> {
+    let pin = PINS.iter().find(|p| p.tool == check)?;
+    if !command.contains(&format!("goway-{check}\"")) || !command.contains("tar xf") {
+        return None;
+    }
+    let links: Vec<&str> = pin
+        .bins
+        .iter()
+        .map(|b| b.rsplit('/').next().unwrap_or(b))
+        .collect();
+    Some((
+        ResourceKind::PinnedTool,
+        format!("{check}:{}", links.join(",")),
+        command.to_owned(),
+    ))
 }
 
 /// How to take back a pinned user-level install, derived from the check
