@@ -46,6 +46,9 @@ port = 2222                    # ssh port when a host does not set one (WSL sshd
 priority = "low"               # "low": jobs run under nice 10 with idle-class I/O; "normal"
 # max_load = 0.8               # skip hosts whose 1-minute load per core is above this
 # gpu_jobs = 1                 # GPU runs that may share each GPU (override per host)
+job_tasks = 4096               # most processes and threads one job may have (0 = no cap; override per host)
+# job_cpu = "800%"             # CPU one job may use at most, % of one core (default: no cap; override per host)
+# job_memory = "6G"            # memory one job may use at most (default: no cap; override per host)
 # mem_per_core = 0.5           # GiB of free RAM per core below which a host scores worse (0 = off)
 # owner_idle = "5m"            # a helper used or on battery within this counts as in use ("0s" = off)
 
@@ -65,6 +68,9 @@ name = "my-helper"             # the helper's computer name; also tried as my-he
 # priority = "normal"          # override defaults.priority for this host
 # max_load = 0.5               # override defaults.max_load for this host
 # gpu_jobs = 2                 # override defaults.gpu_jobs for this host
+# job_tasks = 1000             # override defaults.job_tasks for this host
+# job_cpu = "400%"             # override defaults.job_cpu for this host
+# job_memory = "4G"            # override defaults.job_memory for this host
 # max_disk = "30G"             # override defaults.max_disk for this host (a small disk keeps a small budget)
 # min_free = "20G"             # override defaults.min_free for this host
 # cache_size = "1G"            # override defaults.cache_size for this host

@@ -1121,6 +1121,8 @@ pub(crate) fn run_invocation_with(
         keep_ignored,
         &keep_list,
     ];
+    let limits = d.limits_word();
+    words.push(&limits);
     words.extend(extra.iter().map(String::as_str));
     words.push("--");
     words.extend(command.iter().map(String::as_str));
