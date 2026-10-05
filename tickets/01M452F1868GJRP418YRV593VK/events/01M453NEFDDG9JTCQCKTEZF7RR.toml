@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/src/remote.rs", "crates/goway/tests/disk_budget.rs", "crates/goway/tests/remote_root.rs", "crates/goway/tests/footprint.rs", "crates/goway/tests/scratch_fs.rs", "crates/goway/tests/mem_footprint.rs", "crates/goway/tests/translate_repick.rs", "crates/goway/tests/drift_refresh.rs", "crates/goway/tests/translate.rs", "crates/goway/tests/evict_live.rs", "crates/goway/tests/wsl_drive.rs", "crates/goway/tests/probe_epoch.rs", "crates/goway/tests/user_tool_path.rs", "crates/goway/tests/clock.rs"]
+new = ["crates/goway/src/remote.rs", "crates/goway/tests/disk_budget.rs", "crates/goway/tests/remote_root.rs", "crates/goway/tests/footprint.rs", "crates/goway/tests/scratch_fs.rs", "crates/goway/tests/mem_footprint.rs", "crates/goway/tests/translate_repick.rs", "crates/goway/tests/drift_refresh.rs", "crates/goway/tests/translate.rs", "crates/goway/tests/evict_live.rs", "crates/goway/tests/wsl_drive.rs", "crates/goway/tests/probe_epoch.rs", "crates/goway/tests/user_tool_path.rs", "crates/goway/tests/clock.rs", "crates/goway/tests/common/mod.rs", "crates/goway/tests/world_teardown.rs"]
+at = "2026-10-05T04:03:02Z"
+actor = "lognd"
+rev = 1
