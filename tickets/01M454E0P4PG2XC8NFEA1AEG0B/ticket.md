@@ -7,12 +7,12 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T04:16:28Z"
-updated = "2026-10-05T04:16:30Z"
+updated = "2026-10-05T04:17:54Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/remote.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/client_loss.rs"]
 
 [[acceptance]]
 text = "Given a run on a helper with processes of other users, When the run starts, Then no environ permission error reaches its output (redirect order of the tmpdir probe)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given the full suite, When it runs, Then the encoded-line guard and the slot_trees script test pass (MAX_LINE raised to a limit with headroom, script read from its path)"
