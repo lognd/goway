@@ -2,12 +2,12 @@
 id = "01M44R1CZMASJAK2HHC2XKB1QF"
 title = "The journal invariant flags the hung-WSL recovery steps doctor prints as advice"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T00:39:52Z"
-updated = "2026-10-05T00:39:52Z"
+updated = "2026-10-05T00:39:54Z"
 scope = ["crates/goway/tests/journal_invariant.rs"]
 
 [[acceptance]]
