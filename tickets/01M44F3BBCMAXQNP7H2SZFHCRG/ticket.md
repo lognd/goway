@@ -2,7 +2,7 @@
 id = "01M44F3BBCMAXQNP7H2SZFHCRG"
 title = "A job in a systemd-run scope survives its vanished client: stop the whole scope (cgroup), not one process group"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
