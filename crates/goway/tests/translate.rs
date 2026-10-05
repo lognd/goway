@@ -11,8 +11,6 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-const SCRIPT_SH: &str = include_str!("../src/remote.sh");
-
 fn exe(dir: &Path, name: &str, body: &str) -> PathBuf {
     std::fs::create_dir_all(dir).unwrap();
     let p = dir.join(name);
@@ -24,7 +22,12 @@ fn exe(dir: &Path, name: &str, body: &str) -> PathBuf {
 /// `resolve` of remote.sh with `spec` on stdin, PATH as given, in `cwd`.
 fn resolve(home: &Path, cwd: &Path, path: &str, spec: &str) -> String {
     let mut child = Command::new("bash")
-        .args(["-c", SCRIPT_SH, "goway", "resolve", ".cache/goway", "run1"])
+        .args([
+            goway::remote::SCRIPT_SH_PATH,
+            "resolve",
+            ".cache/goway",
+            "run1",
+        ])
         .env("HOME", home)
         .env("PATH", path)
         .current_dir(cwd)

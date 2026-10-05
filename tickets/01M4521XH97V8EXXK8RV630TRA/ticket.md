@@ -2,12 +2,12 @@
 id = "01M4521XH97V8EXXK8RV630TRA"
 title = "The end-of-run sweep prints environ permission errors and stops the shared sccache server as a leftover on every run"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T03:34:54Z"
-updated = "2026-10-05T03:35:31Z"
+updated = "2026-10-05T03:56:18Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/client_loss.rs", "docs/design.md"]
 
 [[acceptance]]

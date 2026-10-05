@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-05T04:04:10Z"
+digest = "89b120d09242df3f2202eb1a9544bf332beb410f449c87b8be54fc67293b4b73"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 6301fe41-6b77-4479-92fb-009f368d3549 with nextest profile: default
+    Starting 1 test across 84 binaries (919 tests skipped)
+        PASS [   0.008s] goway remote::tests::the_longest_realistic_command_line_stays_under_the_limit
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.012s] 1 test run: 1 passed, 919 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_longest_realistic_command_line_stays_under_the_limit)'"
+size = 571
+status = "measured"
+tests = ["remote::tests::the_longest_realistic_command_line_stays_under_the_limit"]
+at = "2026-10-05T04:04:10Z"
+actor = "lognd"
+rev = 1

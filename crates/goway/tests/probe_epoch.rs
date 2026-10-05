@@ -3,12 +3,10 @@
 
 use std::process::Command;
 
-const SCRIPT: &str = include_str!("../src/remote.sh");
-
 fn epoch_of(verb: &str) -> u64 {
     let home = tempfile::tempdir().unwrap();
     let out = Command::new("bash")
-        .args(["-c", SCRIPT, "goway", verb])
+        .args([goway::remote::SCRIPT_SH_PATH, verb])
         .arg(home.path().join("root"))
         .env("HOME", home.path())
         .output()

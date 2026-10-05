@@ -222,6 +222,11 @@ pub fn sccache_servers_under(root: &Path) -> Vec<u32> {
         .flatten()
         .filter_map(|e| {
             let pid: u32 = e.file_name().to_str()?.parse().ok()?;
+            // The remote shell and its helpers carry the same variable: only sccache itself counts.
+            let comm = std::fs::read_to_string(e.path().join("comm")).ok()?;
+            if comm.trim() != "sccache" {
+                return None;
+            }
             let env = std::fs::read(e.path().join("environ")).ok()?;
             env.split(|b| *b == 0)
                 .any(|kv| kv.starts_with(want.as_bytes()))

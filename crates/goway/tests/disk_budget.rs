@@ -11,7 +11,7 @@ const TEN_YEARS: &str = "315360000";
 
 fn remote(home: &Path, verb: &str, args: &[&str]) -> Output {
     Command::new("bash")
-        .args(["-c", SCRIPT, "goway", verb])
+        .args([goway::remote::SCRIPT_SH_PATH, verb])
         .args(args)
         .env("HOME", home)
         .output()

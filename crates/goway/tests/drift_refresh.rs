@@ -3,15 +3,13 @@
 
 use std::process::Command;
 
-const SCRIPT: &str = include_str!("../src/remote.sh");
-
 // frob:tests crates/goway/src/pool.rs::probe_call
 #[test]
 fn the_probe_reports_want_lines_only_for_the_tools_it_is_asked_about() {
     let home = tempfile::tempdir().unwrap();
     let run = |extra: &[&str]| {
         let out = Command::new("bash")
-            .args(["-c", SCRIPT, "goway", "probe"])
+            .args([goway::remote::SCRIPT_SH_PATH, "probe"])
             .arg(home.path().join("root"))
             .args(extra)
             .env("HOME", home.path())

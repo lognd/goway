@@ -8,8 +8,6 @@ mod common;
 
 use std::process::Stdio;
 
-const SCRIPT: &str = include_str!("../src/remote.sh");
-
 /// A budget of 1 KiB: every run's end evicts whatever it can take.
 fn tiny_budget(w: &common::World) {
     let cfg = w.config.join("config.toml");
@@ -102,7 +100,7 @@ fn a_failed_run_still_writes_its_report() {
 fn lifeline(w: &common::World, id: &str, input: &str, timeout: &str) -> std::process::Output {
     use std::io::Write as _;
     let mut child = std::process::Command::new("bash")
-        .args(["-c", SCRIPT, "goway", "lifeline"])
+        .args([goway::remote::SCRIPT_SH_PATH, "lifeline"])
         .arg(&w.remote)
         .arg(id)
         .env("HOME", &w.root)
@@ -131,7 +129,7 @@ fn the_lifeline_says_why_it_stopped_a_job_and_tells_silence_from_a_closed_pipe()
     // A marked root with a live-looking run.
     assert!(
         std::process::Command::new("bash")
-            .args(["-c", SCRIPT, "goway", "manifest"])
+            .args([goway::remote::SCRIPT_SH_PATH, "manifest"])
             .arg(&w.remote)
             .arg("abc")
             .env("HOME", &w.root)
@@ -161,7 +159,7 @@ fn the_lifeline_says_why_it_stopped_a_job_and_tells_silence_from_a_closed_pipe()
 fn hashes_of_a_seed_evicted_since_the_manifest_answer_nothing_instead_of_failing() {
     let w = common::world();
     let mut child = std::process::Command::new("bash")
-        .args(["-c", SCRIPT, "goway", "hashes"])
+        .args([goway::remote::SCRIPT_SH_PATH, "hashes"])
         .arg(&w.remote)
         .arg("gone/seed")
         .env("HOME", &w.root)
