@@ -2,7 +2,8 @@
 id = "01M44YARTF6NAN21B2WYT0QS1A"
 title = "The job-scope test assumes cgroup v2, which a hybrid-cgroup Linux machine lacks"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
