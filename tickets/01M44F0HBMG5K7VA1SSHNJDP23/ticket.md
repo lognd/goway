@@ -2,13 +2,13 @@
 id = "01M44F0HBMG5K7VA1SSHNJDP23"
 title = "One job cannot take a helper down: cap a job's processes, CPU share and memory in its own scope"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T22:02:06Z"
-updated = "2026-10-04T22:02:06Z"
+updated = "2026-10-05T00:46:44Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/config.rs", "crates/goway/tests/job_limits.rs", "docs/config.md", "docs/usage.md"]
 
 [[acceptance]]
