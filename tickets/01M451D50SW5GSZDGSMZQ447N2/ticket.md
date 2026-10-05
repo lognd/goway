@@ -7,7 +7,7 @@ priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T03:23:34Z"
-updated = "2026-10-05T03:42:15Z"
+updated = "2026-10-05T03:44:14Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/config.rs", "crates/goway/tests/job_limits.rs", "docs/config.md", "crates/goway/src/remote.ps1", "docs/usage.md"]
 
 [[acceptance]]
@@ -20,7 +20,7 @@ bound = false
 
 [[acceptance]]
 text = "Given a fork bomb in a job, When it runs, Then the cap still stops it before the host's own sshd and user sessions are starved (the existing job_limits test keeps proving this)"
-bound = false
+bound = true
 +++
 
 Reproduced on a 12-core helper: goway's own workspace test suite as one goway job hits TasksMax=4096 in its scope (threads count as tasks): dozens of 'fork: retry: Resource temporarily unavailable', 'failed to spawn thread ... WouldBlock', 'cannot run git/ssh: os error 11'. The cap from ~HNJDP23 is meant to stop a runaway job from taking the helper down, not to limit normal heavy work; the kernel's threads-max there is 62570. The no-systemd ulimit -u path has the same default.

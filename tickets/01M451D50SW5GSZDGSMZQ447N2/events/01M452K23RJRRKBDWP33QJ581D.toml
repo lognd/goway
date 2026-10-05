@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-05T03:44:14Z"
+digest = "2a1141a6f2c244bfee7744e187818f9ffeecac6b6c155f077d2fd4a613095634"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 10ee7ccf-88ac-4139-b18b-52264f9a1f74 with nextest profile: default
+    Starting 1 test across 83 binaries (917 tests skipped)
+        PASS [   1.247s] goway::job_limits a_job_scope_carries_the_process_cap_a_low_cpu_weight_and_the_configured_caps
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.251s] 1 test run: 1 passed, 917 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_job_scope_carries_the_process_cap_a_low_cpu_weight_and_the_configured_caps)'"
+size = 588
+status = "measured"
+tests = ["a_job_scope_carries_the_process_cap_a_low_cpu_weight_and_the_configured_caps"]
+at = "2026-10-05T03:44:14Z"
+actor = "lognd"
+rev = 1
