@@ -589,7 +589,12 @@ helper with room for one), until its job shows in the
 host's probe (about ten seconds after it starts), so a wave never puts more
 jobs on a helper than its slots and memory allow, and runs that arrive
 earlier are served first: a later run is held back only from hosts an
-earlier waiting run could also use.
+earlier waiting run could take right now. A waiter that cannot take any
+host at the moment (its repository's memory peak is above what is free
+while other jobs run) does not block the line: later runs that fit, or
+that skip the footprint check, pass it. It keeps its place, though: once
+three later runs have passed it, the runs behind it stop passing and wait
+for it, so capacity frees up and it is never starved.
 
 The run says why it waits and its place (`no host has room yet (h1: 4 of 4
 job slots in use); queued at position 3, waiting up to 5m`). `--wait
@@ -637,17 +642,29 @@ The next run never goes to a helper whose total memory is below the peak
 plus a margin (the larger of 256 MiB and 10% of it), and waits in the queue
 while the helper's available memory (less what runs still starting will
 take) is below it, like for disk (`h1: 1.2 GiB of memory free, this
-repository needs about 3.4 GiB`). If every helper is too small, the error says
-so. A repository never seen on a helper is not held back (`job_mem` still
-applies). Peaks never lock a run out:
+repository needs about 3.4 GiB`). If the peak is above every helper's total
+memory, the run fails at once (exit 125, not after `--wait`), naming the
+peak and each helper's size and how to forget a stale peak or skip the check.
+Three rules cover a host with a missing or awkward record:
+
+- A helper with no peak for the repository uses the largest one another
+  helper recorded as the estimate, so a fresh or restarted helper is not
+  flooded.
+- With no peak on any helper, a run of the repository is admitted only to a
+  helper that runs no goway jobs (runs still starting count), so the first
+  run is measured alone and a second one waits (`... waits to be measured
+  alone`) until a peak is recorded; `job_mem` still applies.
+- On a helper that runs no goway jobs, memory below the peak will not free by
+  waiting: the run goes there alone, with a warning, instead of waiting.
+
+Peaks never lock a run out:
 
 - `--host NAME` always runs there; if the recorded peak or footprint says it
   may not fit, a warning names it and the run goes ahead.
 - `--ignore-footprint` (or `--needs mem>=0`) skips the memory and disk
   checks for one run.
-- When no helper could ever fit the peak (every one is too small in total, or
-  every eligible one is idle and short of disk even after eviction), the run
-  goes to the largest (roomiest) helper with a warning instead of failing.
+- When every eligible helper is idle and short of disk even after eviction,
+  the run goes to the roomiest helper with a warning instead of failing.
 
 The recorded peak is the largest of the last five runs, not of all time, so
 one inflated run (an OOM-killed run is recorded a quarter higher) ages out.
