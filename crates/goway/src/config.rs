@@ -495,6 +495,26 @@ impl Config {
         }
     }
 
+    /// Refuse a `job_cpu` or `job_memory` (default or per host) that is not a percentage or size.
+    fn check_job_limits(&self, origin: &Path) -> Result<()> {
+        let d = &self.defaults;
+        let hosts = self.hosts.iter().map(|h| {
+            (
+                h.job_cpu.as_ref().unwrap_or(&d.job_cpu),
+                h.job_memory.as_ref().unwrap_or(&d.job_memory),
+            )
+        });
+        for (cpu, mem) in std::iter::once((&d.job_cpu, &d.job_memory)).chain(hosts) {
+            if let Err(message) = check_job_cpu(cpu).and_then(|()| check_job_memory(mem)) {
+                return Err(Error::Config {
+                    path: origin.to_owned(),
+                    message,
+                });
+            }
+        }
+        Ok(())
+    }
+
     fn validate(&self, origin: &Path) -> Result<()> {
         if let Err(why) = check_remote_root(&self.defaults.remote_root) {
             return Err(Error::Config {
@@ -512,21 +532,7 @@ impl Config {
                 &Some(d.cache_size.clone()),
             ],
         )?;
-        let limits =
-            std::iter::once((&d.job_cpu, &d.job_memory)).chain(self.hosts.iter().filter_map(|h| {
-                Some((
-                    h.job_cpu.as_ref().unwrap_or(&d.job_cpu),
-                    h.job_memory.as_ref().unwrap_or(&d.job_memory),
-                ))
-            }));
-        for (cpu, mem) in limits {
-            if let Err(message) = check_job_cpu(cpu).and_then(|()| check_job_memory(mem)) {
-                return Err(Error::Config {
-                    path: origin.to_owned(),
-                    message,
-                });
-            }
-        }
+        self.check_job_limits(origin)?;
         for entry in &self.defaults.keep {
             if let Err(why) = check_keep_entry(entry) {
                 return Err(Error::Config {
