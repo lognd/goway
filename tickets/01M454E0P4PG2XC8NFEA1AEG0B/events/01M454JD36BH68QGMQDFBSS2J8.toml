@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-05T04:18:51Z"
+digest = "9caa29c1b0daaa7a3c5f4d68fefadb2c1a972db9f17c6e1fc41d8a84425f63a0"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 103f50c0-1f4f-4dd9-bdd7-7e4b378d5a8a with nextest profile: default
+    Starting 3 tests across 84 binaries (921 tests skipped)
+        PASS [   0.018s] goway remote::tests::the_longest_realistic_command_line_stays_under_the_limit
+        PASS [   0.098s] goway::remote_ps1 locking_a_seed_survives_gc_removing_it_mid_acquire
+        PASS [   0.131s] goway::slot_trees locking_a_seed_survives_gc_removing_it_mid_acquire
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.137s] 3 tests run: 3 passed, 921 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_longest_realistic_command_line_stays_under_the_limit) | test(locking_a_seed_survives_gc_removing_it_mid_acquire)'"
+size = 761
+status = "measured"
+tests = ["remote::tests::the_longest_realistic_command_line_stays_under_the_limit", "locking_a_seed_survives_gc_removing_it_mid_acquire"]
+at = "2026-10-05T04:18:51Z"
+actor = "lognd"
+rev = 1
