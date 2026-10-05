@@ -1,0 +1,8 @@
+kind = "transition"
+from = "todo"
+to = "done"
+outcome = "wont-fix"
+reason = "Filed in error: the coordinator's awk dropped the unit column of gc's output, so seed sizes in MiB were read as GiB; gc reported them correctly (a goway seed is about 4.4 MiB, a frob-v2 seed about 75 MiB)."
+at = "2026-10-05T02:23:33Z"
+actor = "lognd"
+rev = 1

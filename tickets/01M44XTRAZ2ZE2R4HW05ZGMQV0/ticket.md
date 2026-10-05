@@ -2,12 +2,13 @@
 id = "01M44XTRAZ2ZE2R4HW05ZGMQV0"
 title = "gc and status count hard-linked files once per link, so seeds look many times their real size"
 type = "bug"
-category = "todo"
+category = "done"
+outcome = "wont-fix"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T02:21:05Z"
-updated = "2026-10-05T02:21:05Z"
+updated = "2026-10-05T02:23:33Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/gc.rs"]
 
 [[acceptance]]
