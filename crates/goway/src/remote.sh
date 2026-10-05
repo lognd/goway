@@ -1,3 +1,23 @@
+  if [ -z "$slot" ]; then
+    # Every slot is busy: wait for the first to free, at most the run's --wait.
+    printf 'goway: all %s build slots busy (%s); waiting up to %ss for one\n' "$slots" "$(slots_busy_note "$cache" "$slots")" "$slot_wait" >&2
+    wait_until=$((SECONDS + slot_wait))
+    while [ -z "$slot" ]; do
+      for k in "${order[@]}"; do
+        mkdir -p "$cache"
+        exec 7>"$cache/target-$k.lock"
+        if flock -n 7 && same_fd "$cache/target-$k.lock" 7; then slot=$k; break; fi
+        exec 7>&-
+      done
+      [ -z "$slot" ] || break
+      if [ "$SECONDS" -ge "$wait_until" ]; then
+        printf 'goway: no build slot freed within %ss: all %s build slots busy (%s); raise --wait or try another host\n' "$slot_wait" "$slots" "$(slots_busy_note "$cache" "$slots")" >&2
+        remove_work "$work"
+        exit 125
+      fi
+      sleep 1
+    done
+  fi
 # goway remote side. Sent inline with every ssh call and run as
 #   bash -c 'eval "$(printf %s <base64 of: set -- VERB ARGS; this script> | base64 -d)"' goway
 # so the remote needs nothing installed beyond bash, GNU findutils, tar,
@@ -1269,6 +1289,20 @@ shard_run() {
   return "$rc"
 }
 
+# slots_busy_note CACHE SLOTS: how long the oldest holder of a build slot has run (a slot
+# lock's mtime is stamped when a run takes it), as `oldest holder has run 12m 3s`.
+slots_busy_note() {
+  local k m now oldest=0 age
+  now=$(date +%s)
+  for ((k = 0; k < $2; k++)); do
+    m=$(stat -c %Y "$1/target-$k.lock" 2>/dev/null || true)
+    case "$m" in "" | *[!0-9]*) continue ;; esac
+    age=$((now - m))
+    [ "$age" -gt "$oldest" ] && oldest=$age
+  done
+  printf 'oldest holder has run %sm %ss' $((oldest / 60)) $((oldest % 60))
+}
+
 # run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 TTLS PRIORITY KEEP_IGNORED
 #     KEEP_B64 -- CMD...
 # The work dir was created by receive (a hard-link snapshot of the seed).
@@ -1286,11 +1320,12 @@ run() {
   shift 10
   # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
   # framework detection of the command's program (see shard_run).
-  local detect="" gpu_per="" verify="" fresh=0 attempt=1 level=changed room=""
+  local detect="" gpu_per="" slot_wait=300 verify="" fresh=0 attempt=1 level=changed room=""
   while [ $# -gt 0 ] && [ "$1" != "--" ]; do
     case "$1" in
       shard-detect:[0-9]*:[0-9]*:[A-Za-z0-9]*) detect=${1#shard-detect:} ;;
       gpu-slots:[0-9]*) gpu_per=${1#gpu-slots:} ;;
+      slot-wait:[0-9]*) slot_wait=${1#slot-wait:} ;;
       room:[0-9]*:[0-9]*) room=${1#room:} ;;
       verify:[12]:changed | verify:[12]:all | verify:[12]:changed:fresh | verify:[12]:all:fresh)
         # The attempt number is goway's explicit argument, never read from
@@ -1307,6 +1342,7 @@ run() {
   IFS=: read -r t_cache t_orphan t_kept t_max t_minfree t_csize <<<"$ttls"
   case "$detect" in *[!A-Za-z0-9:]*) die "run: bad shard-detect" ;; esac
   case "$gpu_per" in *[!0-9]*) die "run: bad gpu-slots" ;; esac
+  case "$slot_wait" in *[!0-9]*) die "run: bad slot-wait" ;; esac
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
