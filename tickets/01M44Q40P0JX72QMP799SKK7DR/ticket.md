@@ -7,7 +7,7 @@ priority = "critical"
 points = 5
 reporter = "lognd"
 created = "2026-10-05T00:23:49Z"
-updated = "2026-10-05T00:49:47Z"
+updated = "2026-10-05T00:49:49Z"
 scope = ["crates/goway/src/queue.rs", "crates/goway/src/footprint.rs", "crates/goway/src/pool.rs", "crates/goway/tests/queue.rs", "docs/troubleshooting.md", "crates/goway/tests/gpu_slots.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/mem_footprint.rs"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a host running no goway jobs and a repository whose recorded peak exceeds the host's free memory but not its total, When that repository's run is at the head, Then it runs alone on that host with a warning instead of waiting for memory that will never free"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a repository whose peak exceeds a host's total memory, When it is queued, Then it fails fast with a message naming the peak and the host's size, instead of waiting out --wait"
