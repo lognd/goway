@@ -7,7 +7,7 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T01:15:10Z"
-updated = "2026-10-05T01:18:41Z"
+updated = "2026-10-05T01:19:33Z"
 scope = ["crates/goway/tests/slot_wait.rs"]
 
 [[acceptance]]
