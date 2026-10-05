@@ -645,12 +645,40 @@ stop_group() {
   kill -KILL -- "-$pid" 2>/dev/null || true
 }
 
-# run_pids RUN_ID [RUNNER]: the pids of every process that carries the run's GOWAY_RUN_ID in its
-# environment, one per line, however it regrouped (setsid, double fork), except this shell
-# and the run's own shell RUNNER (it must live on to clean up). Linux only (it reads /proc):
-# nothing on macOS, where a job that leaves its session and process group is not caught.
+# sccache_kept PID KEEP: whether PID is the sccache server goway configured for this run's
+# repository. goway's per-repository server is meant to outlive a run (it has its own idle
+# timeout and serves the next run warm), so the end-of-run sweep leaves it alone. KEEP is the
+# file the run wrote (line 1 the SCCACHE_DIR, line 2 the sccache binary); empty or missing
+# means no server was configured. The match is exact: that binary AND that SCCACHE_DIR, never
+# merely a process named sccache. Builtins only, silent on a process it may not read.
+sccache_kept() {
+  local p=$1 keep=${2:-} dir bin kv
+  [ -n "$keep" ] && [ -r "$keep" ] || return 1
+  { read -r dir && read -r bin; } <"$keep" 2>/dev/null || return 1
+  [ -n "$dir" ] && [ -n "$bin" ] || return 1
+  [ "/proc/$p/exe" -ef "$bin" ] 2>/dev/null || return 1
+  { while IFS= read -r -d '' kv; do
+    if [ "$kv" = "SCCACHE_DIR=$dir" ]; then return 0; fi
+  done <"/proc/$p/environ"; } 2>/dev/null
+  return 1
+}
+
+# pid_command PID: PID's command line on one line, cut at 80 characters (builtins only).
+pid_command() {
+  local a out=
+  { while IFS= read -r -d '' a; do out="$out${out:+ }$a"; done <"/proc/$1/cmdline"; } 2>/dev/null || true
+  [ -n "$out" ] || out='?'
+  printf '%s' "${out:0:80}"
+}
+
+# run_pids RUN_ID [RUNNER [KEEP]]: the pids of every process that carries the run's GOWAY_RUN_ID
+# in its environment, one per line, however it regrouped (setsid, double fork), except this shell,
+# the run's own shell RUNNER (it must live on to clean up) and the sccache server KEEP names
+# (sccache_kept). Linux only (it reads /proc): nothing on macOS, where a job that leaves its
+# session and process group is not caught. Silent: other users' processes cannot be read, and
+# that is no error.
 run_pids() {
-  local f me=$$ self=${BASHPID:-$$} p runner=${2:-} kv
+  local f me=$$ self=${BASHPID:-$$} p runner=${2:-} keep=${3:-} kv tagged
   [ -d /proc/self ] || return 0
   # Builtins only (no grep, no pipeline): a helper process of this scan would carry the
   # run's tag itself and be taken for a leftover.
@@ -658,11 +686,13 @@ run_pids() {
     p=${f#/proc/}
     p=${p%/environ}
     if [ "$p" = "$me" ] || [ "$p" = "$self" ] || [ "$p" = "$runner" ] || [ ! -r "$f" ]; then continue; fi
+    tagged=0
     { while IFS= read -r -d '' kv; do
-      if [ "$kv" = "GOWAY_RUN_ID=$1" ]; then printf '%s\n' "$p"; break; fi
+      if [ "$kv" = "GOWAY_RUN_ID=$1" ]; then tagged=1; break; fi
     done <"$f"; } 2>/dev/null || true
+    if [ "$tagged" = 1 ] && ! sccache_kept "$p" "$keep"; then printf '%s\n' "$p"; fi
   done
-}
+} 2>/dev/null
 
 # kill_run RUN_ID RUNNER: stop every process tagged with the run (run_pids), the backstop for a
 # job that left its process group and its scope. SIGTERM, a short grace, then SIGKILL.
