@@ -114,12 +114,16 @@ fn twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound(
     let note = |_: &str| {
         noted.fetch_add(1, Ordering::SeqCst);
     };
+    // The arrival number each run takes just before it asks for a host: a loaded runner wakes
+    // a sleeping thread late, so "arrival order" is what actually happened, not the sleep plan.
+    let arrivals = AtomicU32::new(0);
     std::thread::scope(|s| {
         for n in 0..20u64 {
-            let (queue, cluster, config, order, peak, note) =
-                (&queue, &cluster, &config, &order, &peak, &note);
+            let (queue, cluster, config, order, peak, note, arrivals) =
+                (&queue, &cluster, &config, &order, &peak, &note, &arrivals);
             s.spawn(move || {
                 std::thread::sleep(Duration::from_millis(60 * n));
+                let arrival = u64::from(arrivals.fetch_add(1, Ordering::SeqCst));
                 let mut state = State::default();
                 let w = wait(queue, Duration::from_secs(60), note);
                 let (host, _, _, claim) = pool::choose_queued(
@@ -134,7 +138,7 @@ fn twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound(
                 )
                 .unwrap();
                 let claim = claim.unwrap();
-                order.lock().unwrap().push(n);
+                order.lock().unwrap().push(arrival);
                 let i = Cluster::index(&host.name);
                 let now = cluster.running[i].fetch_add(1, Ordering::SeqCst) + 1;
                 claim.started();
