@@ -7,8 +7,8 @@ priority = "critical"
 points = 5
 reporter = "lognd"
 created = "2026-10-05T00:23:49Z"
-updated = "2026-10-05T00:40:21Z"
-scope = ["crates/goway/src/queue.rs", "crates/goway/src/footprint.rs", "crates/goway/src/pool.rs", "crates/goway/tests/queue.rs", "docs/troubleshooting.md"]
+updated = "2026-10-05T00:47:57Z"
+scope = ["crates/goway/src/queue.rs", "crates/goway/src/footprint.rs", "crates/goway/src/pool.rs", "crates/goway/tests/queue.rs", "docs/troubleshooting.md", "crates/goway/tests/gpu_slots.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/mem_footprint.rs"]
 
 [[acceptance]]
 text = "Given a queue head that does not fit on any host, When a later entry fits (or skips the footprint check), Then the later entry is dispatched, and the head keeps its place so it is not starved forever (bounded overtaking)"
