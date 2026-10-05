@@ -7,7 +7,7 @@ priority = "critical"
 points = 5
 reporter = "lognd"
 created = "2026-10-05T00:23:49Z"
-updated = "2026-10-05T01:16:09Z"
+updated = "2026-10-05T01:21:06Z"
 scope = ["crates/goway/src/queue.rs", "crates/goway/src/footprint.rs", "crates/goway/src/pool.rs", "crates/goway/tests/queue.rs", "docs/troubleshooting.md", "crates/goway/tests/gpu_slots.rs", "crates/goway/tests/slot_trees.rs", "crates/goway/tests/run_local.rs", "crates/goway/tests/nesting.rs", "crates/goway/tests/mem_footprint.rs", "docs/usage.md"]
 
 [[acceptance]]
