@@ -2,12 +2,12 @@
 id = "01M44VAJE0Z7NQ4YQGK1ABKWDY"
 title = "Queue arrival-order test is too tight for a slow macOS runner"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T01:37:18Z"
-updated = "2026-10-05T01:37:18Z"
+updated = "2026-10-05T01:37:22Z"
 scope = ["crates/goway/tests/queue.rs"]
 
 [[acceptance]]

@@ -2,12 +2,12 @@
 id = "01M44VAJJGDGQTGJ5NK91SRWC6"
 title = "Making room never evicts the run's own seed: fails on the macOS runner"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-05T01:37:18Z"
-updated = "2026-10-05T01:37:18Z"
+updated = "2026-10-05T01:37:22Z"
 scope = ["crates/goway/tests/footprint.rs"]
 
 [[acceptance]]
