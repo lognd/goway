@@ -7,8 +7,8 @@ priority = "critical"
 points = 8
 reporter = "lognd"
 created = "2026-10-05T02:01:20Z"
-updated = "2026-10-05T02:01:20Z"
-scope = ["crates/goway/src/remote.sh", "crates/goway/src/footprint.rs", "crates/goway-setup/src/host.rs", "crates/goway/src/doctor/windows.rs"]
+updated = "2026-10-05T02:03:04Z"
+scope = ["crates/goway/src/remote.sh", "crates/goway/src/footprint.rs", "crates/goway/src/doctor/windows.rs"]
 
 [[acceptance]]
 text = "Given a WSL helper, When goway probes its disk, Then free space is the smaller of the ext4 free space and the free space of the Windows drive holding the distro's vhdx (read through the drvfs mount, without interop), and goway status shows both"
