@@ -1,0 +1,12 @@
+kind = "create"
+title = "Queue arrival-order test is too tight for a slow macOS runner"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 2
+scope = ["crates/goway/tests/queue.rs"]
+acceptance = ["Given a slow loaded runner, when twenty runs arrive over three hosts, then each is served in arrival order within the stated tolerance without relying on thread wake-up jitter"]
+body = "CI run 37251466869 (macos job): twenty_runs_spread_over_three_hosts_in_arrival_order... saw 15 served at place 12 (tolerance 2). Timing-sensitive sleeps of 60 ms per arrival."
+at = "2026-10-05T01:37:18Z"
+actor = "lognd"
+rev = 1
