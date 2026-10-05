@@ -2,12 +2,12 @@
 id = "01M44Q40P0JX72QMP799SKK7DR"
 title = "The wave queue starves behind a head that cannot fit, and a host with no recorded peak admits runs that exhaust its memory"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 5
 reporter = "lognd"
 created = "2026-10-05T00:23:49Z"
-updated = "2026-10-05T00:23:49Z"
+updated = "2026-10-05T00:24:07Z"
 scope = ["crates/goway/src/queue.rs", "crates/goway/src/footprint.rs", "crates/goway/src/pool.rs"]
 
 [[acceptance]]
