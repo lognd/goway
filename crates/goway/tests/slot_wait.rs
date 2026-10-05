@@ -16,13 +16,15 @@ fn a_run_waiting_for_a_busy_slot_gives_up_after_wait_with_what_it_saw() {
         w.remote.display()
     );
     std::fs::write(w.config.join("config.toml"), config).unwrap();
+    // Runs of one repository overlap on purpose: --ignore-footprint keeps the queue's
+    // "measure an unknown repository alone" rule from holding the second one back.
     // The world has two build slots; two held runs take both.
-    let a = w.hold(&[], "true");
+    let a = w.hold(&["--ignore-footprint"], "true");
     a.wait_started();
-    let b = w.hold(&[], "true");
+    let b = w.hold(&["--ignore-footprint"], "true");
     b.wait_started();
     let started = std::time::Instant::now();
-    let out = w.run(&["run", "--wait", "2s", "--", "true"]);
+    let out = w.run(&["run", "--ignore-footprint", "--wait", "2s", "--", "true"]);
     let err = String::from_utf8_lossy(&out.stderr).into_owned();
     assert_eq!(out.status.code(), Some(125), "{err}");
     assert!(err.contains("all 2 build slots busy"), "{err}");

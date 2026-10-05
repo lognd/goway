@@ -1,0 +1,12 @@
+kind = "create"
+title = "gc and status count hard-linked files once per link, so seeds look many times their real size"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 2
+scope = ["crates/goway/src/remote.sh", "crates/goway/src/gc.rs"]
+acceptance = ["Given a seed whose files are hard-linked into slot trees, When gc or status reports its size, Then each inode is counted once across the entries (or shared bytes are shown separately), matching du"]
+body = "On a helper, gc --dry-run listed each goway seed at about 4.4 GiB and a frob-v2 seed at 75 GiB, while du of the whole seed dir was 62 MB: seed files are hard-linked into slot trees and work dirs (a README had 18 links), and the size sum counts each link. The real space user was a 235 GiB build cache. Misleading sizes send the user after the wrong entries."
+at = "2026-10-05T02:21:05Z"
+actor = "lognd"
+rev = 1

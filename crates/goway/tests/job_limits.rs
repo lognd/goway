@@ -80,6 +80,9 @@ fn a_cpu_cap_that_is_not_a_percentage_is_refused() {
 
 // frob:ticket 01M44F0HBMG5K7VA1SSHNJDP23
 // frob:tests crates/goway/src/run.rs::run_invocation_with
+// Linux only: a transient systemd scope exists nowhere else (macOS has no systemd, and
+// remote.sh skips the scope there by design), so there is no scope to inspect.
+#[cfg(target_os = "linux")]
 #[test]
 fn a_job_scope_carries_the_process_cap_a_low_cpu_weight_and_the_configured_caps() {
     let w = common::world();
@@ -109,9 +112,21 @@ fn without_a_user_manager_the_process_cap_is_a_ulimit_and_zero_lifts_it() {
     configure(&w, "job_tasks = 6000", "");
     let out = w.run(&["run", "--", "bash", "-c", "ulimit -u"]);
     assert!(out.status.success(), "{out:?}");
-    // The user's own processes at start come on top of the job's 6000.
+    // The user's own processes at start come on top of the job's 6000, but a cap is never
+    // looser than the limit the job inherits (1333 on a macOS runner): then it stays there.
+    let soft = std::process::Command::new("bash")
+        .args(["-c", "ulimit -u"])
+        .output()
+        .unwrap();
+    let soft = String::from_utf8_lossy(&soft.stdout)
+        .trim()
+        .parse()
+        .unwrap_or(u64::MAX);
     let cap: u64 = String::from_utf8_lossy(&out.stdout).trim().parse().unwrap();
-    assert!(cap >= 6000, "{out:?}");
+    assert!(
+        cap >= 6000.min(soft),
+        "{out:?} with an inherited limit of {soft}"
+    );
 
     let w = common::world();
     fake_systemd_run(&w, &w.root.join("unused.log"), false);
@@ -124,6 +139,6 @@ fn without_a_user_manager_the_process_cap_is_a_ulimit_and_zero_lifts_it() {
     assert_eq!(
         String::from_utf8_lossy(&out.stdout).trim(),
         String::from_utf8_lossy(&unlimited.stdout).trim(),
-        "{out:?}"
+        "{out:?} against the unrestricted {unlimited:?}"
     );
 }
