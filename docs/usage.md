@@ -772,7 +772,10 @@ A single-host run to a pipe stays byte-identical to the command's output.
   those facts
 - load averages
 - running goway jobs (against `max_jobs` if set)
-- disk used by goway against its budget (`max_disk`, marked `(over)` past it) and disk free
+- disk used by goway against its budget (`max_disk`, marked `(over)` past it) and disk free;
+  on a WSL helper the free figure is the smaller of the ext4 and the Windows drive that holds
+  the virtual disk, and both are shown (`46.2 GiB (C: drive 46.2 GiB, inside WSL 722.5 GiB;
+  reserve 51.0 GiB)`, `assumed` when no `ext4.vhdx` was found and the system drive is used)
 
 Unreachable hosts are marked.
 
@@ -844,7 +847,8 @@ looks for its sources.
 
 A helper's disk is not goway's to fill. Each host has a budget: goway's root
 may use `max_disk` (default: the smaller of 20% of the host's disk and
-50 GiB) and the disk keeps `min_free` free (default 10 GiB). After a run, and
+50 GiB; on a WSL helper simply 20% of the Windows drive, see below) and the disk
+keeps `min_free` free (default 10 GiB). After a run, and
 on every `goway gc`, a host over either limit evicts unlocked entries, least
 recently used first, until both hold: build slots (a slot's tree with its
 target and build directories, aged by when it was last used), work dirs,
@@ -859,6 +863,40 @@ next run on that host. Note that `min_free` counts the whole disk: on a host
 whose disk is nearly full for other reasons, goway frees everything it is
 allowed to. On a small disk `min_free` is capped at a quarter of it, so a
 4 GiB tmpfs is not emptied after every run.
+
+#### WSL helpers: the Windows drive is the real disk
+
+Inside WSL `df` reports the virtual disk (`ext4.vhdx`, often 1 TB), not the
+Windows drive that holds it, and the drive fills long before `df` says so.
+On WSL goway therefore reads the drive too, through its drvfs (9p) mount
+(`/proc/mounts`, falling back to the automount root in `/etc/wsl.conf`), so
+WSL interop may stay off. The drive is the one holding an `ext4.vhdx` under
+`Users/*/AppData/Local/Packages/*/LocalState` or `Users/*/AppData/Local/wsl/*`;
+when none is found it is the system drive (`C:`), and the probe and `goway status` say
+`assumed`. With several drives holding one, the fullest counts. Free space
+and size are then the smaller of the ext4 and the drive figures, so `--needs disk>=`,
+the footprint test and eviction all see the real room.
+
+The drive keeps a **reserve** (`win_reserve`, default `auto`: the larger of
+15 GiB and 5% of the drive; a size such as `20G`, or `off`; per host too).
+When a run is admitted and the drive has less free than the reserve, goway
+evicts idle caches first (least recently used first, never a locked entry, and
+only as much as the shortfall) and hands the freed blocks back (see below); when
+the reserve still cannot be kept it refuses the run (exit 125) naming the
+drive and its free space, and the scheduler counts the reserve on top of a
+repository's footprint. The automatic eviction after a run does not use the
+reserve (it would empty the caches over a drive that cannot recover); `goway gc`
+does. With no `max_disk`, the budget is a fifth of the drive's real size, not a fixed
+size.
+
+Freed space only reaches the Windows drive when the virtual disk is **sparse**.
+`goway-setup install --host` and `goway-setup tune --sparse` set it
+(`wsl --manage DISTRO --set-sparse true`, WSL 2.0 or later; journaled, and
+undone with `--set-sparse false`), and the distro's root is mounted with `discard`
+and `fstrim.timer` is enabled (journaled), so deleting caches inside WSL shrinks the
+file on Windows; goway also runs `fstrim` after an eviction when it is root. A disk
+that is not sparse only grows: `goway doctor` warns and gives the one-time
+compaction steps (docs/troubleshooting.md, "The Windows drive is full").
 
 sccache and ccache get a size cap per repository (`cache_size`, default 2 GiB)
 through `SCCACHE_CACHE_SIZE` and `CCACHE_MAXSIZE`, unless you set them

@@ -78,7 +78,7 @@ replaced, so `uninstall` replays the journal backwards and restores the machine.
     goway-setup install [--client] [--host] [--native [--authorized-key KEY]] [--profile NAME] [--dry-run]
                         [--port N] [--distro NAME] [--keepalive logon|boot [--allow-elevated-wsl]] [--no-harden]
                         [--allow-from CIDR]... [--allow-wide] [--no-activate] [--no-elevate] [--yes]
-    goway-setup tune [--memory SIZE] [--swap SIZE] [--processors N] [--nested-virtualization BOOL]
+    goway-setup tune [--memory SIZE] [--swap SIZE] [--processors N] [--nested-virtualization BOOL] [--sparse]
                      [--distro NAME] [--yes] [--dry-run] [--profile NAME]
     goway-setup uninstall [--client] [--host] [--profile NAME] [--no-activate] [--no-elevate]
     goway-setup status [--profile NAME]
@@ -316,6 +316,10 @@ and warns when WSL is far below a suggestion that leaves Windows at least 4 GiB 
 (memory under 60% of it, processors under 70%, swap under half). It prints the exact command:
 
     goway-setup.exe tune --memory 12GB --swap 6GB --processors 14 [--nested-virtualization true]
+
+`tune --sparse` (and `install --host`, unless WSL is older than 2.0) also marks the distro's virtual disk
+sparse with `wsl --manage DISTRO --set-sparse true`, journaled and undone with `--set-sparse false`, so space
+goway frees inside WSL flows back to the Windows drive (see docs/usage.md, "The disk budget").
 
 `tune` edits only the `[wsl2]` keys you name in `%UserProfile%\.wslconfig`, through a journal of its own
 (`tune-journal.json` in the profile's per-user state directory: `.wslconfig` is yours, so no administrator

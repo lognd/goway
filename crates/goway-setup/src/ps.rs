@@ -156,6 +156,18 @@ pub fn hyperv_available() -> String {
         .to_owned()
 }
 
+/// The bit WSL sets in a distro's registry `Flags` while its virtual disk is sparse (read from
+/// the Lxss key; WSL does not document it, so it is only trusted for this yes/no check).
+pub const WSL_SPARSE_FLAG: u32 = 0x10;
+
+/// Script printing `1` when the distro called `name` has its virtual disk marked sparse, else `0`.
+pub fn wsl_sparse_exists(name: &str) -> String {
+    strict(&format!(
+        "$k = Get-ChildItem 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss' -ErrorAction SilentlyContinue | Get-ItemProperty | Where-Object {{ $_.DistributionName -ceq {} }} | Select-Object -First 1\nif ($k -and (($k.Flags -band {WSL_SPARSE_FLAG}) -ne 0)) {{ '1' }} else {{ '0' }}",
+        quote(name)
+    ))
+}
+
 /// Script printing `1` when a scheduled task with this name exists (any folder), else `0`.
 pub fn task_exists(name: &str) -> String {
     strict(&format!(

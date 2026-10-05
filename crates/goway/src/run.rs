@@ -473,6 +473,7 @@ fn run_picked(
         extra.push(slot_wait_word(args.wait));
         if found.kind == crate::transport::Kind::Unix {
             extra.push(crate::footprint::room_word());
+            extra.push(reserve_option(&config.reserve_of(Some(&host))));
         }
         let priority = pool::priority_word(&config, &host, &found, &probe);
         if let Some(note) = pool::owner_note(&host.name, &probe, priority) {
@@ -1083,6 +1084,14 @@ pub(crate) fn gpu_words(selection: &Selection, config: &Config, host: &HostConfi
 /// The `run` option word that bounds the helper's wait for a build slot by the run's `--wait`.
 pub(crate) fn slot_wait_word(wait: std::time::Duration) -> String {
     format!("slot-wait:{}", wait.as_secs())
+}
+
+/// The `reserve:` option word (`reserve:auto` or `reserve:BYTES`) for a `win_reserve` setting.
+pub(crate) fn reserve_option(setting: &str) -> String {
+    format!(
+        "reserve:{}",
+        crate::config::reserve_word(setting).unwrap_or_else(|| "auto".to_owned())
+    )
 }
 
 /// The remote `run` invocation for this run (its work dir already exists),

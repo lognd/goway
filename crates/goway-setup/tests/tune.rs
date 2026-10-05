@@ -44,12 +44,23 @@ fn sizes_and_processor_counts_are_validated_before_anything_is_written() {
 fn the_plan_sets_only_what_was_asked_and_needs_a_wsl_shutdown() {
     let path = std::path::Path::new("C:/Users/u/.wslconfig");
     assert!(TuneRequest::default().is_empty());
+    // frob:ticket 01M44WPJWSD12YH6MEZKZE0GWF
+    let sparse = TuneRequest {
+        sparse_distro: Some("Ubuntu".into()),
+        ..TuneRequest::default()
+    };
+    assert!(!sparse.is_empty());
+    assert!(matches!(
+        tune_plan(path, &sparse).as_slice(),
+        [Change::EnsureResource { kind: goway_journal::ResourceKind::WslSparseVhd, name, .. }] if name == "Ubuntu"
+    ));
     assert!(tune_plan(path, &TuneRequest::default()).is_empty());
     let req = TuneRequest {
         memory: Some("12GB".into()),
         swap: None,
         processors: Some(14),
         nested_virtualization: Some(true),
+        sparse_distro: None,
     };
     let plan = tune_plan(path, &req);
     let keys: Vec<(&str, &str)> = plan

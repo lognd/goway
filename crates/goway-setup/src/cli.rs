@@ -186,6 +186,10 @@ pub enum Command {
         /// Nested virtualization (KVM inside WSL).
         #[arg(long, value_name = "BOOL")]
         nested_virtualization: Option<bool>,
+        /// Make the distro's virtual disk sparse (needs WSL 2.0 or later) so space freed in WSL
+        /// flows back to the Windows drive; undone by `uninstall --host`.
+        #[arg(long)]
+        sparse: bool,
         /// WSL distro whose goway jobs are counted before a restart.
         #[arg(long, default_value = DEFAULT_DISTRO)]
         distro: String,
@@ -349,6 +353,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             swap,
             processors,
             nested_virtualization,
+            sparse,
             distro,
             yes,
             dry_run,
@@ -359,6 +364,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
                 swap: swap.as_deref().map(tune::parse_size).transpose()?,
                 processors: processors.map(tune::parse_processors).transpose()?,
                 nested_virtualization: *nested_virtualization,
+                sparse_distro: sparse.then(|| distro.clone()),
             };
             run_tune(r, &profile.profile, distro, &req, *yes, *dry_run)
         }
@@ -380,7 +386,7 @@ fn run_tune(
 ) -> Result<(), SetupError> {
     if req.is_empty() {
         return Err(SetupError::BadTuneValue(
-            "nothing to change: pass --memory, --swap, --processors or --nested-virtualization"
+            "nothing to change: pass --memory, --swap, --processors, --nested-virtualization or --sparse"
                 .to_owned(),
         ));
     }
@@ -399,7 +405,12 @@ fn run_tune(
     if jobs > 0 && !yes {
         return Err(SetupError::TuneJobsRunning(jobs));
     }
-    let journal = tune::apply_tune(&mut LocalSystem, &layout.tune_journal_path, &plan)?;
+    if req.sparse_distro.is_some() && !sys.sparse_supported()? {
+        return Err(SetupError::BadTuneValue(
+            "--sparse needs WSL 2.0 or later (run `wsl --update`)".to_owned(),
+        ));
+    }
+    let journal = tune::apply_tune(&mut sys, &layout.tune_journal_path, &plan)?;
     tracing::info!(entries = journal.entries.len(), "tuned .wslconfig");
     r.notice(&format!(
         "changed {} .wslconfig setting(s); `goway-setup uninstall --host` restores the previous values",
@@ -496,7 +507,9 @@ fn uninstall_tune(r: Renderer, layout: &Layout) -> Result<bool, SetupError> {
     }
     let journal = goway_journal::Journal::load(&layout.tune_journal_path)?;
     let need = host::restart_need(&journal);
-    let report = tune::revert_tune_reported(&mut LocalSystem, &layout.tune_journal_path)?;
+    // The HostSystem reverts the sparse virtual disk too (it needs wsl.exe); files are the same.
+    let mut sys = HostSystem::new(DEFAULT_DISTRO);
+    let report = tune::revert_tune_reported(&mut sys, &layout.tune_journal_path)?;
     r.notice("restored the previous .wslconfig settings");
     for (_, outcome) in report.iter().flat_map(|rep| &rep.outcomes) {
         if let goway_journal::Outcome::NotReversible(what) = outcome {

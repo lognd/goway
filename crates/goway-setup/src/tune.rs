@@ -27,6 +27,9 @@ pub struct TuneRequest {
     pub processors: Option<u32>,
     /// `nestedVirtualization`.
     pub nested_virtualization: Option<bool>,
+    /// Make this distro's virtual disk sparse (`wsl --manage DISTRO --set-sparse true`) so space
+    /// freed inside WSL flows back to the Windows drive.
+    pub sparse_distro: Option<String>,
 }
 
 impl TuneRequest {
@@ -36,6 +39,7 @@ impl TuneRequest {
             && self.swap.is_none()
             && self.processors.is_none()
             && self.nested_virtualization.is_none()
+            && self.sparse_distro.is_none()
     }
 }
 
@@ -97,6 +101,9 @@ pub fn tune_plan(wslconfig: &Path, req: &TuneRequest) -> Vec<Change> {
     }
     if let Some(v) = req.nested_virtualization {
         plan.push(set("nestedVirtualization", v.to_string()));
+    }
+    if let Some(distro) = &req.sparse_distro {
+        plan.push(crate::host::sparse_change(distro));
     }
     plan
 }

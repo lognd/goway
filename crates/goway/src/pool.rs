@@ -44,6 +44,8 @@ pub struct Probe {
     pub disk_free: Option<u64>,
     /// The host's disk budget for goway in bytes (status only).
     pub disk_max: Option<u64>,
+    /// The Windows drive holding a WSL helper's virtual disk (see [`crate::footprint::WinDrive`]).
+    pub win: Option<crate::footprint::WinDrive>,
     /// Peak disk footprint of each repository built there, by repository id (see [`crate::footprint`]).
     pub footprints: BTreeMap<String, u64>,
     /// Peak memory of each repository's job tree there, by repository id (see [`crate::footprint`]).
@@ -83,6 +85,7 @@ pub fn parse_probe(text: &str) -> Option<Probe> {
         disk_used: kv.get("disk_used").and_then(|v| v.parse().ok()),
         disk_free: kv.get("disk_free").and_then(|v| v.parse().ok()),
         disk_max: kv.get("disk_max").and_then(|v| v.parse().ok()),
+        win: crate::footprint::parse_win(&kv),
         footprints: crate::footprint::parse(&kv),
         mem_peaks: crate::footprint::parse_mem_peaks(&kv),
         facts: facts::parse_live(
@@ -500,6 +503,8 @@ pub fn probe_call(
     let root = config.defaults.remote_root.as_str();
     let mut args = vec![root];
     let budget;
+    let reserve = crate::run::reserve_option(&config.reserve_of(host));
+    args.push(&reserve);
     if disk {
         args.push("disk");
         let (max_disk, min_free, _) = config.budget_of(host);
@@ -1236,6 +1241,7 @@ mod tests {
             disk_used: None,
             disk_free: None,
             disk_max: None,
+            win: None,
             footprints: std::collections::BTreeMap::new(),
             mem_peaks: std::collections::BTreeMap::new(),
             facts: Facts::default(),

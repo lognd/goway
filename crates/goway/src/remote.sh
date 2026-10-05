@@ -1441,6 +1441,7 @@ run() {
       slot-wait:[0-9]*) slot_wait=${1#slot-wait:} ;;
       limits:[0-9]*:*:*) limits=${1#limits:} ;;
       room:[0-9]*:[0-9]*) room=${1#room:} ;;
+      reserve:*) WIN_RESERVE=${1#reserve:} ;;
       verify:[12]:changed | verify:[12]:all | verify:[12]:changed:fresh | verify:[12]:all:fresh)
         # The attempt number is goway's explicit argument, never read from
         # the environment or from anything the helper reports.
@@ -1462,6 +1463,7 @@ run() {
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
 
   mark_root "$root"
+  wsl_drive_init "$root"
   mkdir -p "$cache"
   exec 9>"$work/lock"
   flock -x 9
@@ -1562,6 +1564,10 @@ run() {
   # the seed it was synced from, and its cache (see evict).
   GC_PROTECT="|$work|$root/seed/$(cat "$work/seed" 2>/dev/null || true)|$cache|"
   make_room "$root" "$cache" "$slot" "$repo_id" "$room" "$t_max"
+  if ! drive_guard "$root" "$t_max" "$t_minfree"; then
+    remove_work "$work"
+    exit 125
+  fi
   # Only making room protects them; the gc after the run may take what it left.
   GC_PROTECT=""
   sync_slot "$work/tree" "$rundir" "$work" "$keepignored" "$keepb64" "$(cat "$work/seed" 2>/dev/null || true)" "$cache/target-$slot"
@@ -1709,7 +1715,7 @@ run() {
   if [ -n "$ttls" ]; then
     # At most one automatic gc per root (gc.lock); it only ever removes
     # files and never starts a goway run.
-    (trap '' HUP; footprint_record "$root" "$repo_id" "$(footprint_measure "$cache" "$slot")"
+    (trap '' HUP; WIN_RESERVE=""; footprint_record "$root" "$repo_id" "$(footprint_measure "$cache" "$slot")"
      flock -n 8 || exit 0
      gc "$root_arg" "$(date +%s)" "$t_cache" "$t_orphan" "$t_kept" apply "" "" "$t_max" "$t_minfree" log) \
       8>"$root/gc.lock" </dev/null >/dev/null 2>&1 5>&- 7>&- 9>&- &
@@ -1874,7 +1880,7 @@ idle_secs() {
   return 0
 }
 
-# probe ROOT [disk] [budget:MAX:MIN_FREE] [static] [owner] [tools:A,B]: key=value facts for scheduling and status.
+# probe ROOT [disk] [budget:MAX:MIN_FREE] [reserve:auto|BYTES] [static] [owner] [tools:A,B]: key=value facts for scheduling and status.
 # "tools:A,B" adds want.TOOL=<version line> for each tool (a run refreshing its version cache).
 # RAM is always reported; "static" adds the rarely changing hardware facts;
 # "owner" adds power= and idle_secs= when they can be read (absent: unknown).
@@ -1882,8 +1888,9 @@ probe() {
   local root jobs=0 l a want_disk=0 want_static=0 want_owner=0 budget="" tools="" room=1073741824:10
   root=$(root_dir "$1")
   shift
+  wsl_drive_init "$root"
   for a in "$@"; do
-    case "$a" in room:[0-9]*:[0-9]*) room=${a#room:} ;; disk) want_disk=1 ;; static) want_static=1 ;; owner) want_owner=1 ;; budget:[0-9]*:[0-9]*) budget=${a#budget:} ;; tools:*) tools=${a#tools:} ;; esac
+    case "$a" in reserve:*) WIN_RESERVE=${a#reserve:} ;; room:[0-9]*:[0-9]*) room=${a#room:} ;; disk) want_disk=1 ;; static) want_static=1 ;; owner) want_owner=1 ;; budget:[0-9]*:[0-9]*) budget=${a#budget:} ;; tools:*) tools=${a#tools:} ;; esac
   done
   if [ "$IS_DARWIN" = 1 ]; then
     mem_darwin
@@ -1918,7 +1925,8 @@ probe() {
   fi
   if [ "$want_disk" = 1 ]; then
     printf 'disk_used=%s\n' "$(du -sb "$root" 2>/dev/null | cut -f1 || true)"
-    printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
+    printf 'disk_free=%s\n' "$(real_free "$HOME")"
+    probe_win
     if [ -n "$budget" ]; then
       printf 'disk_max=%s\ndisk_min_free=%s\n' "$(budget_max "$HOME" "${budget%%:*}")" "${budget#*:}"
     fi
@@ -1950,10 +1958,11 @@ probe_footprints() {
     if [ "$v" -gt "$max" ]; then max=$v; fi
   done
   [ "$max" -gt 0 ] || return 0
-  free=$(df -B1 --output=avail "$(nearest_dir "$1")" 2>/dev/null | tail -1 | tr -d ' ')
+  free=$(real_free "$(nearest_dir "$1")")
   [ -n "$free" ] || return 0
   if [ "$3" != 1 ]; then
     printf 'disk_free=%s\n' "$free"
+    probe_win
     if [ "$free" -lt $((max + $(room_margin "$2" "$max"))) ]; then
       printf 'disk_used=%s\n' "$(du -sb "$1" 2>/dev/null | cut -f1 || true)"
     fi
@@ -2103,14 +2112,161 @@ human() {
     if (i == 1) printf "%d B", b; else printf "%.1f %s", b, u[i] }'
 }
 
-# The disk budget in bytes: MAX when set (> 0), else the smaller of 20% of
-# the filesystem holding ROOT and 50 GiB.
+# fs_avail DIR / fs_size DIR: free and total bytes of the file system holding DIR (empty when unreadable).
+fs_avail() { df -B1 --output=avail "$1" 2>/dev/null | tail -1 | tr -d ' '; }
+fs_size() { df -B1 --output=size "$1" 2>/dev/null | tail -1 | tr -d ' '; }
+
+# WSL: inside WSL, df reports the virtual disk (ext4.vhdx, about 1 TB), not the
+# Windows drive that holds it, and the drive fills long before df says so. So on
+# WSL the free space is the smaller of the ext4 free space and the free space of
+# that drive, read through its drvfs (9p) mount: no interop is needed. The drive
+# is the one holding an ext4.vhdx in the usual places; when none is found it is
+# the system drive (C:), and the probe says so (win_source=assumed).
+# GOWAY_WSL_PROC (default /proc) and GOWAY_WSL_CONF (default /etc/wsl.conf) are test hooks.
+WSL_LETTER=""; WSL_MNT=""; WSL_SRC=""; WSL_READY=0
+# Reserve on the Windows drive: "auto", bytes, or empty (no reserve; set by run and gc).
+WIN_RESERVE=""
+
+# wsl_mounts: "LETTER MOUNTPOINT" for every drvfs mount of a Windows drive; with none listed
+# (a stripped-down proc), drive C under the automount root of wsl.conf when that directory exists.
+wsl_mounts() {
+  local f="${GOWAY_WSL_PROC:-/proc}/mounts" out="" root
+  if [ -r "$f" ]; then
+    out=$(awk '($3 == "drvfs" || $4 ~ /aname=drvfs/) && $1 ~ /^[A-Za-z]:/ { print toupper(substr($1, 1, 1)), $2 }' "$f")
+  fi
+  if [ -n "$out" ]; then printf '%s\n' "$out"; return 0; fi
+  root=$(awk -F= '/^\[/ { s = $0 } s == "[automount]" && $1 ~ /^[ \t]*root[ \t]*$/ { gsub(/[ \t]/, "", $2); print $2 }' "${GOWAY_WSL_CONF:-/etc/wsl.conf}" 2>/dev/null | head -1 || true)
+  root=${root:-/mnt/}
+  if [ -d "${root%/}/c" ]; then printf 'C %s\n' "${root%/}/c"; fi
+  return 0
+}
+
+# wsl_vhdx_on MOUNT: succeed when an ext4.vhdx sits in a place WSL puts one.
+wsl_vhdx_on() {
+  local f
+  for f in "$1"/Users/*/AppData/Local/Packages/*/LocalState/ext4.vhdx "$1"/Users/*/AppData/Local/wsl/*/ext4.vhdx; do
+    [ -e "$f" ] && return 0
+  done
+  return 1
+}
+
+# wsl_drive_init ROOT: set WSL_LETTER, WSL_MNT and WSL_SRC (found or assumed) once; all
+# stay empty off WSL. A found drive is remembered in ROOT/wsl-drive.
+wsl_drive_init() {
+  local l m best_free="" best_l="" best_m="" free cached
+  [ "$WSL_READY" = 0 ] || return 0
+  WSL_READY=1
+  grep -qi microsoft "${GOWAY_WSL_PROC:-/proc}/version" 2>/dev/null || return 0
+  if [ -r "$1/wsl-drive" ]; then
+    read -r l m <"$1/wsl-drive" || true
+    cached=$(wsl_mounts | grep -cFx "$l $m" || true)
+    if [ "$cached" != 0 ] && [ -n "$l" ]; then WSL_LETTER=$l; WSL_MNT=$m; WSL_SRC=found; return 0; fi
+  fi
+  while read -r l m; do
+    [ -n "$l" ] || continue
+    wsl_vhdx_on "$m" || continue
+    free=$(fs_avail "$m")
+    if [ -z "$best_free" ] || [ "${free:-0}" -lt "$best_free" ]; then best_free=${free:-0}; best_l=$l; best_m=$m; fi
+  done < <(wsl_mounts)
+  if [ -n "$best_l" ]; then
+    WSL_LETTER=$best_l; WSL_MNT=$best_m; WSL_SRC=found
+    { printf '%s %s\n' "$best_l" "$best_m" >"$1/wsl-drive"; } 2>/dev/null || true
+    return 0
+  fi
+  while read -r l m; do
+    if [ "$l" = C ]; then WSL_LETTER=C; WSL_MNT=$m; WSL_SRC=assumed; return 0; fi
+  done < <(wsl_mounts)
+  return 0
+}
+
+# wsl_drive_free / wsl_drive_size: bytes of the Windows drive (empty off WSL or unreadable).
+wsl_drive_free() { [ -z "$WSL_MNT" ] || fs_avail "$WSL_MNT"; }
+wsl_drive_size() { [ -z "$WSL_MNT" ] || fs_size "$WSL_MNT"; }
+
+# min_of A B: the smaller of two numbers; either may be empty (the other wins).
+min_of() {
+  if [ -z "$1" ]; then printf '%s' "$2"; elif [ -z "$2" ] || [ "$1" -le "$2" ]; then printf '%s' "$1"; else printf '%s' "$2"; fi
+}
+
+# real_free DIR / real_size DIR: free and total bytes the disk really has under DIR: on WSL the
+# smaller of the ext4 figure and the Windows drive's.
+real_free() { min_of "$(fs_avail "$1")" "$(wsl_drive_free)"; }
+real_size() { min_of "$(fs_size "$1")" "$(wsl_drive_size)"; }
+
+# win_reserve_bytes: what the Windows drive must keep free: the WIN_RESERVE word, "auto" being the
+# larger of 15 GiB and 5% of the drive; 0 off WSL or without a reserve.
+win_reserve_bytes() {
+  local size
+  if [ -z "$WSL_MNT" ] || [ -z "$WIN_RESERVE" ]; then printf 0; return 0; fi
+  case "$WIN_RESERVE" in
+    auto)
+      size=$(wsl_drive_size)
+      size=${size:-0}
+      if [ $((size / 20)) -gt 16106127360 ]; then printf '%s' $((size / 20)); else printf 16106127360; fi ;;
+    *[!0-9]*) printf 0 ;;
+    *) printf '%s' "$WIN_RESERVE" ;;
+  esac
+}
+
+# probe_win: the Windows drive's facts as key=value lines (nothing off WSL), so goway status
+# and doctor show both the ext4 and the drive figure.
+probe_win() {
+  [ -n "$WSL_MNT" ] || return 0
+  printf 'win_drive=%s\nwin_source=%s\nwin_free=%s\nwin_size=%s\nwin_reserve=%s\ndisk_free_fs=%s\n' \
+    "$WSL_LETTER" "$WSL_SRC" "$(wsl_drive_free)" "$(wsl_drive_size)" "$(win_reserve_bytes)" "$(fs_avail "$HOME")"
+}
+
+# wsl_vhdx_files MOUNT: the ext4.vhdx files WSL keeps on the drive.
+wsl_vhdx_files() {
+  local f
+  for f in "$1"/Users/*/AppData/Local/Packages/*/LocalState/ext4.vhdx "$1"/Users/*/AppData/Local/wsl/*/ext4.vhdx; do
+    [ -e "$f" ] && printf '%s\n' "$f"
+  done
+  return 0
+}
+
+# wsl_doctor_facts: for goway doctor on WSL: wsl_vhdx_bytes (the largest ext4.vhdx on the drive),
+# wsl_ext4_used (bytes in use inside Linux) and wsl_sparse (yes, no, or unknown). Whether the
+# vhdx is sparse is only readable through interop (the distro's Lxss registry Flags, bit 0x10,
+# an assumption about WSL's registry layout); with interop off it is unknown.
+wsl_doctor_facts() {
+  local f size best=0 total avail flags="" sparse=unknown
+  [ -n "$WSL_MNT" ] || return 0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    size=$(stat -c %s "$f" 2>/dev/null || echo 0)
+    if [ "$size" -gt "$best" ]; then best=$size; fi
+  done < <(wsl_vhdx_files "$WSL_MNT")
+  total=$(fs_size "$HOME"); avail=$(fs_avail "$HOME")
+  printf 'wsl_vhdx_bytes=%s\nwsl_ext4_used=%s\n' "$best" "$(( ${total:-0} - ${avail:-0} ))"
+  if [ -n "${WSL_DISTRO_NAME:-}" ] && command -v powershell.exe >/dev/null 2>&1; then
+    flags=$(bounded_for 5 powershell.exe -NoProfile -NonInteractive -Command "(Get-ChildItem 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss' | Get-ItemProperty | Where-Object { \$_.DistributionName -eq '$WSL_DISTRO_NAME' } | Select-Object -First 1).Flags" 2>/dev/null | tr -d '\r' | head -1 || true)
+  fi
+  case "$flags" in
+    "" | *[!0-9]*) ;;
+    *) if [ $((flags & 16)) -ne 0 ]; then sparse=yes; else sparse=no; fi ;;
+  esac
+  printf 'wsl_sparse=%s\n' "$sparse"
+}
+
+# wsl_trim ROOT: hand freed blocks back to the Windows drive after an eviction. The root file
+# system is mounted with discard, so frees reach a sparse vhdx on their own; fstrim covers the
+# rest when this user may run it (root only), and is skipped silently otherwise.
+wsl_trim() {
+  [ -n "$WSL_MNT" ] || return 0
+  [ "$(id -u)" = 0 ] && command -v fstrim >/dev/null 2>&1 || return 0
+  fstrim "$(df --output=target "$1" 2>/dev/null | tail -1)" >/dev/null 2>&1 || true
+}
+
+# The disk budget in bytes: MAX when set (> 0), else 20% of the disk holding ROOT (on WSL the
+# real figure: the smaller of the ext4 and the Windows drive) capped at 50 GiB, except on WSL
+# where a drive is known: there it is the plain 20% of the drive, a fraction and no fixed size.
 budget_max() {
   local total
   if [ "${2:-0}" -gt 0 ] 2>/dev/null; then printf '%s' "$2"; return 0; fi
-  total=$(df -B1 --output=size "$1" 2>/dev/null | tail -1 | tr -d ' ')
+  total=$(real_size "$1")
   total=${total:-0}
-  if [ $((total / 5)) -lt 53687091200 ]; then printf '%s' $((total / 5)); else printf '%s' 53687091200; fi
+  if [ -n "$WSL_MNT" ] || [ $((total / 5)) -lt 53687091200 ]; then printf '%s' $((total / 5)); else printf '%s' 53687091200; fi
 }
 
 # Footprints: the peak bytes a repository has occupied on this host (slot
@@ -2232,12 +2388,38 @@ make_room() {
   own=$(footprint_measure "$cache" "$slot")
   need=$((fp + $(room_margin "$room" "$fp") - own))
   [ "$need" -gt 0 ] || return 0
-  free=$(df -B1 --output=avail "$root" 2>/dev/null | tail -1 | tr -d ' ')
+  free=$(real_free "$root")
   [ "${free:-0}" -lt "$need" ] || return 0
   before=$GC_FREED
   evict "$root" "$(date +%s)" apply "" "${6:-0}" "$need" "" exact
   printf 'goway: this repository needs about %s on this host and %s was free; the disk budget freed %s first\n' \
     "$(human "$need")" "$(human "${free:-0}")" "$(human $((GC_FREED - before)))" >&2
+}
+
+# drive_guard ROOT MAX_DISK MIN_FREE: on WSL, keep the reserve on the Windows drive. When the
+# drive has less free than the reserve, evict idle entries first (the deficit's worth, least
+# recently used first) and hand the freed blocks back (wsl_trim); when it still has less, say so,
+# naming the drive and its free space, and fail so the run is refused. Succeeds off WSL and
+# without a reserve.
+drive_guard() {
+  local root=$1 rv free before freed
+  rv=$(win_reserve_bytes)
+  [ "$rv" -gt 0 ] || return 0
+  free=$(wsl_drive_free)
+  if [ -z "$free" ] || [ "$free" -ge "$rv" ]; then return 0; fi
+  before=$GC_FREED
+  evict "$root" "$(date +%s)" apply "" "${2:-0}" "${3:-0}" "" exact
+  freed=$((GC_FREED - before))
+  wsl_trim "$root"
+  free=$(wsl_drive_free)
+  if [ "${free:-0}" -ge "$rv" ]; then
+    printf 'goway: the Windows drive %s: held %s free, below its reserve of %s; evicted %s of idle caches and it is above the reserve again\n' \
+      "$WSL_LETTER" "$(human "${free:-0}")" "$(human "$rv")" "$(human "$freed")" >&2
+    return 0
+  fi
+  printf 'goway: refusing to run: the Windows drive %s: (%s) has %s free, below its reserve of %s kept for Windows and WSL itself; evicting idle caches freed %s inside WSL, which a WSL virtual disk may not return to the drive until it is sparse and trimmed (goway doctor says how). Free space on %s:, or run on another host.\n' \
+    "$WSL_LETTER" "$WSL_SRC" "$(human "${free:-0}")" "$(human "$rv")" "$(human "$freed")" "$WSL_LETTER" >&2
+  return 1
 }
 
 # disk_full_note ROOT CACHE SLOT REPO_ID ROOM MAX_DISK MIN_FREE: after a failed
@@ -2246,8 +2428,8 @@ make_room() {
 # ask for instead of the compiler's or linker's own error.
 disk_full_note() {
   local root=$1 cache=$2 slot=$3 repo_id=$4 room=$5 free total fp need before freed gib=1073741824
-  free=$(df -B1 --output=avail "$root" 2>/dev/null | tail -1 | tr -d ' ')
-  total=$(df -B1 --output=size "$root" 2>/dev/null | tail -1 | tr -d ' ')
+  free=$(real_free "$root")
+  total=$(real_size "$root")
   [ -n "$free" ] && [ -n "$total" ] || return 0
   if [ "$free" -ge "$gib" ] && [ $((free * 50)) -ge "$total" ]; then return 0; fi
   footprint_record "$root" "$repo_id" "$(footprint_measure "$cache" "$slot")"
@@ -2298,25 +2480,29 @@ evict_slot() {
 # hold. Entries in use are skipped; the same lock rules as gc_entry apply.
 # With "log" a summary is left for the next run to print.
 evict() {
-  local root=$1 now=$2 mode=$3 repo=$4 total minfree max used free need freed=0 count=0 m rank kind path k d l slot_log="" sub list
+  local root=$1 now=$2 mode=$3 repo=$4 total minfree max used free dfree rv need freed=0 count=0 m rank kind path k d l slot_log="" sub list
   local before=$GC_FREED
   max=$(budget_max "$root" "$5")
   used=$(du -sb "$root" 2>/dev/null | cut -f1 || echo 0)
-  free=$(df -B1 --output=avail "$root" 2>/dev/null | tail -1 | tr -d ' ')
+  free=$(real_free "$root")
   used=${used:-0}; free=${free:-0}
+  dfree=$(wsl_drive_free); rv=$(win_reserve_bytes)
   # A dry run has not removed what gc listed before this; pretend it did.
   if [ "$mode" != apply ]; then
     used=$((used - before)); free=$((free + before))
     [ "$used" -ge 0 ] || used=0
+    if [ -n "$dfree" ]; then dfree=$((dfree + before)); fi
   fi
   # On a small disk (a tmpfs, a tiny VM) a fixed MIN_FREE could never be met
   # and would empty goway's root after every run: cap it at a quarter of the disk.
-  total=$(df -B1 --output=size "$root" 2>/dev/null | tail -1 | tr -d ' ')
+  total=$(real_size "$root")
   minfree=$6
   # "exact" (a run making room for itself) keeps the whole figure.
   if [ "${8:-}" != exact ] && [ $((${total:-0} / 4)) -lt "$minfree" ]; then minfree=$((${total:-0} / 4)); fi
   need=$((used - max))
   if [ $((minfree - free)) -gt "$need" ]; then need=$((minfree - free)); fi
+  # The Windows drive keeps its reserve whatever the budget says (the drive, not ext4, is what fills).
+  if [ -n "$dfree" ] && [ $((rv - dfree)) -gt "$need" ]; then need=$((rv - dfree)); fi
   [ "$need" -gt 0 ] || return 0
   list=$(
     for d in "$root"/work/*/; do
@@ -2366,6 +2552,7 @@ evict() {
     fi
   done <<<"$list"
   GC_FREED=$((before + freed))
+  if [ "$mode" = apply ] && [ "$count" -gt 0 ]; then wsl_trim "$root"; fi
   if [ "$mode" = apply ] && [ "$count" -gt 0 ] && [ "${7:-}" = log ]; then
     printf 'goway: disk budget: evicted %s entries, freed %s (goway used %s of %s, %s free)\n' \
       "$count" "$(human "$freed")" "$(human "$used")" "$(human "$max")" "$(human "$free")" >>"$root/evicted.log" 2>/dev/null || true
@@ -2380,6 +2567,8 @@ gc() {
   root=$(root_dir "$1"); now=$2; cache_ttl=$3; orphan_ttl=$4; kept_ttl=$5
   mode=$6; repo=$7; older=$8
   [ -d "$root" ] || return 0
+  wsl_drive_init "$root"
+  case "${12:-}" in reserve:*) WIN_RESERVE=${12#reserve:} ;; esac
   if [ ! -e "$root/.goway-root" ]; then
     printf 'goway-remote: %s is not marked as goway state; gc removes nothing there\n' "$root" >&2
     return 0
@@ -2501,7 +2690,10 @@ doctor() {
     printf 'os=%s\n' "$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}")"
   fi
   printf 'arch=%s\n' "$(machine)"
-  printf 'disk_free=%s\n' "$(df -B1 --output=avail "$HOME" | tail -1 | tr -d ' ')"
+  wsl_drive_init "$root"
+  printf 'disk_free=%s\n' "$(real_free "$HOME")"
+  probe_win
+  wsl_doctor_facts
   # sshd's effective value when we may ask (root), else its first-match order:
   # drop-ins in lexical order, then the main file.
   pa=$( { sshd -T 2>/dev/null || true; } | awk 'tolower($1) == "passwordauthentication" { print tolower($2); exit }')

@@ -659,6 +659,7 @@ mod tests {
             disk_used: None,
             disk_free: Some(100 * gib),
             disk_max: None,
+            win: None,
             footprints: std::collections::BTreeMap::new(),
             mem_peaks: std::collections::BTreeMap::new(),
             facts: Facts {

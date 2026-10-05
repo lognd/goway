@@ -101,6 +101,10 @@ pub struct Defaults {
     pub max_disk: Option<String>,
     /// Free space goway keeps on a host's disk by evicting (`10G`).
     pub min_free: String,
+    /// Free space kept on the Windows drive that holds a WSL helper's virtual disk: `auto` (the
+    /// larger of 15 GiB and 5% of the drive), a size such as `20G`, or `off`. Idle caches are
+    /// evicted first; a run is refused when the reserve still cannot be kept.
+    pub win_reserve: String,
     /// Size cap of each repository's sccache and ccache, unless the user set one (`2G`).
     pub cache_size: String,
     /// Send secret-looking files (env files, credentials, private keys)
@@ -216,6 +220,7 @@ impl Default for Defaults {
             target_slots: 4,
             max_disk: None,
             min_free: "10G".to_owned(),
+            win_reserve: "auto".to_owned(),
             cache_size: "2G".to_owned(),
             send_secret_files: false,
             secret_allow: Vec::new(),
@@ -336,6 +341,10 @@ pub struct HostConfig {
     /// Free space goway keeps on this host's disk (default: `defaults.min_free`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_free: Option<String>,
+    /// Free space kept on the Windows drive holding this WSL helper's virtual disk (default:
+    /// `defaults.win_reserve`): `auto`, a size, or `off`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub win_reserve: Option<String>,
     /// Size cap of each repository's compiler caches here (default: `defaults.cache_size`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_size: Option<String>,
@@ -379,6 +388,27 @@ impl HostConfig {
     /// The ssh `HostKeyAlias` that pins this host's key.
     pub fn key_alias(&self) -> String {
         key_alias(&self.name)
+    }
+}
+
+/// A `win_reserve` setting as the word the remote verbs take: `auto`, or bytes (`0` is off).
+/// `None` when the text is none of those.
+pub fn reserve_word(text: &str) -> Option<String> {
+    match text.trim().to_ascii_lowercase().as_str() {
+        "auto" => Some("auto".to_owned()),
+        "off" | "none" | "0" => Some("0".to_owned()),
+        other => crate::needs::parse_size(other).map(|b| b.to_string()),
+    }
+}
+
+/// `win_reserve` must be `auto`, `off` or a size; `who` prefixes the message.
+fn check_reserve(origin: &Path, who: &str, text: Option<&str>) -> Result<()> {
+    match text {
+        Some(t) if reserve_word(t).is_none() => Err(Error::Config {
+            path: origin.to_owned(),
+            message: format!("{who}win_reserve `{t}` is not `auto`, `off` or a size such as 20G"),
+        }),
+        _ => Ok(()),
     }
 }
 
@@ -532,6 +562,7 @@ impl Config {
                 &Some(d.cache_size.clone()),
             ],
         )?;
+        check_reserve(origin, "", Some(&d.win_reserve))?;
         self.check_job_limits(origin)?;
         for entry in &self.defaults.keep {
             if let Err(why) = check_keep_entry(entry) {
@@ -546,6 +577,11 @@ impl Config {
                 origin,
                 &format!("host `{}`: ", h.name),
                 [&h.max_disk, &h.min_free, &h.cache_size],
+            )?;
+            check_reserve(
+                origin,
+                &format!("host `{}`: ", h.name),
+                h.win_reserve.as_deref(),
             )?;
         }
         if let Some(l) = &self.local {
@@ -654,6 +690,14 @@ impl Config {
         )
     }
 
+    /// The `win_reserve` word (`auto` or bytes) for `host`, as the remote verbs take it.
+    pub fn reserve_of(&self, host: Option<&HostConfig>) -> String {
+        let text = host
+            .and_then(|h| h.win_reserve.as_deref())
+            .unwrap_or(&self.defaults.win_reserve);
+        reserve_word(text).unwrap_or_else(|| "auto".to_owned())
+    }
+
     /// This config with `host`'s disk budget in `[defaults]`, for code that reads the budget
     /// from the defaults (the remote `run` call).
     #[must_use]
@@ -662,6 +706,10 @@ impl Config {
         let d = &mut config.defaults;
         d.max_disk = host.max_disk.clone().or_else(|| d.max_disk.take());
         d.min_free = host.min_free.clone().unwrap_or_else(|| d.min_free.clone());
+        d.win_reserve = host
+            .win_reserve
+            .clone()
+            .unwrap_or_else(|| d.win_reserve.clone());
         d.cache_size = host
             .cache_size
             .clone()
@@ -890,6 +938,38 @@ user = "user"
         assert_eq!(c.port_of(q), 2222);
         assert_eq!(c.port_of(c.host("orion-notebook").unwrap()), 22);
         assert_eq!(q.key_alias(), "goway-helios");
+    }
+
+    // frob:ticket 01M44WPJWSD12YH6MEZKZE0GWF
+    // frob:tests crates/goway/src/config.rs::reserve_word
+    // frob:tests crates/goway/src/config.rs::Config
+    #[test]
+    fn the_windows_drive_reserve_is_auto_by_default_and_a_host_can_override_it() {
+        let c = Config::parse(
+            "[[host]]\nname = \"a\"\nwin_reserve = \"20G\"\n\n[[host]]\nname = \"b\"\nwin_reserve = \"off\"\n\n[[host]]\nname = \"c\"\n",
+            Path::new("c.toml"),
+        )
+        .unwrap();
+        assert_eq!(c.reserve_of(c.host("a").ok()), (20u64 << 30).to_string());
+        assert_eq!(c.reserve_of(c.host("b").ok()), "0");
+        assert_eq!(c.reserve_of(c.host("c").ok()), "auto");
+        assert_eq!(c.reserve_of(None), "auto");
+        assert_eq!(reserve_word("AUTO").as_deref(), Some("auto"));
+        assert_eq!(reserve_word("lots"), None);
+        let err = Config::parse("[defaults]\nwin_reserve = \"lots\"\n", Path::new("c.toml"))
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("win_reserve"), "{err}");
+        let err = Config::parse(
+            "[[host]]\nname = \"x\"\nwin_reserve = \"?\"\n",
+            Path::new("c.toml"),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("host `x`") && err.contains("win_reserve"),
+            "{err}"
+        );
     }
 
     // frob:ticket 01M43JBGHCD68QDZVMDMG5P4GS

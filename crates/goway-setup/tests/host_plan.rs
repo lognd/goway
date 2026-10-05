@@ -61,12 +61,44 @@ fn the_default_profile_reuses_the_names_of_the_hand_made_setup() {
     assert_eq!(kinds(&plan, ResourceKind::WslPackage), ["openssh-server"]);
     assert_eq!(
         kinds(&plan, ResourceKind::WslUnit),
-        ["ssh.socket", "ssh.service"]
+        ["ssh.socket", "ssh.service", "fstrim.timer"]
     );
     assert!(
         plan.iter().any(|c| matches!(c, Change::SetIniKey { path, section, key, value }
         if path == Path::new("/home/u/.wslconfig") && section == "wsl2" && key == "networkingMode" && value == "mirrored"))
     );
+}
+
+// frob:ticket 01M44WPJWSD12YH6MEZKZE0GWF
+// frob:tests crates/goway-setup/src/host.rs::host_plan
+// frob:tests crates/goway-setup/src/host.rs::sparse_change
+#[test]
+fn the_plan_makes_the_virtual_disk_sparse_and_enables_the_trim_timer_unless_wsl_is_too_old() {
+    let plan = host_plan(
+        &layout("goway"),
+        &params(2222, Keepalive::Logon, false),
+        &HostFacts::assumed(),
+    );
+    assert_eq!(kinds(&plan, ResourceKind::WslSparseVhd), ["Ubuntu"]);
+    // Sparse comes last: making the disk sparse may stop the distro.
+    assert!(matches!(
+        plan.last(),
+        Some(Change::EnsureResource {
+            kind: ResourceKind::WslSparseVhd,
+            ..
+        })
+    ));
+    let old = HostFacts {
+        wsl_sparse_supported: false,
+        ..HostFacts::assumed()
+    };
+    let plan = host_plan(
+        &layout("goway"),
+        &params(2222, Keepalive::Logon, false),
+        &old,
+    );
+    assert!(kinds(&plan, ResourceKind::WslSparseVhd).is_empty());
+    assert!(kinds(&plan, ResourceKind::WslUnit).contains(&"fstrim.timer"));
 }
 
 // frob:tests crates/goway-setup/src/host.rs::host_plan

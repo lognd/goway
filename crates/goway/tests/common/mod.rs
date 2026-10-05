@@ -192,7 +192,7 @@ pub fn world_with_ssh(script: &str) -> World {
     std::fs::write(
         config.join("config.toml"),
         format!(
-            "[defaults]\nremote_root = \"{}\"\ntarget_slots = 2\n\n[[host]]\nname = \"local\"\naddress = \"127.0.0.1\"\nmax_jobs = 64\n",
+            "[defaults]\nremote_root = \"{}\"\ntarget_slots = 2\nwin_reserve = \"off\"\n\n[[host]]\nname = \"local\"\naddress = \"127.0.0.1\"\nmax_jobs = 64\n",
             remote.display()
         ),
     )
@@ -226,10 +226,14 @@ impl World {
             .env("GOWAY_CONFIG_DIR", &self.config)
             .env("GOWAY_STATE_DIR", self.root.join("state"))
             .env("GOWAY_WINDOWS_LOOKUP", "0")
+            // The fake remote is this machine, which may itself be a WSL helper whose real
+            // Windows drive must not decide a test: point the WSL probe at a scratch proc
+            // that says it is not WSL (a test that wants WSL replaces it).
+            .env("GOWAY_WSL_PROC", self.root.join("no-wsl-proc"))
             // The fake ssh reads these; real ssh never sees them.
             .env(
                 "GOWAY_SSH_PASS_ENV",
-                "FAKE_HOSTNAME,FAKE_WINDOWS_PORT,RUSTC_WRAPPER,CARGO_TARGET_DIR,GOWAY_WINDOWS_LOOKUP",
+                "FAKE_HOSTNAME,FAKE_WINDOWS_PORT,RUSTC_WRAPPER,CARGO_TARGET_DIR,GOWAY_WINDOWS_LOOKUP,GOWAY_WSL_PROC",
             )
             // The fake remote is this machine: settings inherited from an
             // outer goway job (or the user's shell) must not leak in.

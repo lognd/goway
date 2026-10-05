@@ -83,6 +83,7 @@ pub fn describe_kind(kind: ResourceKind) -> &'static str {
         ResourceKind::FirewallScope => "scope of the built-in Windows Firewall rule",
         ResourceKind::WslPackage => "WSL package",
         ResourceKind::WslUnit => "enabled WSL systemd unit",
+        ResourceKind::WslSparseVhd => "sparse WSL virtual disk",
         ResourceKind::SshKeyPair => "ssh key pair",
         ResourceKind::PinnedTool => "pinned tool under ~/.local/opt",
         ResourceKind::RustupTarget => "rustup target",

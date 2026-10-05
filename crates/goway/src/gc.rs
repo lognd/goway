@@ -107,7 +107,7 @@ pub fn command(
     let d = &config.defaults;
     let (max_disk, min_free, _) = config.budget_of(host);
     let older = override_ttl(args)?.map(|t| t.as_secs().to_string());
-    let words = [
+    let mut words = vec![
         d.remote_root.clone(),
         now.to_string(),
         d.cache_ttl.as_secs().to_string(),
@@ -119,6 +119,11 @@ pub fn command(
         max_disk.to_string(),
         min_free.to_string(),
     ];
+    // Only the shell side knows the Windows drive under a WSL helper (word 11 is its "log").
+    if host.is_none_or(|h| crate::transport::Kind::of(h) == crate::transport::Kind::Unix) {
+        words.push(String::new());
+        words.push(crate::run::reserve_option(&config.reserve_of(host)));
+    }
     let refs: Vec<&str> = words.iter().map(String::as_str).collect();
     Ok(Call::new("gc", &refs))
 }
@@ -269,6 +274,28 @@ mod tests {
             all: false,
             dry_run: false,
         }
+    }
+
+    // frob:ticket 01M44WPJWSD12YH6MEZKZE0GWF
+    // frob:tests crates/goway/src/gc.rs::command
+    #[test]
+    fn the_gc_call_carries_the_windows_reserve_for_shell_hosts_only() {
+        let config = Config::parse(
+            "[[host]]\nname = \"w\"\nwin_reserve = \"20G\"\n\n[[host]]\nname = \"x\"\nos = \"windows\"\n",
+            std::path::Path::new("c.toml"),
+        )
+        .unwrap();
+        let shell = command(&config, config.host("w").ok(), &args(), 5)
+            .unwrap()
+            .args;
+        assert_eq!(
+            shell.last().map(String::as_str),
+            Some(format!("reserve:{}", 20u64 << 30).as_str())
+        );
+        let ps = command(&config, config.host("x").ok(), &args(), 5)
+            .unwrap()
+            .args;
+        assert!(ps.iter().all(|w| !w.starts_with("reserve:")), "{ps:?}");
     }
 
     #[test]

@@ -50,6 +50,30 @@ fn disk_cell(used: Option<u64>, max: Option<u64>) -> String {
     }
 }
 
+/// The free-space cell: the figure goway schedules by, and on WSL both figures it is the smaller
+/// of (`46.2 GiB (C: drive 46.2 GiB, inside WSL 722.5 GiB)`).
+pub fn free_cell(probe: &crate::pool::Probe) -> String {
+    let Some(free) = probe.disk_free else {
+        return "-".to_owned();
+    };
+    match &probe.win {
+        Some(w) => format!(
+            "{} ({}: drive {}{}, inside WSL {}{})",
+            human_bytes(free),
+            w.letter,
+            human_bytes(w.free),
+            if w.assumed { ", assumed" } else { "" },
+            w.ext4_free.map_or_else(|| "-".to_owned(), human_bytes),
+            if w.reserve > 0 {
+                format!("; reserve {}", human_bytes(w.reserve))
+            } else {
+                String::new()
+            }
+        ),
+        None => human_bytes(free),
+    }
+}
+
 /// Whether a plain `goway run` considers the host: `yes`, or `no (windows)` for another OS family.
 fn pool_cell(facts: &crate::facts::Facts, pool_os: &str) -> String {
     match facts.os.as_deref() {
@@ -133,7 +157,7 @@ pub fn rows(
                     crate::pool::owner_use(probe, owner_idle).summary()
                 },
                 disk_cell(probe.disk_used, probe.disk_max),
-                probe.disk_free.map_or_else(|| "-".to_owned(), human_bytes),
+                free_cell(probe),
                 crate::facts::age_summary(probe.facts.hw_age),
             ]),
             Err(_) => rows.push(vec![
@@ -345,6 +369,7 @@ mod tests {
             disk_used: None,
             disk_free: None,
             disk_max: None,
+            win: None,
             footprints: std::collections::BTreeMap::new(),
             mem_peaks: std::collections::BTreeMap::new(),
             facts: Facts {

@@ -14,7 +14,7 @@ modules (see "How this is enforced" below).
 | Key login set up on a helper (its `~/.ssh`, `authorized_keys` line, goway's own key pair) | `ssh-setup-HOST.json` in the config directory | `goway ssh setup HOST` says what is recorded | `goway ssh setup HOST --undo` |
 | What `goway doctor --fix` installed on a helper | `installed-HOST.json` (what was installed) and `fixes-HOST.json` (the journal of pinned tools and rustup targets) in the config directory | `goway uninstall --dry-run` lists it | `goway uninstall` (derives each undo from the check name) |
 | The Windows helper install (host and client components) | `host-journal.json` (administrator-only directory) and `install-journal.json` (per-user state), see `docs/install-windows.md` | `goway-setup status` | `goway-setup uninstall` |
-| `.wslconfig` tuning | `tune-journal.json` in the per-user state directory | read the JSON file (no list command yet) | `goway-setup uninstall --host` (restores the previous values) |
+| `.wslconfig` tuning and the sparse virtual disk (`tune --sparse`) | `tune-journal.json` in the per-user state directory | read the JSON file (no list command yet) | `goway-setup uninstall --host` (restores the previous values and sets the disk back to non-sparse) |
 | goway's own install on this laptop | the install journal written by `scripts/install.sh` | `goway uninstall --dry-run` | `goway uninstall` |
 
 Undo runs newest first and keeps what you changed since: a file edited again
@@ -33,7 +33,8 @@ Changes that undo reverses exactly (the journal holds the prior state):
 | scheduled tasks (the WSL keepalive, the relay refresh) | `goway-setup install --host` |
 | `netsh interface portproxy` relay | `goway-setup install --host` in NAT mode |
 | Windows service (sshd) and capability (OpenSSH Server) | `goway-setup install --host --native` |
-| distro package (`openssh-server`) and enabled systemd unit | `goway-setup install --host` |
+| distro package (`openssh-server`) and enabled systemd unit (`ssh.socket`, `ssh.service`, and `fstrim.timer`, which trims freed blocks off the distro's disk every week) | `goway-setup install --host` |
+| the distro's virtual disk marked sparse (`wsl --manage DISTRO --set-sparse true`; undo sets it back with `--set-sparse false`), so space freed inside WSL flows back to the Windows drive | `goway-setup install --host`, `goway-setup tune --sparse` (skipped with a note on a WSL older than 2.0) |
 | pinned tool: the tree under `~/.local/opt/goway-TOOL` and each link in `~/.local/bin`, and an outside link it replaced (restored; a regular file in the way is never replaced) | `goway doctor --fix` (`uv`, `go`, ...) |
 | rustup target of a user's toolchain | `goway doctor --fix` for `rust_targets` |
 | ssh key pair (goway's own, in its config directory) | `goway ssh setup`, `goway add` |
@@ -65,6 +66,8 @@ goway keeps state that exists only to run commands: the per-run work trees and
 caches on helpers, run footprints and locks, the queue, `systemd` run scopes,
 `TMPDIR`s, ssh control sockets, the scratch `known_hosts` of one probe, the
 host address cache, and the staging, log and settings files of `goway-setup`.
+After an eviction on a WSL helper goway runs `fstrim` when it is root (it changes no
+configuration: it only hands blocks freed by goway's own eviction back to the disk).
 These are labelled, expire on their own and are removed by `goway gc` (and by
 uninstall for the `goway-setup` files). They are not machine changes in the
 sense above, so they are outside the journal by design. `--report FILE` writes

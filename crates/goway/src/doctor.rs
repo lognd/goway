@@ -326,7 +326,14 @@ fn probe_host(
         // frob:ticket 01M42RAM7D56M1KH49NTGZTRVF
         let _ = writeln!(found.output, "\n{}={ms}", crate::facts::clock::FACT);
     }
-    if Kind::of(host) != Kind::Unix {
+    if Kind::of(host) == Kind::Unix {
+        // The host's reserve on the Windows drive (a WSL helper), for the drive check.
+        let _ = writeln!(
+            found.output,
+            "\nwin_reserve_setting={}",
+            config.reserve_of(Some(host))
+        );
+    } else {
         windows::add_extra_facts(&mut found, prober);
     }
     Ok(found)
@@ -480,6 +487,106 @@ fn cuda_fix(facts: &BTreeMap<String, String>) -> Option<Fix> {
 
 /// NVIDIA's apt keyring package for WSL-Ubuntu on `x86_64`.
 const CUDA_KEYRING_URL: &str = "https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/cuda-keyring_1.1-1_all.deb";
+
+/// How much a grown virtual disk may exceed what Linux uses before doctor calls it grown (10 GiB).
+const VHDX_GROWN: u64 = 10 << 30;
+
+/// The Windows drive under a WSL helper and its virtual disk: the drive's free space against its
+/// reserve, and whether the vhdx is sparse (so freed space flows back to the drive), with the
+/// journaled fix and, for a vhdx that already grew, the one-time compaction steps.
+fn wsl_disk_checks(
+    facts: &BTreeMap<String, String>,
+    push: &mut impl FnMut(&str, Level, String, Option<Fix>),
+) {
+    let num = |k: &str| facts.get(k).and_then(|v| v.parse::<u64>().ok());
+    let (Some(letter), Some(free), Some(size)) = (
+        facts.get("win_drive").filter(|l| l.len() == 1),
+        num("win_free"),
+        num("win_size"),
+    ) else {
+        return;
+    };
+    let assumed = facts.get("win_source").map(String::as_str) == Some("assumed");
+    let reserve = match facts.get("win_reserve_setting").map(String::as_str) {
+        Some(w) if w != "auto" => w.parse::<u64>().unwrap_or(0),
+        _ => crate::footprint::auto_reserve(size),
+    };
+    let which = if assumed {
+        format!(
+            "{letter}: (assumed: no ext4.vhdx was found on any drive, so the system drive is used)"
+        )
+    } else {
+        format!("{letter}: (holds the WSL virtual disk)")
+    };
+    let human = crate::status::human_bytes;
+    if free < reserve {
+        push(
+            "windows drive",
+            Level::Warn,
+            format!(
+                "drive {which} has {} free of {}, below the reserve of {} goway keeps for Windows and WSL; \
+                 runs are refused there until it is back above. Free space on {letter}: and see docs/troubleshooting.md \
+                 (\"The Windows drive is full\")",
+                human(free),
+                human(size),
+                human(reserve)
+            ),
+            None,
+        );
+    } else {
+        push(
+            "windows drive",
+            Level::Ok,
+            format!(
+                "drive {which} has {} free of {} (reserve {})",
+                human(free),
+                human(size),
+                human(reserve)
+            ),
+            None,
+        );
+    }
+    let grown = num("wsl_vhdx_bytes")
+        .zip(num("wsl_ext4_used"))
+        .is_some_and(|(vhdx, used)| vhdx > used.saturating_add(VHDX_GROWN));
+    let compact = if grown {
+        format!(
+            " The virtual disk has already grown to {} while Linux uses {}; compact it once (docs/troubleshooting.md, \"The Windows drive is full\": `wsl --shutdown`, then `Optimize-VHD` or `diskpart` `compact vdisk`, as administrator)",
+            human(num("wsl_vhdx_bytes").unwrap_or(0)),
+            human(num("wsl_ext4_used").unwrap_or(0))
+        )
+    } else {
+        String::new()
+    };
+    let fix = "on the helper's Windows side (journaled; `goway-setup uninstall --host` restores it): `goway-setup tune --sparse`";
+    match facts.get("wsl_sparse").map(String::as_str) {
+        Some("yes") => push(
+            "wsl sparse disk",
+            Level::Ok,
+            format!(
+                "the virtual disk is sparse: space freed in WSL flows back to {letter}:{compact}"
+            ),
+            None,
+        ),
+        Some("no") => push(
+            "wsl sparse disk",
+            Level::Warn,
+            format!(
+                "the virtual disk is not sparse, so space freed in WSL (gc, eviction) never returns to {letter}: and the file only grows. Run {fix}.{compact}"
+            ),
+            None,
+        ),
+        _ if grown => push(
+            "wsl sparse disk",
+            Level::Warn,
+            format!(
+                "cannot tell whether the virtual disk is sparse (WSL interop is off), and it is larger than Linux needs. Run {fix}.{compact}"
+            ),
+            None,
+        ),
+        _ => {}
+    }
+}
 
 /// What WSL got of the laptop's RAM, swap and processors, and the command that changes it.
 fn push_wsl_hardware(
@@ -703,6 +810,7 @@ fn host_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
             fix,
         });
     };
+    wsl_disk_checks(facts, &mut push);
     match facts.get("disk_free").and_then(|v| v.parse::<u64>().ok()) {
         Some(free) if free < MIN_FREE => push(
             "disk",
@@ -2179,6 +2287,67 @@ mod tests {
                 .0
                 .contains("reload sshd")
         );
+    }
+
+    // frob:ticket 01M44WPJWSD12YH6MEZKZE0GWF
+    // frob:tests crates/goway/src/doctor.rs::wsl_disk_checks
+    #[test]
+    fn doctor_warns_for_a_drive_under_its_reserve_and_a_non_sparse_grown_virtual_disk() {
+        let gib = 1u64 << 30;
+        let check = |name: &str, extra: &[(&str, u64)], sparse: &str| {
+            let mut f = BTreeMap::new();
+            f.insert("win_drive".to_owned(), "C".to_owned());
+            f.insert("win_size".to_owned(), (500 * gib).to_string());
+            f.insert("wsl_sparse".to_owned(), sparse.to_owned());
+            for (k, v) in extra {
+                f.insert((*k).to_owned(), v.to_string());
+            }
+            let mut out = Vec::new();
+            wsl_disk_checks(&f, &mut |n: &str, level, detail: String, _| {
+                out.push((n.to_owned(), level, detail));
+            });
+            out.into_iter().find(|(n, ..)| n == name)
+        };
+        let (_, level, detail) = check("windows drive", &[("win_free", 12 * gib)], "yes").unwrap();
+        assert_eq!(level, Level::Warn);
+        assert!(
+            detail.contains("C:")
+                && detail.contains("12.0 GiB free")
+                && detail.contains("25.0 GiB"),
+            "{detail}"
+        );
+        let (_, level, _) = check("windows drive", &[("win_free", 200 * gib)], "yes").unwrap();
+        assert_eq!(level, Level::Ok);
+        let grown = [
+            ("win_free", 200 * gib),
+            ("wsl_vhdx_bytes", 400 * gib),
+            ("wsl_ext4_used", 100 * gib),
+        ];
+        let (_, level, detail) = check("wsl sparse disk", &grown, "no").unwrap();
+        assert_eq!(level, Level::Warn);
+        assert!(
+            detail.contains("goway-setup tune --sparse")
+                && detail.contains("compact")
+                && detail.contains("Optimize-VHD"),
+            "{detail}"
+        );
+        let (_, level, _) = check("wsl sparse disk", &grown, "yes").unwrap();
+        assert_eq!(level, Level::Ok);
+        let (_, level, detail) = check("wsl sparse disk", &grown, "unknown").unwrap();
+        assert_eq!(level, Level::Warn);
+        assert!(detail.contains("interop is off"), "{detail}");
+        let small = [
+            ("win_free", 200 * gib),
+            ("wsl_vhdx_bytes", 50 * gib),
+            ("wsl_ext4_used", 45 * gib),
+        ];
+        assert!(
+            check("wsl sparse disk", &small, "unknown").is_none(),
+            "nothing to say"
+        );
+        let (_, level, detail) = check("wsl sparse disk", &small, "no").unwrap();
+        assert_eq!(level, Level::Warn);
+        assert!(!detail.contains("compact"), "{detail}");
     }
 
     // frob:tests crates/goway/src/doctor.rs::push_wsl_hardware

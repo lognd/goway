@@ -331,6 +331,52 @@ only as exact as the round trip is symmetric; it is a warning, never a
 reason for goway to refuse a run.
 </details>
 
+## The Windows drive is full: a WSL helper's disk only grows
+
+<details><summary>doctor says "windows drive" or "wsl sparse disk", or WSL fails to start with HCS_E_CONNECTION_TIMEOUT</summary>
+
+A WSL distro lives in one file, `ext4.vhdx`, on a Windows drive. Inside WSL
+`df` shows the file's virtual size (often 1 TB), so a full Windows drive looks
+like plenty of room, and a vhdx that is not sparse never shrinks: deleting files
+in WSL (goway's gc and eviction included) frees blocks inside Linux but the file
+on the drive keeps its size. A drive at 0 bytes free stops WSL from starting.
+
+goway now reads the drive itself (docs/usage.md, "The disk budget"), keeps a
+reserve on it and refuses a run below the reserve, naming the drive. To stop the
+file only growing: on the helper's Windows side, in a normal terminal, run
+`goway-setup tune --sparse` (journaled; `goway-setup uninstall --host` undoes
+it). It needs WSL 2.0 or later (`wsl --update`); `wsl --version` shows it. Setting
+the disk sparse may stop the distro, so run it while no goway job runs.
+`goway-setup install --host` does the same, and enables `fstrim.timer`.
+
+A vhdx that has **already grown** keeps its size until compacted once. As
+administrator on the helper, with no job running:
+
+    wsl --shutdown
+    # either (Hyper-V tools installed):
+    Optimize-VHD -Path C:\path\to\ext4.vhdx -Mode Full
+    # or with diskpart:
+    diskpart
+      select vdisk file="C:\path\to\ext4.vhdx"
+      attach vdisk readonly
+      compact vdisk
+      detach vdisk
+      exit
+
+(`goway doctor` shows both figures, and the vhdx size against what Linux uses; the
+file sits under `%LocalAppData%\Packages\<distro package>\LocalState\` or
+`%LocalAppData%\wsl\<guid>\`, and `wsl --manage DISTRO --move` can relocate it to
+a roomier drive.) WSL starts again on next use. If the drive is already at 0 bytes, free a
+little space on it first (the recycle bin, the temp directory), because compaction needs
+scratch room.
+
+Unverified on real hardware by the goway test suite: the exact WSL behaviour of
+`--set-sparse` (which WSL versions stop the distro, whether `fstrim` is needed on top
+of the root mount's `discard`), and doctor reads the sparse flag from the distro's
+registry entry through interop only; with interop off it says it cannot tell and
+judges by the vhdx's size.
+</details>
+
 ## A network that hides the helpers
 
 goway finds a helper by name (DNS, then mDNS) and confirms it by its

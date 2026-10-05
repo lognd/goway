@@ -425,6 +425,54 @@ impl<R: Runner> HostSystem<R> {
             .collect())
     }
 
+    /// The WSL version `wsl.exe --version` reports, `None` when it does not answer (an old WSL
+    /// inbox has no `--version`) or the output has no version number.
+    pub fn wsl_version(&self) -> SysResult<Option<WslVersion>> {
+        let inv = Invocation {
+            program: tool_path(Tool::Wsl),
+            args: vec!["--version".to_owned()],
+            stdin: None,
+        };
+        let out = self.run("query the WSL version", &inv)?;
+        Ok(out
+            .success()
+            .then(|| parse_wsl_version(&out.text()))
+            .flatten())
+    }
+
+    /// Whether this WSL can make a virtual disk sparse (`--manage --set-sparse`, WSL 2.0 or later).
+    pub fn sparse_supported(&self) -> SysResult<bool> {
+        let version = self.wsl_version()?;
+        tracing::info!(?version, "WSL version for sparse virtual disks");
+        Ok(version.is_some_and(|v| v >= SPARSE_MIN_VERSION))
+    }
+
+    /// `wsl.exe --manage DISTRO --set-sparse true|false` (a no-op for the distro's data).
+    fn set_sparse(&self, distro: &str, on: bool) -> SysResult<()> {
+        let args = [
+            "--manage",
+            distro,
+            "--set-sparse",
+            if on { "true" } else { "false" },
+        ];
+        tracing::info!(
+            distro,
+            on,
+            "setting the sparse flag of the distro's virtual disk"
+        );
+        let inv = Invocation {
+            program: tool_path(Tool::Wsl),
+            args: args.map(str::to_owned).to_vec(),
+            stdin: None,
+        };
+        let out = self.run("set the virtual disk sparse flag", &inv)?;
+        if out.success() {
+            Ok(())
+        } else {
+            Err(cmd_error("wsl --manage --set-sparse", &out))
+        }
+    }
+
     /// Whether the distro answers (exists and starts).
     pub fn distro_reachable(&self) -> SysResult<bool> {
         Ok(self.wsl_raw(&["true"], None)?.success())
@@ -602,6 +650,7 @@ impl<R: Runner> HostSystem<R> {
             portproxy: self.portproxy_rules()?,
             admin_account: self.admin_account(),
             interop_disabled: self.interop_disabled()?,
+            wsl_sparse_supported: self.sparse_supported()?,
         };
         tracing::info!(?facts, "probed host");
         Ok(facts)
@@ -697,6 +746,26 @@ impl<R: Runner> HostSystem<R> {
         self.powershell("start scheduled task", &ps::task_start(name))
             .map(drop)
     }
+}
+
+/// A WSL version (`2.5.7`): major, minor, patch.
+pub type WslVersion = (u32, u32, u32);
+
+/// The first WSL version that has `wsl --manage DISTRO --set-sparse`.
+pub const SPARSE_MIN_VERSION: WslVersion = (2, 0, 0);
+
+/// The version in the first line of `wsl.exe --version` output (`WSL version: 2.5.7.0`; the
+/// label is localized, so the first dotted number of the line is taken).
+pub fn parse_wsl_version(text: &str) -> Option<WslVersion> {
+    let line = text.lines().map(str::trim).find(|l| !l.is_empty())?;
+    line.split(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .find_map(|word| {
+            let mut parts = word.split('.').map(str::parse::<u32>);
+            let major = parts.next()?.ok()?;
+            let minor = parts.next()?.ok()?;
+            let patch = parts.next().and_then(Result::ok).unwrap_or(0);
+            Some((major, minor, patch))
+        })
 }
 
 /// Distro names from `wsl.exe -l -q` output: one per line, with the byte-order mark and any
@@ -1064,6 +1133,10 @@ impl<R: Runner> System for HostSystem<R> {
                     .any(|r| r.listen_address == addr && relay::is_goway_relay(r, port)))
             }
             ResourceKind::WslPackage => Ok(self.dpkg_state(name)? == DpkgState::Installed),
+            ResourceKind::WslSparseVhd => self.ps_flag(
+                "query the sparse virtual disk flag",
+                &ps::wsl_sparse_exists(name),
+            ),
             ResourceKind::WslUnit => {
                 // A unit that does not exist (an older distro without ssh.socket) has nothing
                 // to enable, so it counts as satisfied and is never touched.
@@ -1207,6 +1280,7 @@ impl<R: Runner> System for HostSystem<R> {
                 .map(drop)
             }
             ResourceKind::WslUnit => self.wsl(&["systemctl", "enable", name]).map(drop),
+            ResourceKind::WslSparseVhd => self.set_sparse(name, true),
             ResourceKind::Service => {
                 Self::sshd_spec(name)?;
                 self.powershell("enable and start sshd", &ps::sshd_enable())
@@ -1292,6 +1366,7 @@ impl<R: Runner> System for HostSystem<R> {
                 .map(drop)
             }
             ResourceKind::WslUnit => self.wsl(&["systemctl", "disable", name]).map(drop),
+            ResourceKind::WslSparseVhd => self.set_sparse(name, false),
             ResourceKind::Service => {
                 let spec = Self::sshd_spec(name)?;
                 self.powershell("restore sshd", &ps::sshd_restore(&spec))

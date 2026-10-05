@@ -36,6 +36,10 @@ pub const LOCAL_SUBNET: &str = "LocalSubnet";
 /// The systemd units enabled so sshd starts with the distro.
 pub const SSHD_UNITS: [&str; 2] = ["ssh.socket", "ssh.service"];
 
+/// The systemd timer that trims freed blocks off the distro's disk every week, so a sparse
+/// virtual disk shrinks on the Windows drive even where the root mount's `discard` does not.
+pub const FSTRIM_TIMER: &str = "fstrim.timer";
+
 /// When the keepalive task starts the distro.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
@@ -192,6 +196,8 @@ pub struct HostFacts {
     pub admin_account: bool,
     /// The distro's `/etc/wsl.conf` already sets `[interop] enabled=false`.
     pub interop_disabled: bool,
+    /// `wsl.exe` is new enough to make the distro's virtual disk sparse (WSL 2.0 or later).
+    pub wsl_sparse_supported: bool,
 }
 
 impl HostFacts {
@@ -206,6 +212,7 @@ impl HostFacts {
             portproxy: Vec::new(),
             admin_account: false,
             interop_disabled: false,
+            wsl_sparse_supported: true,
         }
     }
 }
@@ -635,7 +642,37 @@ pub fn host_plan(layout: &Layout, params: &HostParams, facts: &HostFacts) -> Vec
         name: (*unit).into(),
         spec: String::new(),
     }));
+    plan.extend(disk_return_changes(params, facts));
     plan
+}
+
+/// The changes that let disk space goway frees inside WSL reach the Windows drive: the fstrim
+/// timer trims it, and a sparse virtual disk gives the trimmed blocks back (skipped, with a
+/// warning, on a WSL older than 2.0). Last in the plan, because making the disk sparse may stop
+/// the distro.
+fn disk_return_changes(params: &HostParams, facts: &HostFacts) -> Vec<Change> {
+    let mut plan = vec![Change::EnsureResource {
+        kind: ResourceKind::WslUnit,
+        name: FSTRIM_TIMER.into(),
+        spec: String::new(),
+    }];
+    if facts.wsl_sparse_supported {
+        plan.push(sparse_change(&params.distro));
+    } else {
+        tracing::warn!(
+            "this WSL is too old to make the virtual disk sparse (WSL 2.0 or later); skipping"
+        );
+    }
+    plan
+}
+
+/// The journaled change that makes the distro's virtual disk sparse.
+pub fn sparse_change(distro: &str) -> Change {
+    Change::EnsureResource {
+        kind: ResourceKind::WslSparseVhd,
+        name: distro.to_owned(),
+        spec: String::new(),
+    }
 }
 
 /// The NAT-mode changes: the refresh script, the portproxy relay, and the task that keeps the
@@ -684,8 +721,9 @@ fn is_wsl_change(change: &Change) -> bool {
         Change::WriteFile { path, .. }
         | Change::SetIniKey { path, .. }
         | Change::EnsureDir { path } => path.to_str().is_some_and(|s| s.starts_with('/')),
-        Change::EnsureResource { kind, .. } => {
-            matches!(kind, ResourceKind::WslPackage | ResourceKind::WslUnit)
+        Change::EnsureResource { kind, name, .. } => {
+            // The fstrim timer is not sshd: enabling it never calls for an sshd reload.
+            matches!(kind, ResourceKind::WslPackage | ResourceKind::WslUnit) && name != FSTRIM_TIMER
         }
         _ => false,
     }

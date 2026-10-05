@@ -537,6 +537,86 @@ fn packages_install_noninteractively_and_are_removed_never_purged() {
     );
 }
 
+// frob:ticket 01M44WPJWSD12YH6MEZKZE0GWF
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.resource_create
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.resource_delete
+// frob:tests crates/goway-setup/src/ps.rs::wsl_sparse_exists
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.resource_exists
+#[test]
+fn the_virtual_disk_is_made_sparse_through_wsl_manage_and_set_back_on_undo() {
+    let fake = Fake::new(vec![("-EncodedCommand", 0, "0"), ("wsl.exe", 0, "")]);
+    let mut s = sys(&fake);
+    assert!(
+        !s.resource_exists(ResourceKind::WslSparseVhd, "Ubuntu")
+            .unwrap()
+    );
+    s.resource_create(ResourceKind::WslSparseVhd, "Ubuntu", "")
+        .unwrap();
+    s.resource_delete(ResourceKind::WslSparseVhd, "Ubuntu")
+        .unwrap();
+    let log = fake.log.borrow();
+    let wsl: Vec<String> = log
+        .iter()
+        .filter(|i| i.program.to_lowercase().ends_with("wsl.exe"))
+        .map(|i| i.args.join(" "))
+        .collect();
+    assert_eq!(
+        wsl,
+        [
+            "--manage Ubuntu --set-sparse true",
+            "--manage Ubuntu --set-sparse false"
+        ]
+    );
+    let query = &log[0];
+    assert!(
+        query.program.to_lowercase().contains("powershell"),
+        "{query:?}"
+    );
+    drop(log);
+    // A refusal by wsl.exe is an error, never a silent success.
+    let fake = Fake::new(vec![("wsl.exe", 1, "")]);
+    let mut s = sys(&fake);
+    assert!(
+        s.resource_create(ResourceKind::WslSparseVhd, "Ubuntu", "")
+            .is_err()
+    );
+    let flagged = Fake::new(vec![("-EncodedCommand", 0, "1")]);
+    assert!(
+        sys(&flagged)
+            .resource_exists(ResourceKind::WslSparseVhd, "Ubuntu")
+            .unwrap()
+    );
+}
+
+// frob:ticket 01M44WPJWSD12YH6MEZKZE0GWF
+// frob:tests crates/goway-setup/src/hostsys.rs::parse_wsl_version
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.sparse_supported
+#[test]
+fn the_wsl_version_decides_whether_sparse_is_possible_and_an_old_wsl_is_skipped() {
+    assert_eq!(
+        goway_setup::hostsys::parse_wsl_version(
+            "WSL version: 2.5.7.0\nKernel version: 6.6.87.1-1\n"
+        ),
+        Some((2, 5, 7))
+    );
+    assert_eq!(
+        goway_setup::hostsys::parse_wsl_version("\u{feff}WSL-Version: 1.2.5.0\n"),
+        Some((1, 2, 5))
+    );
+    assert_eq!(
+        goway_setup::hostsys::parse_wsl_version("no version here"),
+        None
+    );
+    for (out, code, want) in [
+        ("WSL version: 2.5.7.0\n", 0, true),
+        ("WSL version: 1.2.5.0\n", 0, false),
+        ("Invalid command line argument: --version", 1, false),
+    ] {
+        let fake = Fake::new(vec![("wsl.exe --version", code, out)]);
+        assert_eq!(sys(&fake).sparse_supported().unwrap(), want, "{out}");
+    }
+}
+
 // frob:tests crates/goway-setup/src/hostsys.rs::parse_sshd_ports
 // frob:tests crates/goway-setup/src/hostsys.rs::parse_listening_ports
 #[test]

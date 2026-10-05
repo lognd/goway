@@ -192,6 +192,48 @@ pub fn mem_alone_text(avail: u64, need: u64) -> String {
     )
 }
 
+/// The Windows drive under a WSL helper: inside WSL `df` shows the virtual disk, so the drive
+/// that holds it is read through its drvfs mount and reported next to the ext4 figure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WinDrive {
+    /// The drive letter (`C`).
+    pub letter: String,
+    /// The drive was assumed to be the system drive: no `ext4.vhdx` was found on any drive.
+    pub assumed: bool,
+    /// Bytes free on the drive.
+    pub free: u64,
+    /// Bytes the drive holds in total.
+    pub size: u64,
+    /// Bytes the drive must keep free (0: no reserve).
+    pub reserve: u64,
+    /// Bytes free inside WSL (the ext4 figure), when reported.
+    pub ext4_free: Option<u64>,
+}
+
+/// The Windows drive facts (`win_*` lines) of a probe; `None` off WSL or when unreadable.
+pub fn parse_win(kv: &BTreeMap<&str, &str>) -> Option<WinDrive> {
+    let num = |k: &str| kv.get(k).and_then(|v| v.parse::<u64>().ok());
+    let letter = kv
+        .get("win_drive")
+        .filter(|l| l.len() == 1 && l.bytes().all(|b| b.is_ascii_alphabetic()))?;
+    Some(WinDrive {
+        letter: (*letter).to_owned(),
+        assumed: kv.get("win_source") == Some(&"assumed"),
+        free: num("win_free")?,
+        size: num("win_size")?,
+        reserve: num("win_reserve").unwrap_or(0),
+        ext4_free: num("disk_free_fs"),
+    })
+}
+
+/// The automatic reserve on a Windows drive of `size` bytes: the larger of 15 GiB and 5%.
+pub fn auto_reserve(size: u64) -> u64 {
+    WIN_RESERVE_FLOOR.max(size / 20)
+}
+
+/// The smallest automatic reserve on a Windows drive (15 GiB).
+pub const WIN_RESERVE_FLOOR: u64 = 15 << 30;
+
 /// How a helper's disk stands against one repository's footprint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Room {
@@ -220,7 +262,8 @@ pub fn assess(probe: &Probe, repo_id: &str) -> Room {
         return Room::Unknown;
     };
     let evictable = probe.disk_used.unwrap_or(0);
-    let need = required(fp);
+    // On WSL the drive's reserve is kept on top of what the run needs.
+    let need = required(fp).saturating_add(probe.win.as_ref().map_or(0, |w| w.reserve));
     if free.saturating_add(evictable) >= need {
         Room::Fits
     } else {
@@ -270,6 +313,62 @@ mod tests {
         let got = parse(&kv);
         assert_eq!(got.len(), 1);
         assert_eq!(got["abc-1"], 42);
+    }
+
+    // frob:ticket 01M44WPJWSD12YH6MEZKZE0GWF
+    // frob:tests crates/goway/src/footprint.rs::parse_win
+    // frob:tests crates/goway/src/footprint.rs::auto_reserve
+    #[test]
+    fn the_windows_drive_facts_are_parsed_and_the_automatic_reserve_is_15_gib_or_5_percent() {
+        let kv: BTreeMap<&str, &str> = [
+            ("win_drive", "D"),
+            ("win_source", "assumed"),
+            ("win_free", "100"),
+            ("win_size", "1000"),
+            ("win_reserve", "50"),
+            ("disk_free_fs", "700"),
+        ]
+        .into();
+        let w = parse_win(&kv).unwrap();
+        assert_eq!(
+            (w.letter.as_str(), w.assumed, w.free, w.size),
+            ("D", true, 100, 1000)
+        );
+        assert_eq!((w.reserve, w.ext4_free), (50, Some(700)));
+        assert!(
+            parse_win(&BTreeMap::new()).is_none(),
+            "off WSL there is none"
+        );
+        let bad: BTreeMap<&str, &str> =
+            [("win_drive", "CD"), ("win_free", "1"), ("win_size", "2")].into();
+        assert!(parse_win(&bad).is_none());
+        assert_eq!(auto_reserve(100 * GIB), 15 * GIB);
+        assert_eq!(auto_reserve(1000 * GIB), 50 * GIB);
+    }
+
+    // frob:ticket 01M44WPJWSD12YH6MEZKZE0GWF
+    // frob:tests crates/goway/src/footprint.rs::assess
+    #[test]
+    fn a_wsl_helper_must_fit_the_run_on_top_of_the_drives_reserve() {
+        let text = |extra: &str| {
+            format!(
+                "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\njobs=0\nfootprint.r=10737418240\ndisk_free=21474836480\n{extra}"
+            )
+        };
+        let plain = crate::pool::parse_probe(&text("")).unwrap();
+        assert_eq!(
+            assess(&plain, "r"),
+            Room::Fits,
+            "20 GiB free holds 10 GiB plus margin"
+        );
+        let drive = crate::pool::parse_probe(&text(
+            "win_drive=C\nwin_free=21474836480\nwin_size=107374182400\nwin_reserve=16106127360\n",
+        ))
+        .unwrap();
+        assert!(
+            matches!(assess(&drive, "r"), Room::Short { .. }),
+            "the reserve is kept on top"
+        );
     }
 
     // frob:ticket 01M43CWNW1JNQZMCJBQ2NH4FTC

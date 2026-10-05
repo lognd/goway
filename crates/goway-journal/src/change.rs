@@ -50,6 +50,10 @@ pub enum ResourceKind {
     /// script. Removal deletes the tree and the links into it, and an outside link the install
     /// replaced is restored from the replacement snapshot.
     PinnedTool,
+    /// The WSL distro's virtual disk (`ext4.vhdx`) is sparse, so space freed inside Linux flows
+    /// back to the Windows drive (`wsl --manage DISTRO --set-sparse true`); `name` is the distro.
+    /// Removal sets it back (`--set-sparse false`).
+    WslSparseVhd,
     /// A rustup target of a user's toolchain; `name` is `TARGET` or `TOOLCHAIN/TARGET`.
     RustupTarget,
 }
