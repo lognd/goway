@@ -635,7 +635,7 @@ processes once drove a 12-core helper to load 620), a low `CPUWeight` (20 agains
 100) on low and owner priority, and the optional caps `job_cpu` (`CPUQuota`, `"800%"` is
 eight cores) and `job_memory` (`MemoryMax`, `"6G"`). All three keys live in `[defaults]` and
 can be overridden in a `[[host]]`; `job_tasks = 0` lifts the process cap. Without systemd the
-process cap becomes `ulimit -u` and nice still applies; `job_cpu` and `job_memory` need the
+process cap becomes `ulimit -u` (the user's processes at the job's start plus `job_tasks`, since the limit counts every process of the user) and nice still applies; `job_cpu` and `job_memory` need the
 scope and are ignored there. A manager that refuses the caps still gets the job in a plain
 scope, with a warning.
 
