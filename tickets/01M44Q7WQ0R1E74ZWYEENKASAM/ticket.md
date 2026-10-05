@@ -2,7 +2,8 @@
 id = "01M44Q7WQ0R1E74ZWYEENKASAM"
 title = "Doctor's Windows-side WSL probe can hang server-side and pile up stuck sshd sessions on the helper"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "critical"
 points = 2
 reporter = "lognd"
