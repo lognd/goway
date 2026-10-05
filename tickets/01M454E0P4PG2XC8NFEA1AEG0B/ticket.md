@@ -2,7 +2,8 @@
 id = "01M454E0P4PG2XC8NFEA1AEG0B"
 title = "Full-suite run: a stray file-redirect noise, the line guard, and one E2BIG test remain"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 reporter = "lognd"
