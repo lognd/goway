@@ -7,7 +7,7 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T03:34:54Z"
-updated = "2026-10-05T04:11:36Z"
+updated = "2026-10-05T04:12:10Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/client_loss.rs", "docs/design.md"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a run that leaves a real stray process, When the run ends, Then it is still stopped and the message names it (pid and command)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given other users' processes on the helper, When the sweep scans, Then no permission error reaches the run's output"
