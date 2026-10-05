@@ -1,0 +1,12 @@
+kind = "create"
+title = "The end-of-run sweep mistakes the watchdog's half-second sleep for a leftover under load"
+type = "bug"
+category = "todo"
+priority = "high"
+points = 1
+scope = ["crates/goway/src/remote.sh"]
+acceptance = ["Given a loaded helper, When a run ends cleanly, Then the sweep does not report a short-lived sleep of its own watchdog as a left-behind process"]
+body = "found in the full-suite run for ~V630TRA: pid of 'sleep 0.5' seen at both looks of tagged_left, 0.3 s apart; the look interval must exceed the longest watchdog sleep"
+at = "2026-10-05T04:23:18Z"
+actor = "lognd"
+rev = 1
