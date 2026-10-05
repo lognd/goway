@@ -7,7 +7,7 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T01:52:57Z"
-updated = "2026-10-05T02:24:57Z"
+updated = "2026-10-05T02:25:44Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/evict_live.rs"]
 
 [[acceptance]]
