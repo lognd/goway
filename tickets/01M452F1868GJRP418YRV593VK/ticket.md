@@ -7,7 +7,7 @@ priority = "critical"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T03:42:04Z"
-updated = "2026-10-05T04:04:10Z"
+updated = "2026-10-05T04:04:11Z"
 scope = ["crates/goway/src/remote.rs", "crates/goway/tests/disk_budget.rs", "crates/goway/tests/remote_root.rs", "crates/goway/tests/footprint.rs", "crates/goway/tests/scratch_fs.rs", "crates/goway/tests/mem_footprint.rs", "crates/goway/tests/translate_repick.rs", "crates/goway/tests/drift_refresh.rs", "crates/goway/tests/translate.rs", "crates/goway/tests/evict_live.rs", "crates/goway/tests/wsl_drive.rs", "crates/goway/tests/probe_epoch.rs", "crates/goway/tests/user_tool_path.rs", "crates/goway/tests/clock.rs", "crates/goway/tests/common/mod.rs", "crates/goway/tests/world_teardown.rs"]
 
 [[acceptance]]
