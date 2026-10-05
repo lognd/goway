@@ -2,7 +2,8 @@
 id = "01M44VAJE0Z7NQ4YQGK1ABKWDY"
 title = "Queue arrival-order test is too tight for a slow macOS runner"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
