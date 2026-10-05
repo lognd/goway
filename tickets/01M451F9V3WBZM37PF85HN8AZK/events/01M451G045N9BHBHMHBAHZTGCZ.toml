@@ -1,0 +1,7 @@
+kind = "field"
+field = "title"
+old = "A whole-workspace test run under the default job cap exhausts the task limit: every goway client starts one worker thread per core"
+new = "Tests leave one sccache server per test world running, and about 80 of them (34 threads each) exhaust a goway job's 4096 task cap"
+at = "2026-10-05T03:25:07Z"
+actor = "lognd"
+rev = 1

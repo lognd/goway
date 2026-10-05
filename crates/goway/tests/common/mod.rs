@@ -211,6 +211,52 @@ pub fn world_with_ssh(script: &str) -> World {
     }
 }
 
+/// The pids of sccache servers (this user's) whose `SCCACHE_DIR` lies under `root`: the
+/// servers a goway run started for a test world. Linux only (reads /proc); empty elsewhere.
+pub fn sccache_servers_under(root: &Path) -> Vec<u32> {
+    let want = format!("SCCACHE_DIR={}/", root.display());
+    let Ok(procs) = std::fs::read_dir("/proc") else {
+        return Vec::new();
+    };
+    procs
+        .flatten()
+        .filter_map(|e| {
+            let pid: u32 = e.file_name().to_str()?.parse().ok()?;
+            let env = std::fs::read(e.path().join("environ")).ok()?;
+            env.split(|b| *b == 0)
+                .any(|kv| kv.starts_with(want.as_bytes()))
+                .then_some(pid)
+        })
+        .collect()
+}
+
+/// Stop every sccache server of the world at `root` (SIGTERM, then SIGKILL if one lingers):
+/// a run leaves its per-repository server up on purpose, a test world must not.
+pub fn stop_sccache_servers(root: &Path) {
+    for sig in ["-TERM", "-KILL"] {
+        let pids = sccache_servers_under(root);
+        if pids.is_empty() {
+            return;
+        }
+        let _ = Command::new("kill")
+            .arg(sig)
+            .args(pids.iter().map(u32::to_string))
+            .stderr(Stdio::null())
+            .status();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while !sccache_servers_under(root).is_empty() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+}
+
+impl Drop for World {
+    /// A run leaves its sccache server up for the next run; a world has no next run.
+    fn drop(&mut self) {
+        stop_sccache_servers(&self.root);
+    }
+}
+
 impl World {
     pub fn goway(&self, args: &[&str]) -> Command {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_goway"));
