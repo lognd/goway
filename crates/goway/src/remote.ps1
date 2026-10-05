@@ -2452,6 +2452,7 @@ function Verb-run([string[]]$A) {
     if ($w -match '^shard-detect:\d+:\d+:[A-Za-z0-9]+$') { $detect = $w.Substring(13) }
     elseif ($w -match '^gpu-slots:(\d+)$') { $gpuPer = [int]$Matches[1] }
     elseif ($w -match '^slot-wait:(\d+)$') { $slotWait = [int]$Matches[1] }
+    elseif ($w -match '^limits:\d+:\d*:\d*$') { }  # per-job caps: systemd scopes only, nothing to do here
     elseif ($w -match '^verify:([12]):(changed|all)(:fresh)?$') {
       # The attempt number is goway's explicit argument, never read from the
       # environment or from anything the helper reports.

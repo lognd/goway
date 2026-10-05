@@ -795,16 +795,42 @@ mem_sample() {
   return 0
 }
 
-# job_scope RUN_ID: set SCOPE to a wrapper that puts the job in its own
-# transient systemd scope (so its memory is measured exactly), probed once
-# with `true`; empty where there is no user manager (a WSL without systemd).
+# job_scope RUN_ID [LIMITS [PRIORITY]]: set SCOPE to a wrapper that puts the job in its own
+# transient systemd scope (so its memory is measured exactly and the whole job can be
+# stopped), probed once with `true`; empty where there is no user manager (a WSL without
+# systemd). LIMITS is TASKS:CPU_PERCENT:MEMORY_BYTES (the run's `limits:` word; an empty
+# field is no cap, TASKS 0 lifts the process cap): the scope gets TasksMax, CPUQuota and
+# MemoryMax, and a low CPUWeight when PRIORITY is low or owner, so one runaway job cannot
+# take the helper down. A manager that refuses the caps still gets a plain scope.
 job_scope() {
+  local tasks cpu mem props=() id=$1 limits=${2:-} priority=${3:-}
   SCOPE=()
   [ "$IS_DARWIN" != 1 ] && [ -e /sys/fs/cgroup/cgroup.controllers ] && command -v systemd-run >/dev/null 2>&1 || return 0
-  if bounded_for 3 systemd-run --user --scope --quiet --collect --unit="goway-probe-$1" true >/dev/null 2>&1; then
-    SCOPE=(systemd-run --user --scope --quiet --collect --property=TimeoutStopSec=5 --unit="goway-$1")
+  IFS=: read -r tasks cpu mem <<<"$limits"
+  case "$tasks" in "" | *[!0-9]*) tasks=0 ;; esac
+  case "$cpu" in *[!0-9]*) cpu="" ;; esac
+  case "$mem" in *[!0-9]*) mem="" ;; esac
+  if [ "$tasks" -gt 0 ]; then props+=(--property="TasksMax=$tasks"); fi
+  if [ -n "$cpu" ] && [ "$cpu" -gt 0 ]; then props+=(--property="CPUQuota=${cpu}%"); fi
+  if [ -n "$mem" ] && [ "$mem" -gt 0 ]; then props+=(--property="MemoryMax=$mem"); fi
+  case "$priority" in low | owner) props+=(--property=CPUWeight=20) ;; esac
+  local base=(systemd-run --user --scope --quiet --collect --property=TimeoutStopSec=5)
+  if bounded_for 3 "${base[@]}" ${props[@]+"${props[@]}"} --unit="goway-probe-$id" true >/dev/null 2>&1; then
+    SCOPE=("${base[@]}" ${props[@]+"${props[@]}"} --unit="goway-$id")
+  elif [ ${#props[@]} -gt 0 ] && bounded_for 3 "${base[@]}" --unit="goway-probe-$id" true >/dev/null 2>&1; then
+    printf 'goway-remote: the user manager refused the job limits; running the job in a plain scope\n' >&2 || true
+    SCOPE=("${base[@]}" --unit="goway-$id")
   fi
   return 0
+}
+
+# job_tasks LIMITS: the process cap of the run's `limits:` word (0 = none), for the
+# `ulimit -u` fallback of a job that has no scope.
+job_tasks() {
+  local tasks
+  tasks=${1%%:*}
+  case "$tasks" in "" | *[!0-9]*) tasks=0 ;; esac
+  printf '%s' "$tasks"
 }
 
 # Kill the job's process group when the ssh session that started it dies
@@ -1247,10 +1273,14 @@ keep_awake() {
   esac
 }
 
+# What a job without a scope runs under `setsid sh -c`: record its pid ($0), cap the
+# user's processes at $1 (`ulimit -u`, 0 = no cap) as the fallback for TasksMax, then exec it.
+JOB_LAUNCH='echo $$ >"$0"; if [ "$1" -gt 0 ] 2>/dev/null; then ulimit -u "$1" 2>/dev/null || true; fi; shift; exec "$@"'
+
 # launch_job CMD...: start the job as run does (own session, pid recorded
 # for the watchdog, polite priority). JOB_PID and JOB_NICER are run's.
 launch_job() {
-  setsid sh -c 'echo $$ >"$0"; exec "$@"' "$JOB_PID" ${JOB_NICER[@]+"${JOB_NICER[@]}"} "$@"
+  setsid sh -c "$JOB_LAUNCH" "$JOB_PID" "$JOB_TASKS" ${JOB_NICER[@]+"${JOB_NICER[@]}"} "$@"
 }
 
 # catch2_rejected ERRFILE RC: whether Catch2 refused the shard flags before
@@ -1388,12 +1418,13 @@ run() {
   shift 10
   # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
   # framework detection of the command's program (see shard_run).
-  local detect="" gpu_per="" slot_wait=300 verify="" fresh=0 attempt=1 level=changed room=""
+  local limits="" detect="" gpu_per="" slot_wait=300 verify="" fresh=0 attempt=1 level=changed room=""
   while [ $# -gt 0 ] && [ "$1" != "--" ]; do
     case "$1" in
       shard-detect:[0-9]*:[0-9]*:[A-Za-z0-9]*) detect=${1#shard-detect:} ;;
       gpu-slots:[0-9]*) gpu_per=${1#gpu-slots:} ;;
       slot-wait:[0-9]*) slot_wait=${1#slot-wait:} ;;
+      limits:[0-9]*:*:*) limits=${1#limits:} ;;
       room:[0-9]*:[0-9]*) room=${1#room:} ;;
       verify:[12]:changed | verify:[12]:all | verify:[12]:changed:fresh | verify:[12]:all:fresh)
         # The attempt number is goway's explicit argument, never read from
@@ -1622,7 +1653,8 @@ run() {
   keep_awake
   nicer=(${AWAKE[@]+"${AWAKE[@]}"} ${nicer[@]+"${nicer[@]}"})
   SCOPE=()
-  if [ -z "$detect" ]; then job_scope "$run_id"; fi
+  if [ -z "$detect" ]; then job_scope "$run_id" "$limits" "$priority"; fi
+  JOB_TASKS=$(job_tasks "$limits")
   if [ -n "$detect" ]; then
     JOB_PID="$work/pid"
     JOB_NICER=(${nicer[@]+"${nicer[@]}"})
@@ -1633,7 +1665,7 @@ run() {
       printf 'goway-%s.scope' "$run_id" >"$work/scope"
       setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "${SCOPE[@]}" bash "$work/scope-exec.sh" "$work/argv" || rc=$?
     else
-      setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
+      setsid sh -c "$JOB_LAUNCH" "$work/pid" "$JOB_TASKS" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
     fi
   fi
   # The watchdog's own children (its sleep) carry the run's tag: end them with it.

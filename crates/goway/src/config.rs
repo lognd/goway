@@ -134,6 +134,14 @@ pub struct Defaults {
     /// GPU runs that may share each GPU at once (a run that needs a GPU
     /// holds one GPU slot; 1 gives every GPU run its own GPU).
     pub gpu_jobs: u32,
+    /// Most processes and threads one job may have at once (systemd `TasksMax` of its
+    /// scope, else `ulimit -u`); `0` lifts the cap.
+    pub job_tasks: u32,
+    /// CPU one job may use at most, in percent of one core (`800%` = 8 cores), or `""`
+    /// for no cap (systemd `CPUQuota`; a low `CPUWeight` always applies on low priority).
+    pub job_cpu: String,
+    /// Memory one job may use at most (`6G`), or `""` for no cap (systemd `MemoryMax`).
+    pub job_memory: String,
     /// Extra paths that stay in a build slot's tree between runs, on top of
     /// the detected dependency and build directories (a name matches at
     /// any depth; a path with `/` is relative to the tree root).
@@ -144,7 +152,43 @@ pub struct Defaults {
 
 const DAY: u64 = 24 * 60 * 60;
 
+/// Why `value` is not a valid `job_cpu` (`""` or a percentage such as `800%`).
+fn check_job_cpu(value: &str) -> std::result::Result<(), String> {
+    let ok = value.is_empty()
+        || value
+            .strip_suffix('%')
+            .is_some_and(|n| n.parse::<u32>().is_ok_and(|n| n > 0));
+    if ok {
+        Ok(())
+    } else {
+        Err(format!(
+            "job_cpu `{value}` must be a percentage such as `800%`"
+        ))
+    }
+}
+
+/// Why `value` is not a valid `job_memory` (`""` or a size such as `6G`).
+fn check_job_memory(value: &str) -> std::result::Result<(), String> {
+    if value.is_empty() || crate::needs::parse_size(value).is_some_and(|b| b > 0) {
+        Ok(())
+    } else {
+        Err(format!("job_memory `{value}` must be a size such as `6G`"))
+    }
+}
+
 impl Defaults {
+    /// The `limits:TASKS:CPU:MEMORY` word that sends a job's caps to the helper (CPU in
+    /// percent, memory in bytes; an empty field is no cap, tasks 0 lifts the cap).
+    pub fn limits_word(&self) -> String {
+        let cpu = self.job_cpu.strip_suffix('%').unwrap_or("");
+        let mem = crate::needs::parse_size(&self.job_memory).filter(|b| *b > 0);
+        format!(
+            "limits:{}:{cpu}:{}",
+            self.job_tasks,
+            mem.map(|b| b.to_string()).unwrap_or_default()
+        )
+    }
+
     /// The per-job memory reserve in bytes (0 when off or unreadable).
     pub fn job_mem_bytes(&self) -> u64 {
         crate::needs::parse_size(&self.job_mem).unwrap_or(0)
@@ -182,6 +226,9 @@ impl Default for Defaults {
             job_mem: "1.5G".to_owned(),
             owner_idle: Duration::from_mins(5),
             gpu_jobs: 1,
+            job_tasks: 4096,
+            job_cpu: String::new(),
+            job_memory: String::new(),
             keep: Vec::new(),
             keep_ignored: true,
         }
@@ -271,6 +318,15 @@ pub struct HostConfig {
     /// `defaults.gpu_jobs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gpu_jobs: Option<u32>,
+    /// Most processes one job may have here (default: `defaults.job_tasks`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job_tasks: Option<u32>,
+    /// CPU cap of one job here, `800%` (default: `defaults.job_cpu`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job_cpu: Option<String>,
+    /// Memory cap of one job here, `6G` (default: `defaults.job_memory`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job_memory: Option<String>,
     /// Free RAM one job needs on this host (default: `defaults.job_mem`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job_mem: Option<String>,
@@ -456,6 +512,21 @@ impl Config {
                 &Some(d.cache_size.clone()),
             ],
         )?;
+        let limits =
+            std::iter::once((&d.job_cpu, &d.job_memory)).chain(self.hosts.iter().filter_map(|h| {
+                Some((
+                    h.job_cpu.as_ref().unwrap_or(&d.job_cpu),
+                    h.job_memory.as_ref().unwrap_or(&d.job_memory),
+                ))
+            }));
+        for (cpu, mem) in limits {
+            if let Err(message) = check_job_cpu(cpu).and_then(|()| check_job_memory(mem)) {
+                return Err(Error::Config {
+                    path: origin.to_owned(),
+                    message,
+                });
+            }
+        }
         for entry in &self.defaults.keep {
             if let Err(why) = check_keep_entry(entry) {
                 return Err(Error::Config {
@@ -589,6 +660,12 @@ impl Config {
             .cache_size
             .clone()
             .unwrap_or_else(|| d.cache_size.clone());
+        d.job_tasks = host.job_tasks.unwrap_or(d.job_tasks);
+        d.job_cpu = host.job_cpu.clone().unwrap_or_else(|| d.job_cpu.clone());
+        d.job_memory = host
+            .job_memory
+            .clone()
+            .unwrap_or_else(|| d.job_memory.clone());
         config
     }
 

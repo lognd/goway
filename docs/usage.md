@@ -627,6 +627,18 @@ freed afterwards, and to rerun with `--needs disk>=SIZE` or on another host.
 The disk peak is a high-water mark: it never shrinks, and a failure at a full disk
 records only what was written before it ran out.
 
+### Job limits: one job cannot take a helper down
+
+Every job runs in its own systemd user scope (when the helper has a user manager) with
+`TasksMax` set to `job_tasks` (default 4096 processes and threads; a stress loop of 600
+processes once drove a 12-core helper to load 620), a low `CPUWeight` (20 against the default
+100) on low and owner priority, and the optional caps `job_cpu` (`CPUQuota`, `"800%"` is
+eight cores) and `job_memory` (`MemoryMax`, `"6G"`). All three keys live in `[defaults]` and
+can be overridden in a `[[host]]`; `job_tasks = 0` lifts the process cap. Without systemd the
+process cap becomes `ulimit -u` and nice still applies; `job_cpu` and `job_memory` need the
+scope and are ignored there. A manager that refuses the caps still gets the job in a plain
+scope, with a warning.
+
 ### Memory: a repository's peak
 
 The same idea for memory (`mempeaks` in goway's root). While a job runs, the
