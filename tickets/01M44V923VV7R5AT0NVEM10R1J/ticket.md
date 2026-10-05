@@ -2,12 +2,12 @@
 id = "01M44V923VV7R5AT0NVEM10R1J"
 title = "Slot-wait test times out waiting for a held run to start on the Linux and macOS CI runners"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T01:36:28Z"
-updated = "2026-10-05T01:36:28Z"
+updated = "2026-10-05T01:36:30Z"
 scope = ["crates/goway/tests/common/mod.rs", "crates/goway/tests/slot_wait.rs"]
 
 [[acceptance]]
