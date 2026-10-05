@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-05T05:03:04Z"
+digest = "f885bd3c92de0c159d5dc0fd0ab7d21e6116b68179a47b342e21a0f3907874b2"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 24.96s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID aadab77a-a210-4659-9799-76afe718f1dc with nextest profile: default
+    Starting 1 test across 84 binaries (924 tests skipped)
+        PASS [   3.370s] goway::client_loss a_real_stray_is_stopped_and_named_while_the_sccache_server_stays
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   3.374s] 1 test run: 1 passed, 924 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_real_stray_is_stopped_and_named_while_the_sccache_server_stays)'"
+size = 762
+status = "measured"
+tests = ["a_real_stray_is_stopped_and_named_while_the_sccache_server_stays"]
+at = "2026-10-05T05:03:04Z"
+actor = "lognd"
+rev = 1
