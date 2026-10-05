@@ -1,0 +1,29 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-05T00:36:30Z"
+digest = "b02c6921af4f665589a121020599be2275db9b9c5b44ed646a298de5f5d4463c"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 49.46s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 29d85972-df30-4b58-a211-352dc35b6167 with nextest profile: default
+    Starting 1 test across 77 binaries (849 tests skipped)
+        PASS [  32.062s] goway::slot_wait a_run_waiting_for_a_busy_slot_gives_up_after_wait_with_what_it_saw
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  32.068s] 1 test run: 1 passed, 849 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_run_waiting_for_a_busy_slot_gives_up_after_wait_with_what_it_saw)'"
+size = 918
+status = "measured"
+tests = ["a_run_waiting_for_a_busy_slot_gives_up_after_wait_with_what_it_saw"]
+at = "2026-10-05T00:36:30Z"
+actor = "lognd"
+rev = 1

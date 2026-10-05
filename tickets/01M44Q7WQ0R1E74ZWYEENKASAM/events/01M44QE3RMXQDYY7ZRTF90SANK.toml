@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-05T00:29:20Z"
+digest = "cc5bbe90ade5929d9d5f6cfa49ad04ff8fa5777f48c31603e0b8bd90da387a7f"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 3f38bd55-5b01-4e69-96b8-32ba8bc171f2 with nextest profile: default
+    Starting 1 test across 76 binaries (851 tests skipped)
+        PASS [   0.006s] goway::doctor_wsl_down every_windows_command_of_the_check_is_bounded_and_killed_on_the_helper
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.009s] 1 test run: 1 passed, 851 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(every_windows_command_of_the_check_is_bounded_and_killed_on_the_helper)'"
+size = 587
+status = "measured"
+tests = ["every_windows_command_of_the_check_is_bounded_and_killed_on_the_helper"]
+at = "2026-10-05T00:29:20Z"
+actor = "lognd"
+rev = 1

@@ -1,0 +1,12 @@
+kind = "create"
+title = "The journal invariant flags the hung-WSL recovery steps doctor prints as advice"
+type = "bug"
+category = "todo"
+priority = "critical"
+points = 1
+scope = ["crates/goway/tests/journal_invariant.rs"]
+acceptance = ["Given the wsl_down.rs allowlist entry, When the invariant test runs on main, Then it passes, and the entry's reason says the recovery steps are printed advice and the probes are read-only"]
+body = "The invariant from ~XV3QHHT landed before ~ENKASAM's hung-WSL finding, whose printed recovery steps (Start-Service sshd, wsl --shutdown) the scanner reads as machine changes; main fails journal_invariant. wsl_down.rs only prints them; its probes stay read-only."
+at = "2026-10-05T00:39:52Z"
+actor = "lognd"
+rev = 1

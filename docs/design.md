@@ -229,6 +229,17 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       warns when its lifeline connection broke while the job ran, so an exit
       143 is never unexplained. A run that finished (`done` marker) is never
       touched, so a reused pid cannot be hit.
+      Stopping means the whole job, not one process group: a job runs in
+      its own systemd scope (`goway-<run>.scope`, when the helper has a user
+      manager), and the stop is `systemctl --user stop` on that scope
+      (SIGTERM to every process in the cgroup, SIGKILL after 5 seconds), then
+      `cgroup.kill` or SIGKILL of `cgroup.procs` if systemd did not empty it,
+      then the process group, then a sweep of every process whose environment
+      carries the run's `GOWAY_RUN_ID` (catches a `setsid` job without a
+      scope). The same stop runs when the job's leader exits but background
+      processes keep running (they would otherwise hold the run's build slot
+      lock through an inherited fd and burn CPU), so no process of a finished
+      or abandoned run survives it.
    6. Provenance for frob: a header line on stderr naming host, arch and
       address, and `--report FILE` writes the same as JSON.
 5. Pool (`pool`)

@@ -22,6 +22,14 @@ pub enum Error {
         /// The underlying OS error.
         source: std::io::Error,
     },
+    /// The change log (`changes.json`) could not be read, written or replayed.
+    #[error("change log {path}: {source}")]
+    Journal {
+        /// The change log file.
+        path: PathBuf,
+        /// What went wrong.
+        source: goway_journal::JournalError,
+    },
     /// goway was started by goway too many levels deep.
     #[error(
         "goway is nested {depth} deep (limit {limit}): {chain}; a command that calls goway recursively is refused here"

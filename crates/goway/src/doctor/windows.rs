@@ -511,6 +511,28 @@ pub struct HostRunner<'a> {
     pub settings: &'a ssh::Settings,
     /// `--windows-admin`: the administrator account for the ssh route.
     pub admin_user: Option<&'a str>,
+    /// The config directory whose change log records each step before it runs.
+    pub record_in: &'a std::path::Path,
+}
+
+impl HostRunner<'_> {
+    /// Record `command` in the change log before it runs; `false` (do not run it) on failure.
+    fn record(&self, command: &str, reason: &str) -> bool {
+        match crate::changelog::record_action(
+            self.record_in,
+            goway_journal::ActionKind::RunFix,
+            command,
+            &self.found.target.name,
+            reason,
+            Some(super::FIX_UNDO_HINT),
+        ) {
+            Ok(()) => true,
+            Err(e) => {
+                tracing::error!(error = %e, "could not record the fix; not running it");
+                false
+            }
+        }
+    }
 }
 
 /// [`winadmin::run_local`]'s answer as the [`winadmin::Outcome`] of the route
@@ -527,6 +549,9 @@ fn local_outcome(local: winadmin::Local) -> winadmin::Outcome {
 
 impl Runner for HostRunner<'_> {
     fn user(&self, command: &str) -> bool {
+        if !self.record(command, "doctor --fix on a Windows helper") {
+            return false;
+        }
         let cmd = transport::command(
             self.found.kind,
             &self.found.target,
@@ -549,6 +574,12 @@ impl Runner for HostRunner<'_> {
     }
 
     fn admin(&self, step: &WinStep) -> winadmin::Outcome {
+        if !self.record(&step.command, "doctor --fix, as a Windows administrator") {
+            return winadmin::Outcome::Failed(
+                winadmin::Route::AdminSsh,
+                "the change could not be recorded".to_owned(),
+            );
+        }
         if self.found.kind == Kind::WindowsInterop {
             return local_outcome(winadmin::run_local(step));
         }

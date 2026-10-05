@@ -2,13 +2,14 @@
 id = "01M44F3BBCMAXQNP7H2SZFHCRG"
 title = "A job in a systemd-run scope survives its vanished client: stop the whole scope (cgroup), not one process group"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "critical"
 points = 3
 parent = "01M418GXXC6312Z4N151DYH3Y4"
 reporter = "lognd"
 created = "2026-10-04T22:03:38Z"
-updated = "2026-10-04T22:50:30Z"
+updated = "2026-10-05T00:46:32Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/tests/client_loss.rs", "crates/goway/tests/mem_footprint.rs", "docs/design.md"]
 
 [[acceptance]]

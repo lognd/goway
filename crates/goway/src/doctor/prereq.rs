@@ -10,6 +10,7 @@
 //! package manager's name syntax first, so a repository can ask for package
 //! names and nothing else (no options, paths or shell characters).
 
+use goway_journal::ResourceKind;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
@@ -366,6 +367,24 @@ impl Prereqs {
             });
         }
     }
+}
+
+/// The journaled resource of the user fix for check `target:TARGET`: a
+/// [`ResourceKind::RustupTarget`] named `TARGET` or `TOOLCHAIN/TARGET`, read back from the
+/// `rustup target add` command. `None` for any other check or command.
+pub fn target_resource(check: &str, command: &str) -> Option<(ResourceKind, String, String)> {
+    let target = check.strip_prefix("target:")?;
+    let rest = command.split("rustup target add").nth(1)?;
+    let mut words = rest.split_whitespace();
+    let first = words.next()?;
+    let name = if first == "--toolchain" {
+        let toolchain = words.next()?;
+        format!("{toolchain}/{}", words.next()?)
+    } else {
+        first.to_owned()
+    };
+    (name == target || name.ends_with(&format!("/{target}")))
+        .then(|| (ResourceKind::RustupTarget, name, command.to_owned()))
 }
 
 #[cfg(test)]

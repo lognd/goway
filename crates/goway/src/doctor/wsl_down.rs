@@ -4,7 +4,9 @@
 //! (port 22). Through it doctor runs two read-only commands: `wsl.exe -l -v` (is the distro
 //! stopped?) and `schtasks /query /v /fo list` (is the keepalive task there, and does it repeat?).
 //! Nothing is started or changed: the fix is printed for the user to run. Both outputs are
-//! parsed by pure functions so the verdicts are testable without a machine.
+//! parsed by pure functions so the verdicts are testable without a machine. Each command runs
+//! under a time limit enforced on the helper ([`bounded_command`]): a deadlocked `wsl.exe` is
+//! killed there and reported as its own finding, never left to pile up stuck sshd sessions.
 
 use std::fmt::Write as _;
 
@@ -19,6 +21,13 @@ pub const WINDOWS_SSH_PORT: u16 = 22;
 /// The keepalive task's name for the default profile; goway-setup registers it (`host::task_name`),
 /// with `(boot)` appended for a boot keepalive and a profile prefix for a named profile.
 pub const KEEPALIVE_TASK: &str = "WSL Keepalive";
+
+/// The line a bounded Windows command prints when it outlived its limit and was killed on the
+/// helper; the exit status stays 0 so the answer reaches doctor as text.
+pub const TIMEOUT_MARKER: &str = "goway-timeout";
+
+/// The server-side time limit, in milliseconds, of every Windows command this check runs.
+pub const COMMAND_LIMIT_MS: u32 = 10_000;
 
 /// One distro as `wsl.exe -l -v` lists it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,6 +147,65 @@ pub fn parse_keepalive_tasks(text: &str) -> Vec<Task> {
     tasks
 }
 
+/// PowerShell that runs the System32 program `exe` with `args` under a limit enforced on the
+/// helper: output goes to temp files, the process is waited for at most `limit_ms`, and on
+/// expiry its whole tree is killed (so a deadlocked `wsl.exe` cannot outlive the ssh session)
+/// and [`TIMEOUT_MARKER`] is printed instead of the output.
+pub fn bounded_command(exe: &str, args: &[&str], limit_ms: u32) -> String {
+    let list = args
+        .iter()
+        .map(|a| format!("'{}'", a.replace('\'', "''")))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        r#"$ErrorActionPreference = 'SilentlyContinue'
+$sys = Join-Path $env:SystemRoot 'System32'
+$out = [IO.Path]::GetTempFileName()
+$err = [IO.Path]::GetTempFileName()
+try {{
+  $p = Start-Process -FilePath (Join-Path $sys '{exe}') -ArgumentList {list} -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+  if ($p.WaitForExit({limit_ms})) {{
+    [Console]::Out.Write([IO.File]::ReadAllText($out))
+  }} else {{
+    & (Join-Path $sys 'taskkill.exe') /T /F /PID $p.Id | Out-Null
+    try {{ $p.Kill() }} catch {{}}
+    [Console]::Out.Write("{TIMEOUT_MARKER}: {exe} did not finish in {limit_ms} ms and was killed`n")
+  }}
+}} finally {{
+  Remove-Item -LiteralPath $out, $err -Force
+}}
+"#
+    )
+}
+
+/// The bounded `wsl.exe -l -v`.
+pub fn wsl_list_script() -> String {
+    bounded_command("wsl.exe", &["-l", "-v"], COMMAND_LIMIT_MS)
+}
+
+/// The bounded `schtasks /query /v /fo list`.
+pub fn schtasks_script() -> String {
+    bounded_command(
+        "schtasks.exe",
+        &["/query", "/v", "/fo", "list"],
+        COMMAND_LIMIT_MS,
+    )
+}
+
+/// The recovery steps for a WSL service that does not answer, for the user to run on the helper.
+fn hung_wsl_steps(windows: &Target) -> String {
+    format!(
+        "WSL service is not responding: wsl.exe did not finish in {} s on {} and was killed there. Recover on the helper, in an administrator PowerShell, in this order:\n\
+         1. Stop-Process -Name wsl -Force   (stuck wsl.exe processes)\n\
+         2. Stop-Process -Name sshd -Force; Start-Service sshd   (stuck Windows OpenSSH sessions; refuses new logins while they pile up)\n\
+         3. wsl --shutdown\n\
+         4. Stop-Process -Name wslservice -Force   (last resort; the service restarts on the next wsl call)\n\
+         then retry `goway doctor`; see docs/troubleshooting.md",
+        COMMAND_LIMIT_MS / 1000,
+        windows.address
+    )
+}
+
 fn check(name: &str, level: Level, detail: String) -> Check {
     Check {
         name: name.to_owned(),
@@ -176,7 +244,7 @@ fn windows_output(
 /// OpenSSH at `windows` (the same address, port [`WINDOWS_SSH_PORT`]). Read-only.
 pub fn diagnose(prober: &dyn Prober, windows: &Target, wsl_port: u16) -> Vec<Check> {
     tracing::info!(host = %windows.name, address = %windows.address, wsl_port, "asking Windows about an unreachable WSL helper");
-    let list = match windows_output(prober, windows, "wsl.exe -l -v") {
+    let list = match windows_output(prober, windows, &wsl_list_script()) {
         Ok(text) => text,
         Err((Failure::Unreachable, why)) => {
             tracing::warn!(host = %windows.name, %why, "nothing answers at the address");
@@ -209,7 +277,15 @@ pub fn diagnose(prober: &dyn Prober, windows: &Target, wsl_port: u16) -> Vec<Che
             )];
         }
     };
-    let tasks = match windows_output(prober, windows, "schtasks /query /v /fo list") {
+    if list.contains(TIMEOUT_MARKER) {
+        tracing::warn!(host = %windows.name, "wsl.exe hung on the helper and was killed there");
+        return vec![check("wsl service", Level::Fail, hung_wsl_steps(windows))];
+    }
+    let tasks = match windows_output(prober, windows, &schtasks_script()) {
+        Ok(text) if text.contains(TIMEOUT_MARKER) => {
+            tracing::warn!(host = %windows.name, "schtasks hung on the helper and was killed there");
+            Vec::new()
+        }
         Ok(text) => parse_keepalive_tasks(&text),
         Err((_, why)) => {
             tracing::warn!(host = %windows.name, %why, "cannot list scheduled tasks");
@@ -272,7 +348,12 @@ pub fn diagnose(prober: &dyn Prober, windows: &Target, wsl_port: u16) -> Vec<Che
 pub fn describe(why: &str, checks: &[Check]) -> String {
     let mut text = why.to_owned();
     for c in checks {
-        let _ = write!(text, "\n    {}: {}", c.name, c.detail);
+        let _ = write!(
+            text,
+            "\n    {}: {}",
+            c.name,
+            c.detail.replace('\n', "\n        ")
+        );
     }
     text
 }

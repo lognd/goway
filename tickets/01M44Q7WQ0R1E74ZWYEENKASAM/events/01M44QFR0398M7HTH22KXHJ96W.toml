@@ -1,0 +1,8 @@
+kind = "land"
+base_ref = "refs/heads/main"
+commit = "e4698880a0f9f4aa91c6d05133c6fb83cf0e6fb5"
+branch = "ticket/ENKASAM"
+pushed = false
+at = "2026-10-05T00:30:13Z"
+actor = "lognd"
+rev = 1

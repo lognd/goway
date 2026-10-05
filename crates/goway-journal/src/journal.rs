@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::change::Change;
+use crate::change::{ActionKind, Change};
 use crate::error::JournalError;
 
 /// What was captured before a change was applied; drives its inverse.
@@ -79,6 +79,11 @@ pub enum Prior {
         /// Snapshot taken by `System::resource_outdated` before the replacement.
         previous: String,
     },
+    /// An action ran at this time; there is nothing to restore.
+    Action {
+        /// When it was recorded, seconds since the unix epoch.
+        at_unix_secs: u64,
+    },
 }
 
 /// One applied change with the state captured before it.
@@ -104,6 +109,13 @@ pub struct Journal {
     pub entries: Vec<Entry>,
 }
 
+/// Seconds since the unix epoch, 0 when the clock is before it.
+pub(crate) fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
+}
+
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 impl Journal {
@@ -126,6 +138,71 @@ impl Journal {
             .map_or(0, |d| d.as_nanos());
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         Self::new(format!("{nanos:x}-{:x}-{n:x}", std::process::id()))
+    }
+
+    /// The journal stored at `path`, or a new generated one when there is no file yet.
+    pub fn load_or_new(path: &Path) -> Result<Self, JournalError> {
+        if path.exists() {
+            Self::load(path)
+        } else {
+            Ok(Self::generate())
+        }
+    }
+
+    /// Append `change` with its `prior` to the journal at `path` and save it, for a change the
+    /// caller applies itself (an atomic file write, a process it starts). Call it before the
+    /// change takes effect, so the record never lags behind the machine (write-ahead).
+    pub fn record_at(path: &Path, change: Change, prior: Prior) -> Result<(), JournalError> {
+        let mut journal = Self::load_or_new(path)?;
+        tracing::info!(journal = %journal.id, ?change, "journal: recording a change");
+        journal.entries.push(Entry {
+            change,
+            prior,
+            reverted: false,
+        });
+        journal.save(path)
+    }
+
+    /// [`Journal::record_at`] for an action that cannot be inverted, stamped now.
+    pub fn record_action_at(
+        path: &Path,
+        kind: ActionKind,
+        target: &str,
+        host: &str,
+        reason: &str,
+        undo: Option<&str>,
+    ) -> Result<(), JournalError> {
+        Self::record_at(
+            path,
+            Change::Action {
+                kind,
+                target: target.to_owned(),
+                host: host.to_owned(),
+                reason: reason.to_owned(),
+                undo: undo.map(str::to_owned),
+            },
+            Prior::Action {
+                at_unix_secs: now_secs(),
+            },
+        )
+    }
+
+    /// [`Journal::record_at`] for a whole-file write: the file held `before` and now holds `after`.
+    /// Undo restores `before` only while the file still holds `after`.
+    pub fn record_write_at(
+        path: &Path,
+        file: &Path,
+        before: Option<String>,
+        after: &str,
+    ) -> Result<(), JournalError> {
+        Self::record_at(
+            path,
+            Change::WriteFile {
+                path: file.to_path_buf(),
+                contents: after.to_owned(),
+            },
+            Prior::File { contents: before },
+        )
     }
 
     /// Write the journal as JSON, atomically (exclusively created temp file, then rename).

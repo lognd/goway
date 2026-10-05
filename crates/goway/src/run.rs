@@ -470,6 +470,7 @@ fn run_picked(
 
         let mut extra = gpu_words(&selection, &config, &host);
         extra.push(verify.word());
+        extra.push(slot_wait_word(args.wait));
         if found.kind == crate::transport::Kind::Unix {
             extra.push(crate::footprint::room_word());
         }
@@ -1079,6 +1080,11 @@ pub(crate) fn gpu_words(selection: &Selection, config: &Config, host: &HostConfi
     }
 }
 
+/// The `run` option word that bounds the helper's wait for a build slot by the run's `--wait`.
+pub(crate) fn slot_wait_word(wait: std::time::Duration) -> String {
+    format!("slot-wait:{}", wait.as_secs())
+}
+
 /// The remote `run` invocation for this run (its work dir already exists),
 /// with extra option words for the remote `run` verb (the shard detection
 /// request, the GPU slot) placed before the command.
@@ -1115,6 +1121,8 @@ pub(crate) fn run_invocation_with(
         keep_ignored,
         &keep_list,
     ];
+    let limits = d.limits_word();
+    words.push(&limits);
     words.extend(extra.iter().map(String::as_str));
     words.push("--");
     words.extend(command.iter().map(String::as_str));

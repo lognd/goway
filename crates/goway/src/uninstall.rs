@@ -39,6 +39,7 @@ pub fn local_files(paths: &Paths) -> Vec<PathBuf> {
         "config.toml",
         "known_hosts",
         "known_hosts.old",
+        crate::changelog::FILE_NAME,
         "id_ed25519",
         "id_ed25519.pub",
     ];
@@ -53,7 +54,9 @@ pub fn local_files(paths: &Paths) -> Vec<PathBuf> {
             .filter_map(|e| e.ok().map(|e| e.path()))
             .filter(|p| {
                 p.file_name().and_then(|n| n.to_str()).is_some_and(|n| {
-                    (n.starts_with("ssh-setup-") || n.starts_with("installed-"))
+                    (n.starts_with("ssh-setup-")
+                        || n.starts_with("installed-")
+                        || n.starts_with("fixes-"))
                         && Path::new(n).extension().is_some_and(|e| e == "json")
                 })
             })
@@ -647,7 +650,19 @@ fn clean_host(
     let runner = doctor::SshFixRunner {
         found: &found,
         settings,
+        record_in: None,
     };
+    match doctor::revert_fixes(&paths.config_dir, &found, settings) {
+        Ok(0) => {}
+        Ok(n) => renderer.ok(format_args!(
+            "{}: undid {n} journaled install(s) (pinned tools, rustup targets)",
+            host.name
+        )),
+        Err(e) => renderer.warn(format_args!(
+            "{}: could not undo the journaled installs: {e}",
+            host.name
+        )),
+    }
     let items = doctor::load_installed(paths, &host.name);
     let mut root_undos = Vec::new();
     for item in &items {

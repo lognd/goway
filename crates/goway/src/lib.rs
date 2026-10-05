@@ -2,6 +2,7 @@
 //! work tree. See docs/design.md for the problem tree.
 
 pub mod add;
+pub mod changelog;
 pub mod cli;
 pub mod cmakeapi;
 pub mod config;
@@ -46,12 +47,11 @@ pub mod winadmin;
 
 use std::process::ExitCode;
 
-use cli::{Cli, Command, ConfigCommand, HostCommand};
+use cli::{ChangesCommand, Cli, Command, ConfigCommand, HostCommand};
 use config::Config;
 use error::{Error, Result};
 use paths::Paths;
 use render::Renderer;
-use spawn::CommandExt as _;
 
 /// Install the tracing subscriber: `-v` levels, overridable by `GOWAY_LOG`.
 pub fn init_tracing(verbose: u8) {
@@ -157,6 +157,12 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
         Command::Ssh(cli::SshCommand::Setup(args)) => {
             sshsetup::setup(&paths, renderer, args, &resolve::SystemLookup)
         }
+        Command::Changes {
+            command: None | Some(ChangesCommand::List),
+        } => changelog::show(&paths, renderer),
+        Command::Changes {
+            command: Some(ChangesCommand::Undo { last, all }),
+        } => changelog::undo_command(&paths, renderer, *last, *all),
         Command::Config(ConfigCommand::Path) => {
             renderer.table(&[
                 vec!["what".to_owned(), "path".to_owned()],
@@ -249,25 +255,8 @@ fn host_remove(paths: &Paths, renderer: Renderer, name: &str) -> Result<u8> {
     let mut state = state::State::load(&paths.state_file())?;
     state.forget(name);
     state.save(&paths.state_file())?;
-    let alias = config::key_alias(name);
-    let kh = paths.known_hosts();
-    if kh.exists() {
-        match std::process::Command::new("ssh-keygen")
-            .arg("-R")
-            .arg(&alias)
-            .arg("-f")
-            .arg(&kh)
-            .stdin(std::process::Stdio::null())
-            .output_locked()
-        {
-            Ok(out) if out.status.success() => tracing::info!(alias, "pinned key removed"),
-            Ok(out) => renderer.warn(format_args!(
-                "could not remove pinned key {alias}: {}",
-                String::from_utf8_lossy(&out.stderr).trim()
-            )),
-            Err(e) => renderer.warn(format_args!("could not run ssh-keygen: {e}")),
-        }
-    }
+    // Recorded in the change log, so the removal of the pinned key can be listed and undone.
+    hosts::forget_key(&paths.known_hosts(), &config::key_alias(name));
     renderer.ok(format_args!("removed host {name}"));
     Ok(0)
 }

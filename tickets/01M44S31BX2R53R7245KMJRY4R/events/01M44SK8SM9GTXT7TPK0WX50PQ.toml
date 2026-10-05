@@ -1,0 +1,168 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-05T01:07:06Z"
+digest = "bd200f4662ccdeb587f696b2b4e2d5c813f40a4887fa77f0bd40b99021081799"
+exit_code = 0
+inline = '''
+   Compiling libc v0.2.190
+   Compiling cfg-if v1.0.5
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+   Compiling bitflags v2.13.2
+   Compiling rustix v1.1.5
+   Compiling serde_core v1.0.229
+   Compiling linux-raw-sys v0.12.1
+   Compiling once_cell v1.21.4
+   Compiling version_check v0.9.5
+   Compiling typenum v1.20.1
+   Compiling regex-syntax v0.8.11
+   Compiling serde v1.0.229
+   Compiling zmij v1.0.23
+   Compiling generic-array v0.14.7
+   Compiling tracing-core v0.1.36
+   Compiling thiserror v2.0.21
+   Compiling serde_json v1.0.151
+   Compiling pin-project-lite v0.2.17
+   Compiling getrandom v0.3.4
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling zerocopy v0.8.59
+   Compiling getrandom v0.4.3
+   Compiling autocfg v1.5.1
+   Compiling fastrand v2.5.0
+   Compiling utf8parse v0.2.2
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling num-traits v0.2.19
+   Compiling fnv v1.0.7
+   Compiling bit-vec v0.8.0
+   Compiling quick-error v1.2.3
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling digest v0.10.7
+   Compiling colorchoice v1.0.5
+   Compiling bit-set v0.8.0
+   Compiling unarray v0.1.4
+   Compiling anstyle v1.0.14
+   Compiling anstyle-query v1.1.5
+   Compiling anstyle-parse v1.0.0
+   Compiling regex-automata v0.4.18
+   Compiling cpufeatures v0.2.17
+   Compiling wait-timeout v0.2.1
+   Compiling heck v0.5.0
+   Compiling anstream v1.0.0
+   Compiling sha2 v0.10.9
+   Compiling rand_core v0.9.5
+   Compiling log v0.4.34
+   Compiling strsim v0.11.1
+   Compiling terminal_size v0.4.4
+   Compiling syn v3.0.6
+   Compiling syn v2.0.119
+   Compiling tempfile v3.27.0
+   Compiling lazy_static v1.5.1
+   Compiling rand_xorshift v0.4.0
+   Compiling rand v0.9.5
+   Compiling clap_lex v1.1.1
+   Compiling option-ext v0.2.0
+   Compiling sharded-slab v0.1.7
+   Compiling matchers v0.2.0
+   Compiling rusty-fork v0.3.1
+   Compiling tracing-log v0.2.0
+   Compiling dirs-sys v0.5.0
+   Compiling clap_builder v4.6.7
+   Compiling anstyle-parse v0.2.7
+   Compiling thread_local v1.1.10
+   Compiling smallvec v1.16.2
+   Compiling nu-ansi-term v0.50.3
+   Compiling cfg_aliases v0.2.2
+   Compiling dirs v6.0.0
+   Compiling anstream v0.6.21
+   Compiling nix v0.31.3
+   Compiling winnow v1.0.4
+   Compiling equivalent v1.0.2
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling clap_derive v4.6.7
+   Compiling tracing-attributes v0.1.31
+   Compiling hashbrown v0.17.1
+   Compiling toml_writer v1.1.2+spec-1.1.0
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling winnow v0.7.15
+   Compiling xattr v1.6.1
+   Compiling filetime v0.2.29
+   Compiling indexmap v2.14.2
+   Compiling humantime v2.4.0
+   Compiling base64 v0.22.1
+   Compiling ppv-lite86 v0.2.21
+   Compiling tar v0.4.46
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling rand_chacha v0.9.0
+   Compiling proptest v1.11.0
+   Compiling ctrlc v3.5.2
+   Compiling toml_datetime v0.7.5+spec-1.1.0
+   Compiling serde_spanned v1.1.1
+   Compiling tracing v0.1.44
+   Compiling tracing-subscriber v0.3.23
+   Compiling clap v4.6.7
+   Compiling toml v0.9.12+spec-1.1.0
+   Compiling toml_edit v0.23.10+spec-1.0.0
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling humantime-serde v1.1.1
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 33.24s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 4e91ba52-d39e-4d17-8a6f-dcf45b7cda51 with nextest profile: default
+    Starting 41 tests across 2 binaries (79 binaries skipped)
+        PASS [   0.075s] goway::remote_ps1 a_stale_generation_is_refused_with_exit_75
+        PASS [   0.075s] goway::remote_ps1 a_slot_tree_persists_updates_in_place_and_removes_leftovers
+        PASS [   0.075s] goway::remote_ps1 a_dry_run_lists_what_eviction_would_remove_and_removes_nothing
+        PASS [   0.076s] goway::remote_ps1 a_missing_program_is_reported_as_not_found
+        PASS [   0.075s] goway::remote_ps1 a_gpu_run_without_a_listed_gpu_warns_and_runs_anyway
+        PASS [   0.076s] goway::remote_ps1 a_file_dated_an_hour_ahead_gets_the_hosts_time_and_never_rebuilds
+        PASS [   0.076s] goway::remote_ps1 a_bad_verdict_stops_the_command_and_discards_the_slot_and_the_seed
+        PASS [   0.075s] goway::remote_ps1 a_foreign_directory_is_never_adopted_and_purge_keeps_foreign_files
+        PASS [   0.075s] goway::remote_ps1 a_run_passes_output_and_the_exit_code_and_removes_its_work_dir
+        PASS [   0.077s] goway::remote_ps1 a_dropped_connection_stops_the_job_tree_and_releases_the_slot
+        PASS [   0.077s] goway::remote_ps1 a_starting_runs_work_dir_survives_gc_by_liveness_not_by_age
+        PASS [   0.077s] goway::remote_ps1 a_silent_client_stops_the_job_after_the_timeout_and_the_marker_says_why
+        PASS [   0.006s] goway::remote_ps1 a_windows_job_holds_a_keep_awake_request_for_exactly_its_lifetime
+        PASS [   0.064s] goway::remote_ps1 changed_files_are_stamped_newer_than_the_slots_outputs
+        PASS [   0.064s] goway::remote_ps1 every_argument_reaches_the_script_exactly
+        PASS [   0.064s] goway::remote_ps1 eviction_removes_the_least_recently_used_slot_first_and_reports_it
+        PASS [   0.064s] goway::remote_ps1 every_run_triggers_a_detached_gc_of_expired_entries
+        PASS [   0.065s] goway::remote_ps1 env_values_and_long_command_lines_travel_through_files_not_arguments
+        PASS [   0.065s] goway::remote_ps1 an_uninstalled_script_asks_to_be_installed_and_then_runs
+        PASS [   0.065s] goway::remote_ps1 discard_removes_only_the_named_work_dir_and_refuses_a_bad_run_id
+        PASS [   0.059s] goway::remote_ps1 gc_never_removes_a_work_dir_created_moments_ago
+        PASS [   0.065s] goway::remote_ps1 a_work_dir_that_cannot_be_removed_never_changes_the_exit_code
+        PASS [   0.065s] goway::remote_ps1 concurrent_runs_use_different_slots_and_a_worktree_prefers_its_last_slot
+        PASS [   0.064s] goway::remote_ps1 files_a_failing_command_changed_itself_are_not_claimed
+        PASS [   0.065s] goway::remote_ps1 doctor_reports_tools_and_host_facts_as_key_value_lines
+        PASS [   0.109s] goway::remote_ps1 gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones
+        PASS [   0.110s] goway::remote_ps1 gc_never_removes_unlabelled_entries_or_anything_under_an_unmarked_root
+        PASS [   0.109s] goway::remote_ps1 shard_detection_reads_binaries_and_reruns_catch2_at_most_once
+        PASS [   0.109s] goway::remote_ps1 ping_answers_and_an_unknown_verb_is_a_goway_failure
+        PASS [   0.109s] goway::remote_ps1 locking_a_seed_survives_gc_removing_it_mid_acquire
+        PASS [   0.109s] goway::remote_ps1 sync_round_trips_files_modes_and_hashes_like_remote_sh
+        PASS [   0.110s] goway::remote_ps1 gc_never_takes_a_work_dir_whose_runner_is_alive_even_without_a_lock
+        PASS [   0.109s] goway::remote_ps1 probe_reports_the_clock_and_asked_for_tools
+        PASS [   0.110s] goway::remote_ps1 same_size_edit_within_the_same_second_reaches_the_slot
+        PASS [   0.115s] goway::remote_ps1 keep_copies_the_tree_out_and_the_slot_stays_usable
+        PASS [   0.116s] goway::remote_ps1 purge_refuses_an_unmarked_root
+        PASS [   0.121s] goway::remote_ps1 probe_reports_the_facts_goway_schedules_with
+        PASS [   0.178s] goway::remote_ps1 the_helper_verifies_what_it_wrote_and_a_failure_is_verified_again
+        PASS [   0.181s] goway::remote_ps1 the_lifeline_stops_the_job_when_the_client_goes_away_and_spares_a_finished_run
+        PASS [   0.201s] goway::remote_ps1 the_automatic_gc_leaves_a_summary_and_probe_reports_the_budget
+        PASS [   6.184s] goway::slot_wait a_run_waiting_for_a_busy_slot_gives_up_after_wait_with_what_it_saw
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   6.437s] 41 tests run: 41 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'binary(remote_ps1) | binary(slot_wait)'"
+size = 8023
+status = "measured"
+tests = ["a_stale_generation_is_refused_with_exit_75", "a_slot_tree_persists_updates_in_place_and_removes_leftovers", "a_dry_run_lists_what_eviction_would_remove_and_removes_nothing", "a_missing_program_is_reported_as_not_found", "a_gpu_run_without_a_listed_gpu_warns_and_runs_anyway", "a_file_dated_an_hour_ahead_gets_the_hosts_time_and_never_rebuilds", "a_bad_verdict_stops_the_command_and_discards_the_slot_and_the_seed", "a_foreign_directory_is_never_adopted_and_purge_keeps_foreign_files", "a_run_passes_output_and_the_exit_code_and_removes_its_work_dir", "a_dropped_connection_stops_the_job_tree_and_releases_the_slot", "a_starting_runs_work_dir_survives_gc_by_liveness_not_by_age", "a_silent_client_stops_the_job_after_the_timeout_and_the_marker_says_why", "a_windows_job_holds_a_keep_awake_request_for_exactly_its_lifetime", "changed_files_are_stamped_newer_than_the_slots_outputs", "every_argument_reaches_the_script_exactly", "eviction_removes_the_least_recently_used_slot_first_and_reports_it", "every_run_triggers_a_detached_gc_of_expired_entries", "env_values_and_long_command_lines_travel_through_files_not_arguments", "an_uninstalled_script_asks_to_be_installed_and_then_runs", "discard_removes_only_the_named_work_dir_and_refuses_a_bad_run_id", "gc_never_removes_a_work_dir_created_moments_ago", "a_work_dir_that_cannot_be_removed_never_changes_the_exit_code", "concurrent_runs_use_different_slots_and_a_worktree_prefers_its_last_slot", "files_a_failing_command_changed_itself_are_not_claimed", "doctor_reports_tools_and_host_facts_as_key_value_lines", "gc_removes_expired_labelled_entries_and_keeps_busy_fresh_and_unlabelled_ones", "gc_never_removes_unlabelled_entries_or_anything_under_an_unmarked_root", "shard_detection_reads_binaries_and_reruns_catch2_at_most_once", "ping_answers_and_an_unknown_verb_is_a_goway_failure", "locking_a_seed_survives_gc_removing_it_mid_acquire", "sync_round_trips_files_modes_and_hashes_like_remote_sh", "gc_never_takes_a_work_dir_whose_runner_is_alive_even_without_a_lock", "probe_reports_the_clock_and_asked_for_tools", "same_size_edit_within_the_same_second_reaches_the_slot", "keep_copies_the_tree_out_and_the_slot_stays_usable", "purge_refuses_an_unmarked_root", "probe_reports_the_facts_goway_schedules_with", "the_helper_verifies_what_it_wrote_and_a_failure_is_verified_again", "the_lifeline_stops_the_job_when_the_client_goes_away_and_spares_a_finished_run", "the_automatic_gc_leaves_a_summary_and_probe_reports_the_budget", "a_run_waiting_for_a_busy_slot_gives_up_after_wait_with_what_it_saw"]
+at = "2026-10-05T01:07:06Z"
+actor = "lognd"
+rev = 1

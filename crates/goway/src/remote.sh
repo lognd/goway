@@ -638,9 +638,99 @@ stop_group() {
   kill -TERM -- "-$pid" 2>/dev/null || true
   for n in $(seq 1 25); do
     kill -0 -- "-$pid" 2>/dev/null || return 0
-    sleep 0.2
+    sleep 0.2 || true
   done
   kill -KILL -- "-$pid" 2>/dev/null || true
+}
+
+# run_pids RUN_ID [RUNNER]: the pids of every process that carries the run's GOWAY_RUN_ID in its
+# environment, one per line, however it regrouped (setsid, double fork), except this shell
+# and the run's own shell RUNNER (it must live on to clean up). Linux only; nothing elsewhere.
+run_pids() {
+  local f me=$$ self=${BASHPID:-$$} p runner=${2:-}
+  [ -d /proc/self ] || return 0
+  # shellcheck disable=SC2231 # the glob is the point
+  grep -l -a -z -x "GOWAY_RUN_ID=$1" /proc/[0-9]*/environ 2>/dev/null | while IFS= read -r f; do
+    p=${f#/proc/}
+    p=${p%/environ}
+    [ "$p" = "$me" ] || [ "$p" = "$self" ] || [ "$p" = "$runner" ] || printf '%s\n' "$p"
+  done || true
+}
+
+# kill_run RUN_ID RUNNER: stop every process tagged with the run (run_pids), the backstop for a
+# job that left its process group and its scope. SIGTERM, a short grace, then SIGKILL.
+kill_run() {
+  local pids
+  pids=$(run_pids "$1" "$2" || true)
+  [ -n "$pids" ] || return 0
+  # shellcheck disable=SC2086 # the list is words by construction
+  kill -TERM $pids 2>/dev/null || true
+  sleep 1 || true # the sweep may kill this very sleep (it carries the run's tag)
+  pids=$(run_pids "$1" "$2" || true)
+  [ -n "$pids" ] || return 0
+  # shellcheck disable=SC2086
+  kill -KILL $pids 2>/dev/null || true
+}
+
+# scope_procs CGROUP_DIR: whether the cgroup still has a process.
+scope_procs() {
+  [ -n "$(cat "$1/cgroup.procs" 2>/dev/null || true)" ]
+}
+
+# stop_scope UNIT CGROUP: stop a job's whole systemd scope: `systemctl --user stop` (SIGTERM
+# to every process in the cgroup, SIGKILL after the scope's TimeoutStopSec), and if that did
+# not empty the cgroup (no user bus, a wedged manager) kill the cgroup itself: cgroup.kill,
+# else SIGKILL to each pid in cgroup.procs. CGROUP is the cgroup v2 directory ("" if unknown).
+# Bounded; never fails.
+stop_scope() {
+  local unit=$1 cg=$2 p n
+  bounded_for 15 systemctl --user stop "$unit" >/dev/null 2>&1 || true
+  [ -n "$cg" ] && [ -d "$cg" ] || return 0
+  for n in 1 2 3 4 5; do
+    scope_procs "$cg" || return 0
+    sleep 0.2 || true
+  done
+  if [ -w "$cg/cgroup.kill" ]; then
+    printf '1' >"$cg/cgroup.kill" 2>/dev/null || true
+  else
+    for p in $(cat "$cg/cgroup.procs" 2>/dev/null || true); do kill -KILL "$p" 2>/dev/null || true; done
+  fi
+}
+
+# stop_job WORK PID RUN_ID: end everything a run's job started, however it regrouped:
+# its whole scope when it has one (WORK/scope names the unit, WORK/cgroup its directory),
+# then its process group PID (the session leader, "" if unknown), then every process still
+# tagged with the run (kill_run). Bounded; never fails.
+stop_job() {
+  local work=$1 pid=$2 run=$3 unit cg runner
+  runner=$(cat "$work/runner" 2>/dev/null || true)
+  unit=$(cat "$work/scope" 2>/dev/null || true)
+  cg=$(cat "$work/cgroup" 2>/dev/null || true)
+  if [ -n "$unit" ]; then stop_scope "$unit" "$cg"; fi
+  if [ -n "$pid" ]; then stop_group "$pid"; fi
+  kill_run "$run" "$runner"
+}
+
+# tagged_left RUN_ID: whether a process tagged with the run outlives a short wait (a
+# watchdog's sampling `ps` or `sleep` ending with it is not a leftover).
+tagged_left() {
+  [ -n "$(run_pids "$1" || true)" ] || return 1
+  sleep 0.3 || true
+  [ -n "$(run_pids "$1" || true)" ]
+}
+
+# reap_job WORK PID RUN_ID: after the job's own command ended, stop whatever it left behind
+# (a background loop outlives its leader, keeps the run's slot lock through its inherited
+# fd, and burns the helper's CPU). Cheap when nothing is left.
+reap_job() {
+  local work=$1 pid=$2 run=$3 cg
+  cg=$(cat "$work/cgroup" 2>/dev/null || true)
+  if { [ -n "$cg" ] && [ -d "$cg" ] && scope_procs "$cg"; } ||
+    { [ -n "$pid" ] && kill -0 -- "-$pid" 2>/dev/null; } || tagged_left "$run"; then
+    printf 'goway-remote: the job of run %s left processes behind; stopping them\n' "$run" >&2 || true
+    stop_job "$work" "$pid" "$run"
+  fi
+  return 0
 }
 
 # scope_argv WORK CMD...: leave CMD (argv, NUL separated) and a loader that execs it in WORK.
@@ -686,6 +776,11 @@ mem_sample() {
   local pid=$1 dir=$2 cg v="" old
   cg=$(mem_cgroup "$pid" || true)
   if [ -n "$cg" ] && [ -r "$cg/memory.peak" ]; then
+    # Only the run's own scope: before the job moves into it, it still sits in the scope of
+    # an outer goway job (a nested run), which must never be recorded for killing.
+    if [ ! -e "$dir/cgroup" ] && [ "${cg##*/}" = "$(cat "$dir/scope" 2>/dev/null || true)" ]; then
+      printf '%s' "$cg" >"$dir/cgroup" 2>/dev/null || true
+    fi
     v=$(cat "$cg/memory.peak" 2>/dev/null || true)
     if awk '/^oom_kill / && $2 > 0 {f=1} END {exit !f}' "$cg/memory.events" 2>/dev/null; then : >"$dir/oom"; fi
   else
@@ -708,16 +803,42 @@ mem_sample() {
   return 0
 }
 
-# job_scope RUN_ID: set SCOPE to a wrapper that puts the job in its own
-# transient systemd scope (so its memory is measured exactly), probed once
-# with `true`; empty where there is no user manager (a WSL without systemd).
+# job_scope RUN_ID [LIMITS [PRIORITY]]: set SCOPE to a wrapper that puts the job in its own
+# transient systemd scope (so its memory is measured exactly and the whole job can be
+# stopped), probed once with `true`; empty where there is no user manager (a WSL without
+# systemd). LIMITS is TASKS:CPU_PERCENT:MEMORY_BYTES (the run's `limits:` word; an empty
+# field is no cap, TASKS 0 lifts the process cap): the scope gets TasksMax, CPUQuota and
+# MemoryMax, and a low CPUWeight when PRIORITY is low or owner, so one runaway job cannot
+# take the helper down. A manager that refuses the caps still gets a plain scope.
 job_scope() {
+  local tasks cpu mem props=() id=$1 limits=${2:-} priority=${3:-}
   SCOPE=()
   [ "$IS_DARWIN" != 1 ] && [ -e /sys/fs/cgroup/cgroup.controllers ] && command -v systemd-run >/dev/null 2>&1 || return 0
-  if bounded_for 3 systemd-run --user --scope --quiet --collect --unit="goway-probe-$1" true >/dev/null 2>&1; then
-    SCOPE=(systemd-run --user --scope --quiet --collect --unit="goway-$1")
+  IFS=: read -r tasks cpu mem <<<"$limits"
+  case "$tasks" in "" | *[!0-9]*) tasks=0 ;; esac
+  case "$cpu" in *[!0-9]*) cpu="" ;; esac
+  case "$mem" in *[!0-9]*) mem="" ;; esac
+  if [ "$tasks" -gt 0 ]; then props+=(--property="TasksMax=$tasks"); fi
+  if [ -n "$cpu" ] && [ "$cpu" -gt 0 ]; then props+=(--property="CPUQuota=${cpu}%"); fi
+  if [ -n "$mem" ] && [ "$mem" -gt 0 ]; then props+=(--property="MemoryMax=$mem"); fi
+  case "$priority" in low | owner) props+=(--property=CPUWeight=20) ;; esac
+  local base=(systemd-run --user --scope --quiet --collect --property=TimeoutStopSec=5)
+  if bounded_for 3 "${base[@]}" ${props[@]+"${props[@]}"} --unit="goway-probe-$id" true >/dev/null 2>&1; then
+    SCOPE=("${base[@]}" ${props[@]+"${props[@]}"} --unit="goway-$id")
+  elif [ ${#props[@]} -gt 0 ] && bounded_for 3 "${base[@]}" --unit="goway-probe-$id" true >/dev/null 2>&1; then
+    printf 'goway-remote: the user manager refused the job limits; running the job in a plain scope\n' >&2 || true
+    SCOPE=("${base[@]}" --unit="goway-$id")
   fi
   return 0
+}
+
+# job_tasks LIMITS: the process cap of the run's `limits:` word (0 = none), for the
+# `ulimit -u` fallback of a job that has no scope.
+job_tasks() {
+  local tasks
+  tasks=${1%%:*}
+  case "$tasks" in "" | *[!0-9]*) tasks=0 ;; esac
+  printf '%s' "$tasks"
 }
 
 # Kill the job's process group when the ssh session that started it dies
@@ -736,7 +857,8 @@ watchdog() {
     if [ -n "$memdir" ]; then mem_sample "$pid" "$memdir"; fi
     sleep 0.5
   done
-  if kill -0 "$pid" 2>/dev/null; then stop_group "$pid"; fi
+  # The leader may be gone while its background processes run on: stop the whole job.
+  if ! kill -0 "$session" 2>/dev/null && [ -n "$memdir" ]; then stop_job "$memdir" "$pid" "${memdir##*/}"; fi
 }
 
 # How long (seconds) lifeline waits for the client's next heartbeat byte. Long on
@@ -776,7 +898,7 @@ lifeline() {
   case "$pid" in "" | *[!0-9]*) pid="" ;; esac
   if [ -n "$pid" ]; then
     printf 'goway-remote: client of run %s is gone (%s); stopping its job\n' "$2" "$why" >&2
-    stop_group "$pid"
+    stop_job "$work" "$pid" "$2"
     return 0
   fi
   runner=$(cat "$work/runner" 2>/dev/null || true)
@@ -1159,10 +1281,14 @@ keep_awake() {
   esac
 }
 
+# What a job without a scope runs under `setsid bash -c` (dash has no `ulimit -u`): record its pid ($0), cap the
+# user's processes at the count now plus $1 (`ulimit -u` is per user, not per job; 0 = no cap) as the fallback for TasksMax, then exec it.
+JOB_LAUNCH='echo $$ >"$0"; if [ "$1" -gt 0 ] 2>/dev/null; then ulimit -u $(($1 + $(ps -u "$(id -u)" -o pid= 2>/dev/null | wc -l))) 2>/dev/null || true; fi; shift; exec "$@"'
+
 # launch_job CMD...: start the job as run does (own session, pid recorded
 # for the watchdog, polite priority). JOB_PID and JOB_NICER are run's.
 launch_job() {
-  setsid sh -c 'echo $$ >"$0"; exec "$@"' "$JOB_PID" ${JOB_NICER[@]+"${JOB_NICER[@]}"} "$@"
+  setsid bash -c "$JOB_LAUNCH" "$JOB_PID" "$JOB_TASKS" ${JOB_NICER[@]+"${JOB_NICER[@]}"} "$@"
 }
 
 # catch2_rejected ERRFILE RC: whether Catch2 refused the shard flags before
@@ -1269,6 +1395,20 @@ shard_run() {
   return "$rc"
 }
 
+# slots_busy_note CACHE SLOTS: how long the oldest holder of a build slot has run (a slot
+# lock's mtime is stamped when a run takes it), as `oldest holder has run 12m 3s`.
+slots_busy_note() {
+  local k m now oldest=0 age
+  now=$(date +%s)
+  for ((k = 0; k < $2; k++)); do
+    m=$(stat -c %Y "$1/target-$k.lock" 2>/dev/null || true)
+    case "$m" in "" | *[!0-9]*) continue ;; esac
+    age=$((now - m))
+    [ "$age" -gt "$oldest" ] && oldest=$age
+  done
+  printf 'oldest holder has run %sm %ss' $((oldest / 60)) $((oldest % 60))
+}
+
 # run ROOT RUN_ID REPO_ID KEEP SLOTS CACHE_META_B64 TTLS PRIORITY KEEP_IGNORED
 #     KEEP_B64 -- CMD...
 # The work dir was created by receive (a hard-link snapshot of the seed).
@@ -1286,11 +1426,13 @@ run() {
   shift 10
   # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
   # framework detection of the command's program (see shard_run).
-  local detect="" gpu_per="" verify="" fresh=0 attempt=1 level=changed room=""
+  local limits="" detect="" gpu_per="" slot_wait=300 verify="" fresh=0 attempt=1 level=changed room=""
   while [ $# -gt 0 ] && [ "$1" != "--" ]; do
     case "$1" in
       shard-detect:[0-9]*:[0-9]*:[A-Za-z0-9]*) detect=${1#shard-detect:} ;;
       gpu-slots:[0-9]*) gpu_per=${1#gpu-slots:} ;;
+      slot-wait:[0-9]*) slot_wait=${1#slot-wait:} ;;
+      limits:[0-9]*:*:*) limits=${1#limits:} ;;
       room:[0-9]*:[0-9]*) room=${1#room:} ;;
       verify:[12]:changed | verify:[12]:all | verify:[12]:changed:fresh | verify:[12]:all:fresh)
         # The attempt number is goway's explicit argument, never read from
@@ -1307,6 +1449,7 @@ run() {
   IFS=: read -r t_cache t_orphan t_kept t_max t_minfree t_csize <<<"$ttls"
   case "$detect" in *[!A-Za-z0-9:]*) die "run: bad shard-detect" ;; esac
   case "$gpu_per" in *[!0-9]*) die "run: bad gpu-slots" ;; esac
+  case "$slot_wait" in *[!0-9]*) die "run: bad slot-wait" ;; esac
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
@@ -1374,13 +1517,23 @@ run() {
     exec 7>&-
   done
   if [ -z "$slot" ]; then
-    slot=$((RANDOM % slots))
-    printf 'goway: all %s build slots busy; waiting for slot %s\n' "$slots" "$slot" >&2
-    while :; do
-      mkdir -p "$cache"
-      exec 7>"$cache/target-$slot.lock"
-      flock 7
-      same_fd "$cache/target-$slot.lock" 7 && break
+    # Every slot is busy: wait for the first to free, at most the run's --wait.
+    printf 'goway: all %s build slots busy (%s); waiting up to %ss for one\n' "$slots" "$(slots_busy_note "$cache" "$slots")" "$slot_wait" >&2
+    wait_until=$((SECONDS + slot_wait))
+    while [ -z "$slot" ]; do
+      for k in "${order[@]}"; do
+        mkdir -p "$cache"
+        exec 7>"$cache/target-$k.lock"
+        if flock -n 7 && same_fd "$cache/target-$k.lock" 7; then slot=$k; break; fi
+        exec 7>&-
+      done
+      [ -z "$slot" ] || break
+      if [ "$SECONDS" -ge "$wait_until" ]; then
+        printf 'goway: no build slot freed within %ss: all %s build slots busy (%s); raise --wait or try another host\n' "$slot_wait" "$slots" "$(slots_busy_note "$cache" "$slots")" >&2
+        remove_work "$work"
+        exit 125
+      fi
+      sleep 1
     done
   fi
   [ -f "$cache/meta.json" ] || printf '%s' "$cache_meta" | base64 -d >"$cache/meta.json"
@@ -1508,7 +1661,8 @@ run() {
   keep_awake
   nicer=(${AWAKE[@]+"${AWAKE[@]}"} ${nicer[@]+"${nicer[@]}"})
   SCOPE=()
-  if [ -z "$detect" ]; then job_scope "$run_id"; fi
+  if [ -z "$detect" ]; then job_scope "$run_id" "$limits" "$priority"; fi
+  JOB_TASKS=$(job_tasks "$limits")
   if [ -n "$detect" ]; then
     JOB_PID="$work/pid"
     JOB_NICER=(${nicer[@]+"${nicer[@]}"})
@@ -1516,12 +1670,16 @@ run() {
   else
     if [ ${#SCOPE[@]} -gt 0 ]; then
       scope_argv "$work" ${nicer[@]+"${nicer[@]}"} "$@"
+      printf 'goway-%s.scope' "$run_id" >"$work/scope"
       setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "${SCOPE[@]}" bash "$work/scope-exec.sh" "$work/argv" || rc=$?
     else
-      setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
+      setsid bash -c "$JOB_LAUNCH" "$work/pid" "$JOB_TASKS" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
     fi
   fi
+  # The watchdog's own children (its sleep) carry the run's tag: end them with it.
+  pkill -P "$wd" 2>/dev/null || true
   kill "$wd" 2>/dev/null || true
+  reap_job "$work" "$(cat "$work/pid" 2>/dev/null || true)" "$run_id"
   : >"$work/done"
   cd "$root"
   memory_report "$root" "$repo_id" "$work" "$rc"

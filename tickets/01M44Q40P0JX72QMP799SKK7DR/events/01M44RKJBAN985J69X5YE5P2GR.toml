@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-05T00:49:47Z"
+digest = "e6c5cff23e35780806768b2559e83681892624c6b9a2e29cd3a577d3db66e120"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 38.04s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID cf16325f-5db4-4d63-bcae-e8d7bc8cb930 with nextest profile: default
+    Starting 3 tests across 76 binaries (854 tests skipped)
+        PASS [   0.055s] goway queue::tests::a_waiter_that_cannot_take_a_host_is_passed_until_it_is_starved
+        PASS [   0.483s] goway::queue an_idle_host_does_not_stay_blocked_behind_a_head_whose_peak_never_fits
+        PASS [   0.711s] goway::queue a_head_that_cannot_fit_is_passed_a_bounded_number_of_times_then_everyone_waits_for_it
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.717s] 3 tests run: 3 passed, 854 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(a_head_that_cannot_fit_is_passed_a_bounded_number_of_times_then_everyone_waits_for_it) | test(an_idle_host_does_not_stay_blocked_behind_a_head_whose_peak_never_fits) | test(a_waiter_that_cannot_take_a_host_is_passed_until_it_is_starved)'"
+size = 996
+status = "measured"
+tests = ["queue::tests::a_waiter_that_cannot_take_a_host_is_passed_until_it_is_starved", "an_idle_host_does_not_stay_blocked_behind_a_head_whose_peak_never_fits", "a_head_that_cannot_fit_is_passed_a_bounded_number_of_times_then_everyone_waits_for_it"]
+at = "2026-10-05T00:49:47Z"
+actor = "lognd"
+rev = 1
