@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-05T03:42:15Z"
+digest = "b1e1eddb590d106cdacfd0e6f2d8889fd2671a755023171fe232c5351d2cf50f"
+exit_code = 0
+inline = '''
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 25s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c2ea991d-daa3-4126-bccd-387a1483583b with nextest profile: default
+    Starting 1 test across 83 binaries (917 tests skipped)
+        PASS [  30.825s] goway::job_limits the_default_task_cap_is_half_of_the_hosts_threads_max_with_a_floor
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  30.830s] 1 test run: 1 passed, 917 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_default_task_cap_is_half_of_the_hosts_threads_max_with_a_floor)'"
+size = 763
+status = "measured"
+tests = ["the_default_task_cap_is_half_of_the_hosts_threads_max_with_a_floor"]
+at = "2026-10-05T03:42:15Z"
+actor = "lognd"
+rev = 1
