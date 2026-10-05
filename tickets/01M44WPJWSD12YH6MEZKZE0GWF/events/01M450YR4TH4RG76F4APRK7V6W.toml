@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-05T03:15:20Z"
+digest = "187ef72228c27fc26709baa1abf1367bd005e19b333e100b61fe3e1cb3f1b66e"
+exit_code = 0
+inline = '''
+   Compiling goway-journal v0.1.0 (<worktree>/crates/goway-journal)
+   Compiling goway-setup v0.1.0 (<worktree>/crates/goway-setup)
+   Compiling goway v0.1.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.18s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1d6fa772-26a6-409a-b3a9-7c3d512b5279 with nextest profile: default
+    Starting 3 tests across 83 binaries (914 tests skipped)
+        PASS [   0.004s] goway footprint::tests::the_windows_drive_facts_are_parsed_and_the_automatic_reserve_is_15_gib_or_5_percent
+        PASS [   0.087s] goway::wsl_drive a_drive_without_a_vhdx_is_assumed_to_be_c_and_the_probe_says_so
+        PASS [   0.130s] goway::wsl_drive free_space_is_the_smaller_of_the_ext4_and_the_windows_drive_and_both_are_reported
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.133s] 3 tests run: 3 passed, 914 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(free_space_is_the_smaller_of_the_ext4_and_the_windows_drive_and_both_are_reported) | test(a_drive_without_a_vhdx_is_assumed_to_be_c_and_the_probe_says_so) | test(the_windows_drive_facts_are_parsed_and_the_automatic_reserve_is_15_gib_or_5_percent)'"
+size = 1018
+status = "measured"
+tests = ["footprint::tests::the_windows_drive_facts_are_parsed_and_the_automatic_reserve_is_15_gib_or_5_percent", "a_drive_without_a_vhdx_is_assumed_to_be_c_and_the_probe_says_so", "free_space_is_the_smaller_of_the_ext4_and_the_windows_drive_and_both_are_reported"]
+at = "2026-10-05T03:15:20Z"
+actor = "lognd"
+rev = 1
