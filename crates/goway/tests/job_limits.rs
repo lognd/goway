@@ -112,18 +112,21 @@ fn without_a_user_manager_the_process_cap_is_a_ulimit_and_zero_lifts_it() {
     configure(&w, "job_tasks = 6000", "");
     let out = w.run(&["run", "--", "bash", "-c", "ulimit -u"]);
     assert!(out.status.success(), "{out:?}");
-    // The user's own processes at start come on top of the job's 6000, but `ulimit -u` cannot
-    // be raised past the platform's hard limit (1333 on a macOS runner): then it stays there.
-    let hard = std::process::Command::new("bash")
-        .args(["-c", "ulimit -Hu"])
+    // The user's own processes at start come on top of the job's 6000, but a cap is never
+    // looser than the limit the job inherits (1333 on a macOS runner): then it stays there.
+    let soft = std::process::Command::new("bash")
+        .args(["-c", "ulimit -u"])
         .output()
         .unwrap();
-    let hard = String::from_utf8_lossy(&hard.stdout)
+    let soft = String::from_utf8_lossy(&soft.stdout)
         .trim()
         .parse()
         .unwrap_or(u64::MAX);
     let cap: u64 = String::from_utf8_lossy(&out.stdout).trim().parse().unwrap();
-    assert!(cap >= 6000.min(hard), "{out:?}");
+    assert!(
+        cap >= 6000.min(soft),
+        "{out:?} with an inherited limit of {soft}"
+    );
 
     let w = common::world();
     fake_systemd_run(&w, &w.root.join("unused.log"), false);
