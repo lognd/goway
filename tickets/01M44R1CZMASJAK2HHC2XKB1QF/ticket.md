@@ -7,7 +7,7 @@ priority = "critical"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T00:39:52Z"
-updated = "2026-10-05T00:40:41Z"
+updated = "2026-10-05T00:41:17Z"
 scope = ["crates/goway/tests/journal_invariant.rs"]
 
 [[acceptance]]
