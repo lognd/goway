@@ -188,3 +188,18 @@ mod cli {
         );
     }
 }
+
+// frob:tests crates/goway/src/changelog.rs::settle_from
+#[test]
+fn settling_from_a_position_keeps_earlier_entries_live_and_removes_a_settled_log() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    config::add_host(&path, &host("helios")).unwrap();
+    let from = changelog::len(dir.path()).unwrap();
+    config::add_host(&path, &host("orion")).unwrap();
+    changelog::settle_from(dir.path(), from).unwrap();
+    let rows = changelog::rows(dir.path()).unwrap();
+    assert_eq!(rows.iter().filter(|r| !r.settled).count(), 1);
+    changelog::settle_from(dir.path(), 0).unwrap();
+    assert!(!dir.path().join(FILE_NAME).exists());
+}

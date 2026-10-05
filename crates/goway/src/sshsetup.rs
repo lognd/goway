@@ -55,6 +55,10 @@ pub struct Record {
     pub identity_set: bool,
     /// Whether setup added the host to the pool.
     pub host_added: bool,
+    /// How many change-log entries existed before setup edited the config; undo settles the
+    /// entries from there on once it has put the config back. Absent in older records.
+    #[serde(default)]
+    pub changes_from: Option<usize>,
 }
 
 /// Where the record of `host` lives.
@@ -694,6 +698,7 @@ fn finish_setup(paths: &Paths, renderer: Renderer, f: &Finish<'_>) -> Result<u8>
     .is_ok();
 
     // 4. Config: identity and pool membership.
+    let changes_from = crate::changelog::len(&paths.config_dir)?;
     let mut record = Record {
         host: name.to_owned(),
         address: target.address.clone(),
@@ -704,6 +709,7 @@ fn finish_setup(paths: &Paths, renderer: Renderer, f: &Finish<'_>) -> Result<u8>
         remote: remote.clone(),
         identity_set: false,
         host_added: false,
+        changes_from: Some(changes_from),
     };
     if !configured {
         let mut stored = (*host).clone();
@@ -1002,6 +1008,9 @@ pub(crate) fn undo(paths: &Paths, renderer: Renderer, name: &str) -> Result<u8> 
         }
     } else if record.identity_set && Config::load(&paths.config_file())?.host(name).is_ok() {
         config::set_host_identity(&paths.config_file(), name, None)?;
+    }
+    if let Some(from) = record.changes_from {
+        crate::changelog::settle_from(&paths.config_dir, from)?;
     }
     std::fs::remove_file(&record_file).map_err(|e| Error::io("remove", &record_file, e))?;
     renderer.ok(format_args!("undid the ssh setup of {name}"));

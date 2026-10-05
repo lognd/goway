@@ -140,6 +140,38 @@ pub fn rows(dir: &Path) -> Result<Vec<Row>> {
         .collect())
 }
 
+/// How many entries the change log in `dir` holds (0 when there is none).
+pub fn len(dir: &Path) -> Result<usize> {
+    let log = journal_path(dir);
+    if !log.exists() {
+        return Ok(0);
+    }
+    Ok(Journal::load(&log)
+        .map_err(|e| journal_err(&log, e))?
+        .entries
+        .len())
+}
+
+/// Settle the entries from position `from` (0-based) on, because an exact inverse of them has
+/// just been performed by other means (`goway ssh setup --undo` puts the config back itself);
+/// removes the log file once nothing in it is live. Entries before `from` stay live.
+pub fn settle_from(dir: &Path, from: usize) -> Result<()> {
+    let log = journal_path(dir);
+    if !log.exists() {
+        return Ok(());
+    }
+    let mut journal = Journal::load(&log).map_err(|e| journal_err(&log, e))?;
+    for entry in journal.entries.iter_mut().skip(from) {
+        entry.reverted = true;
+    }
+    tracing::info!(from, "change log entries settled by an exact inverse");
+    if journal.entries.iter().all(|e| e.reverted) {
+        std::fs::remove_file(&log).map_err(|e| Error::io("remove", &log, e))
+    } else {
+        journal.save(&log).map_err(|e| journal_err(&log, e))
+    }
+}
+
 /// What `undo` did with one entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Undone {
