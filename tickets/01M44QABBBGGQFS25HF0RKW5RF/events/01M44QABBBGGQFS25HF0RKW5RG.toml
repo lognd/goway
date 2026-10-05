@@ -1,0 +1,11 @@
+kind = "create"
+title = "Doctor's Windows facts probe runs rustup and vswhere with no server-side time limit"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 1
+scope = ["crates/goway/src/doctor/windows.rs", "crates/goway/tests/doctor_windows.rs"]
+body = "found while working ENKASAM: FACTS_PS in doctor/windows.rs (and remote.ps1 callers) rely on the ssh client timeout only; wrap the external programs with the bounded_command pattern from doctor/wsl_down.rs"
+at = "2026-10-05T00:27:16Z"
+actor = "lognd"
+rev = 1
