@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-05T03:15:46Z"
+digest = "f2088a9bb08ad03244edbeff72b0890a936a6dded12f73b88c53a240d456af48"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 88ed8478-fbac-499d-9fdf-0bb6a9e16492 with nextest profile: default
+    Starting 5 tests across 83 binaries (912 tests skipped)
+        PASS [   0.004s] goway-setup::host_plan the_plan_makes_the_virtual_disk_sparse_and_enables_the_trim_timer_unless_wsl_is_too_old
+        PASS [   0.004s] goway-setup::hostsys the_virtual_disk_is_made_sparse_through_wsl_manage_and_set_back_on_undo
+        PASS [   0.004s] goway-setup::hostsys the_wsl_version_decides_whether_sparse_is_possible_and_an_old_wsl_is_skipped
+        PASS [   0.004s] goway-setup::tune the_plan_sets_only_what_was_asked_and_needs_a_wsl_shutdown
+        PASS [   0.212s] goway::wsl_drive eviction_hands_freed_blocks_back_with_fstrim_when_it_may_and_never_otherwise
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.215s] 5 tests run: 5 passed, 912 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(the_virtual_disk_is_made_sparse_through_wsl_manage_and_set_back_on_undo) | test(the_wsl_version_decides_whether_sparse_is_possible_and_an_old_wsl_is_skipped) | test(the_plan_makes_the_virtual_disk_sparse_and_enables_the_trim_timer_unless_wsl_is_too_old) | test(eviction_hands_freed_blocks_back_with_fstrim_when_it_may_and_never_otherwise) | test(the_plan_sets_only_what_was_asked_and_needs_a_wsl_shutdown)'"
+size = 1068
+status = "measured"
+tests = ["the_plan_makes_the_virtual_disk_sparse_and_enables_the_trim_timer_unless_wsl_is_too_old", "the_virtual_disk_is_made_sparse_through_wsl_manage_and_set_back_on_undo", "the_wsl_version_decides_whether_sparse_is_possible_and_an_old_wsl_is_skipped", "the_plan_sets_only_what_was_asked_and_needs_a_wsl_shutdown", "eviction_hands_freed_blocks_back_with_fstrim_when_it_may_and_never_otherwise"]
+at = "2026-10-05T03:15:46Z"
+actor = "lognd"
+rev = 1
