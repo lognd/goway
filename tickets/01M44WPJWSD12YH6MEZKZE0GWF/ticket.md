@@ -7,7 +7,7 @@ priority = "critical"
 points = 8
 reporter = "lognd"
 created = "2026-10-05T02:01:20Z"
-updated = "2026-10-05T03:15:46Z"
+updated = "2026-10-05T03:15:47Z"
 scope = ["crates/goway/src/remote.sh", "crates/goway/src/footprint.rs", "crates/goway/src/doctor/windows.rs", "crates/goway-setup/src/host.rs", "crates/goway/src/doctor.rs", "crates/goway/src/status.rs", "crates/goway/src/pool.rs", "crates/goway/src/config.rs", "crates/goway/src/run.rs", "crates/goway/src/gc.rs", "crates/goway-journal/src/change.rs", "crates/goway-journal/tests/properties.rs", "crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/render.rs", "crates/goway/tests/wsl_drive.rs", "crates/goway-setup/tests/host_plan.rs", "crates/goway-setup/tests/hostsys.rs", "docs/usage.md", "docs/config.md", "docs/troubleshooting.md", "docs/changes.md", "crates/goway/tests/journal_invariant.rs", "docs/install-windows.md", "crates/goway-setup/src/tune.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/src/ps.rs", "crates/goway-setup/tests/tune.rs", "crates/goway/src/needs.rs", "crates/goway/tests/common/mod.rs"]
 
 [[acceptance]]
@@ -24,7 +24,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a WSL helper whose vhdx is not sparse or whose Windows drive is under the reserve, When goway doctor checks it, Then it warns with the journaled fix and, for a non-sparse vhdx that has grown, the steps to compact it once"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given no max_disk configured for a host, When the disk budget is computed, Then it is relative to the real drive (a documented fraction of its size), not a fixed size"
