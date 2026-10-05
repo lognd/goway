@@ -1,25 +1,3 @@
-  if ($slot -lt 0) {
-    # Every slot is busy: wait for the first to free, at most the run's --wait.
-    $note = Slots-Busy-Note $cache $slots
-    Write-Err "goway: all $slots build slots busy ($note); waiting up to $($slotWait)s for one`n"
-    $sw = [Diagnostics.Stopwatch]::StartNew()
-    while ($slot -lt 0) {
-      foreach ($k in $order) {
-        New-Dir $cache
-        $fs = Get-Lock (P $cache @("target-$k.lock")) $true 0
-        if ($fs) { $script:Held['slot'] = $fs; $slot = $k; break }
-      }
-      if ($slot -ge 0) { break }
-      if ($sw.Elapsed.TotalSeconds -ge $slotWait) {
-        $note = Slots-Busy-Note $cache $slots
-        Write-Err "goway: no build slot freed within $($slotWait)s: all $slots build slots busy ($note); raise --wait or try another host`n"
-        Unlock-Key 'work'
-        Remove-Work $work
-        exit 125
-      }
-      Start-Sleep -Seconds 1
-    }
-  }
 # goway remote side for Windows hosts. The counterpart of remote.sh: the
 # same verbs, the same labelled directories, the same protocol and output
 # formats, in PowerShell (Windows PowerShell 5.1 and PowerShell 7, so it
@@ -2527,10 +2505,26 @@ function Verb-run([string[]]$A) {
     if ($fs) { $script:Held['slot'] = $fs; $slot = $k; break }
   }
   if ($slot -lt 0) {
-    $slot = Get-Random -Maximum $slots
-    Write-Err "goway: all $slots build slots busy; waiting for slot $slot`n"
-    New-Dir $cache
-    $script:Held['slot'] = Get-Lock (P $cache @("target-$slot.lock")) $true -1
+    # Every slot is busy: wait for the first to free, at most the run's --wait.
+    $note = Slots-Busy-Note $cache $slots
+    Write-Err "goway: all $slots build slots busy ($note); waiting up to $($slotWait)s for one`n"
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($slot -lt 0) {
+      foreach ($k in $order) {
+        New-Dir $cache
+        $fs = Get-Lock (P $cache @("target-$k.lock")) $true 0
+        if ($fs) { $script:Held['slot'] = $fs; $slot = $k; break }
+      }
+      if ($slot -ge 0) { break }
+      if ($sw.Elapsed.TotalSeconds -ge $slotWait) {
+        $note = Slots-Busy-Note $cache $slots
+        Write-Err "goway: no build slot freed within $($slotWait)s: all $slots build slots busy ($note); raise --wait or try another host`n"
+        Unlock-Key 'work'
+        Remove-Work $work
+        Exit-Verb 125
+      }
+      Start-Sleep -Seconds 1
+    }
   }
   if (-not [IO.File]::Exists($meta)) { [IO.File]::WriteAllBytes($meta, [Convert]::FromBase64String($cacheMeta)) }
   [IO.File]::SetLastWriteTimeUtc($meta, [DateTime]::UtcNow)
