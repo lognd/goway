@@ -711,6 +711,14 @@ stop_job() {
   kill_run "$run" "$runner"
 }
 
+# tagged_left RUN_ID: whether a process tagged with the run outlives a short wait (a
+# watchdog's sampling `ps` or `sleep` ending with it is not a leftover).
+tagged_left() {
+  [ -n "$(run_pids "$1" || true)" ] || return 1
+  sleep 0.3 || true
+  [ -n "$(run_pids "$1" || true)" ]
+}
+
 # reap_job WORK PID RUN_ID: after the job's own command ended, stop whatever it left behind
 # (a background loop outlives its leader, keeps the run's slot lock through its inherited
 # fd, and burns the helper's CPU). Cheap when nothing is left.
@@ -718,7 +726,7 @@ reap_job() {
   local work=$1 pid=$2 run=$3 cg
   cg=$(cat "$work/cgroup" 2>/dev/null || true)
   if { [ -n "$cg" ] && [ -d "$cg" ] && scope_procs "$cg"; } ||
-    { [ -n "$pid" ] && kill -0 -- "-$pid" 2>/dev/null; } || [ -n "$(run_pids "$run" || true)" ]; then
+    { [ -n "$pid" ] && kill -0 -- "-$pid" 2>/dev/null; } || tagged_left "$run"; then
     printf 'goway-remote: the job of run %s left processes behind; stopping them\n' "$run" >&2 || true
     stop_job "$work" "$pid" "$run"
   fi
@@ -1273,14 +1281,14 @@ keep_awake() {
   esac
 }
 
-# What a job without a scope runs under `setsid sh -c`: record its pid ($0), cap the
+# What a job without a scope runs under `setsid bash -c` (dash has no `ulimit -u`): record its pid ($0), cap the
 # user's processes at $1 (`ulimit -u`, 0 = no cap) as the fallback for TasksMax, then exec it.
 JOB_LAUNCH='echo $$ >"$0"; if [ "$1" -gt 0 ] 2>/dev/null; then ulimit -u "$1" 2>/dev/null || true; fi; shift; exec "$@"'
 
 # launch_job CMD...: start the job as run does (own session, pid recorded
 # for the watchdog, polite priority). JOB_PID and JOB_NICER are run's.
 launch_job() {
-  setsid sh -c "$JOB_LAUNCH" "$JOB_PID" "$JOB_TASKS" ${JOB_NICER[@]+"${JOB_NICER[@]}"} "$@"
+  setsid bash -c "$JOB_LAUNCH" "$JOB_PID" "$JOB_TASKS" ${JOB_NICER[@]+"${JOB_NICER[@]}"} "$@"
 }
 
 # catch2_rejected ERRFILE RC: whether Catch2 refused the shard flags before
@@ -1665,7 +1673,7 @@ run() {
       printf 'goway-%s.scope' "$run_id" >"$work/scope"
       setsid sh -c 'echo $$ >"$0"; exec "$@"' "$work/pid" "${SCOPE[@]}" bash "$work/scope-exec.sh" "$work/argv" || rc=$?
     else
-      setsid sh -c "$JOB_LAUNCH" "$work/pid" "$JOB_TASKS" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
+      setsid bash -c "$JOB_LAUNCH" "$work/pid" "$JOB_TASKS" ${nicer[@]+"${nicer[@]}"} "$@" || rc=$?
     fi
   fi
   # The watchdog's own children (its sleep) carry the run's tag: end them with it.

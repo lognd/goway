@@ -107,18 +107,18 @@ fn without_a_user_manager_the_process_cap_is_a_ulimit_and_zero_lifts_it() {
     let w = common::world();
     fake_systemd_run(&w, &w.root.join("unused.log"), false);
     configure(&w, "job_tasks = 6000", "");
-    let out = w.run(&["run", "--", "sh", "-c", "ulimit -u"]);
+    let out = w.run(&["run", "--", "bash", "-c", "ulimit -u"]);
     assert!(out.status.success(), "{out:?}");
     assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "6000");
 
     let w = common::world();
     fake_systemd_run(&w, &w.root.join("unused.log"), false);
     configure(&w, "job_tasks = 6000", "job_tasks = 0");
-    let unlimited = std::process::Command::new("sh")
+    let unlimited = std::process::Command::new("bash")
         .args(["-c", "ulimit -u"])
         .output()
         .unwrap();
-    let out = w.run(&["run", "--", "sh", "-c", "ulimit -u"]);
+    let out = w.run(&["run", "--", "bash", "-c", "ulimit -u"]);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout).trim(),
         String::from_utf8_lossy(&unlimited.stdout).trim(),
