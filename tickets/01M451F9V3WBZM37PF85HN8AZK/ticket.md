@@ -7,8 +7,8 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-05T03:24:44Z"
-updated = "2026-10-05T03:35:31Z"
-scope = ["crates/goway/tests/common/mod.rs", "crates/goway/tests/world_teardown.rs", "docs/design.md"]
+updated = "2026-10-05T03:35:36Z"
+scope = ["crates/goway/tests/common/mod.rs", "crates/goway/tests/world_teardown.rs"]
 
 [[acceptance]]
 text = "Given a test world that ran goway with sccache installed, When the world is dropped, Then no sccache server whose SCCACHE_DIR lies under the world remains"
