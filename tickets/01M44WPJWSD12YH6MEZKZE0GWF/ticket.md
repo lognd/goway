@@ -28,7 +28,7 @@ bound = true
 
 [[acceptance]]
 text = "Given no max_disk configured for a host, When the disk budget is computed, Then it is relative to the real drive (a documented fraction of its size), not a fixed size"
-bound = false
+bound = true
 +++
 
 Observed 2026-10-04: a helper's Windows C: drive reached 0 bytes free (WSL then failed to start: HCS_E_CONNECTION_TIMEOUT). Inside WSL, df reports the ext4.vhdx's virtual capacity (about 1 TB), so the disk budget (default max_disk 300G) saw room while the real drive filled. And the vhdx only grows: gc frees blocks inside Linux but the file on C: keeps its size, so cleanup never gives space back. Permanent fix: measure the real drive, make freed space flow back, and refuse to fill a drive.

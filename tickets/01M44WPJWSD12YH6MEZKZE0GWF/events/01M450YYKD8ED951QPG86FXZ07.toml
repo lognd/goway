@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [5]
+captured_at = "2026-10-05T03:15:47Z"
+digest = "2c978c14d3551680771b420e36d38eb4d4cda43e1d4b41423d781826b1313de2"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d5799a2b-6288-41cb-b400-173a717f3db2 with nextest profile: default
+    Starting 1 test across 83 binaries (916 tests skipped)
+        PASS [   1.047s] goway::wsl_drive without_max_disk_the_budget_is_a_fraction_of_the_real_drive_not_a_fixed_size
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.050s] 1 test run: 1 passed, 916 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(without_max_disk_the_budget_is_a_fraction_of_the_real_drive_not_a_fixed_size)'"
+size = 587
+status = "measured"
+tests = ["without_max_disk_the_budget_is_a_fraction_of_the_real_drive_not_a_fixed_size"]
+at = "2026-10-05T03:15:47Z"
+actor = "lognd"
+rev = 1
