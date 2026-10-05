@@ -109,7 +109,9 @@ fn without_a_user_manager_the_process_cap_is_a_ulimit_and_zero_lifts_it() {
     configure(&w, "job_tasks = 6000", "");
     let out = w.run(&["run", "--", "bash", "-c", "ulimit -u"]);
     assert!(out.status.success(), "{out:?}");
-    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "6000");
+    // The user's own processes at start come on top of the job's 6000.
+    let cap: u64 = String::from_utf8_lossy(&out.stdout).trim().parse().unwrap();
+    assert!(cap >= 6000, "{out:?}");
 
     let w = common::world();
     fake_systemd_run(&w, &w.root.join("unused.log"), false);

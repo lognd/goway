@@ -1282,8 +1282,8 @@ keep_awake() {
 }
 
 # What a job without a scope runs under `setsid bash -c` (dash has no `ulimit -u`): record its pid ($0), cap the
-# user's processes at $1 (`ulimit -u`, 0 = no cap) as the fallback for TasksMax, then exec it.
-JOB_LAUNCH='echo $$ >"$0"; if [ "$1" -gt 0 ] 2>/dev/null; then ulimit -u "$1" 2>/dev/null || true; fi; shift; exec "$@"'
+# user's processes at the count now plus $1 (`ulimit -u` is per user, not per job; 0 = no cap) as the fallback for TasksMax, then exec it.
+JOB_LAUNCH='echo $$ >"$0"; if [ "$1" -gt 0 ] 2>/dev/null; then ulimit -u $(($1 + $(ps -u "$(id -u)" -o pid= 2>/dev/null | wc -l))) 2>/dev/null || true; fi; shift; exec "$@"'
 
 # launch_job CMD...: start the job as run does (own session, pid recorded
 # for the watchdog, polite priority). JOB_PID and JOB_NICER are run's.
