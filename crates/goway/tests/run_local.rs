@@ -41,6 +41,14 @@ fn exit_code_passes_through_and_work_dir_is_removed() {
 fn cargo_target_dir_is_a_free_per_repo_slot() {
     let w = world();
     let print = ["run", "--", "sh", "-c", "echo $CARGO_TARGET_DIR"];
+    let overlapping = [
+        "run",
+        "--ignore-footprint",
+        "--",
+        "sh",
+        "-c",
+        "echo $CARGO_TARGET_DIR",
+    ];
     let first = w.run(&print);
     assert!(
         first.status.success(),
@@ -57,7 +65,7 @@ fn cargo_target_dir_is_a_free_per_repo_slot() {
     // While one run holds slot 0, a concurrent run gets slot 1.
     let busy = w.hold(&[], "true");
     busy.wait_started();
-    let second = w.run(&print);
+    let second = w.run(&overlapping);
     let slot = String::from_utf8_lossy(&second.stdout).trim().to_owned();
     assert!(busy.finish().status.success());
     assert!(

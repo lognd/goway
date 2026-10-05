@@ -19,7 +19,7 @@ fn recursive_goway_stops_at_the_depth_limit() {
     .unwrap();
     std::fs::write(
         w.repo.join("rec.sh"),
-        "echo \"depth=$GOWAY_DEPTH chain=$GOWAY_CHAIN\"\ncd \"$ORIGIN_REPO\" && exec \"$GOWAY_BIN\" --color never run -- sh rec.sh\n",
+        "echo \"depth=$GOWAY_DEPTH chain=$GOWAY_CHAIN\"\ncd \"$ORIGIN_REPO\" && exec \"$GOWAY_BIN\" --color never run --ignore-footprint -- sh rec.sh\n",
     )
     .unwrap();
     let out = w

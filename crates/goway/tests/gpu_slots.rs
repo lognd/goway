@@ -66,7 +66,12 @@ fn a_gpu_run_names_its_gpu_and_a_cpu_run_does_not() {
 #[test]
 fn concurrent_gpu_runs_get_different_gpus_and_the_third_waits_then_runs() {
     let w = gpu_world(2);
-    let hold = |w: &common::World| w.hold(&["--needs", "gpu"], "echo GPU=$CUDA_VISIBLE_DEVICES");
+    let hold = |w: &common::World| {
+        w.hold(
+            &["--needs", "gpu", "--ignore-footprint"],
+            "echo GPU=$CUDA_VISIBLE_DEVICES",
+        )
+    };
     let a = hold(&w);
     a.wait_started();
     let b = hold(&w);
@@ -97,7 +102,12 @@ fn gpu_jobs_lets_several_runs_share_each_gpu() {
         ),
     )
     .unwrap();
-    let hold = |w: &common::World| w.hold(&["--needs", "gpu"], "echo GPU=$CUDA_VISIBLE_DEVICES");
+    let hold = |w: &common::World| {
+        w.hold(
+            &["--needs", "gpu", "--ignore-footprint"],
+            "echo GPU=$CUDA_VISIBLE_DEVICES",
+        )
+    };
     let a = hold(&w);
     a.wait_started();
     let b = hold(&w);

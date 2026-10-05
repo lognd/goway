@@ -239,3 +239,366 @@ fn a_host_short_of_memory_for_one_more_job_is_waited_for_not_used() {
     assert_eq!(err.exit_code(), 125);
     assert!(err.to_string().contains("GiB free"), "{err}");
 }
+
+/// One fake 16-core host for the memory-peak tests.
+struct Spec {
+    total: u64,
+    avail: u64,
+    jobs: AtomicU32,
+    peak: Option<u64>,
+}
+
+fn spec(total: u64, avail: u64, jobs: u32, peak: Option<u64>) -> Spec {
+    Spec {
+        total,
+        avail,
+        jobs: AtomicU32::new(jobs),
+        peak,
+    }
+}
+
+/// Hosts `h0`, `h1`... (addresses 10.0.0.1...) that report `specs`, with repository `r`'s peak when set.
+struct Peaky(Vec<Spec>);
+
+impl Prober for Peaky {
+    fn probe(&self, target: &Target, _: KeyPolicy, _: &str) -> resolve::ProbeResult {
+        let i = target
+            .address
+            .strip_prefix("10.0.0.")
+            .and_then(|n| n.parse::<usize>().ok())
+            .and_then(|n| n.checked_sub(1))
+            .filter(|i| *i < self.0.len())
+            .ok_or((Failure::Unreachable, String::new()))?;
+        let s = &self.0[i];
+        let peak = s.peak.map_or(String::new(), |p| format!("mempeak.r={p}\n"));
+        Ok(format!(
+            "arch=x86_64\nhostname=h{i}\ncores=16\nload1=0\nload5=0\nload15=0\njobs={}\nos=linux\nmem_total={}\nmem_avail={}\n{peak}",
+            s.jobs.load(Ordering::SeqCst),
+            s.total,
+            s.avail
+        ))
+    }
+}
+
+/// `n` hosts and no per-job memory reserve, so only the repository's peak limits admission.
+fn peak_config(n: usize) -> Config {
+    let mut config = config();
+    config.hosts.truncate(n);
+    "0".clone_into(&mut config.defaults.job_mem);
+    config
+}
+
+fn repo() -> Selection {
+    Selection {
+        repo_id: Some("r".to_owned()),
+        ..Selection::default()
+    }
+}
+
+fn ignoring() -> Selection {
+    Selection {
+        ignore_footprint: true,
+        ..repo()
+    }
+}
+
+type Chosen = goway::error::Result<(
+    HostConfig,
+    resolve::Found,
+    goway::pool::Probe,
+    Option<goway::queue::Claim>,
+)>;
+
+fn choose(
+    queue: &Queue,
+    config: &Config,
+    prober: &Peaky,
+    selection: &Selection,
+    limit: Duration,
+    notes: &Mutex<Vec<String>>,
+) -> Chosen {
+    let note = |l: &str| notes.lock().unwrap().push(l.to_owned());
+    let mut state = State::default();
+    let w = wait(queue, limit, &note);
+    pool::choose_queued(
+        config,
+        selection,
+        &mut state,
+        Path::new(""),
+        &NoLookup,
+        prober,
+        None,
+        &w,
+    )
+}
+
+// frob:ticket 01M44Q40P0JX72QMP799SKK7DR
+// frob:tests crates/goway/src/queue.rs::Waiter
+#[test]
+fn a_head_that_cannot_fit_is_passed_a_bounded_number_of_times_then_everyone_waits_for_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let queue = Queue::at(dir.path().join("queue"));
+    // One job keeps the host busy, so memory for the head's peak (7.1 GiB needed, 7 free) never frees.
+    let prober = Peaky(vec![spec(
+        8 * GIB,
+        7 * GIB,
+        1,
+        Some(6 * GIB + GIB * 8 / 10),
+    )]);
+    let config = peak_config(1);
+    let head = queue.enter().unwrap();
+    head.set_eligible(&["h0".to_owned()]).unwrap();
+    head.set_ready(&[]).unwrap();
+    let notes = Mutex::new(Vec::new());
+    let mut claims = Vec::new();
+    for n in 0..goway::queue::MAX_OVERTAKEN {
+        let started = std::time::Instant::now();
+        let (host, _, _, claim) = choose(
+            &queue,
+            &config,
+            &prober,
+            &ignoring(),
+            Duration::from_secs(5),
+            &notes,
+        )
+        .unwrap_or_else(|e| panic!("entry {n} behind the unfit head: {e}"));
+        assert_eq!(host.name, "h0");
+        assert!(started.elapsed() < Duration::from_secs(3));
+        claims.push(claim.unwrap());
+    }
+    // The head has been passed enough: the next one waits for it, even with the footprint check off.
+    let err = choose(
+        &queue,
+        &config,
+        &prober,
+        &ignoring(),
+        Duration::from_millis(600),
+        &notes,
+    )
+    .unwrap_err();
+    assert_eq!(err.exit_code(), 125);
+    assert!(err.to_string().contains("reserved for runs ahead"), "{err}");
+    // Once the head leaves, the line moves again.
+    drop(head);
+    choose(
+        &queue,
+        &config,
+        &prober,
+        &ignoring(),
+        Duration::from_secs(5),
+        &notes,
+    )
+    .unwrap();
+}
+
+// frob:ticket 01M44Q40P0JX72QMP799SKK7DR
+// frob:tests crates/goway/src/pool.rs::decide_round
+#[test]
+fn an_idle_host_does_not_stay_blocked_behind_a_head_whose_peak_never_fits() {
+    let dir = tempfile::tempdir().unwrap();
+    let queue = Queue::at(dir.path().join("queue"));
+    // Today's starvation: an idle host, a recorded peak just above what is free, and later
+    // entries that skip the footprint check.
+    let prober = Peaky(vec![spec(
+        8 * GIB,
+        6 * GIB + GIB * 9 / 10,
+        0,
+        Some(6 * GIB + GIB * 8 / 10),
+    )]);
+    let config = peak_config(1);
+    let notes = Mutex::new(Vec::new());
+    let started = std::time::Instant::now();
+    let got = std::thread::scope(|s| {
+        let head = s.spawn(|| {
+            choose(
+                &queue,
+                &config,
+                &prober,
+                &repo(),
+                Duration::from_secs(30),
+                &notes,
+            )
+        });
+        std::thread::sleep(Duration::from_millis(200));
+        let later: Vec<_> = (0..2)
+            .map(|_| {
+                s.spawn(|| {
+                    choose(
+                        &queue,
+                        &config,
+                        &prober,
+                        &ignoring(),
+                        Duration::from_secs(30),
+                        &notes,
+                    )
+                })
+            })
+            .collect();
+        let mut got = vec![head.join().unwrap()];
+        got.extend(later.into_iter().map(|h| h.join().unwrap()));
+        got
+    });
+    assert!(
+        started.elapsed() < Duration::from_secs(20),
+        "{:?}",
+        started.elapsed()
+    );
+    assert!(
+        got.iter().all(Result::is_ok),
+        "{:?}",
+        got.iter()
+            .map(|g| g.as_ref().err().map(ToString::to_string))
+            .collect::<Vec<_>>()
+    );
+}
+
+// frob:ticket 01M44Q40P0JX72QMP799SKK7DR
+// frob:tests crates/goway/src/footprint.rs::assess_mem
+#[test]
+fn a_repository_that_does_not_fit_in_free_memory_runs_alone_on_an_idle_host_with_a_warning() {
+    let dir = tempfile::tempdir().unwrap();
+    let queue = Queue::at(dir.path().join("queue"));
+    let prober = Peaky(vec![spec(
+        8 * GIB,
+        6 * GIB + GIB * 9 / 10,
+        0,
+        Some(6 * GIB + GIB * 8 / 10),
+    )]);
+    let config = peak_config(1);
+    let notes = Mutex::new(Vec::new());
+    let (host, _, _, claim) = choose(
+        &queue,
+        &config,
+        &prober,
+        &repo(),
+        Duration::from_secs(5),
+        &notes,
+    )
+    .unwrap();
+    assert_eq!(host.name, "h0");
+    let notes_now = notes.lock().unwrap().clone();
+    assert!(
+        notes_now.iter().any(|l| l.contains("running alone")),
+        "{notes_now:?}"
+    );
+    // While it runs, a second run of the repository waits for the memory.
+    let err = choose(
+        &queue,
+        &config,
+        &prober,
+        &repo(),
+        Duration::from_millis(600),
+        &notes,
+    )
+    .unwrap_err();
+    assert_eq!(err.exit_code(), 125);
+    assert!(err.to_string().contains("memory free"), "{err}");
+    drop(claim);
+}
+
+// frob:ticket 01M44Q40P0JX72QMP799SKK7DR
+// frob:tests crates/goway/src/pool.rs::none_usable
+#[test]
+fn a_peak_above_the_hosts_total_memory_fails_at_once_naming_both_sizes() {
+    let dir = tempfile::tempdir().unwrap();
+    let queue = Queue::at(dir.path().join("queue"));
+    let prober = Peaky(vec![spec(4 * GIB, 4 * GIB, 0, Some(6 * GIB))]);
+    let config = peak_config(1);
+    let notes = Mutex::new(Vec::new());
+    let started = std::time::Instant::now();
+    let err = choose(
+        &queue,
+        &config,
+        &prober,
+        &repo(),
+        Duration::from_secs(60),
+        &notes,
+    )
+    .unwrap_err();
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "waited out --wait"
+    );
+    assert_eq!(err.exit_code(), 125);
+    let text = err.to_string();
+    assert!(text.contains("4.0 GiB of memory in total"), "{text}");
+    assert!(text.contains("peak is 6.0 GiB"), "{text}");
+    assert!(text.contains("--ignore-footprint"), "{text}");
+    // Skipping the check still works.
+    choose(
+        &queue,
+        &config,
+        &prober,
+        &ignoring(),
+        Duration::from_secs(5),
+        &notes,
+    )
+    .unwrap();
+}
+
+// frob:ticket 01M44Q40P0JX72QMP799SKK7DR
+// frob:tests crates/goway/src/footprint.rs::share_mem_peaks
+#[test]
+fn a_host_without_a_peak_is_judged_by_the_one_another_host_recorded() {
+    let dir = tempfile::tempdir().unwrap();
+    let queue = Queue::at(dir.path().join("queue"));
+    // h0 is first in line and has no record; h1 recorded 6 GiB, which h0 (4 GiB) cannot hold.
+    let prober = Peaky(vec![
+        spec(4 * GIB, 4 * GIB, 0, None),
+        spec(16 * GIB, 16 * GIB, 0, Some(6 * GIB)),
+    ]);
+    let config = peak_config(2);
+    let notes = Mutex::new(Vec::new());
+    let (host, _, _, _claim) = choose(
+        &queue,
+        &config,
+        &prober,
+        &repo(),
+        Duration::from_secs(5),
+        &notes,
+    )
+    .unwrap();
+    assert_eq!(host.name, "h1");
+}
+
+// frob:ticket 01M44Q40P0JX72QMP799SKK7DR
+// frob:tests crates/goway/src/footprint.rs::assess_mem
+#[test]
+fn with_no_peak_anywhere_one_run_of_the_repository_is_admitted_per_host() {
+    let dir = tempfile::tempdir().unwrap();
+    let queue = Queue::at(dir.path().join("queue"));
+    let prober = Peaky(vec![spec(8 * GIB, 8 * GIB, 0, None)]);
+    let config = peak_config(1);
+    let notes = Mutex::new(Vec::new());
+    let (_, _, _, first) = choose(
+        &queue,
+        &config,
+        &prober,
+        &repo(),
+        Duration::from_secs(5),
+        &notes,
+    )
+    .unwrap();
+    let err = choose(
+        &queue,
+        &config,
+        &prober,
+        &repo(),
+        Duration::from_millis(600),
+        &notes,
+    )
+    .unwrap_err();
+    assert_eq!(err.exit_code(), 125);
+    assert!(err.to_string().contains("measured alone"), "{err}");
+    // A run that skips the checks is not held; once the first leaves and shows no job, nor are others.
+    choose(
+        &queue,
+        &config,
+        &prober,
+        &ignoring(),
+        Duration::from_secs(5),
+        &notes,
+    )
+    .unwrap();
+    drop(first);
+}
