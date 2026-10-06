@@ -28,7 +28,9 @@ with no peak anywhere runs alone on a host until its first run records one.
 If the peak is above every helper's total memory the run fails at once and
 names the peak and the sizes; the peak may be stale (an OOM-killed run is
 recorded a quarter higher): `goway gc --repo ID` forgets it, and
-`--ignore-footprint` skips the check for one run. See "Waves of runs queue"
+`--ignore-footprint` skips the check for one run. A cargo run is first fitted
+by lowering its job count (see "Fitting a cargo run to the host's memory"),
+so this fails only when even one job cannot fit. See "Waves of runs queue"
 and "Memory: a repository's peak" in usage.md.
 </details>
 

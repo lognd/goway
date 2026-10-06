@@ -289,9 +289,17 @@ pub fn run_here(
         },
         crate::ssh::shell_join(&args.command)
     ));
+    // A run lowered to fit this machine's memory gets its job counts here, as a helper would.
+    let mut job_env = args.env.clone();
+    if let Some(plan) = run::fit_plan(selection, &probe) {
+        if let Some(note) = crate::fit::note(&host.name, &plan, probe.facts.mem_avail) {
+            renderer.note(note);
+        }
+        job_env.extend(crate::fit::local_env(&plan, &args.env));
+    }
     let job = Job {
         command: &args.command,
-        env: &args.env,
+        env: &job_env,
         priority: config.priority_of(&host),
         cwd: env.cwd,
         run_id: &run_id,

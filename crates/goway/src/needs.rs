@@ -502,6 +502,8 @@ pub struct Selection {
     /// When no host could ever fit the repository's footprint: the one host (by name) the run
     /// falls back to, with the footprint checks waived there and every other host left out.
     pub only_host: Option<String>,
+    /// How the run's parallelism is fitted to a host's memory (see [`crate::fit`]).
+    pub fit: crate::fit::Mode,
 }
 
 impl Selection {
@@ -525,6 +527,7 @@ impl Selection {
             repo_id: None,
             ignore_footprint: false,
             only_host: None,
+            fit: crate::fit::Mode::Off,
         })
     }
 
@@ -662,6 +665,8 @@ mod tests {
             win: None,
             footprints: std::collections::BTreeMap::new(),
             mem_peaks: std::collections::BTreeMap::new(),
+            mem_levels: std::collections::BTreeMap::new(),
+            mem_reserved: 0,
             facts: Facts {
                 mem_total: Some(32 * gib),
                 mem_avail: Some(30 * gib),

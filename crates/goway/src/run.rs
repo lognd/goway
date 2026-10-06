@@ -283,6 +283,16 @@ fn discard_work(env: &Env<'_>, found: &Found, remote_root: &str, run_id: &str) {
     }
 }
 
+/// The parallelism plan of a run on `probe`'s host, when the run is a cargo run and the
+/// repository's footprint checks are on.
+pub(crate) fn fit_plan(selection: &Selection, probe: &pool::Probe) -> Option<crate::fit::Plan> {
+    let id = selection
+        .repo_id
+        .as_deref()
+        .filter(|_| !selection.footprint_ignored())?;
+    crate::fit::plan(selection.fit, probe, id)
+}
+
 /// One attempt of `goway run`; `own_os_only` limits the pool to this machine's OS (the
 /// second pick after a translation in doubt).
 #[allow(clippy::too_many_lines)] // one sequence: choose, sync, run, report
@@ -315,6 +325,7 @@ fn run_picked(
     }
     selection.repo_id = Some(repo.id.clone());
     selection.ignore_footprint = args.ignore_footprint;
+    selection.fit = crate::fit::Mode::for_run(&args.command, &args.env);
     if own_os_only {
         selection = selection.with_default_os(needs::laptop_os());
     }
@@ -469,6 +480,18 @@ fn run_picked(
         translation = translated;
 
         let mut extra = gpu_words(&selection, &config, &host);
+        if found.kind == crate::transport::Kind::Unix
+            && let Some(plan) = fit_plan(&selection, &probe)
+        {
+            if let Some(note) = crate::fit::note(&host.name, &plan, probe.facts.mem_avail) {
+                tracing::info!(host = %host.name, jobs = plan.jobs, natural = plan.natural, "parallelism lowered to fit memory");
+                renderer.note(note);
+            }
+            extra.push(crate::fit::word(selection.fit, &plan));
+            if plan.reserve > 0 {
+                extra.push(format!("reserve-mem:{}", plan.reserve));
+            }
+        }
         extra.push(verify.word());
         extra.push(slot_wait_word(args.wait));
         if found.kind == crate::transport::Kind::Unix {

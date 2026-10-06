@@ -372,6 +372,8 @@ mod tests {
             win: None,
             footprints: std::collections::BTreeMap::new(),
             mem_peaks: std::collections::BTreeMap::new(),
+            mem_levels: std::collections::BTreeMap::new(),
+            mem_reserved: 0,
             facts: Facts {
                 os: Some("linux".to_owned()),
                 mem_total: Some(16 * gib),

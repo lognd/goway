@@ -50,6 +50,10 @@ pub struct Probe {
     pub footprints: BTreeMap<String, u64>,
     /// Peak memory of each repository's job tree there, by repository id (see [`crate::footprint`]).
     pub mem_peaks: BTreeMap<String, u64>,
+    /// Peak memory per parallelism level (job count) of each repository there (see [`crate::fit`]).
+    pub mem_levels: BTreeMap<String, BTreeMap<u32, u64>>,
+    /// Memory the running goway jobs there have reserved but not yet used, in bytes.
+    pub mem_reserved: u64,
     /// RAM, GPUs and other facts (see [`crate::facts`]).
     pub facts: Facts,
 }
@@ -88,6 +92,11 @@ pub fn parse_probe(text: &str) -> Option<Probe> {
         win: crate::footprint::parse_win(&kv),
         footprints: crate::footprint::parse(&kv),
         mem_peaks: crate::footprint::parse_mem_peaks(&kv),
+        mem_levels: crate::footprint::parse_mem_levels(&kv),
+        mem_reserved: kv
+            .get("mem_reserved")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0),
         facts: facts::parse_live(
             &kv.iter()
                 .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
@@ -682,8 +691,9 @@ pub fn choose(
             return needs_met(selection, chosen);
         }
         let host = config.host(name)?;
-        let (found, probe) =
+        let (found, mut probe) =
             probe_one(config, host, state, lookup, prober, selection.wants_disk())?;
+        hold_back_reserved(&mut probe);
         // A pinned host is used as is, but not when it cannot meet the needs.
         let a = selection.assess(host, &probe);
         if !a.qualifies() {
@@ -726,7 +736,7 @@ pub fn pinned_footprint_warning(selection: &Selection, probe: &Probe) -> Option<
         .repo_id
         .as_deref()
         .filter(|_| !selection.footprint_ignored())?;
-    let mem = crate::footprint::assess_mem(probe, id);
+    let mem = crate::fit::assess(selection.fit, probe, id);
     let why = (!matches!(mem, crate::footprint::MemRoom::Unmeasured { .. }))
         .then(|| crate::footprint::mem_short_text(mem))
         .flatten()
@@ -755,7 +765,40 @@ fn probe_pool<'a>(
             .iter_mut()
             .filter_map(|p| p.result.as_mut().ok().map(|(_, probe)| probe)),
     );
+    for p in &mut results {
+        if let Ok((_, probe)) = &mut p.result {
+            hold_back_reserved(probe);
+        }
+    }
     results
+}
+
+/// Take the memory that running goway jobs have reserved but not yet used out of what the
+/// host reports available, so a job still ramping up is not mistaken for free memory.
+fn hold_back_reserved(probe: &mut Probe) {
+    if probe.mem_reserved == 0 {
+        return;
+    }
+    if let Some(avail) = probe.facts.mem_avail.as_mut() {
+        tracing::debug!(
+            host = %probe.hostname,
+            avail = *avail,
+            reserved = probe.mem_reserved,
+            "available memory reduced by the running jobs' unused reservations"
+        );
+        *avail = avail.saturating_sub(probe.mem_reserved);
+    }
+}
+
+/// The memory to set aside for a run on `probe`'s host (its fitted estimate plus margin),
+/// 0 when none is known (the repository's recorded peak is used instead).
+pub fn memory_reserve(selection: &Selection, probe: &Probe) -> u64 {
+    selection
+        .repo_id
+        .as_deref()
+        .filter(|_| !selection.footprint_ignored())
+        .and_then(|id| crate::fit::plan(selection.fit, probe, id))
+        .map_or(0, |plan| plan.reserve)
 }
 
 /// What to do when no host can take the run: fall back to this machine when
@@ -816,13 +859,12 @@ fn apply_pending(config: &Config, snap: &Snapshot, results: &mut [Probed<'_>]) {
         };
         if let Ok((_, probe)) = &mut p.result {
             probe.jobs += n;
-            if let Some(avail) = probe.facts.mem_avail.as_mut() {
-                *avail = avail.saturating_sub(u64::from(n) * reserve);
-            }
-            // Memory the same way: a pending run of a repository takes its recorded peak
-            // (at least the per-job reserve already taken above).
+            // Memory: a claim that set memory aside takes that (a fitted run's expected peak),
+            // any other the per-job reserve, and a pending run of a repository its recorded peak
+            // (at least the per-job reserve already taken).
+            let (n_set, set) = snap.pending_reserved.get(&key).copied().unwrap_or((0, 0));
             let peaks: u64 = snap
-                .pending_repos
+                .pending_unreserved
                 .get(&key)
                 .into_iter()
                 .flatten()
@@ -830,7 +872,8 @@ fn apply_pending(config: &Config, snap: &Snapshot, results: &mut [Probed<'_>]) {
                 .map(|peak| peak.saturating_sub(reserve))
                 .sum();
             if let Some(avail) = probe.facts.mem_avail.as_mut() {
-                *avail = avail.saturating_sub(peaks);
+                let jobs_reserve = u64::from(n.saturating_sub(n_set)) * reserve;
+                *avail = avail.saturating_sub(set + jobs_reserve + peaks);
             }
             // Disk the same way: each pending run of a repository will grow by its footprint.
             let claimed: u64 = snap
@@ -871,7 +914,7 @@ fn mem_room(selection: &Selection, probe: &Probe) -> crate::footprint::MemRoom {
         .as_deref()
         .filter(|_| !selection.footprint_ignored())
         .map_or(crate::footprint::MemRoom::Unknown, |id| {
-            crate::footprint::assess_mem(probe, id)
+            crate::fit::assess(selection.fit, probe, id)
         })
 }
 
@@ -1075,9 +1118,15 @@ fn decide_round(
                         results[i].host.name
                     ));
                 }
-                let claim = wait
-                    .queue
-                    .claim(&results[i].host.name, selection.repo_id.as_deref())?;
+                let reserve = results[i]
+                    .result
+                    .as_ref()
+                    .map_or(0, |(_, probe)| memory_reserve(selection, probe));
+                let claim = wait.queue.claim_reserving(
+                    &results[i].host.name,
+                    selection.repo_id.as_deref(),
+                    reserve,
+                )?;
                 tracing::info!(host = %results[i].host.name, position = snap.position(), "picked");
                 Ok(Decision::Taken(i, claim))
             }
@@ -1113,7 +1162,11 @@ pub fn choose_queued(
         if let Some(w) = pinned_footprint_warning(selection, &probe) {
             (wait.note)(&w);
         }
-        let claim = wait.queue.claim(&host.name, selection.repo_id.as_deref())?;
+        let claim = wait.queue.claim_reserving(
+            &host.name,
+            selection.repo_id.as_deref(),
+            memory_reserve(selection, &probe),
+        )?;
         return Ok((host, found, probe, Some(claim)));
     }
     if config.hosts.is_empty() && !config.local_fallback() && !config.local_in_pool() {
@@ -1244,6 +1297,8 @@ mod tests {
             win: None,
             footprints: std::collections::BTreeMap::new(),
             mem_peaks: std::collections::BTreeMap::new(),
+            mem_levels: std::collections::BTreeMap::new(),
+            mem_reserved: 0,
             facts: Facts::default(),
         }
     }
@@ -1508,6 +1563,90 @@ mod tests {
     }
 
     // frob:ticket 01M43CWNW1JNQZMCJBQ2NH4FTC
+    // frob:ticket 01M47SYH8F5YD6P5G2741CG5RF
+    // frob:tests crates/goway/src/pool.rs::apply_pending
+    // frob:tests crates/goway/src/pool.rs::hold_back_reserved
+    #[test]
+    fn concurrent_runs_cannot_jointly_overcommit_a_hosts_memory() {
+        // The measured OOM: one run placed and ramping up (it has used 1 GiB of the 5 GiB it
+        // will peak at), so the host still reports 7 GiB free; a second run of the same
+        // repository must see only what the first has not claimed.
+        let gib = 1024u64 * 1024 * 1024;
+        let text = |reserved: u64| {
+            format!(
+                "arch=x86_64\nhostname=h\ncores=8\nload1=0\nload5=0\nload15=0\njobs=1\nmem_total={}\nmem_avail={}\nmempeak.repo1={}\nmem_reserved={reserved}\n",
+                8 * gib,
+                7 * gib,
+                7 * gib
+            )
+        };
+        let mut blind = parse_probe(&text(0)).unwrap();
+        let mut aware = parse_probe(&text(4 * gib)).unwrap();
+        assert_eq!(aware.mem_reserved, 4 * gib);
+        hold_back_reserved(&mut blind);
+        hold_back_reserved(&mut aware);
+        assert_eq!(blind.facts.mem_avail, Some(7 * gib));
+        assert_eq!(aware.facts.mem_avail, Some(3 * gib));
+        let mode = crate::fit::Mode::Adaptive;
+        let jobs_of = |p: &Probe| crate::fit::plan(mode, p, "repo1").unwrap().jobs;
+        assert!(
+            jobs_of(&aware) < jobs_of(&blind),
+            "the second run gets fewer jobs: {} vs {}",
+            jobs_of(&aware),
+            jobs_of(&blind)
+        );
+        // Pending claims that set memory aside are taken from the host the same way.
+        let hosts = [host("h", None)];
+        let mut probed = vec![Probed {
+            host: &hosts[0],
+            result: Ok((found("h"), parse_probe(&text(0)).unwrap())),
+        }];
+        let mut snap = Snapshot::default();
+        snap.pending.insert("h".to_owned(), 2);
+        snap.pending_reserved.insert("h".to_owned(), (2, 5 * gib));
+        apply_pending(&Config::default(), &snap, &mut probed);
+        assert_eq!(
+            probed[0].result.as_ref().unwrap().1.facts.mem_avail,
+            Some(2 * gib)
+        );
+    }
+
+    // frob:ticket 01M47SYH8F5YD6P5G2741CG5RF
+    // frob:tests crates/goway/src/pool.rs::mem_room
+    #[test]
+    fn a_cargo_run_is_admitted_at_lower_parallelism_where_a_plain_run_is_held_back() {
+        let gib = 1024u64 * 1024 * 1024;
+        let mut small = parse_probe(&format!(
+            "arch=x86_64\nhostname=h\ncores=8\nload1=0\nload5=0\nload15=0\njobs=0\nmem_total={}\nmem_avail={}\nmempeak.r={}\n",
+            8 * gib,
+            7 * gib,
+            7 * gib
+        ))
+        .unwrap();
+        let plain = Selection {
+            repo_id: Some("r".to_owned()),
+            ..Selection::default()
+        };
+        let adaptive = Selection {
+            fit: crate::fit::Mode::Adaptive,
+            ..plain.clone()
+        };
+        assert!(
+            !matches!(mem_room(&plain, &small), crate::footprint::MemRoom::Fits),
+            "7 GiB peak with margin does not fit 7 GiB free"
+        );
+        assert_eq!(mem_room(&adaptive, &small), crate::footprint::MemRoom::Fits);
+        assert!(memory_reserve(&adaptive, &small) > 0);
+        assert_eq!(memory_reserve(&plain, &small), 0);
+        // Not even one job fits a host this small: refused as too small.
+        small.facts.mem_total = Some(gib);
+        small.facts.mem_avail = Some(gib);
+        assert!(matches!(
+            mem_room(&adaptive, &small),
+            crate::footprint::MemRoom::TooSmall { .. }
+        ));
+    }
+
     // frob:tests crates/goway/src/pool.rs::ranked_for
     #[test]
     fn a_host_too_small_or_too_busy_for_the_repositorys_memory_peak_is_held_back() {

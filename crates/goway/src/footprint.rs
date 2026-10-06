@@ -75,6 +75,25 @@ pub fn parse_mem_peaks(kv: &BTreeMap<&str, &str>) -> BTreeMap<String, u64> {
     parse_prefixed(kv, MEM_KEY_PREFIX)
 }
 
+/// The prefix of a per-parallelism-level memory peak line (`mempeakj.<repo id>.<jobs>=BYTES`).
+pub const MEM_LEVEL_PREFIX: &str = "mempeakj.";
+
+/// The memory peaks per parallelism level in a probe's `key=value` lines, by repository id
+/// then job count (zero job counts and malformed ids are dropped).
+pub fn parse_mem_levels(kv: &BTreeMap<&str, &str>) -> BTreeMap<String, BTreeMap<u32, u64>> {
+    let mut out: BTreeMap<String, BTreeMap<u32, u64>> = BTreeMap::new();
+    for (key, peak) in parse_prefixed(kv, MEM_LEVEL_PREFIX) {
+        let Some((id, jobs)) = key.rsplit_once('.') else {
+            continue;
+        };
+        let Some(jobs) = jobs.parse::<u32>().ok().filter(|j| *j > 0) else {
+            continue;
+        };
+        out.entry(id.to_owned()).or_default().insert(jobs, peak);
+    }
+    out
+}
+
 /// How a helper's memory stands against one repository's peak.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemRoom {
@@ -125,6 +144,28 @@ pub fn share_mem_peaks<'a>(probes: impl IntoIterator<Item = &'a mut Probe>) {
             *slot = (*slot).max(peak);
         }
     }
+    // The same for per-level peaks: a level a host never ran is judged by what others measured.
+    let mut levels: BTreeMap<String, BTreeMap<u32, u64>> = BTreeMap::new();
+    for p in &probes {
+        for (id, by_level) in &p.mem_levels {
+            for (&jobs, &peak) in by_level {
+                let slot = levels
+                    .entry(id.clone())
+                    .or_default()
+                    .entry(jobs)
+                    .or_insert(peak);
+                *slot = (*slot).max(peak);
+            }
+        }
+    }
+    for p in &mut probes {
+        for (id, by_level) in &levels {
+            let own = p.mem_levels.entry(id.clone()).or_default();
+            for (&jobs, &peak) in by_level {
+                own.entry(jobs).or_insert(peak);
+            }
+        }
+    }
     for p in &mut probes {
         for (id, &peak) in &largest {
             if !p.mem_peaks.contains_key(id) {
@@ -146,6 +187,11 @@ pub fn assess_mem(probe: &Probe, repo_id: &str) -> MemRoom {
             MemRoom::Unknown
         };
     };
+    judge_mem(probe, peak)
+}
+
+/// Judge `probe`'s total and available memory against a run expected to peak at `peak` bytes.
+pub fn judge_mem(probe: &Probe, peak: u64) -> MemRoom {
     let need = mem_required(peak);
     if probe.facts.mem_total.is_some_and(|total| total < need) {
         return MemRoom::TooSmall {

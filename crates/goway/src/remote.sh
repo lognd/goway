@@ -847,7 +847,7 @@ mem_pss() {
 # 5.19+), else the resident memory of the job's session, sampled (a short
 # spike between two samples is missed, which is why the margin exists).
 mem_sample() {
-  local pid=$1 dir=$2 cg v="" old
+  local pid=$1 dir=$2 cg v="" old now
   cg=$(mem_cgroup "$pid" || true)
   if [ -n "$cg" ] && [ -r "$cg/memory.peak" ]; then
     # Only the run's own scope: before the job moves into it, it still sits in the scope of
@@ -871,6 +871,11 @@ mem_sample() {
     esac
   fi
   case "$v" in "" | *[!0-9]*) return 0 ;; esac
+  # The memory in use now (not the peak): the probe's view of what a reservation has not used.
+  now=$v
+  if [ -n "$cg" ] && [ -r "$cg/memory.current" ]; then now=$(cat "$cg/memory.current" 2>/dev/null || echo "$v"); fi
+  case "$now" in "" | *[!0-9]*) now=$v ;; esac
+  printf '%s' "$now" >"$dir/memnow" 2>/dev/null || true
   old=$(cat "$dir/mempeak" 2>/dev/null || echo 0)
   case "$old" in "" | *[!0-9]*) old=0 ;; esac
   if [ "$v" -gt "$old" ]; then printf '%s' "$v" >"$dir/mempeak" 2>/dev/null || true; fi
@@ -1239,6 +1244,19 @@ cap_parallelism() {
   [ -n "${NEXTEST_TEST_THREADS+x}" ] || export NEXTEST_TEST_THREADS=$half
 }
 
+# fit_parallelism JOBS PRIORITY: goway fitted this run to the host's memory: builds and tests
+# get JOBS jobs (at most half the cores while the owner uses the host) through the cargo and
+# nextest variables, each only when the user has not set it (their --env, or this host's own
+# environment, wins).
+fit_parallelism() {
+  local n=$1 half=$(($(cores) / 2))
+  [ "$half" -ge 1 ] || half=1
+  if [ "$2" = owner ] && [ "$n" -gt "$half" ]; then n=$half; fi
+  [ "$n" -ge 1 ] || n=1
+  [ -n "${CARGO_BUILD_JOBS+x}" ] || export CARGO_BUILD_JOBS=$n
+  [ -n "${NEXTEST_TEST_THREADS+x}" ] || export NEXTEST_TEST_THREADS=$n
+}
+
 # ---- CMake's own interfaces (File API replies, a traced configure) ------
 #
 # doctor asks CMake what a project needs instead of reading CMakeLists.txt as
@@ -1528,6 +1546,7 @@ run() {
   shift 10
   # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
   # framework detection of the command's program (see shard_run).
+  local jobs="" jobs_set=0 mem_reserve=0
   local limits="" detect="" gpu_per="" slot_wait=300 verify="" fresh=0 attempt=1 level=changed room=""
   while [ $# -gt 0 ] && [ "$1" != "--" ]; do
     case "$1" in
@@ -1537,6 +1556,8 @@ run() {
       limits:[0-9a-z]*:*:*) limits=${1#limits:} ;;
       room:[0-9]*:[0-9]*) room=${1#room:} ;;
       reserve:*) WIN_RESERVE=${1#reserve:} ;;
+      jobs:[0-9]*:rec | jobs:[0-9]*) jobs=${1#jobs:}; jobs=${jobs%%:*}; case "$1" in *:rec) jobs_set=0 ;; *) jobs_set=1 ;; esac ;;
+      reserve-mem:[0-9]*) mem_reserve=${1#reserve-mem:} ;;
       verify:[12]:changed | verify:[12]:all | verify:[12]:changed:fresh | verify:[12]:all:fresh)
         # The attempt number is goway's explicit argument, never read from
         # the environment or from anything the helper reports.
@@ -1553,6 +1574,7 @@ run() {
   case "$detect" in *[!A-Za-z0-9:]*) die "run: bad shard-detect" ;; esac
   case "$gpu_per" in *[!0-9]*) die "run: bad gpu-slots" ;; esac
   case "$slot_wait" in *[!0-9]*) die "run: bad slot-wait" ;; esac
+  case "$jobs$mem_reserve" in *[!0-9]*) die "run: bad jobs or reserve-mem" ;; esac
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
@@ -1567,6 +1589,9 @@ run() {
   # The lock protects the dir from here on; the starting-run markers are done.
   rm -f "$work/born" "$work/creator"
   printf '%s\n' "$$" >"$work/runner"
+  # The memory this run has set aside: the probe subtracts what it has not used yet from the
+  # host's available memory, so a run still ramping up is not mistaken for free memory.
+  if [ "$mem_reserve" -gt 0 ]; then printf '%s' "$mem_reserve" >"$work/memres" 2>/dev/null || true; fi
   trap 'remove_work "$work"; exit 143' TERM
   if [ -e "$work/lost" ]; then lost_note "$work"; remove_work "$work"; exit 143; fi
   # What the last automatic disk-budget eviction freed (it ran detached).
@@ -1766,6 +1791,7 @@ run() {
       if command -v nice >/dev/null 2>&1; then nicer+=(nice -n "$([ "$priority" = owner ] && echo 19 || echo 10)"); fi
       if command -v ionice >/dev/null 2>&1; then nicer+=(ionice -c 3); fi ;;
   esac
+  if [ "$jobs_set" = 1 ]; then fit_parallelism "$jobs" "$priority"; fi
   if [ "$priority" = owner ]; then cap_parallelism; fi
   # Outermost, so the inhibitor wraps the niceness wrappers and the job.
   keep_awake
@@ -1792,7 +1818,7 @@ run() {
   reap_job "$work" "$(cat "$work/pid" 2>/dev/null || true)" "$run_id"
   : >"$work/done"
   cd "$root"
-  memory_report "$root" "$repo_id" "$work" "$rc"
+  memory_report "$root" "$repo_id" "$work" "$rc" "$jobs"
   lost_note "$work"
   # A failed command: before blaming the code, goway compares every synced
   # file the command did not itself change with the laptop's.
@@ -2011,6 +2037,7 @@ probe() {
       [ -e "$l" ] || continue
       flock -n "$l" true || jobs=$((jobs + 1))
     done
+    printf 'mem_reserved=%s\n' "$(mem_reserved "$root")"
   fi
   printf 'jobs=%s\ntask_cap=%s\n' "$jobs" "$(auto_task_cap)"
   if [ "$want_owner" = 1 ]; then power_state; idle_secs; fi
@@ -2030,14 +2057,34 @@ probe() {
   fi
 }
 
+# mem_reserved ROOT: the bytes the running goway jobs have reserved (work/ID/memres) and not
+# yet used (work/ID/memnow), summed over the runs that hold their lock.
+mem_reserved() {
+  local l d res now total=0
+  for l in "$1"/work/*/lock; do
+    [ -e "$l" ] || continue
+    flock -n "$l" true && continue
+    d=${l%/lock}
+    res=$(cat "$d/memres" 2>/dev/null || echo 0)
+    now=$(cat "$d/memnow" 2>/dev/null || echo 0)
+    case "$res$now" in *[!0-9]*) continue ;; esac
+    [ -n "$res" ] && [ "$res" -gt "$now" ] && total=$((total + res - now))
+  done
+  printf '%s' "$total"
+}
+
 # probe_mempeaks ROOT: the recorded memory peaks as mempeak.ID=BYTES.
 probe_mempeaks() {
-  local f v
+  local f v name
   for f in "$1"/mempeaks/*; do
     [ -f "$f" ] || continue
     v=$(mempeak_of "$f")
     [ "$v" -gt 0 ] || continue
-    printf 'mempeak.%s=%s\n' "${f##*/}" "$v"
+    case "${f##*/}" in
+      # A per-level record (ID.jJOBS): mempeakj.ID.JOBS.
+      *.j[0-9]*) name=${f##*/}; printf 'mempeakj.%s.%s=%s\n' "${name%.j*}" "${name##*.j}" "$v" ;;
+      *) printf 'mempeak.%s=%s\n' "${f##*/}" "$v" ;;
+    esac
   done
 }
 
@@ -2443,24 +2490,34 @@ oom_in_dmesg() {
   printf '%s\n' "$log" | grep -qiE 'out of memory: kill|oom-kill|killed process'
 }
 
+# mempeak_level_record ROOT REPO_ID JOBS BYTES: the same as mempeak_record for the runs of the
+# repository at JOBS parallel jobs (file ID.jJOBS), so estimates for other job counts improve.
+mempeak_level_record() {
+  case "$3" in "" | *[!0-9]*) return 0 ;; esac
+  [ "$3" -gt 0 ] || return 0
+  mempeak_record "$1" "$2.j$3" "$4"
+}
+
 # memory_report ROOT REPO_ID WORK RC: after the job, record its measured peak
 # memory; when the job was OOM-killed (the scope's oom_kill count, else exit 137 with
 # the kernel log or nothing else to explain it) say so in plain words, with the
 # peak and the host's total and what to do. A killed job's true peak is higher
 # than measured, so a quarter more is recorded.
 memory_report() {
-  local root=$1 repo_id=$2 work=$3 rc=$4 peak total oom=0 gib=1073741824
+  local root=$1 repo_id=$2 work=$3 rc=$4 level=${5:-} peak total oom=0 gib=1073741824
   peak=$(cat "$work/mempeak" 2>/dev/null || echo 0)
   case "$peak" in "" | *[!0-9]*) peak=0 ;; esac
   if [ -e "$work/oom" ]; then oom=1; fi
   if [ "$oom" = 0 ] && [ "$rc" = 137 ] && [ ! -e "$work/lost" ] && oom_in_dmesg; then oom=1; fi
   if [ "$oom" = 1 ]; then
     mempeak_record "$root" "$repo_id" $((peak + peak / 4))
+    mempeak_level_record "$root" "$repo_id" "$level" $((peak + peak / 4))
     total=$(awk '/^MemTotal:/ {printf "%.0f", $2 * 1024}' /proc/meminfo 2>/dev/null || true)
     printf 'goway: this host ran out of memory: the kernel killed a process of the job (measured peak %s of %s total). Run it on another host (--host), ask for more memory (--needs mem>=%sG), run fewer jobs at once (CARGO_BUILD_JOBS=2, nextest -j 2), or give the helper more memory (goway-setup tune on WSL helpers).\n' \
       "$(human "$peak")" "$(human "${total:-0}")" "$(((peak + peak / 4 + gib - 1) / gib))" >&2
   else
     mempeak_record "$root" "$repo_id" "$peak"
+    mempeak_level_record "$root" "$repo_id" "$level" "$peak"
   fi
   return 0
 }
@@ -2698,7 +2755,7 @@ mempeaks_reset() {
   [ "$2" = apply ] || return 0
   if [ -n "$3" ]; then
     case "$3" in *[!A-Za-z0-9._-]*) return 0 ;; esac
-    rm -f "$1/mempeaks/$3" 2>/dev/null || true
+    rm -f "$1/mempeaks/$3" "$1/mempeaks/$3".j[0-9]* 2>/dev/null || true
   elif [ "$4" = 0 ]; then
     rm -f "$1"/mempeaks/* 2>/dev/null || true
   fi

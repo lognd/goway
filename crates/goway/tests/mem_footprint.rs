@@ -155,3 +155,150 @@ fn an_inflated_peak_ages_out_after_a_few_runs_and_gc_forgets_it() {
     assert!(out.status.success(), "{out:?}");
     assert!(!file.exists(), "gc --repo forgets the peak");
 }
+
+/// `(MemTotal, MemAvailable)` of this machine (the fake helper) in bytes.
+fn meminfo() -> (u64, u64) {
+    let text = std::fs::read_to_string("/proc/meminfo").unwrap();
+    let kb = |key: &str| {
+        text.lines()
+            .find_map(|l| {
+                l.strip_prefix(key)?
+                    .split_whitespace()
+                    .next()?
+                    .parse::<u64>()
+                    .ok()
+            })
+            .unwrap()
+            * 1024
+    };
+    (kb("MemTotal:"), kb("MemAvailable:"))
+}
+
+/// A fake `cargo` that says which job counts it was given, then holds some memory for a moment.
+fn fake_cargo(w: &common::World) {
+    let path = w.bin.join("cargo");
+    std::fs::write(
+        &path,
+        "#!/bin/sh\necho \"jobs=${CARGO_BUILD_JOBS:-unset} threads=${NEXTEST_TEST_THREADS:-unset}\"\nx=$(head -c 30000000 /dev/zero | tr '\\0' a); sleep 2; echo ${#x} >/dev/null\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+/// Record `peak` as the overall memory peak of this world's repository on the helper.
+fn seed_peak(w: &common::World, peak: u64) {
+    let id = goway::repo::Repo::discover(&w.repo).unwrap().id;
+    std::fs::create_dir_all(w.remote.join("mempeaks")).unwrap();
+    std::fs::write(w.remote.join("mempeaks").join(id), format!("{peak}\n")).unwrap();
+}
+
+fn cores() -> u64 {
+    std::thread::available_parallelism().map_or(1, |n| n.get() as u64)
+}
+
+// frob:ticket 01M47SYH8F5YD6P5G2741CG5RF
+// frob:tests crates/goway/src/fit.rs::plan
+// frob:tests crates/goway/src/fit.rs::local_env
+#[test]
+fn a_cargo_run_that_would_not_fit_is_lowered_and_told_so_and_its_level_is_recorded() {
+    if cores() < 4 {
+        return;
+    }
+    let w = common::world();
+    fake_cargo(&w);
+    let (_, avail) = meminfo();
+    // 30% more than is free at full parallelism: only fewer jobs fit.
+    seed_peak(&w, avail * 13 / 10);
+    let out = w.run(&["run", "--", "cargo", "build"]);
+    let (stdout, err) = (
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    );
+    assert!(out.status.success(), "{err}");
+    let n: u64 = stdout
+        .split_whitespace()
+        .find_map(|w| w.strip_prefix("jobs=")?.parse().ok())
+        .unwrap_or_else(|| panic!("no job count in {stdout}"));
+    assert!(
+        (1..cores()).contains(&n),
+        "lowered from {} to {n}: {stdout}",
+        cores()
+    );
+    assert!(stdout.contains(&format!("threads={n}")), "{stdout}");
+    assert!(err.contains(&format!("CARGO_BUILD_JOBS={n}")), "{err}");
+    // The run's peak is on record under the level it ran at.
+    common::wait_for("the level record", || {
+        w.remote.join("mempeaks").read_dir().unwrap().any(|e| {
+            e.unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(&format!(".j{n}"))
+        })
+    });
+    assert!(
+        probe(&w).contains(&format!(".{n}=")),
+        "mempeakj is reported"
+    );
+}
+
+// frob:ticket 01M47SYH8F5YD6P5G2741CG5RF
+// frob:tests crates/goway/src/fit.rs::Mode.for_run
+#[test]
+fn an_explicit_job_count_is_never_overridden() {
+    if cores() < 4 {
+        return;
+    }
+    let w = common::world();
+    fake_cargo(&w);
+    let (_, avail) = meminfo();
+    seed_peak(&w, avail * 13 / 10);
+    let out = w.run(&["run", "--env", "CARGO_BUILD_JOBS=1", "--", "cargo", "build"]);
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(out.status.success(), "{out:?}");
+    assert!(stdout.contains("jobs=1 "), "{stdout}");
+    assert!(
+        !String::from_utf8_lossy(&out.stderr).contains("running with"),
+        "nothing was lowered"
+    );
+    // `-j` on the command line leaves the variables alone entirely.
+    let out = w.run(&["run", "--", "cargo", "build", "-j", "2"]);
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(stdout.contains("jobs=unset threads=unset"), "{stdout}");
+}
+
+// frob:ticket 01M47SYH8F5YD6P5G2741CG5RF
+// frob:tests crates/goway/src/fit.rs::assess
+#[test]
+fn a_run_is_refused_only_when_even_one_job_cannot_fit() {
+    let w = common::world();
+    fake_cargo(&w);
+    let (total, _) = meminfo();
+    seed_peak(&w, total * 20);
+    let out = w.run(&["run", "--", "cargo", "build"]);
+    let err = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert_eq!(out.status.code(), Some(125), "{err}");
+    assert!(err.contains("of memory in total"), "{err}");
+}
+
+// frob:ticket 01M47SYH8F5YD6P5G2741CG5RF
+// frob:tests crates/goway/src/pool.rs::hold_back_reserved
+#[test]
+fn the_probe_reports_what_running_jobs_have_reserved_and_not_yet_used() {
+    let w = common::world();
+    let run = w.remote.join("work").join("r1");
+    std::fs::create_dir_all(&run).unwrap();
+    std::fs::write(run.join("memres"), "5000000000").unwrap();
+    std::fs::write(run.join("memnow"), "1000000000").unwrap();
+    // A run holds its lock while it runs.
+    let mut holder = std::process::Command::new("flock")
+        .args(["-x"])
+        .arg(run.join("lock"))
+        .args(["sleep", "30"])
+        .spawn()
+        .unwrap();
+    common::wait_for("the lock", || probe(&w).contains("mem_reserved=4000000000"));
+    // A run that ended reserves nothing.
+    holder.kill().unwrap();
+    holder.wait().unwrap();
+    common::wait_for("the lock to go", || probe(&w).contains("mem_reserved=0"));
+}

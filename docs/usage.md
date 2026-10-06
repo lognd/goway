@@ -704,6 +704,48 @@ ask for `--needs mem>=SIZE`, run fewer jobs at once (`CARGO_BUILD_JOBS=2`,
 helpers). A killed job's peak is recorded a quarter higher than measured, since
 it never got to use all it wanted.
 
+#### Fitting a cargo run to the host's memory
+
+Cargo's peak memory scales with its job count (parallel `rustc` and linker
+processes), so a helper too small for a repository at full parallelism often
+fits it at fewer jobs. For `cargo build`, `test`, `nextest` and `clippy`, goway
+therefore does not refuse a host on the repository's peak alone: it estimates
+the peak at each job count from what the helpers recorded per level
+(`mempeakj.ID.JOBS` in the probe; before any level is known, the overall peak
+counts as a run at the host's core count, a quarter of it fixed and the rest
+per job), picks the largest count whose peak plus margin fits the host's total
+and available memory, and tells you on stderr:
+
+    note: quasar has 5.1 GiB free: running with 3 of 8 jobs (CARGO_BUILD_JOBS=3,
+    NEXTEST_TEST_THREADS=3, estimated peak 4.2 GiB)
+
+The helper exports `CARGO_BUILD_JOBS` and `NEXTEST_TEST_THREADS` (the cargo
+jobs also bound how many linkers run at once) unless the run's own
+environment already sets them. A host is refused for memory only when even one
+job does not fit its total (exit 125, as before); a host that is idle but has
+too little free memory still runs it alone at one job, with a warning.
+Every finished run records its peak under the job count it ran at (an OOM-killed
+one a quarter higher), so the estimate improves with use.
+
+Never overridden: an explicit `CARGO_BUILD_JOBS` (`--env CARGO_BUILD_JOBS=N`,
+or the helper's own environment), `-j N` / `--jobs N` on the command line.
+Those runs are judged at that count and left as they are. Other commands are
+not touched. This reaches cargo only when it is the command itself
+(`goway run -- cargo nextest run ...`, not `sh -c 'cargo ...'`); in the
+config `.cargo/config.toml` `build.jobs` is overridden by the variable.
+
+Memory is also set aside for runs in flight, so concurrent runs cannot jointly
+overcommit a host: a run placed on a helper reserves its expected peak (peak
+plus margin) from the moment it is claimed. While it runs, the helper reports
+`mem_reserved` (what running runs reserved and have not yet used) and goway
+subtracts it from the helper's available memory, so a build still ramping up
+is not mistaken for free memory. Before this, two runs a minute apart could
+both be admitted by a host that looked empty and push it into the OOM killer.
+
+From frob: nothing to configure; `goway run --with-git --needs cores:8 -- cargo
+nextest run --profile ci --workspace` adapts by itself. To pin it, pass
+`--env CARGO_BUILD_JOBS=N`.
+
 ### Exit codes
 
 | Code | Meaning |

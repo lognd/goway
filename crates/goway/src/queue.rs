@@ -84,6 +84,12 @@ pub struct Snapshot {
     /// The repository ids of those pending claims that named one, per host (lowercase),
     /// so their disk footprint can be set aside like their memory.
     pub pending_repos: BTreeMap<String, Vec<String>>,
+    /// The pending claims that set memory aside for themselves, per host (lowercase): how many
+    /// and the bytes in all (what their fitted runs are expected to peak at, plus margin).
+    pub pending_reserved: BTreeMap<String, (u32, u64)>,
+    /// The repository ids of the pending claims that set nothing aside (they fall back to the
+    /// repository's recorded peak), per host (lowercase).
+    pub pending_unreserved: BTreeMap<String, Vec<String>>,
 }
 
 /// An earlier waiter as a later one sees it.
@@ -262,13 +268,31 @@ impl Queue {
     /// [`Error::Io`] when the claim file cannot be created or locked, or its
     /// repository sidecar cannot be written.
     pub fn claim(&self, host: &str, repo_id: Option<&str>) -> Result<Claim> {
+        self.claim_reserving(host, repo_id, 0)
+    }
+
+    /// [`Queue::claim`] that also sets `reserve` bytes of the host's memory aside (0: none, the
+    /// repository's recorded peak is used instead) until the claim stops counting.
+    ///
+    /// # Errors
+    ///
+    /// As [`Queue::claim`], and [`Error::Io`] when the reservation sidecar cannot be written.
+    pub fn claim_reserving(
+        &self,
+        host: &str,
+        repo_id: Option<&str>,
+        reserve: u64,
+    ) -> Result<Claim> {
         self.ensure()?;
         let base = self.dir.join(format!("c-{}-{host}", new_id()));
         let file = locked_file(&base.with_extension("claim"))?;
         if let Some(id) = repo_id {
             write_atomic(&base.with_extension("repo"), id.as_bytes())?;
         }
-        tracing::debug!(host, repo_id, "host claimed");
+        if reserve > 0 {
+            write_atomic(&base.with_extension("mem"), reserve.to_string().as_bytes())?;
+        }
+        tracing::debug!(host, repo_id, reserve, "host claimed");
         Ok(Claim {
             _file: file,
             base,
@@ -307,11 +331,27 @@ impl Queue {
                 }
                 // `c-<ns>-<pid>-<seq>-<host>`: the host is the rest after four dashes.
                 Some("claim")
-                    if live(&path, &["started", "repo"]) && still_pending(&path, self.grace) =>
+                    if live(&path, &["started", "repo", "mem"])
+                        && still_pending(&path, self.grace) =>
                 {
                     if let Some(host) = name.splitn(5, '-').nth(4) {
                         let host = host.to_ascii_lowercase();
+                        let reserved = std::fs::read_to_string(path.with_extension("mem"))
+                            .ok()
+                            .and_then(|t| t.trim().parse::<u64>().ok())
+                            .filter(|r| *r > 0);
+                        if let Some(r) = reserved {
+                            let slot = snap.pending_reserved.entry(host.clone()).or_insert((0, 0));
+                            slot.0 += 1;
+                            slot.1 += r;
+                        }
                         if let Ok(id) = std::fs::read_to_string(path.with_extension("repo")) {
+                            if reserved.is_none() {
+                                snap.pending_unreserved
+                                    .entry(host.clone())
+                                    .or_default()
+                                    .push(id.clone());
+                            }
                             snap.pending_repos.entry(host.clone()).or_default().push(id);
                         }
                         *snap.pending.entry(host).or_insert(0) += 1;
@@ -410,6 +450,7 @@ impl Drop for Claim {
         let _ = std::fs::remove_file(self.base.with_extension("claim"));
         let _ = std::fs::remove_file(self.base.with_extension("started"));
         let _ = std::fs::remove_file(self.base.with_extension("repo"));
+        let _ = std::fs::remove_file(self.base.with_extension("mem"));
     }
 }
 
@@ -471,6 +512,28 @@ mod tests {
         drop(c);
         drop(second);
         assert!(q.snapshot(None).pending.is_empty());
+    }
+
+    // frob:ticket 01M47SYH8F5YD6P5G2741CG5RF
+    // frob:tests crates/goway/src/queue.rs::Queue.claim_reserving
+    #[test]
+    fn a_claim_can_set_memory_aside_and_gives_it_back_when_dropped() {
+        let (_d, q) = queue();
+        let a = q.claim_reserving("h", Some("repo1"), 3 << 30).unwrap();
+        let b = q.claim("h", Some("repo2")).unwrap();
+        let snap = q.snapshot(None);
+        assert_eq!(snap.pending["h"], 2);
+        assert_eq!(snap.pending_reserved["h"], (1, 3 << 30));
+        assert_eq!(snap.pending_unreserved["h"], ["repo2"]);
+        assert_eq!(snap.pending_repos["h"].len(), 2, "disk still counts both");
+        drop(a);
+        drop(b);
+        let snap = q.snapshot(None);
+        assert!(snap.pending_reserved.is_empty() && snap.pending_unreserved.is_empty());
+        assert!(
+            std::fs::read_dir(&q.dir).unwrap().next().is_none(),
+            "no sidecar is left behind"
+        );
     }
 
     // frob:ticket 01M43CFMDFG8YSM3HNRD0GB213
