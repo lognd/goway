@@ -2,7 +2,8 @@
 id = "01M47SYH8F5YD6P5G2741CG5RF"
 title = "Fit cargo and nextest runs to the host's memory by lowering parallelism instead of refusing or OOMing"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 8
 reporter = "lognd"
