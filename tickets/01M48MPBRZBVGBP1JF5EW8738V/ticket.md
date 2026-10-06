@@ -6,7 +6,7 @@ category = "in-progress"
 priority = "high"
 reporter = "lognd"
 created = "2026-10-06T12:58:22Z"
-updated = "2026-10-06T13:06:40Z"
+updated = "2026-10-06T13:06:41Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**", "docs/**"]
 
 [[acceptance]]
@@ -15,7 +15,7 @@ bound = true
 
 [[acceptance]]
 text = "MOLD_JOBS and the link thread cap are exported unless set by the user (test)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "with one helper saturated and another idle and big enough, a new run goes to the idle one (test)"
