@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-06T08:10:13Z"
+digest = "b1e99d4a7938fc19a2c7711b1c9440ba5a3fbcc76f4bd0740c8ac37fd8adae00"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8c41066e-8d35-4bde-b0f9-d34af04d8ae4 with nextest profile: default
+    Starting 1 test across 84 binaries (940 tests skipped)
+        PASS [   4.552s] goway::with_git a_named_ref_arrives_at_the_same_commit_with_its_tree_readable
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   4.559s] 1 test run: 1 passed, 940 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_named_ref_arrives"
+size = 571
+status = "measured"
+tests = ["a_named_ref_arrives_at_the_same_commit_with_its_tree_readable"]
+at = "2026-10-06T08:10:13Z"
+actor = "lognd"
+rev = 1
