@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-06T13:06:40Z"
+digest = "a0545bc8b5a4e19e7d482c494a71f3e441e16251047f531346dcd0d9ac443905"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b19eaf50-cdce-4d54-b4d2-2f6e7e923494 with nextest profile: default
+    Starting 1 test across 63 binaries (746 tests skipped)
+        PASS [   0.008s] goway fit::tests::concurrent_runs_share_the_cores_and_bound_the_linker
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.012s] 1 test run: 1 passed, 746 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(concurrent_runs_share_the_cores_and_bound_the_linker)'"
+size = 564
+status = "measured"
+tests = ["fit::tests::concurrent_runs_share_the_cores_and_bound_the_linker"]
+at = "2026-10-06T13:06:40Z"
+actor = "lognd"
+rev = 1

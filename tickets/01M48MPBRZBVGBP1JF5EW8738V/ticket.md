@@ -6,12 +6,12 @@ category = "in-progress"
 priority = "high"
 reporter = "lognd"
 created = "2026-10-06T12:58:22Z"
-updated = "2026-10-06T13:01:34Z"
+updated = "2026-10-06T13:06:40Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**", "docs/**"]
 
 [[acceptance]]
 text = "two concurrent fitted cargo runs on one host get jobs that sum to about the core count (test)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "MOLD_JOBS and the link thread cap are exported unless set by the user (test)"
