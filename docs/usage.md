@@ -201,6 +201,17 @@ files then travel like any other file of the tree, so they are synced
 incrementally, verified like the rest and removed by gc with the copy. The
 same on Linux and Windows hosts (on Windows `core.filemode` is off).
 
+To send more than HEAD, name refs: `--with-ref refs/heads/experimental`
+(repeatable) or `with_refs = ["refs/heads/experimental"]` at the top of
+`goway.toml`; either implies `--with-git`. Each ref is recreated in the
+helper's `.git` at the same commit, with that commit's tree and blobs
+readable (`git show REF:path`), still without history, and secret-looking
+paths are left out as for HEAD. Use full names (`refs/heads/...`,
+`refs/tags/...`); a name that is not a full ref, or does not exist here, is
+refused before anything is synced. Use it when a tool reads state from a
+branch rather than the work tree (frob's ticket ledger). The overlay is
+rebuilt only when HEAD or a requested ref moves.
+
 Never in it: remotes (and any URL with a token), credentials, hooks, user
 config, reflogs, stashes, other branches, history, and the committed
 content of secret-looking files (their blobs are left out of the pack). Of

@@ -109,6 +109,11 @@ pub struct RunArgs {
     /// `with_git = true` in goway.toml. No remotes, credentials or hooks.
     #[arg(long)]
     pub with_git: bool,
+    /// Also send this ref (a full name such as refs/heads/experimental,
+    /// repeatable; also `with_refs` in goway.toml) with the helper's `.git`,
+    /// at the same commit with its tree readable. Implies --with-git.
+    #[arg(long = "with-ref", value_name = "REF")]
+    pub with_refs: Vec<String>,
     /// Write host, arch, address and exit code as JSON to this file.
     #[arg(long, env = "GOWAY_REPORT")]
     pub report: Option<PathBuf>,

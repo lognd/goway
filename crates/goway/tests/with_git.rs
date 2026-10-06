@@ -143,3 +143,77 @@ fn committed_secret_looking_files_are_not_in_the_helpers_objects() {
         "{there}"
     );
 }
+
+/// A second branch whose tree has a file the checked-out one lacks.
+fn side_branch(w: &World) -> String {
+    git(&w.repo, &["checkout", "-qb", "ledger"]);
+    std::fs::create_dir_all(w.repo.join("tickets")).unwrap();
+    std::fs::write(w.repo.join("tickets/t1.md"), "ledger entry\n").unwrap();
+    git(&w.repo, &["add", "tickets"]);
+    git(&w.repo, &["commit", "-qm", "ledger"]);
+    let sha = local(w, &["rev-parse", "HEAD"]).trim().to_owned();
+    git(&w.repo, &["checkout", "-q", "-"]);
+    sha
+}
+
+// frob:tests crates/goway/src/gitmeta.rs::prepare
+#[test]
+fn a_named_ref_arrives_at_the_same_commit_with_its_tree_readable() {
+    let w = world();
+    prepare(&w);
+    let sha = side_branch(&w);
+    let there = remote(
+        &w,
+        &["--with-ref", "refs/heads/ledger"],
+        "git rev-parse refs/heads/ledger; git show refs/heads/ledger:tickets/t1.md; git branch --list; git remote -v; git for-each-ref --format='%(refname)'",
+    );
+    assert!(
+        there.starts_with(&format!("{sha}\nledger entry\n")),
+        "{there}"
+    );
+    assert!(there.contains("refs/heads/ledger"), "{there}");
+    assert!(!there.contains("origin"), "{there}");
+}
+
+// frob:tests crates/goway/src/gitmeta.rs::prepare
+#[test]
+fn only_the_requested_ref_and_head_are_sent() {
+    let w = world();
+    prepare(&w);
+    side_branch(&w);
+    git(&w.repo, &["branch", "other"]);
+    let there = remote(
+        &w,
+        &["--with-ref", "refs/heads/ledger"],
+        "git for-each-ref --format='%(refname)'; git log --oneline refs/heads/ledger | wc -l",
+    );
+    assert!(!there.contains("other"), "{there}");
+    assert!(there.ends_with("1\n"), "history leaked: {there}");
+}
+
+#[test]
+fn project_file_can_list_refs() {
+    let w = world();
+    prepare(&w);
+    side_branch(&w);
+    std::fs::write(
+        w.repo.join("goway.toml"),
+        "with_refs = [\"refs/heads/ledger\"]\n",
+    )
+    .unwrap();
+    let out = remote(&w, &[], "git show refs/heads/ledger:tickets/t1.md");
+    assert_eq!(out, "ledger entry\n");
+}
+
+// frob:tests crates/goway/src/gitmeta.rs::resolve_refs
+#[test]
+fn a_missing_or_malformed_ref_is_refused() {
+    let w = world();
+    prepare(&w);
+    for bad in ["refs/heads/nope", "ledger"] {
+        let out = w.run(&["run", "--with-ref", bad, "--", "true"]);
+        assert!(!out.status.success(), "{bad}");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(err.contains("--with-ref"), "{err}");
+    }
+}

@@ -339,7 +339,7 @@ fn run_picked(
             &project::translate_overrides(&repo.root)?,
         );
     }
-    let with_git = args.with_git || project::wants_git(&repo.root)?;
+    let git_req = project::git_request(&repo.root, args.with_git, &args.with_refs)?;
     let mut state = State::load(&env.paths.state_file())?;
     let queue = crate::queue::Queue::new(env.paths);
     let wait = pool::Wait {
@@ -442,7 +442,9 @@ fn run_picked(
             &found,
             &run_id,
             args.keep,
-            with_git.then_some(host.os),
+            git_req
+                .enabled
+                .then_some((host.os, git_req.refs.as_slice())),
         )?;
         renderer.note(format_args!(
             "synced {} files ({} sent, {} bytes, {} deleted)",
@@ -759,12 +761,12 @@ pub(crate) fn sync_snapshot(
     found: &Found,
     run_id: &str,
     keep: bool,
-    git: Option<crate::config::Os>,
+    git: Option<(crate::config::Os, &[String])>,
 ) -> Result<sync::Stats> {
     let transport = SshTransport::of(found, env.settings);
     let secrets = sync::Secrets::from_config(&config.defaults);
     let overlay = git
-        .map(|os| crate::gitmeta::prepare(repo, &secrets, os, &env.paths.state_dir))
+        .map(|(os, refs)| crate::gitmeta::prepare(repo, &secrets, os, refs, &env.paths.state_dir))
         .transpose()?;
     let snapshot = sync::Snapshot {
         run_id: run_id.to_owned(),

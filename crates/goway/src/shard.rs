@@ -262,7 +262,7 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
             &project::translate_overrides(&repo.root)?,
         );
     }
-    let with_git = args.with_git || project::wants_git(&repo.root)?;
+    let git_req = project::git_request(&repo.root, args.with_git, &args.with_refs)?;
     let overrides = project::translate_overrides(&repo.root)?;
     let project = runners::project_for(&args.command, &args.env, &repo.root)?;
     let mut state = State::load(&env.paths.state_file())?;
@@ -401,6 +401,7 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                 let weights = &weights;
                 let repo = &repo;
                 let overrides = &overrides;
+                let git_req = &git_req;
                 let interrupted = &interrupted;
                 let plan = &plans[i];
                 let distrusted = distrusted[i];
@@ -458,7 +459,9 @@ fn fan_out(env: &Env<'_>, renderer: Renderer, args: &RunArgs, fan: Fan) -> Resul
                                 found,
                                 &run_id,
                                 args.keep,
-                                with_git.then_some(host.os),
+                                git_req
+                                    .enabled
+                                    .then_some((host.os, git_req.refs.as_slice())),
                             )?;
                             git_overlay = synced.git_overlay;
                             manifest = Some(synced.manifest);

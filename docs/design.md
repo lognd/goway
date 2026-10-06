@@ -357,7 +357,12 @@ sync's file list as ordinary `.git/...` entries whose bytes are read from
 the overlay (`write_tar_with`, `compare_claims_with`). Because they are
 ordinary seed files, `remote.sh` and `remote.ps1` need no change and the
 copy-integrity check covers them. Blobs of paths the secret rules keep local
-are filtered out of the pack list.
+are filtered out of the pack list. `--with-ref` / `with_refs` add each
+requested ref's commit to the same `rev-list --objects --no-walk` call and
+to `shallow`, and write one loose ref file per ref; the overlay marker
+records every (ref, commit) pair so the rebuild trigger is "HEAD or any
+requested ref moved". `resolve_refs` refuses non-`refs/` names and missing
+refs before any sync.
 
 ### Portable command translation (crates/goway/src/translate.rs)
 

@@ -212,6 +212,7 @@ fn run_command(paths: &Paths, renderer: Renderer, args: &cli::RunArgs) -> Result
         prefers: args.prefers.clone(),
         trust_copy: args.trust_copy,
         with_git: args.with_git,
+        with_refs: args.with_refs.clone(),
         wait: args.wait,
         env: nested,
         command: args.command.clone(),

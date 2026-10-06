@@ -47,6 +47,9 @@ struct RawFile {
     /// Top-level `with_git = true`: every run gets a `.git` (see `--with-git`).
     #[serde(default)]
     with_git: bool,
+    /// Top-level `with_refs = [...]`: refs sent with the helper's `.git`.
+    #[serde(default)]
+    with_refs: Vec<String>,
     /// Top-level `cross_os`: `true` lets every OS take runs, `false` silences the hint.
     #[serde(default)]
     cross_os: Option<bool>,
@@ -119,6 +122,8 @@ pub struct Rules {
     pub toolchain: crate::doctor::Toolchain,
     /// `with_git = true`: every run of this project gets a `.git`.
     pub with_git: bool,
+    /// `with_refs = [...]`: refs recreated in the helper's `.git`.
+    pub with_refs: Vec<String>,
     /// `cross_os`: `Some(true)` allows every OS, `Some(false)` keeps the
     /// laptop's OS without the hint, `None` (unset) keeps it with the hint.
     pub cross_os: Option<bool>,
@@ -126,13 +131,36 @@ pub struct Rules {
     pub translate: crate::translate::Overrides,
 }
 
-/// Whether the project's `goway.toml` asks for `with_git`.
+/// What a run asks of the helper's `.git`: whether it gets one and which refs
+/// ride along (the flags and `goway.toml` combined; refs imply a `.git`).
 ///
 /// # Errors
 ///
 /// [`Rules::load`]'s errors.
-pub fn wants_git(root: &Path) -> Result<bool> {
-    Ok(Rules::load(root)?.is_some_and(|r| r.with_git))
+pub fn git_request(root: &Path, flag: bool, cli_refs: &[String]) -> Result<GitRequest> {
+    let rules = Rules::load(root)?;
+    let mut refs: Vec<String> = Vec::new();
+    for r in cli_refs
+        .iter()
+        .chain(rules.iter().flat_map(|r| r.with_refs.iter()))
+    {
+        if !refs.contains(r) {
+            refs.push(r.clone());
+        }
+    }
+    Ok(GitRequest {
+        enabled: flag || !refs.is_empty() || rules.is_some_and(|r| r.with_git),
+        refs,
+    })
+}
+
+/// The helper `.git` a run asked for (see [`git_request`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GitRequest {
+    /// Whether the helper gets a `.git` at all.
+    pub enabled: bool,
+    /// Full ref names to recreate there, in request order, deduplicated.
+    pub refs: Vec<String>,
 }
 
 /// The project's `[translate]` entries (none without a `goway.toml`).
@@ -348,6 +376,7 @@ impl Rules {
             rules,
             toolchain,
             with_git: raw.with_git,
+            with_refs: raw.with_refs,
             cross_os: raw.cross_os,
             translate,
         })

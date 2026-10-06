@@ -1,0 +1,1 @@
+goway run --with-ref REF (repeatable; with_refs in goway.toml) sends named refs with the helper's .git, at the same commit with its tree readable, so tools that read state from a branch work remotely.

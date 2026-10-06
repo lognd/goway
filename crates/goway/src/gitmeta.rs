@@ -17,6 +17,7 @@
 //! not in HEAD is not included either: `git diff --cached` there cannot show
 //! it, while `git status` can.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -36,7 +37,46 @@ pub struct Overlay {
 }
 
 /// Bumped when what goes into the pack changes, to invalidate cached packs.
-const LAYOUT: &str = "1";
+const LAYOUT: &str = "2";
+
+/// A ref sent along (`--with-ref`): its full name and the commit it names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SentRef {
+    name: String,
+    commit: String,
+}
+
+/// Resolve each requested ref to its commit, refusing any that is not a full
+/// `refs/...` name or does not exist here (so a typo fails before any sync).
+fn resolve_refs(root: &Path, refs: &[String]) -> Result<Vec<SentRef>> {
+    let mut out = Vec::new();
+    for name in refs {
+        let valid =
+            name.starts_with("refs/") && repo::git(root, &["check-ref-format", name]).is_ok();
+        if !valid {
+            return Err(git_failed(
+                &format!("--with-ref {name}"),
+                "not a full ref name (use e.g. refs/heads/main)",
+            ));
+        }
+        let spec = format!("{name}^{{commit}}");
+        let commit = repo::git(root, &["rev-parse", "--verify", "-q", &spec]).map_err(|_| {
+            git_failed(
+                &format!("--with-ref {name}"),
+                "no such ref in this repository",
+            )
+        })?;
+        if commit.len() != 40 || !commit.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(git_failed("unsupported object format", &commit));
+        }
+        tracing::debug!(name, commit, "ref goes to the helper's .git");
+        out.push(SentRef {
+            name: name.clone(),
+            commit,
+        });
+    }
+    Ok(out)
+}
 
 fn git_failed(what: &str, detail: impl std::fmt::Display) -> Error {
     Error::Git {
@@ -59,7 +99,6 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> Result<()> {
 /// The repository config the helper gets: only what makes git read the copy
 /// as this one does (no remotes, no credentials, no hooks path).
 fn config_text(root: &Path, host_os: Os) -> String {
-    use std::fmt::Write as _;
     let windows = host_os == Os::Windows;
     let mut text = String::from("[core]\n\trepositoryformatversion = 0\n\tbare = false\n");
     let _ = writeln!(text, "\tfilemode = {}", !windows);
@@ -104,9 +143,9 @@ fn run_files(mut cmd: Command, stdin: &Path, stdout: Option<&Path>, what: &str) 
     }
 }
 
-/// Pack the objects of HEAD's commit (its tree and blobs, minus secret-looking
-/// paths) into `dir`'s `.git/objects/pack`.
-fn build_pack(root: &Path, dir: &Path, secrets: &Secrets) -> Result<()> {
+/// Pack the objects of HEAD's commit and of each extra ref's commit (their
+/// trees and blobs, minus secret-looking paths) into `dir`'s `.git/objects/pack`.
+fn build_pack(root: &Path, dir: &Path, secrets: &Secrets, extra: &[SentRef]) -> Result<()> {
     let gitdir = dir.join(".git");
     let pack_dir = gitdir.join("objects").join("pack");
     if pack_dir.is_dir() {
@@ -116,7 +155,8 @@ fn build_pack(root: &Path, dir: &Path, secrets: &Secrets) -> Result<()> {
     let listed = repo::git_command()
         .arg("-C")
         .arg(root)
-        .args(["rev-list", "--objects", "--max-count=1", "HEAD"])
+        .args(["rev-list", "--objects", "--no-walk=unsorted", "HEAD"])
+        .args(extra.iter().map(|r| r.commit.as_str()))
         .stdin(Stdio::null())
         .output_locked()
         .map_err(|e| git_failed("cannot run git", e))?;
@@ -198,24 +238,37 @@ fn list_files(dir: &Path) -> Result<Vec<LocalFile>> {
 }
 
 /// Build (or refresh) the overlay for `repo`'s work tree under `state_dir`,
-/// for a helper running `host_os`.
+/// for a helper running `host_os`. `refs` are full ref names recreated there
+/// at their commits, each with its tree readable (no history).
 ///
 /// # Errors
 ///
+/// [`Error::Git`] for a ref that is malformed or missing here;
 /// [`Error::Git`] when git fails or the repository has no commit yet (nothing
 /// to copy), [`Error::Io`] when the overlay cannot be written.
-pub fn prepare(repo: &Repo, secrets: &Secrets, host_os: Os, state_dir: &Path) -> Result<Overlay> {
+pub fn prepare(
+    repo: &Repo,
+    secrets: &Secrets,
+    host_os: Os,
+    refs: &[String],
+    state_dir: &Path,
+) -> Result<Overlay> {
     let root = repo.root.as_path();
     let head = repo::git(root, &["rev-parse", "--verify", "-q", "HEAD^{commit}"])
         .map_err(|_| git_failed("this repository has no commit yet", "nothing to copy"))?;
     if head.len() != 40 || !head.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(git_failed("unsupported object format", &head));
     }
+    let mut extra = resolve_refs(root, refs)?;
+    extra.sort_by(|a, b| a.name.cmp(&b.name));
     let branch = repo::git(root, &["symbolic-ref", "-q", "HEAD"]).ok();
     let dir = state_dir.join("git-meta").join(&repo.worktree_id);
     let gitdir = dir.join(".git");
     let marker = dir.join("head");
-    let want = format!("{LAYOUT} {head}\n");
+    let mut want = format!("{LAYOUT} {head}\n");
+    for r in &extra {
+        let _ = writeln!(want, "{} {}", r.name, r.commit);
+    }
     let built = std::fs::read_to_string(&marker).is_ok_and(|m| m == want) && gitdir.is_dir();
     if !built {
         tracing::info!(head, "building the helper's .git");
@@ -237,8 +290,16 @@ pub fn prepare(repo: &Repo, secrets: &Secrets, host_os: Os, state_dir: &Path) ->
                 String::from_utf8_lossy(&init.stderr).trim(),
             ));
         }
-        build_pack(root, &dir, secrets)?;
-        write_if_changed(&gitdir.join("shallow"), format!("{head}\n").as_bytes())?;
+        build_pack(root, &dir, secrets, &extra)?;
+        let mut shallow: Vec<&str> = std::iter::once(head.as_str())
+            .chain(extra.iter().map(|r| r.commit.as_str()))
+            .collect();
+        shallow.sort_unstable();
+        shallow.dedup();
+        write_if_changed(
+            &gitdir.join("shallow"),
+            format!("{}\n", shallow.join("\n")).as_bytes(),
+        )?;
         // A ref file always exists, or git would not see a repository (the
         // tar carries files, not empty directories).
         let (head_text, ref_path) = match &branch {
@@ -247,6 +308,9 @@ pub fn prepare(repo: &Repo, secrets: &Secrets, host_os: Os, state_dir: &Path) ->
         };
         write_if_changed(&gitdir.join("HEAD"), head_text.as_bytes())?;
         write_if_changed(&ref_path, format!("{head}\n").as_bytes())?;
+        for r in &extra {
+            write_if_changed(&gitdir.join(&r.name), format!("{}\n", r.commit).as_bytes())?;
+        }
         std::fs::write(&marker, &want).map_err(|e| Error::io("write", &marker, e))?;
     }
     write_if_changed(
