@@ -7,7 +7,7 @@ priority = "high"
 points = 8
 reporter = "lognd"
 created = "2026-10-06T05:10:58Z"
-updated = "2026-10-06T05:33:27Z"
+updated = "2026-10-06T05:33:28Z"
 scope = ["crates/goway/**", "docs/**", "changelog.d/**"]
 
 [[acceptance]]
@@ -20,7 +20,7 @@ bound = true
 
 [[acceptance]]
 text = "Given an explicit CARGO_BUILD_JOBS or -j, when the run is placed, then it is never overridden"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a run in flight on a host whose memory has not yet ramped, when another run is admitted, then the first run's unused reservation is subtracted from the host's available memory"
