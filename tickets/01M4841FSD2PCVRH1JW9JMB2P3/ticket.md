@@ -8,7 +8,7 @@ points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-06T08:07:21Z"
-updated = "2026-10-06T08:10:13Z"
+updated = "2026-10-06T08:10:19Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/with_git.rs", "docs/usage.md", "docs/design.md", "changelog.d/**"]
 
 [[acceptance]]
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a REF that does not exist locally, when the run starts, then goway refuses with a clear error before syncing"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given an unchanged HEAD and refs, when run again, then nothing is rebuilt or resent"
