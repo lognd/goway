@@ -6,7 +6,7 @@ category = "in-progress"
 priority = "high"
 reporter = "lognd"
 created = "2026-10-06T12:58:22Z"
-updated = "2026-10-06T13:06:42Z"
+updated = "2026-10-06T13:06:44Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**", "docs/**"]
 
 [[acceptance]]
