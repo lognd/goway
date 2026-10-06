@@ -2,13 +2,13 @@
 id = "01M4841FSD2PCVRH1JW9JMB2P3"
 title = "Send named refs with the minimal .git (with-ref) so ref-backed ledgers resolve on helpers"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-06T08:07:21Z"
-updated = "2026-10-06T08:07:21Z"
+updated = "2026-10-06T08:07:23Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/with_git.rs", "docs/usage.md", "docs/design.md", "changelog.d/**"]
 
 [[acceptance]]
