@@ -7,7 +7,7 @@ priority = "high"
 points = 8
 reporter = "lognd"
 created = "2026-10-06T05:10:58Z"
-updated = "2026-10-06T05:33:28Z"
+updated = "2026-10-06T05:33:37Z"
 scope = ["crates/goway/**", "docs/**", "changelog.d/**"]
 
 [[acceptance]]
@@ -24,7 +24,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a run in flight on a host whose memory has not yet ramped, when another run is admitted, then the first run's unused reservation is subtracted from the host's available memory"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given a run finished at a parallelism level, then its peak is recorded for that level and later estimates use it"
