@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-06T05:33:27Z"
+digest = "dc2d6dce2b06b1297414ef658ea7ac778a7a086179e5e69bfc96b89b79edef8b"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b2c2f8b0-398b-4fb1-9efe-de8ebf4070bc with nextest profile: default
+    Starting 1 test across 84 binaries (936 tests skipped)
+        PASS [   0.009s] goway fit::tests::a_host_too_small_for_full_parallelism_gets_the_largest_level_that_fits
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.015s] 1 test run: 1 passed, 936 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_host_too_small_for_full_parallelism_gets_the_largest_level_that_fits"
+size = 582
+status = "measured"
+tests = ["fit::tests::a_host_too_small_for_full_parallelism_gets_the_largest_level_that_fits"]
+at = "2026-10-06T05:33:27Z"
+actor = "lognd"
+rev = 1

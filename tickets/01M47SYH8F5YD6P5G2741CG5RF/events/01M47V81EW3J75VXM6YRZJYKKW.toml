@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-06T05:33:37Z"
+digest = "d9d7de0feb65e41e7265407536d08cfc66b1eaf59a5cb9009230b8e738196eac"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID bfaf117d-11d3-4664-a8a8-aa2da9ad049e with nextest profile: default
+    Starting 1 test across 84 binaries (936 tests skipped)
+        PASS [   0.012s] goway pool::tests::concurrent_runs_cannot_jointly_overcommit_a_hosts_memory
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.018s] 1 test run: 1 passed, 936 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "concurrent_runs_cannot_jointly_overcommit_a_hosts_memory"
+size = 569
+status = "measured"
+tests = ["pool::tests::concurrent_runs_cannot_jointly_overcommit_a_hosts_memory"]
+at = "2026-10-06T05:33:37Z"
+actor = "lognd"
+rev = 1
