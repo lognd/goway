@@ -8,7 +8,7 @@ points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
 reporter = "lognd"
 created = "2026-10-06T08:07:21Z"
-updated = "2026-10-06T08:10:19Z"
+updated = "2026-10-06T08:10:21Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/with_git.rs", "docs/usage.md", "docs/design.md", "changelog.d/**"]
 
 [[acceptance]]
@@ -21,5 +21,5 @@ bound = true
 
 [[acceptance]]
 text = "Given an unchanged HEAD and refs, when run again, then nothing is rebuilt or resent"
-bound = false
+bound = true
 +++
