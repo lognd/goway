@@ -2,12 +2,12 @@
 id = "01M47SYH8F5YD6P5G2741CG5RF"
 title = "Fit cargo and nextest runs to the host's memory by lowering parallelism instead of refusing or OOMing"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 8
 reporter = "lognd"
 created = "2026-10-06T05:10:58Z"
-updated = "2026-10-06T05:10:58Z"
+updated = "2026-10-06T05:11:01Z"
 scope = ["crates/goway/**", "docs/**", "changelog.d/**"]
 
 [[acceptance]]
