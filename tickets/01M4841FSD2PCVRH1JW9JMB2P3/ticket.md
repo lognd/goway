@@ -2,7 +2,8 @@
 id = "01M4841FSD2PCVRH1JW9JMB2P3"
 title = "Send named refs with the minimal .git (with-ref) so ref-backed ledgers resolve on helpers"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M41Q6CAC5EW88V3ZFSFJ1T6J"
