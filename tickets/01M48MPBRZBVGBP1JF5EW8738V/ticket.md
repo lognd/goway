@@ -2,11 +2,11 @@
 id = "01M48MPBRZBVGBP1JF5EW8738V"
 title = "Fit runs to host CPU as well as memory: concurrent cargo runs plus multithreaded mold oversubscribe a helper"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 reporter = "lognd"
 created = "2026-10-06T12:58:22Z"
-updated = "2026-10-06T12:58:22Z"
+updated = "2026-10-06T13:01:34Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**", "docs/**"]
 
 [[acceptance]]
