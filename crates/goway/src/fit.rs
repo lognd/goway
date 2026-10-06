@@ -9,6 +9,12 @@
 //! available, and sends it to the helper as `jobs:N`, which exports
 //! `CARGO_BUILD_JOBS` and `NEXTEST_TEST_THREADS` unless the user set them.
 //! Only when even one job does not fit is the host refused.
+//!
+//! The host's CPU is shared the same way: goway's runs already on the host (running or claimed,
+//! `probe.jobs`) each hold a share of the cores, so a new adaptive run gets an equal share
+//! (`cores / (runs + 1)`, at least one) as its job count, and the linker is bounded with it
+//! (`MOLD_JOBS` concurrent mold processes, [`LINK_THREADS_VAR`] threads each), which keeps
+//! several concurrent builds from oversubscribing the cores while one alone still gets them all.
 
 use crate::footprint::{self, MemRoom};
 use crate::pool::Probe;
@@ -17,6 +23,13 @@ use crate::status::human_bytes;
 /// The share of a recorded peak assumed fixed (independent of the job count) when only one
 /// level has been measured: a quarter.
 const FIXED_PERCENT: u64 = 25;
+
+/// The environment variable carrying the thread budget of one link (mold has no variable of its
+/// own for its thread count; a linker wrapper or `-Wl,--threads=$GOWAY_LINK_THREADS` uses it).
+pub const LINK_THREADS_VAR: &str = "GOWAY_LINK_THREADS";
+
+/// How many cores one concurrent mold process is budgeted (so a share of 12 allows 3 at once).
+const CORES_PER_LINK: u32 = 4;
 
 /// How a run's parallelism is handled.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -164,14 +177,35 @@ pub struct Plan {
     pub reserve: u64,
     /// Whether the plan fits the host's available memory (false: it is the one-job last resort).
     pub fits: bool,
+    /// The cores this run may use: an equal share of the host with the runs already there.
+    pub cpu_share: u32,
+    /// Concurrent mold processes allowed (`MOLD_JOBS`).
+    pub mold_jobs: u32,
+    /// Threads each link may use ([`LINK_THREADS_VAR`]).
+    pub link_threads: u32,
 }
 
-/// The job counts to try for `mode` on `probe`'s host, best first.
+/// The cores a new run gets on `probe`'s host: an equal share with the goway runs already
+/// running or claimed there, at least one.
+pub fn cpu_share(probe: &Probe) -> u32 {
+    let cores = probe.cores.max(1);
+    cores.div_ceil(probe.jobs.saturating_add(1)).clamp(1, cores)
+}
+
+/// The linker budget for `jobs` build jobs: concurrent mold processes and threads per link,
+/// whose product stays within `jobs`.
+fn link_budget(jobs: u32) -> (u32, u32) {
+    let procs = (jobs / CORES_PER_LINK).max(1);
+    (procs, (jobs / procs).max(1))
+}
+
+/// The job counts to try for `mode` on `probe`'s host, best first (an adaptive run starts at
+/// its CPU share).
 fn candidates(mode: Mode, probe: &Probe) -> Vec<u32> {
     match mode {
         Mode::Off => Vec::new(),
         Mode::Explicit(n) => vec![n],
-        Mode::Adaptive => (1..=probe.cores.max(1)).rev().collect(),
+        Mode::Adaptive => (1..=cpu_share(probe)).rev().collect(),
     }
 }
 
@@ -194,7 +228,11 @@ pub fn plan(mode: Mode, probe: &Probe, repo: &str) -> Option<Plan> {
         .map(|j| (j, true));
     let (jobs, fits) = chosen.unwrap_or((tries.last().copied().unwrap_or(first), false));
     let peak = estimate(probe, repo, jobs);
+    let (mold_jobs, link_threads) = link_budget(jobs);
     Some(Plan {
+        cpu_share: cpu_share(probe),
+        mold_jobs,
+        link_threads,
         jobs,
         natural,
         lowered: matches!(mode, Mode::Adaptive) && jobs < natural,
@@ -227,11 +265,16 @@ fn local_env_with(plan: &Plan, env: &[String], inherited: impl Fn(&str) -> bool)
     if !plan.lowered {
         return Vec::new();
     }
-    ["CARGO_BUILD_JOBS", "NEXTEST_TEST_THREADS"]
-        .iter()
-        .filter(|name| env_value(env, name).is_none() && !inherited(name))
-        .map(|name| format!("{name}={}", plan.jobs))
-        .collect()
+    [
+        ("CARGO_BUILD_JOBS", plan.jobs),
+        ("NEXTEST_TEST_THREADS", plan.jobs),
+        ("MOLD_JOBS", plan.mold_jobs),
+        (LINK_THREADS_VAR, plan.link_threads),
+    ]
+    .iter()
+    .filter(|(name, _)| env_value(env, name).is_none() && !inherited(name))
+    .map(|(name, n)| format!("{name}={n}"))
+    .collect()
 }
 
 /// The `jobs:` option word: `jobs:N` (export it) or `jobs:N:rec` (only record the level).
@@ -242,23 +285,36 @@ pub fn word(mode: Mode, plan: &Plan) -> String {
     }
 }
 
+/// The `mold:PROCS:THREADS` option word of a lowered adaptive run (the helper exports
+/// `MOLD_JOBS` and [`LINK_THREADS_VAR`] from it unless the user set them), if the plan has one.
+pub fn mold_word(plan: &Plan) -> Option<String> {
+    plan.lowered
+        .then(|| format!("mold:{}:{}", plan.mold_jobs, plan.link_threads))
+}
+
 /// The note on stderr saying what was chosen and why, when the run was lowered or is the
 /// one-job last resort.
 pub fn note(host: &str, plan: &Plan, avail: Option<u64>) -> Option<String> {
     if !plan.lowered {
         return None;
     }
-    let free = avail.map_or_else(
-        || "limited memory".to_owned(),
-        |a| format!("{} free", human_bytes(a)),
-    );
+    let why = if plan.jobs < plan.cpu_share {
+        avail.map_or_else(
+            || "limited memory".to_owned(),
+            |a| format!("{} free", human_bytes(a)),
+        )
+    } else {
+        format!("{} cores shared with other runs", plan.natural)
+    };
     let peak = plan.peak.map_or_else(String::new, |p| {
         format!(", estimated peak {}", human_bytes(p))
     });
     Some(format!(
-        "{host} has {free}: running with {} of {} jobs (CARGO_BUILD_JOBS={n}, NEXTEST_TEST_THREADS={n}{peak}){}",
+        "{host} has {why}: running with {} of {} jobs (CARGO_BUILD_JOBS={n}, NEXTEST_TEST_THREADS={n}, MOLD_JOBS={}, {LINK_THREADS_VAR}={}{peak}){}",
         plan.jobs,
         plan.natural,
+        plan.mold_jobs,
+        plan.link_threads,
         if plan.fits {
             ""
         } else {
@@ -420,6 +476,9 @@ mod tests {
             peak: None,
             reserve: 0,
             fits: true,
+            cpu_share: 3,
+            mold_jobs: 1,
+            link_threads: 3,
         };
         let got = local_env_with(&lowered, &[], |_| false);
         assert!(got.contains(&"CARGO_BUILD_JOBS=3".to_owned()), "{got:?}");
@@ -428,10 +487,75 @@ mod tests {
             "{got:?}"
         );
         let user = ["CARGO_BUILD_JOBS=2".to_owned()];
-        assert_eq!(
-            local_env_with(&lowered, &user, |_| false),
-            ["NEXTEST_TEST_THREADS=3"]
+        let got = local_env_with(&lowered, &user, |_| false);
+        assert!(
+            !got.iter().any(|w| w.starts_with("CARGO_BUILD_JOBS")),
+            "{got:?}"
+        );
+        assert!(
+            got.contains(&"NEXTEST_TEST_THREADS=3".to_owned()),
+            "{got:?}"
         );
         assert!(local_env_with(&lowered, &[], |_| true).is_empty());
+    }
+
+    // frob:ticket 01M48MPBRZBVGBP1JF5EW8738V
+    // frob:tests crates/goway/src/fit.rs::plan
+    #[test]
+    fn concurrent_runs_share_the_cores_and_bound_the_linker() {
+        let jobs_with = |others: u32| {
+            let mut p = probe(12, 64, 64);
+            p.jobs = others;
+            plan_of(Mode::Adaptive, &p)
+        };
+        let (a, b, c) = (jobs_with(0), jobs_with(1), jobs_with(2));
+        assert_eq!((a.jobs, b.jobs, c.jobs), (12, 6, 4));
+        assert!(!a.lowered && b.lowered && c.lowered);
+        assert_eq!(mold_word(&a), None, "a lone run is left alone");
+        assert_eq!(mold_word(&b).as_deref(), Some("mold:1:6"));
+        // Each run's own link budget stays within its share of the cores.
+        for p in [&a, &b, &c] {
+            assert!(p.mold_jobs * p.link_threads <= p.jobs, "{p:?}");
+        }
+        assert_eq!(jobs_with(40).jobs, 1, "never below one job");
+        let text = note("helios", &b, None).unwrap();
+        assert!(
+            text.contains("shared with other runs") && text.contains("MOLD_JOBS=1"),
+            "{text}"
+        );
+        // An explicit count is never lowered by the CPU share.
+        let mut busy = probe(12, 64, 64);
+        busy.jobs = 3;
+        assert_eq!(plan_of(Mode::Explicit(12), &busy).jobs, 12);
+    }
+
+    // frob:ticket 01M48MPBRZBVGBP1JF5EW8738V
+    // frob:tests crates/goway/src/fit.rs::local_env
+    #[test]
+    fn mold_variables_are_exported_unless_the_user_set_them() {
+        let (mold_jobs, link_threads) = link_budget(12);
+        assert_eq!((mold_jobs, link_threads), (3, 4));
+        let plan = Plan {
+            jobs: 12,
+            natural: 24,
+            lowered: true,
+            peak: None,
+            reserve: 0,
+            fits: true,
+            cpu_share: 12,
+            mold_jobs,
+            link_threads,
+        };
+        let got = local_env_with(&plan, &[], |_| false);
+        assert!(got.contains(&"MOLD_JOBS=3".to_owned()), "{got:?}");
+        assert!(got.contains(&format!("{LINK_THREADS_VAR}=4")), "{got:?}");
+        let user = ["MOLD_JOBS=1".to_owned()];
+        let got = local_env_with(&plan, &user, |_| false);
+        assert!(!got.iter().any(|w| w.starts_with("MOLD_JOBS")), "{got:?}");
+        let got = local_env_with(&plan, &[], |n| n == LINK_THREADS_VAR);
+        assert!(
+            !got.iter().any(|w| w.starts_with(LINK_THREADS_VAR)),
+            "{got:?}"
+        );
     }
 }

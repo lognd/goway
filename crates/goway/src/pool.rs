@@ -121,7 +121,25 @@ pub fn mem_penalty(p: &Probe, mem_per_core: f64) -> f64 {
 
 /// Lower is better.
 pub fn score(p: &Probe, mem_per_core: f64) -> f64 {
-    (p.load[0] + f64::from(p.jobs)) / f64::from(p.cores.max(1)) + mem_penalty(p, mem_per_core)
+    score_weighted(p, mem_per_core, 1.0)
+}
+
+/// [`score`] where each of goway's own jobs there counts as `job_weight` cores of demand
+/// (a cargo build spreads over many cores, so it saturates a host a plain command would not).
+pub fn score_weighted(p: &Probe, mem_per_core: f64, job_weight: f64) -> f64 {
+    (p.load[0] + f64::from(p.jobs) * job_weight) / f64::from(p.cores.max(1))
+        + mem_penalty(p, mem_per_core)
+}
+
+/// The cores one of goway's runs is assumed to occupy on `p` while placing `selection`'s run:
+/// half the host for a cargo run that adapts (so a host with a build going looks busy and an idle
+/// helper wins even when smaller), else one.
+fn job_weight(selection: &Selection, p: &Probe) -> f64 {
+    if matches!(selection.fit, crate::fit::Mode::Adaptive) {
+        f64::from((p.cores / 2).max(1))
+    } else {
+        1.0
+    }
 }
 
 /// Free capacity in cores: cores minus 1-minute load minus goway's own
@@ -290,7 +308,11 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
             let owner = if in_use { OWNER_PENALTY } else { 0.0 };
             Some((
                 i,
-                score(probe, config.defaults.mem_per_core) - bonus + margin + owner,
+                score_weighted(
+                    probe,
+                    config.defaults.mem_per_core,
+                    job_weight(selection, probe),
+                ) - bonus + margin + owner,
                 probe.jobs,
             ))
         })
@@ -1902,6 +1924,30 @@ mod tests {
         fn windows(&self, _: &str) -> Vec<std::net::IpAddr> {
             Vec::new()
         }
+    }
+
+    // frob:ticket 01M48MPBRZBVGBP1JF5EW8738V
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn a_cargo_run_prefers_an_idle_small_helper_over_a_busy_big_one() {
+        let hosts = [host("big", None), host("small", None)];
+        let probed: Vec<Probed<'_>> = [probe(12, 0.0, 2), probe(4, 0.0, 1)]
+            .into_iter()
+            .zip(&hosts)
+            .map(|(p, h)| Probed {
+                host: h,
+                result: Ok((found(&h.name), p)),
+            })
+            .collect();
+        let config = Config::default();
+        // A plain command counts each running job as one core: the big host looks emptier.
+        assert_eq!(ranked_for(&config, &Selection::default(), &probed)[0], 0);
+        // A cargo build that adapts counts a running job as half its host: the small one wins.
+        let cargo = Selection {
+            fit: crate::fit::Mode::Adaptive,
+            ..Selection::default()
+        };
+        assert_eq!(ranked_for(&config, &cargo, &probed)[0], 1);
     }
 
     // frob:tests crates/goway/src/pool.rs::probe_all

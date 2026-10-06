@@ -283,13 +283,14 @@ fn discard_work(env: &Env<'_>, found: &Found, remote_root: &str, run_id: &str) {
     }
 }
 
-/// The parallelism plan of a run on `probe`'s host, when the run is a cargo run and the
-/// repository's footprint checks are on.
+/// The parallelism plan of a run on `probe`'s host, when the run is a cargo run (memory is
+/// fitted only while the repository's footprint checks are on; the CPU share always).
 pub(crate) fn fit_plan(selection: &Selection, probe: &pool::Probe) -> Option<crate::fit::Plan> {
     let id = selection
         .repo_id
         .as_deref()
-        .filter(|_| !selection.footprint_ignored())?;
+        .filter(|_| !selection.footprint_ignored())
+        .unwrap_or_default();
     crate::fit::plan(selection.fit, probe, id)
 }
 
@@ -490,6 +491,7 @@ fn run_picked(
                 renderer.note(note);
             }
             extra.push(crate::fit::word(selection.fit, &plan));
+            extra.extend(crate::fit::mold_word(&plan));
             if plan.reserve > 0 {
                 extra.push(format!("reserve-mem:{}", plan.reserve));
             }

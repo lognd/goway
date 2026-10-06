@@ -753,6 +753,26 @@ subtracts it from the helper's available memory, so a build still ramping up
 is not mistaken for free memory. Before this, two runs a minute apart could
 both be admitted by a host that looked empty and push it into the OOM killer.
 
+The CPU is shared the same way. Memory fitting bounds one run, but several
+builds at once (and mold, which spreads one link over every core) can still
+oversubscribe a helper: three concurrent runs once drove a 12-core helper to
+load 107. So a cargo run that adapts takes an equal share of the cores with the
+goway runs already running or claimed on that host (`cores / (runs + 1)`, at
+least one; a lone run still gets all of them, runs already going keep what they
+started with) as its job count, and the same note says so:
+
+    note: helios has 12 cores shared with other runs: running with 6 of 12 jobs
+    (CARGO_BUILD_JOBS=6, NEXTEST_TEST_THREADS=6, MOLD_JOBS=1, GOWAY_LINK_THREADS=6)
+
+A shared run also exports `MOLD_JOBS` (concurrent mold processes, one per four
+cores of its share) and `GOWAY_LINK_THREADS` (threads each link may use), each
+unless already set. mold has no environment variable for its thread count, so
+only `MOLD_JOBS` acts on its own; a linker wrapper or
+`-C link-arg=-Wl,--threads=$GOWAY_LINK_THREADS` applies the thread budget.
+Placement counts each running goway job as half its host's cores when the new
+run is a cargo run that adapts, so an idle helper wins over a busy one even when
+it is smaller (memory still has to fit). An explicit job count is never touched.
+
 From frob: nothing to configure; `goway run --with-git --needs cores:8 -- cargo
 nextest run --profile ci --workspace` adapts by itself. To pin it, pass
 `--env CARGO_BUILD_JOBS=N`.

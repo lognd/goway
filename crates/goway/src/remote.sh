@@ -1257,6 +1257,14 @@ fit_parallelism() {
   [ -n "${NEXTEST_TEST_THREADS+x}" ] || export NEXTEST_TEST_THREADS=$n
 }
 
+# fit_linker PROCS THREADS: goway shared this host's cores between its runs: at most PROCS
+# concurrent mold processes (MOLD_JOBS) of THREADS threads each (GOWAY_LINK_THREADS, for a
+# linker wrapper or -Wl,--threads=), each only when the user has not set it.
+fit_linker() {
+  [ -n "${MOLD_JOBS+x}" ] || export MOLD_JOBS=$1
+  [ -n "${GOWAY_LINK_THREADS+x}" ] || export GOWAY_LINK_THREADS=$2
+}
+
 # ---- CMake's own interfaces (File API replies, a traced configure) ------
 #
 # doctor asks CMake what a project needs instead of reading CMakeLists.txt as
@@ -1546,7 +1554,7 @@ run() {
   shift 10
   # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
   # framework detection of the command's program (see shard_run).
-  local jobs="" jobs_set=0 mem_reserve=0
+  local jobs="" jobs_set=0 mem_reserve=0 mold_procs="" mold_threads=""
   local limits="" detect="" gpu_per="" slot_wait=300 verify="" fresh=0 attempt=1 level=changed room=""
   while [ $# -gt 0 ] && [ "$1" != "--" ]; do
     case "$1" in
@@ -1558,6 +1566,7 @@ run() {
       reserve:*) WIN_RESERVE=${1#reserve:} ;;
       jobs:[0-9]*:rec | jobs:[0-9]*) jobs=${1#jobs:}; jobs=${jobs%%:*}; case "$1" in *:rec) jobs_set=0 ;; *) jobs_set=1 ;; esac ;;
       reserve-mem:[0-9]*) mem_reserve=${1#reserve-mem:} ;;
+      mold:[0-9]*:[0-9]*) mold_procs=${1#mold:}; mold_threads=${mold_procs#*:}; mold_procs=${mold_procs%%:*} ;;
       verify:[12]:changed | verify:[12]:all | verify:[12]:changed:fresh | verify:[12]:all:fresh)
         # The attempt number is goway's explicit argument, never read from
         # the environment or from anything the helper reports.
@@ -1574,7 +1583,7 @@ run() {
   case "$detect" in *[!A-Za-z0-9:]*) die "run: bad shard-detect" ;; esac
   case "$gpu_per" in *[!0-9]*) die "run: bad gpu-slots" ;; esac
   case "$slot_wait" in *[!0-9]*) die "run: bad slot-wait" ;; esac
-  case "$jobs$mem_reserve" in *[!0-9]*) die "run: bad jobs or reserve-mem" ;; esac
+  case "$jobs$mem_reserve$mold_procs$mold_threads" in *[!0-9]*) die "run: bad jobs, reserve-mem or mold" ;; esac
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
   [ -d "$work/tree" ] || die "run: no work dir at $work (was it synced?)"
@@ -1792,6 +1801,7 @@ run() {
       if command -v ionice >/dev/null 2>&1; then nicer+=(ionice -c 3); fi ;;
   esac
   if [ "$jobs_set" = 1 ]; then fit_parallelism "$jobs" "$priority"; fi
+  if [ -n "$mold_procs" ]; then fit_linker "$mold_procs" "$mold_threads"; fi
   if [ "$priority" = owner ]; then cap_parallelism; fi
   # Outermost, so the inhibitor wraps the niceness wrappers and the job.
   keep_awake
