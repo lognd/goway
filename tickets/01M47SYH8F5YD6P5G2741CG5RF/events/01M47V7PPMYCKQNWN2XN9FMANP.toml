@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-06T05:33:17Z"
+digest = "bde6c286e4308096e51607f5fb4ba35f8817be484f2b4596cce2974a53ee8612"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID f56c98c6-acf0-4fe1-beea-e60ab685ac3d with nextest profile: default
+    Starting 1 test across 84 binaries (936 tests skipped)
+        PASS [   5.557s] goway::mem_footprint a_cargo_run_that_would_not_fit_is_lowered_and_told_so_and_its_level_is_recorded
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   5.563s] 1 test run: 1 passed, 936 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "a_cargo_run_that_would_not_fit_is_lowered_and_told_so_and_its_level_is_recorded"
+size = 594
+status = "measured"
+tests = ["a_cargo_run_that_would_not_fit_is_lowered_and_told_so_and_its_level_is_recorded"]
+at = "2026-10-06T05:33:17Z"
+actor = "lognd"
+rev = 1

@@ -7,12 +7,12 @@ priority = "high"
 points = 8
 reporter = "lognd"
 created = "2026-10-06T05:10:58Z"
-updated = "2026-10-06T05:33:13Z"
+updated = "2026-10-06T05:33:17Z"
 scope = ["crates/goway/**", "docs/**", "changelog.d/**"]
 
 [[acceptance]]
 text = "Given a host whose free memory is below the recorded peak with margin, when a cargo run is placed, then goway lowers CARGO_BUILD_JOBS and NEXTEST_TEST_THREADS to the largest level whose estimated peak fits and says so on stderr"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given even one job cannot fit the host's total memory, when a cargo run is placed, then it is refused"
