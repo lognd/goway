@@ -7,7 +7,7 @@ priority = "high"
 points = 8
 reporter = "lognd"
 created = "2026-10-06T05:10:58Z"
-updated = "2026-10-06T05:33:42Z"
+updated = "2026-10-06T05:34:17Z"
 scope = ["crates/goway/**", "docs/**", "changelog.d/**"]
 
 [[acceptance]]
@@ -28,7 +28,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a run finished at a parallelism level, then its peak is recorded for that level and later estimates use it"
-bound = false
+bound = true
 +++
 
 Measured 2026-10-06 from a large Rust workspace: every run refused (7.6 GiB host, recorded peak 7.0 GiB with margin 7.7) and an admitted run was OOM-killed in clang. Lower CARGO_BUILD_JOBS / NEXTEST_TEST_THREADS to fit, record peaks per level, reserve memory for in-flight jobs, never override an explicit CARGO_BUILD_JOBS.
