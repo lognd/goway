@@ -7,7 +7,7 @@ priority = "high"
 points = 8
 reporter = "lognd"
 created = "2026-10-06T05:10:58Z"
-updated = "2026-10-06T05:23:39Z"
+updated = "2026-10-06T05:33:13Z"
 scope = ["crates/goway/**", "docs/**", "changelog.d/**"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = false
 
 [[acceptance]]
 text = "Given even one job cannot fit the host's total memory, when a cargo run is placed, then it is refused"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given an explicit CARGO_BUILD_JOBS or -j, when the run is placed, then it is never overridden"
