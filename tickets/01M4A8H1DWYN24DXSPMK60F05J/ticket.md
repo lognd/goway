@@ -7,12 +7,12 @@ priority = "high"
 points = 5
 reporter = "lognd"
 created = "2026-10-07T04:04:13Z"
-updated = "2026-10-09T05:31:48Z"
+updated = "2026-10-09T05:31:54Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**"]
 
 [[acceptance]]
 text = "a run whose recorded peak does not fit a small idle helper goes to the bigger busy one (test)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "after an OOM kill on a host, the next identical run is not placed there (test)"
