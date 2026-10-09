@@ -7,7 +7,7 @@ priority = "high"
 points = 5
 reporter = "lognd"
 created = "2026-10-07T04:04:13Z"
-updated = "2026-10-09T05:34:31Z"
+updated = "2026-10-09T05:34:33Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**"]
 
 [[acceptance]]
@@ -24,7 +24,7 @@ bound = true
 
 [[acceptance]]
 text = "a run cut short because its client left records no memory peak (test)"
-bound = false
+bound = true
 +++
 
 Measured 2026-10-06 (frob-v2 tickets ~0WQ67AJ, ~PBJ6GPZ): after ~EW8738V made placement prefer an idle smaller helper over a busy big one, frob-v2 cargo dev ci runs went to the 3.8 GiB helper and were killed by signal 9 in rustdoc and the linker; agents had to pin --host to the 12-core helper. The memory estimate either does not cover rustdoc and link peaks of a cargo alias run (cargo dev ci spawns several cargo commands in sequence) or the per-level records are too low after the gc. Placement must never prefer a host whose estimated peak plus margin does not fit, and an OOM kill on a host must raise that host's estimate for the repository so the next run goes elsewhere.
