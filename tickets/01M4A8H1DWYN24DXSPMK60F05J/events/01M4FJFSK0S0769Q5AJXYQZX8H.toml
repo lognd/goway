@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-09T05:34:28Z"
+digest = "b2f21ed153fdb03e7f990f76749bad7eb88da6dea306a3ed9843629db63cca1b"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 55b8cb34-9752-4761-9842-144f04a30e64 with nextest profile: default
+    Starting 1 test across 63 binaries (752 tests skipped)
+        PASS [   0.013s] goway pool::tests::after_an_oom_kill_the_next_identical_run_is_not_placed_on_that_host
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.021s] 1 test run: 1 passed, 752 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(after_an_oom_kill_the_next_identical_run_is_not_placed_on_that_host)'"
+size = 580
+status = "measured"
+tests = ["pool::tests::after_an_oom_kill_the_next_identical_run_is_not_placed_on_that_host"]
+at = "2026-10-09T05:34:28Z"
+actor = "lognd"
+rev = 1

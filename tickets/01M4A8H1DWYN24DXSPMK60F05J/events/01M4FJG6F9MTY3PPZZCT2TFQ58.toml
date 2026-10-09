@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-09T05:34:33Z"
+digest = "d70ee1f394e1ad70bd69220081ca468d77db480ee892f831f38cf6435598bec7"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e04d90be-48c2-4e27-9f5a-45b6db35a107 with nextest profile: default
+    Starting 1 test across 63 binaries (752 tests skipped)
+        PASS [   9.202s] goway::client_loss a_run_cut_short_by_its_lost_client_records_no_memory_peak
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   9.242s] 1 test run: 1 passed, 752 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(a_run_cut_short_by_its_lost_client_records_no_memory_peak)'"
+size = 570
+status = "measured"
+tests = ["a_run_cut_short_by_its_lost_client_records_no_memory_peak"]
+at = "2026-10-09T05:34:33Z"
+actor = "lognd"
+rev = 1
