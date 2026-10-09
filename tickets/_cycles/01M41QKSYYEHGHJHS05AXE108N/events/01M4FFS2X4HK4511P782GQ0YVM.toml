@@ -1,0 +1,7 @@
+kind = "cycle"
+op = "over-commit"
+ticket = "01M4A8H1DWYN24DXSPMK60F05J"
+text = "owner-directed fix: frob-v2 cargo runs queue behind one helper"
+at = "2026-10-09T04:47:09Z"
+actor = "lognd"
+rev = 1
