@@ -744,7 +744,10 @@ after every host that has room: a busy big helper beats an idle small one that
 would be OOM-killed, and while a busy host will have the memory soon, a cramped
 one is not used meanwhile.
 Every finished run records its peak under the job count it ran at (an OOM-killed
-one a quarter higher), so the estimate improves with use.
+one a quarter higher), so the estimate improves with use. A helper that has recorded levels
+of its own for a repository is fitted from those alone; only a helper with none borrows the
+other helpers' levels (a heavier command's levels elsewhere, such as a whole ci alias, would
+otherwise force their fixed part onto it).
 
 Never overridden: an explicit `CARGO_BUILD_JOBS` (`--env CARGO_BUILD_JOBS=N`,
 or the helper's own environment), `-j N` / `--jobs N` on the command line.

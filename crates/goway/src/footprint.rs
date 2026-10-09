@@ -144,7 +144,7 @@ pub fn share_mem_peaks<'a>(probes: impl IntoIterator<Item = &'a mut Probe>) {
             *slot = (*slot).max(peak);
         }
     }
-    // The same for per-level peaks: a level a host never ran is judged by what others measured.
+    // The same for per-level peaks: a host with no levels of its own is judged by what others measured.
     let mut levels: BTreeMap<String, BTreeMap<u32, u64>> = BTreeMap::new();
     for p in &probes {
         for (id, by_level) in &p.mem_levels {
@@ -160,10 +160,13 @@ pub fn share_mem_peaks<'a>(probes: impl IntoIterator<Item = &'a mut Probe>) {
     }
     for p in &mut probes {
         for (id, by_level) in &levels {
-            let own = p.mem_levels.entry(id.clone()).or_default();
-            for (&jobs, &peak) in by_level {
-                own.entry(jobs).or_insert(peak);
+            // A host that measured the repository itself is fitted from its own levels alone: a
+            // heavier command's levels from another host (a whole ci alias against a test run)
+            // would otherwise force their fixed part onto it. Only a host with none borrows.
+            if p.mem_levels.get(id).is_some_and(|own| !own.is_empty()) {
+                continue;
             }
+            p.mem_levels.insert(id.clone(), by_level.clone());
         }
     }
     for p in &mut probes {
@@ -474,5 +477,29 @@ mod tests {
         assert!(matches!(assess_mem(&tight, "r"), MemRoom::Alone { .. }));
         tight.jobs = 1;
         assert!(matches!(assess_mem(&tight, "r"), MemRoom::Short { .. }));
+    }
+
+    // frob:ticket 01M4GMWH31KWNZ5VHK9D4HTVG7
+    // frob:tests crates/goway/src/footprint.rs::share_mem_peaks
+    #[test]
+    fn a_host_with_levels_of_its_own_is_not_given_other_hosts_levels() {
+        let text = "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\njobs=0\n";
+        let mut big =
+            crate::pool::parse_probe(&format!("{text}mempeakj.r.1=7516192768\n")).unwrap();
+        let mut small =
+            crate::pool::parse_probe(&format!("{text}mempeakj.r.4=2147483648\n")).unwrap();
+        let mut fresh = crate::pool::parse_probe(text).unwrap();
+        share_mem_peaks([&mut big, &mut small, &mut fresh]);
+        assert_eq!(
+            small.mem_levels["r"].keys().copied().collect::<Vec<_>>(),
+            [4],
+            "the small host keeps only what it measured"
+        );
+        assert_eq!(big.mem_levels["r"].len(), 1);
+        assert_eq!(
+            fresh.mem_levels["r"].keys().copied().collect::<Vec<_>>(),
+            [1, 4],
+            "a host with none borrows every level"
+        );
     }
 }
