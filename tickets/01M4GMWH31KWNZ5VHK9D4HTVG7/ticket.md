@@ -2,12 +2,12 @@
 id = "01M4GMWH31KWNZ5VHK9D4HTVG7"
 title = "A helper's own recorded job levels are not overridden by other helpers' levels when fitting a cargo run"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-09T15:35:39Z"
-updated = "2026-10-09T15:35:39Z"
+updated = "2026-10-09T15:35:44Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**", "docs/usage.md"]
 
 [[acceptance]]
