@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["a run whose recorded peak does not fit a small idle helper goes to the bigger busy one (test)", "after an OOM kill on a host, the next identical run is not placed there (test)"]
+new = ["a run whose recorded peak does not fit a small idle helper goes to the bigger busy one (test)", "after an OOM kill on a host, the next identical run is not placed there (test)", "a helper whose total memory is below the repository's recorded peak gets the largest job count whose modelled peak (fixed part plus per-job part, learned from the recorded levels) fits, and is refused only when one job cannot fit (test)", "a run cut short because its client left records no memory peak (test)"]
+moved = [1, 2]
+at = "2026-10-09T05:31:48Z"
+actor = "lognd"
+rev = 1
