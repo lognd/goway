@@ -712,19 +712,24 @@ log) goway says so after the command's own error: that the host ran out of
 memory, the measured peak and the host's total, and to run on another host,
 ask for `--needs mem>=SIZE`, run fewer jobs at once (`CARGO_BUILD_JOBS=2`,
 `nextest -j 2`), or give the helper more memory (`goway-setup tune` on WSL
-helpers). A killed job's peak is recorded a quarter higher than measured, since
-it never got to use all it wanted.
+helpers). A killed job's peak is recorded a quarter higher than measured (or the
+host's whole memory, if that is more), at the job count it ran at, since it never
+got to use all it wanted. The kill is also recognised when only a child was killed
+and cargo exited 101: the host's `oom_kill` count (`/proc/vmstat`) rose during a
+failed run.
 
 #### Fitting a cargo run to the host's memory
 
 Cargo's peak memory scales with its job count (parallel `rustc` and linker
 processes), so a helper too small for a repository at full parallelism often
 fits it at fewer jobs. For `cargo build`, `test`, `nextest` and `clippy`, goway
-therefore does not refuse a host on the repository's peak alone: it estimates
-the peak at each job count from what the helpers recorded per level
-(`mempeakj.ID.JOBS` in the probe; before any level is known, the overall peak
-counts as a run at the host's core count, a quarter of it fixed and the rest
-per job), picks the largest count whose peak plus margin fits the host's total
+therefore does not refuse a host on the repository's peak alone: it learns
+a model of the peak, a fixed part (the largest link or rustdoc, which no job
+count shrinks) plus a per-job part, from what the helpers recorded per level
+(`mempeakj.ID.JOBS` in the probe; the per-job part is the least-squares slope,
+the fixed part is lifted until no record lies above the line; before two levels
+are known, the overall peak counts as a run at the host's core count, half of
+it fixed and the rest per job), picks the largest count whose peak plus margin fits the host's total
 and available memory, and tells you on stderr:
 
     note: quasar has 5.1 GiB free: running with 3 of 8 jobs (CARGO_BUILD_JOBS=3,
@@ -734,7 +739,10 @@ The helper exports `CARGO_BUILD_JOBS` and `NEXTEST_TEST_THREADS` (the cargo
 jobs also bound how many linkers run at once) unless the run's own
 environment already sets them. A host is refused for memory only when even one
 job does not fit its total (exit 125, as before); a host that is idle but has
-too little free memory still runs it alone at one job, with a warning.
+too little free memory still runs it alone at one job, with a warning, but only
+after every host that has room: a busy big helper beats an idle small one that
+would be OOM-killed, and while a busy host will have the memory soon, a cramped
+one is not used meanwhile.
 Every finished run records its peak under the job count it ran at (an OOM-killed
 one a quarter higher), so the estimate improves with use.
 

@@ -21,8 +21,10 @@ use crate::pool::Probe;
 use crate::status::human_bytes;
 
 /// The share of a recorded peak assumed fixed (independent of the job count) when only one
-/// level has been measured: a quarter.
-const FIXED_PERCENT: u64 = 25;
+/// level has been measured: half. Rustdoc, doctests and the final link are single processes that
+/// fewer parallel jobs do not shrink (a cargo alias such as `cargo dev ci` runs them all in
+/// sequence), so the estimate at one job must not fall far below the recorded peak.
+const FIXED_PERCENT: u64 = 50;
 
 /// The environment variable carrying the thread budget of one link (mold has no variable of its
 /// own for its thread count; a linker wrapper or `-Wl,--threads=$GOWAY_LINK_THREADS` uses it).
@@ -104,20 +106,86 @@ impl Mode {
     }
 }
 
-/// The estimated peak in bytes of a run of `repo` at `jobs` parallel jobs on `probe`'s host,
-/// from the per-level records (else the overall record, taken as a run at the host's core
-/// count), or `None` when nothing is recorded.
-pub fn estimate(probe: &Probe, repo: &str, jobs: u32) -> Option<u64> {
-    let natural = probe.cores.max(1);
+/// The memory model of one repository on one host: `peak(jobs) = fixed + per_job * jobs`, the
+/// fixed part being what no job count shrinks (the largest link, rustdoc, the test harness) and
+/// the per-job part what each parallel job adds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Model {
+    /// Bytes independent of the job count.
+    pub fixed: u64,
+    /// Bytes added by each parallel job.
+    pub per_job: u64,
+}
+
+impl Model {
+    /// The model's peak at `jobs` parallel jobs.
+    pub fn at(&self, jobs: u32) -> u64 {
+        self.fixed
+            .saturating_add(self.per_job.saturating_mul(u64::from(jobs)))
+    }
+}
+
+/// Learn the [`Model`] from recorded `(jobs, peak)` points: with two or more job counts the
+/// least-squares slope is the per-job part (never negative: more jobs never use less) and the
+/// fixed part is lifted until no recorded point lies above the line; a single point is split
+/// [`FIXED_PERCENT`] fixed, the rest spread over its jobs. `None` without points.
+pub fn learn(points: &[(u32, u64)]) -> Option<Model> {
+    let &(j0, p0) = points.first()?;
+    let distinct = points.iter().any(|&(j, _)| j != j0);
+    if !distinct {
+        let top = points.iter().map(|&(_, p)| p).max().unwrap_or(p0);
+        let fixed = top * FIXED_PERCENT / 100;
+        return Some(Model {
+            fixed,
+            per_job: (top - fixed) / u64::from(j0.max(1)),
+        });
+    }
+    // Least squares on integers: slope = (n*sum(jp) - sum(j)*sum(p)) / (n*sum(jj) - sum(j)^2).
+    let n = i128::try_from(points.len()).unwrap_or(i128::MAX);
+    let (mut sj, mut sp, mut sjp, mut sjj) = (0i128, 0i128, 0i128, 0i128);
+    for &(j, p) in points {
+        let (j, p) = (i128::from(j), i128::from(p));
+        sj += j;
+        sp += p;
+        sjp += j * p;
+        sjj += j * j;
+    }
+    let per_job = u64::try_from(((n * sjp - sj * sp) / (n * sjj - sj * sj)).max(0)).unwrap_or(0);
+    let fixed = points
+        .iter()
+        .map(|&(j, p)| p.saturating_sub(per_job.saturating_mul(u64::from(j))))
+        .max()
+        .unwrap_or(0);
+    Some(Model { fixed, per_job })
+}
+
+/// The recorded `(jobs, peak)` points of `repo` on `probe`'s host, by job count: the per-level
+/// records, else the overall record taken as a run at the host's core count.
+fn points_of(probe: &Probe, repo: &str) -> Vec<(u32, u64)> {
     let mut points: Vec<(u32, u64)> = probe
         .mem_levels
         .get(repo)
         .map(|m| m.iter().map(|(&j, &p)| (j, p)).collect())
         .unwrap_or_default();
-    if points.is_empty() {
-        points.push((natural, *probe.mem_peaks.get(repo)?));
+    if points.is_empty()
+        && let Some(&peak) = probe.mem_peaks.get(repo)
+    {
+        points.push((probe.cores.max(1), peak));
     }
     points.sort_unstable();
+    points
+}
+
+/// The model learned for `repo` on `probe`'s host from its records, if any.
+pub fn model(probe: &Probe, repo: &str) -> Option<Model> {
+    learn(&points_of(probe, repo))
+}
+
+/// The estimated peak in bytes of a run of `repo` at `jobs` parallel jobs on `probe`'s host:
+/// a level recorded at exactly `jobs` as it is, else the learned [`Model`] (never below a
+/// record at fewer jobs), or `None` when nothing is recorded.
+pub fn estimate(probe: &Probe, repo: &str, jobs: u32) -> Option<u64> {
+    let points = points_of(probe, repo);
     if let Some(&(_, exact)) = points.iter().find(|(j, _)| *j == jobs) {
         return Some(exact);
     }
@@ -127,39 +195,7 @@ pub fn estimate(probe: &Probe, repo: &str, jobs: u32) -> Option<u64> {
         .map(|(_, p)| *p)
         .max()
         .unwrap_or(0);
-    let lower = points.iter().rev().find(|(j, _)| *j < jobs).copied();
-    let upper = points.iter().find(|(j, _)| *j > jobs).copied();
-    let model = match (lower, upper) {
-        (Some((j0, p0)), Some((j1, p1))) => {
-            // Interpolate between the neighbours.
-            let span = u64::from(j1 - j0);
-            let at = u64::from(jobs - j0);
-            p0 + p1.saturating_sub(p0) * at / span
-        }
-        (Some((j0, p0)), None) => {
-            // Above every record: the slope of the top two, else a quarter fixed, rest per job.
-            let slope = points.len().checked_sub(2).map_or_else(
-                || p0 * (100 - FIXED_PERCENT) / 100 / u64::from(j0),
-                |i| {
-                    let (a, pa) = points[i];
-                    p0.saturating_sub(pa) / u64::from(j0 - a)
-                },
-            );
-            p0 + slope * u64::from(jobs - j0)
-        }
-        (None, Some((j1, p1))) => {
-            // Below every record: the slope of the bottom two, else a quarter fixed.
-            let fixed = p1 * FIXED_PERCENT / 100;
-            let slope = match points.get(1) {
-                Some(&(b, pb)) if points[0].0 == j1 => pb.saturating_sub(p1) / u64::from(b - j1),
-                _ => p1.saturating_sub(fixed) / u64::from(j1),
-            };
-            // Never above the record, never below its fixed part.
-            p1.saturating_sub(slope * u64::from(j1 - jobs)).max(fixed)
-        }
-        (None, None) => return None,
-    };
-    Some(model.max(seen_below))
+    Some(learn(&points)?.at(jobs).max(seen_below))
 }
 
 /// What goway decided for one run on one host.
@@ -396,16 +432,65 @@ mod tests {
         p.mem_peaks.insert("r".to_owned(), 8 * GIB);
         assert_eq!(estimate(&p, "r", 8), Some(8 * GIB));
         let one = estimate(&p, "r", 1).unwrap();
-        assert!((2 * GIB..4 * GIB).contains(&one), "{one}");
+        assert!((3 * GIB..5 * GIB).contains(&one), "{one}");
         // Levels measured win over the overall record.
         p.mem_levels
             .entry("r".to_owned())
             .or_default()
             .extend([(2, 3 * GIB), (8, 7 * GIB)]);
         assert_eq!(estimate(&p, "r", 2), Some(3 * GIB));
-        assert_eq!(estimate(&p, "r", 5), Some(5 * GIB), "interpolated");
+        let mid = estimate(&p, "r", 5).unwrap();
+        assert!(mid.abs_diff(5 * GIB) < (1 << 20), "interpolated: {mid}");
         assert!(estimate(&p, "r", 1).unwrap() <= 3 * GIB);
         assert!(estimate(&p, "r", 16).unwrap() > 7 * GIB, "extrapolated up");
+    }
+
+    // frob:ticket 01M4A8H1DWYN24DXSPMK60F05J
+    // frob:tests crates/goway/src/fit.rs::learn
+    #[test]
+    fn the_model_learns_a_fixed_part_and_a_per_job_part_from_the_records() {
+        assert_eq!(learn(&[]), None);
+        // Two levels on one line: 3 GiB fixed (a link), 0.5 GiB per job.
+        let m = learn(&[(2, 4 * GIB), (8, 7 * GIB)]).unwrap();
+        assert_eq!((m.fixed, m.per_job), (3 * GIB, GIB / 2));
+        assert_eq!(m.at(1), 3 * GIB + GIB / 2);
+        // Noisy levels: no record lies above the line, the fixed part carries the largest link.
+        let pts = [(1, 5 * GIB), (4, 5 * GIB + GIB / 2), (12, 7 * GIB)];
+        let m = learn(&pts).unwrap();
+        for &(j, p) in &pts {
+            assert!(m.at(j) >= p, "{m:?} at {j}");
+        }
+        // More jobs never use less: a falling record gives a flat model, not a negative slope.
+        let flat = learn(&[(1, 6 * GIB), (8, 5 * GIB)]).unwrap();
+        assert_eq!((flat.fixed, flat.per_job), (6 * GIB, 0));
+        // One record: half fixed, the rest per job.
+        let one = learn(&[(8, 8 * GIB)]).unwrap();
+        assert_eq!((one.fixed, one.per_job), (4 * GIB, GIB / 2));
+    }
+
+    // frob:ticket 01M4A8H1DWYN24DXSPMK60F05J
+    // frob:tests crates/goway/src/fit.rs::plan
+    #[test]
+    fn a_small_helper_gets_the_jobs_its_fixed_and_per_job_parts_allow() {
+        // 4.8 GiB host with 4.1 free; the repository needs 2 GiB fixed plus 0.25 GiB per job,
+        // so 16 jobs would peak at 6 GiB but 6 jobs (3.5 GiB plus margin) fit.
+        let mut p = probe(16, 5, 4);
+        p.mem_levels
+            .entry("r".to_owned())
+            .or_default()
+            .extend([(2, 2 * GIB + GIB / 2), (12, 5 * GIB)]);
+        let plan = plan_of(Mode::Adaptive, &p);
+        assert!(plan.lowered && plan.fits, "{plan:?}");
+        assert!((5..=8).contains(&plan.jobs), "{plan:?}");
+        assert!(plan.reserve <= 4 * GIB, "{plan:?}");
+        // The same repository with a fixed part above the host is refused even at one job.
+        let mut big = probe(16, 5, 4);
+        big.mem_levels
+            .entry("r".to_owned())
+            .or_default()
+            .extend([(1, 6 * GIB), (12, 7 * GIB)]);
+        let one = plan_of(Mode::Adaptive, &big);
+        assert_eq!((one.jobs, one.fits), (1, false));
     }
 
     // frob:ticket 01M47SYH8F5YD6P5G2741CG5RF

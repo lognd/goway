@@ -69,6 +69,32 @@ fn a_sigkilled_client_stops_its_job_within_the_bound_and_frees_the_work_dir() {
     });
 }
 
+// frob:ticket 01M4A8H1DWYN24DXSPMK60F05J
+// frob:tests crates/goway/src/run.rs::stream
+#[test]
+fn a_run_cut_short_by_its_lost_client_records_no_memory_peak() {
+    let w = common::world_with_ssh(SURVIVING_SSH);
+    let pidfile = w.root.join("job.pid");
+    let mut held = w.hold(&[], &format!("echo $$ > '{}'", pidfile.display()));
+    held.wait_started();
+    let pid: u32 = std::fs::read_to_string(&pidfile)
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    // Let the sampler see the job at least once, so a record would exist if one were written.
+    std::thread::sleep(Duration::from_secs(3));
+    held.kill_client();
+    common::wait_for("the orphaned job to be stopped", || !alive(pid));
+    common::wait_for("the run's work dir to be cleaned", || {
+        w.work_dirs().is_empty()
+    });
+    let recorded = std::fs::read_dir(w.remote.join("mempeaks"))
+        .map(|d| d.count())
+        .unwrap_or(0);
+    assert_eq!(recorded, 0, "a partial peak must not become the record");
+}
+
 /// Pids recorded in `file`, one per line.
 fn pids(file: &Path) -> Vec<u32> {
     std::fs::read_to_string(file)

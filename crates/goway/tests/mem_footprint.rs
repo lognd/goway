@@ -98,6 +98,48 @@ fn a_job_the_oom_killer_killed_is_explained_in_plain_words() {
     assert!(!err.contains("ran out of memory"), "{err}");
 }
 
+// frob:ticket 01M4A8H1DWYN24DXSPMK60F05J
+// frob:tests crates/goway/src/pool.rs::ranked_for
+#[test]
+fn a_killed_rustdoc_or_linker_that_leaves_cargo_exiting_101_still_raises_the_estimate() {
+    let w = common::world();
+    let vmstat = w.root.join("vmstat");
+    std::fs::write(&vmstat, "nr_free_pages 1\noom_kill 3\n").unwrap();
+    // A cargo alias whose rustdoc was killed by the OOM killer: cargo exits 101, dmesg says
+    // nothing, but the host's kill count rose while the run was going.
+    let body = format!(
+        "sleep 1; printf 'oom_kill 4\\n' > '{}'; exit 101",
+        vmstat.display()
+    );
+    let out = w
+        .goway(&["run", "--", "sh", "-c", &body])
+        .env("GOWAY_VMSTAT", &vmstat)
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert_eq!(out.status.code(), Some(101), "{err}");
+    assert!(err.contains("this host ran out of memory"), "{err}");
+    // At least the host's whole memory is on record, so no run of this repository fits here.
+    let (total, _) = meminfo();
+    assert!(
+        recorded(&w.remote).is_some_and(|p| p >= total),
+        "{:?}",
+        recorded(&w.remote)
+    );
+
+    // A failed run while the count stands still is the job's own failure.
+    let w2 = common::world();
+    let vm2 = w2.root.join("vmstat");
+    std::fs::write(&vm2, "oom_kill 3\n").unwrap();
+    let out = w2
+        .goway(&["run", "--", "sh", "-c", "sleep 1; exit 101"])
+        .env("GOWAY_VMSTAT", &vm2)
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(!err.contains("ran out of memory"), "{err}");
+}
+
 // frob:ticket 01M43CWNW1JNQZMCJBQ2NH4FTC
 // frob:tests crates/goway/src/footprint.rs::parse_mem_peaks
 #[test]

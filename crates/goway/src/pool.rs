@@ -255,7 +255,10 @@ pub fn ranked(config: &Config, probed: &[Probed<'_>]) -> Vec<usize> {
 /// are left out, and each met `--prefers` term lowers the score by
 /// [`PREFER_BONUS`] (preferences never exclude).
 pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>]) -> Vec<usize> {
-    let mut usable: Vec<(usize, f64, u32)> = probed
+    // Hosts that must wait for memory (it will free) and idle hosts whose free memory is below
+    // the estimate (it will not): the latter run only when no host has, or will have, room.
+    let waiting_for_memory = std::cell::Cell::new(false);
+    let mut usable: Vec<(usize, f64, u32, bool)> = probed
         .iter()
         .enumerate()
         .filter_map(|(i, p)| {
@@ -277,10 +280,15 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
                 tracing::info!(host = %p.host.name, %why, "host has no disk room for this repository; skipped");
                 return None;
             }
-            if let Some(why) = mem_shortage(selection, probe) {
+            let room = mem_room(selection, probe);
+            if let Some(why) = crate::footprint::mem_short_text(room) {
                 tracing::info!(host = %p.host.name, %why, "host has too little memory for this repository; skipped");
+                if matches!(room, crate::footprint::MemRoom::Short { .. }) {
+                    waiting_for_memory.set(true);
+                }
                 return None;
             }
+            let cramped = matches!(room, crate::footprint::MemRoom::Alone { .. });
             let per_core = probe.load[0] / f64::from(probe.cores.max(1));
             if config.max_load_of(p.host).is_some_and(|m| per_core > m) {
                 tracing::info!(host = %p.host.name, per_core, "host above max_load; skipped");
@@ -314,11 +322,25 @@ pub fn ranked_for(config: &Config, selection: &Selection, probed: &[Probed<'_>])
                     job_weight(selection, probe),
                 ) - bonus + margin + owner,
                 probe.jobs,
+                cramped,
             ))
         })
         .collect();
-    usable.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.2.cmp(&b.2)).then(a.0.cmp(&b.0)));
-    usable.into_iter().map(|(i, _, _)| i).collect()
+    if waiting_for_memory.get() && usable.iter().any(|u| u.3) {
+        tracing::info!(
+            "a busy host will have the memory soon: hosts too cramped for the run are not used meanwhile"
+        );
+        usable.retain(|u| !u.3);
+    }
+    // Cramped hosts (estimated peak above what is free) come after every host that has room,
+    // however idle they look: a busy big host beats an idle small one that would be OOM-killed.
+    usable.sort_by(|a, b| {
+        a.3.cmp(&b.3)
+            .then(a.1.total_cmp(&b.1))
+            .then(a.2.cmp(&b.2))
+            .then(a.0.cmp(&b.0))
+    });
+    usable.into_iter().map(|(i, ..)| i).collect()
 }
 
 /// Index of the best host among `probed`, if any is usable.
@@ -1948,6 +1970,115 @@ mod tests {
             ..Selection::default()
         };
         assert_eq!(ranked_for(&config, &cargo, &probed)[0], 1);
+    }
+
+    /// A probe with memory facts and a recorded overall peak of `peak_gib` for repository `r`.
+    fn with_memory(mut p: Probe, total_gib: u64, avail_gib: u64, peak_gib: u64) -> Probe {
+        let gib = 1u64 << 30;
+        p.facts.mem_total = Some(total_gib * gib);
+        p.facts.mem_avail = Some(avail_gib * gib);
+        p.mem_peaks.insert("r".to_owned(), peak_gib * gib);
+        p
+    }
+
+    fn cargo_selection() -> Selection {
+        Selection {
+            fit: crate::fit::Mode::Adaptive,
+            repo_id: Some("r".to_owned()),
+            ..Selection::default()
+        }
+    }
+
+    // frob:ticket 01M4A8H1DWYN24DXSPMK60F05J
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn a_run_whose_peak_does_not_fit_an_idle_small_helper_goes_to_the_busy_big_one() {
+        let hosts = [host("big", None), host("small", None)];
+        // The big helper has a build going (so it looks busy) but room; the small one is idle
+        // with 3 GiB free against a recorded peak of 8 GiB (more than one job would use).
+        let probed: Vec<Probed<'_>> = [
+            with_memory(probe(12, 0.0, 1), 32, 24, 8),
+            with_memory(probe(4, 0.0, 0), 4, 3, 8),
+        ]
+        .into_iter()
+        .zip(&hosts)
+        .map(|(p, h)| Probed {
+            host: h,
+            result: Ok((found(&h.name), p)),
+        })
+        .collect();
+        let config = Config::default();
+        assert_eq!(ranked_for(&config, &cargo_selection(), &probed), [0]);
+
+        // Only a cramped idle helper is left (free memory below the estimate, total above it):
+        // it is ranked after any host with room and used only when nothing else has room.
+        let cramped = with_memory(probe(4, 0.0, 0), 8, 3, 6);
+        let probed_cramped: Vec<Probed<'_>> =
+            [with_memory(probe(12, 0.0, 1), 32, 24, 6), cramped.clone()]
+                .into_iter()
+                .zip(&hosts)
+                .map(|(p, h)| Probed {
+                    host: h,
+                    result: Ok((found(&h.name), p)),
+                })
+                .collect();
+        assert_eq!(
+            ranked_for(&config, &cargo_selection(), &probed_cramped),
+            [0, 1],
+            "the idle cramped helper comes second"
+        );
+        // When the big host is full right now (it will free), the cramped one is not used.
+        let mut full = with_memory(probe(12, 0.0, 2), 32, 2, 6);
+        full.jobs = 2;
+        let probed_wait: Vec<Probed<'_>> = [full, cramped]
+            .into_iter()
+            .zip(&hosts)
+            .map(|(p, h)| Probed {
+                host: h,
+                result: Ok((found(&h.name), p)),
+            })
+            .collect();
+        assert!(ranked_for(&config, &cargo_selection(), &probed_wait).is_empty());
+    }
+
+    // frob:ticket 01M4A8H1DWYN24DXSPMK60F05J
+    // frob:tests crates/goway/src/pool.rs::ranked_for
+    #[test]
+    fn after_an_oom_kill_the_next_identical_run_is_not_placed_on_that_host() {
+        let hosts = [host("big", None), host("small", None)];
+        let gib = 1u64 << 30;
+        let mk =
+            |small: Probe| -> Vec<Probe> { vec![with_memory(probe(12, 0.0, 1), 32, 24, 3), small] };
+        // Before: the small helper measured 3 GiB at 1 and 4 jobs; its 8 GiB total and idle
+        // state make it the pick.
+        let mut small = with_memory(probe(4, 0.0, 0), 8, 7, 3);
+        small
+            .mem_levels
+            .insert("r".to_owned(), [(1, 2 * gib), (4, 3 * gib)].into());
+        let place = |probes: Vec<Probe>| {
+            let probed: Vec<Probed<'_>> = probes
+                .into_iter()
+                .zip(&hosts)
+                .map(|(p, h)| Probed {
+                    host: h,
+                    result: Ok((found(&h.name), p)),
+                })
+                .collect();
+            ranked_for(&Config::default(), &cargo_selection(), &probed)
+        };
+        assert_eq!(place(mk(small.clone()))[0], 1);
+        // After an OOM kill at 4 jobs the helper records the host's whole memory for every level
+        // up to the killed one (what remote.sh `memory_report` writes).
+        let killed = 8 * gib;
+        small.mem_peaks.insert("r".to_owned(), killed);
+        small
+            .mem_levels
+            .insert("r".to_owned(), (1..=4).map(|j| (j, killed)).collect());
+        assert_eq!(
+            place(mk(small)),
+            [0],
+            "the killed host is no longer a candidate"
+        );
     }
 
     // frob:tests crates/goway/src/pool.rs::probe_all

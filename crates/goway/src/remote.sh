@@ -1800,6 +1800,7 @@ run() {
       if command -v nice >/dev/null 2>&1; then nicer+=(nice -n "$([ "$priority" = owner ] && echo 19 || echo 10)"); fi
       if command -v ionice >/dev/null 2>&1; then nicer+=(ionice -c 3); fi ;;
   esac
+  oom_kills_now >"$work/oomkills"
   if [ "$jobs_set" = 1 ]; then fit_parallelism "$jobs" "$priority"; fi
   if [ -n "$mold_procs" ]; then fit_linker "$mold_procs" "$mold_threads"; fi
   if [ "$priority" = owner ]; then cap_parallelism; fi
@@ -2500,6 +2501,10 @@ oom_in_dmesg() {
   printf '%s\n' "$log" | grep -qiE 'out of memory: kill|oom-kill|killed process'
 }
 
+# oom_kills_now: the OOM killer's kill count (/proc/vmstat; cargo exits 101 when only its
+# rustdoc or linker is killed and dmesg is unreadable, so a rise during a failed run is the proof).
+oom_kills_now() { awk '/^oom_kill / {print $2 + 0; exit}' "${GOWAY_VMSTAT:-/proc/vmstat}" 2>/dev/null || true; }
+
 # mempeak_level_record ROOT REPO_ID JOBS BYTES: the same as mempeak_record for the runs of the
 # repository at JOBS parallel jobs (file ID.jJOBS), so estimates for other job counts improve.
 mempeak_level_record() {
@@ -2514,17 +2519,28 @@ mempeak_level_record() {
 # peak and the host's total and what to do. A killed job's true peak is higher
 # than measured, so a quarter more is recorded.
 memory_report() {
-  local root=$1 repo_id=$2 work=$3 rc=$4 level=${5:-} peak total oom=0 gib=1073741824
+  local root=$1 repo_id=$2 work=$3 rc=$4 level=${5:-} peak total killed oom=0 gib=1073741824
   peak=$(cat "$work/mempeak" 2>/dev/null || echo 0)
   case "$peak" in "" | *[!0-9]*) peak=0 ;; esac
   if [ -e "$work/oom" ]; then oom=1; fi
+  if [ "$oom" = 0 ] && [ "$rc" != 0 ] && [ ! -e "$work/lost" ] && [ "$(oom_kills_now)" -gt "$(cat "$work/oomkills" 2>/dev/null || echo 999999999999)" ] 2>/dev/null; then oom=1; fi
   if [ "$oom" = 0 ] && [ "$rc" = 137 ] && [ ! -e "$work/lost" ] && oom_in_dmesg; then oom=1; fi
   if [ "$oom" = 1 ]; then
-    mempeak_record "$root" "$repo_id" $((peak + peak / 4))
-    mempeak_level_record "$root" "$repo_id" "$level" $((peak + peak / 4))
     total=$(awk '/^MemTotal:/ {printf "%.0f", $2 * 1024}' /proc/meminfo 2>/dev/null || true)
+    total=${total:-0}
+    # The sampled peak can miss the killed spike; the kill says the host ran out.
+    killed=$((peak + peak / 4))
+    if [ "$total" -gt "$killed" ]; then killed=$total; fi
+    mempeak_record "$root" "$repo_id" "$killed"
+    # Only this level is known to need that much; the planner learns the fixed and per-job parts
+    # from it and the other levels, so fewer jobs are still tried.
+    mempeak_level_record "$root" "$repo_id" "$level" "$killed"
     printf 'goway: this host ran out of memory: the kernel killed a process of the job (measured peak %s of %s total). Run it on another host (--host), ask for more memory (--needs mem>=%sG), run fewer jobs at once (CARGO_BUILD_JOBS=2, nextest -j 2), or give the helper more memory (goway-setup tune on WSL helpers).\n' \
-      "$(human "$peak")" "$(human "${total:-0}")" "$(((peak + peak / 4 + gib - 1) / gib))" >&2
+      "$(human "$peak")" "$(human "$total")" "$(((killed + gib - 1) / gib))" >&2
+  elif [ -e "$work/lost" ]; then
+    # The run was cut short (its client left): its peak is a floor, not the run's true peak,
+    # and recorded as one it would make the next run believe the repository is small.
+    return 0
   else
     mempeak_record "$root" "$repo_id" "$peak"
     mempeak_level_record "$root" "$repo_id" "$level" "$peak"
