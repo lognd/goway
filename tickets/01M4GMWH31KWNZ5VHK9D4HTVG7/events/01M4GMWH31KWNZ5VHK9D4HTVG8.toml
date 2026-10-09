@@ -1,0 +1,12 @@
+kind = "create"
+title = "A helper's own recorded job levels are not overridden by other helpers' levels when fitting a cargo run"
+type = "bug"
+category = "todo"
+priority = "high"
+points = 2
+scope = ["crates/goway/src/**", "crates/goway/tests/**", "docs/usage.md"]
+acceptance = ["a helper with its own recorded levels for a repository is fitted from them alone, other helpers' levels fill in only when it has none (test)"]
+body = "found while proving K60F05J: the big helper's levels for the repository include whole-alias ci runs (up to 7 GiB at one job) while the small helper measured 2.7 GiB at 4 jobs and 3.2 GiB at 7 for nextest; the shared levels forced a 7 GiB fixed part onto the small helper and refused it."
+at = "2026-10-09T15:35:39Z"
+actor = "lognd"
+rev = 1
