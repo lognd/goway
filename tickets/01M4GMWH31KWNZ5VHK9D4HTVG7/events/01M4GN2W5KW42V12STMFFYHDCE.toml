@@ -1,0 +1,40 @@
+kind = "evidence"
+captured_at = "2026-10-09T15:38:30Z"
+digest = "984a35bef44d5a9cf05e3f38b87a70818ba3e1b454365bd745dc1e5441d24538"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 918afb00-32ae-446b-9672-27303cf9315e with nextest profile: default
+    Starting 19 tests across 63 binaries (735 tests skipped)
+        PASS [   0.048s] goway pool::tests::asking_for_another_os_or_pinning_a_host_reaches_it
+        PASS [   0.059s] goway footprint::tests::missing_peaks_are_borrowed_from_other_hosts_and_unmeasured_repositories_wait_when_busy
+        PASS [   0.059s] goway pool::tests::pinned_host_ignores_max_load
+        PASS [   0.075s] goway pool::tests::choose_probes_in_parallel_and_caches_addresses
+        PASS [   0.089s] goway pool::tests::the_default_pool_only_holds_hosts_of_the_laptops_os
+        PASS [   0.092s] goway footprint::tests::a_host_with_levels_of_its_own_is_not_given_other_hosts_levels
+        PASS [   0.093s] goway pool::tests::preferences_reorder_but_never_exclude
+        PASS [   0.084s] goway::queue a_host_without_a_peak_is_judged_by_the_one_another_host_recorded
+        PASS [   0.148s] goway pool::tests::needs_pick_only_qualifying_hosts_even_when_busier
+        PASS [   0.113s] goway::queue a_peak_above_the_hosts_total_memory_fails_at_once_naming_both_sizes
+        PASS [   0.339s] goway::queue a_host_short_of_memory_for_one_more_job_is_waited_for_not_used
+        PASS [   0.412s] goway repo::tests::ids_are_stable_across_worktrees_and_distinct_per_tree
+        PASS [   0.528s] goway::queue an_idle_host_does_not_stay_blocked_behind_a_head_whose_peak_never_fits
+        PASS [   0.684s] goway::queue a_repository_that_does_not_fit_in_free_memory_runs_alone_on_an_idle_host_with_a_warning
+        PASS [   0.677s] goway::queue with_no_peak_anywhere_one_run_of_the_repository_is_admitted_per_host
+        PASS [   0.885s] goway::queue a_head_that_cannot_fit_is_passed_a_bounded_number_of_times_then_everyone_waits_for_it
+        PASS [   1.105s] goway::queue a_full_pool_fails_at_once_with_zero_wait_and_after_the_wait_otherwise
+        PASS [   2.286s] goway sync::tests::a_second_worktree_only_sends_what_differs
+        PASS [   2.477s] goway::queue twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   2.575s] 19 tests run: 19 passed, 735 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E '(package(=goway) & (test(=a_full_pool_fails_at_once_with_zero_wait_and_after_the_wait_otherwise) | test(=a_head_that_cannot_fit_is_passed_a_bounded_number_of_times_then_everyone_waits_for_it) | test(=a_host_short_of_memory_for_one_more_job_is_waited_for_not_used) | test(=a_host_without_a_peak_is_judged_by_the_one_another_host_recorded) | test(=a_peak_above_the_hosts_total_memory_fails_at_once_naming_both_sizes) | test(=a_repository_that_does_not_fit_in_free_memory_runs_alone_on_an_idle_host_with_a_warning) | test(=an_idle_host_does_not_stay_blocked_behind_a_head_whose_peak_never_fits) | test(=footprint::tests::a_host_with_levels_of_its_own_is_not_given_other_hosts_levels) | test(=footprint::tests::missing_peaks_are_borrowed_from_other_hosts_and_unmeasured_repositories_wait_when_busy) | test(=pool::tests::asking_for_another_os_or_pinning_a_host_reaches_it) | test(=pool::tests::choose_probes_in_parallel_and_caches_addresses) | test(=pool::tests::needs_pick_only_qualifying_hosts_even_when_busier) | test(=pool::tests::pinned_host_ignores_max_load) | test(=pool::tests::preferences_reorder_but_never_exclude) | test(=pool::tests::the_default_pool_only_holds_hosts_of_the_laptops_os) | test(=repo::tests::ids_are_stable_across_worktrees_and_distinct_per_tree) | test(=sync::tests::a_second_worktree_only_sends_what_differs) | test(=twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound) | test(=with_no_peak_anywhere_one_run_of_the_repository_is_admitted_per_host)))'"
+size = 2434
+status = "measured"
+tests = ["pool::tests::asking_for_another_os_or_pinning_a_host_reaches_it", "footprint::tests::missing_peaks_are_borrowed_from_other_hosts_and_unmeasured_repositories_wait_when_busy", "pool::tests::pinned_host_ignores_max_load", "pool::tests::choose_probes_in_parallel_and_caches_addresses", "pool::tests::the_default_pool_only_holds_hosts_of_the_laptops_os", "footprint::tests::a_host_with_levels_of_its_own_is_not_given_other_hosts_levels", "pool::tests::preferences_reorder_but_never_exclude", "pool::tests::needs_pick_only_qualifying_hosts_even_when_busier", "repo::tests::ids_are_stable_across_worktrees_and_distinct_per_tree", "sync::tests::a_second_worktree_only_sends_what_differs", "a_host_without_a_peak_is_judged_by_the_one_another_host_recorded", "a_peak_above_the_hosts_total_memory_fails_at_once_naming_both_sizes", "a_host_short_of_memory_for_one_more_job_is_waited_for_not_used", "an_idle_host_does_not_stay_blocked_behind_a_head_whose_peak_never_fits", "a_repository_that_does_not_fit_in_free_memory_runs_alone_on_an_idle_host_with_a_warning", "with_no_peak_anywhere_one_run_of_the_repository_is_admitted_per_host", "a_head_that_cannot_fit_is_passed_a_bounded_number_of_times_then_everyone_waits_for_it", "a_full_pool_fails_at_once_with_zero_wait_and_after_the_wait_otherwise", "twenty_runs_spread_over_three_hosts_in_arrival_order_within_the_memory_bound"]
+at = "2026-10-09T15:38:30Z"
+actor = "lognd"
+rev = 1
