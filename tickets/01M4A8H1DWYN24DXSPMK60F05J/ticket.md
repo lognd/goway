@@ -7,7 +7,7 @@ priority = "high"
 points = 5
 reporter = "lognd"
 created = "2026-10-07T04:04:13Z"
-updated = "2026-10-09T05:35:50Z"
+updated = "2026-10-09T05:46:41Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**", "docs/usage.md"]
 
 [[acceptance]]
