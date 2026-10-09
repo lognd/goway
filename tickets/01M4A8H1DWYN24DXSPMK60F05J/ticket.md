@@ -7,7 +7,7 @@ priority = "high"
 points = 5
 reporter = "lognd"
 created = "2026-10-07T04:04:13Z"
-updated = "2026-10-09T05:31:54Z"
+updated = "2026-10-09T05:34:28Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "after an OOM kill on a host, the next identical run is not placed there (test)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "a helper whose total memory is below the repository's recorded peak gets the largest job count whose modelled peak (fixed part plus per-job part, learned from the recorded levels) fits, and is refused only when one job cannot fit (test)"
