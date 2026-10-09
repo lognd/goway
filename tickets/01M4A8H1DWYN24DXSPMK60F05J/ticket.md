@@ -4,9 +4,10 @@ title = "CPU-aware placement sends frob-v2 cargo dev ci to the small helper, whe
 type = "bug"
 category = "todo"
 priority = "high"
+points = 5
 reporter = "lognd"
 created = "2026-10-07T04:04:13Z"
-updated = "2026-10-07T04:04:13Z"
+updated = "2026-10-09T04:47:09Z"
 scope = ["crates/goway/src/**", "crates/goway/tests/**"]
 
 [[acceptance]]
