@@ -176,11 +176,6 @@ fn points_of(probe: &Probe, repo: &str) -> Vec<(u32, u64)> {
     points
 }
 
-/// The model learned for `repo` on `probe`'s host from its records, if any.
-pub fn model(probe: &Probe, repo: &str) -> Option<Model> {
-    learn(&points_of(probe, repo))
-}
-
 /// The estimated peak in bytes of a run of `repo` at `jobs` parallel jobs on `probe`'s host:
 /// a level recorded at exactly `jobs` as it is, else the learned [`Model`] (never below a
 /// record at fewer jobs), or `None` when nothing is recorded.
