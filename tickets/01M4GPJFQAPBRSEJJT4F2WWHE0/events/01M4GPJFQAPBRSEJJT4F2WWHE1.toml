@@ -1,0 +1,11 @@
+kind = "create"
+title = "Every long run ends with 'the lifeline connection to <host> broke while the job ran (ssh exit status: 0)'"
+type = "bug"
+category = "todo"
+priority = "medium"
+points = 2
+acceptance = ["Given the condition in the title, when a fix lands, then a test reproduces it and the condition no longer occurs"]
+body = "Found by ~K60F05J's implementer on 2026-10-09 while proving per-host fitting with frob-v2 runs."
+at = "2026-10-09T16:05:07Z"
+actor = "lognd"
+rev = 1
