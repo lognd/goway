@@ -89,9 +89,7 @@ fn a_run_cut_short_by_its_lost_client_records_no_memory_peak() {
     common::wait_for("the run's work dir to be cleaned", || {
         w.work_dirs().is_empty()
     });
-    let recorded = std::fs::read_dir(w.remote.join("mempeaks"))
-        .map(|d| d.count())
-        .unwrap_or(0);
+    let recorded = std::fs::read_dir(w.remote.join("mempeaks")).map_or(0, Iterator::count);
     assert_eq!(recorded, 0, "a partial peak must not become the record");
 }
 
