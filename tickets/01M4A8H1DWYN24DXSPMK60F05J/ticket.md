@@ -2,7 +2,7 @@
 id = "01M4A8H1DWYN24DXSPMK60F05J"
 title = "CPU-aware placement sends frob-v2 cargo dev ci to the small helper, where rustdoc and the linker are OOM-killed"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 5
 reporter = "lognd"
