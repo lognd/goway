@@ -510,6 +510,7 @@ pub fn classify(ev: &Evidence) -> Verdict {
 }
 
 /// A route as `ip route get` reports it: device, source address and gateway.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn parse_route(text: &str) -> Option<String> {
     let words: Vec<&str> = text.split_whitespace().collect();
     let after = |key: &str| {

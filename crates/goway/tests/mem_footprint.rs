@@ -101,6 +101,7 @@ fn a_job_the_oom_killer_killed_is_explained_in_plain_words() {
 // frob:ticket 01M4A8H1DWYN24DXSPMK60F05J
 // frob:tests crates/goway/src/pool.rs::ranked_for
 #[test]
+#[cfg(target_os = "linux")]
 fn a_killed_rustdoc_or_linker_that_leaves_cargo_exiting_101_still_raises_the_estimate() {
     let w = common::world();
     let vmstat = w.root.join("vmstat");
@@ -311,6 +312,7 @@ fn an_explicit_job_count_is_never_overridden() {
 // frob:ticket 01M47SYH8F5YD6P5G2741CG5RF
 // frob:tests crates/goway/src/fit.rs::assess
 #[test]
+#[cfg(target_os = "linux")]
 fn a_run_is_refused_only_when_even_one_job_cannot_fit() {
     let w = common::world();
     fake_cargo(&w);
