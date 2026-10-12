@@ -2,12 +2,12 @@
 id = "01M4RZS8VMJ8TFSA4VTQY8JF8T"
 title = "Say what most likely happened when a run loses its connection"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 reporter = "lognd"
 created = "2026-10-12T21:20:02Z"
-updated = "2026-10-12T21:20:02Z"
+updated = "2026-10-12T21:20:12Z"
 scope = ["crates/goway/src/lostlink.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs", "crates/goway/src/lib.rs", "crates/goway/src/termfilter.rs", "docs/**", "README.md", "changelog.d/**"]
 
 [[acceptance]]
