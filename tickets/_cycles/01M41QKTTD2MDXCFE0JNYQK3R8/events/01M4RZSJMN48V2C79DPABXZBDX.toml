@@ -1,0 +1,7 @@
+kind = "cycle"
+op = "over-commit"
+ticket = "01M4RZS8VMJ8TFSA4VTQY8JF8T"
+text = "owner request: explain lost connections"
+at = "2026-10-12T21:20:12Z"
+actor = "lognd"
+rev = 1
