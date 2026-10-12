@@ -71,6 +71,11 @@ answer right after. goway reports that with its own exit code 125, so it
 is never mistaken for a failure of your command (a command that itself
 exits 255 on a helper that still answers keeps that code).
 
+goway also prints its best guess at the cause (this machine slept, the
+network changed, the helper is unreachable, the helper stopped the job, an
+ssh reset), how sure it is, and the evidence it used; see "What goway says
+when the connection is lost" in [usage](usage.md).
+
 goway holds a sleep inhibitor on the helper for exactly as long as the
 job runs (`systemd-inhibit` on Linux, `caffeinate` on macOS), but that
 cannot stop a closed lid, an empty battery or Wi-Fi going away. Wake the

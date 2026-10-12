@@ -805,6 +805,33 @@ ssh session goes away, whether from Ctrl-C, a closed laptop lid or Wi-Fi
 loss, the watchdog sends the job's process group TERM, then KILL after 5
 seconds, and the work dir is cleaned up.
 
+### What goway says when the connection is lost
+
+An exit of 255 (ssh's own failure) or 143 (the helper's watchdog, SIGTERM)
+may or may not be the command's. When goway sees one it gathers cheap
+evidence and prints its best guess, a next step, how sure it is, and the
+evidence as a short bullet list. Exit codes do not change: a host that no
+longer answers after a 255 is still goway's own failure (125); otherwise the
+code passes through and the guess goes to stderr as a warning.
+
+| Most likely | Evidence behind it |
+|---|---|
+| this machine slept | wall clock ran ahead of the monotonic clock, or the lifeline heartbeat went quiet for 20s or more |
+| this machine's network changed or was lost | default route or source address (`ip route get`, Linux, also WSL) differs from the start, or is gone |
+| the helper is unreachable | the re-probe timed out, was refused (host up, sshd down) or found no route |
+| the helper stopped the job | exit 143 with the lifeline ssh broken, or the helper's "stopped by the helper" note |
+| ssh transport reset, both ends up | stderr says reset, broken pipe, timed out; the helper answers; this machine is steady |
+| ssh could not log in | permission denied or host key verification failed |
+| the command's own exit | none of the above; confidence is stated as low |
+
+A probe that fails right after this machine slept or changed network is
+weighed down, because it says little about the helper. Under WSL the Windows
+side can sleep or switch networks without WSL noticing, and goway says so.
+ssh's own error text is read only when goway's stderr is a terminal (an inherited stderr stays byte-exact and keeps ssh alive for the helper's cleanup); otherwise the other evidence decides.
+Not measurable on macOS and Windows clients: the local route (the clock and
+heartbeat checks work everywhere). The helper has no verb to ask whether it
+still holds a run by id; the lifeline state stands in for it.
+
 ### A helper stays awake while a job runs
 
 A laptop helper that suspends on idle would drop the job mid-run. So the

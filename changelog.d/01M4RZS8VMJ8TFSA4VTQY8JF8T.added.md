@@ -1,0 +1,1 @@
+When a run loses its connection (ssh exit 255 or the helper's exit 143), goway now prints its best guess at why (this machine slept, the network changed, the helper is unreachable, the helper stopped the job, an ssh reset, or the command's own exit), a next step, its confidence, and the evidence used. Exit codes are unchanged.

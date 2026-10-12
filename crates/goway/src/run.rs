@@ -17,6 +17,7 @@ use crate::cli::RunArgs;
 use crate::config::{Config, HostConfig};
 use crate::error::{Error, Result};
 use crate::local;
+use crate::lostlink;
 use crate::needs::{self, Matched, Selection};
 use crate::paths::Paths;
 use crate::pool;
@@ -1210,6 +1211,8 @@ struct Beat {
     child: std::process::Child,
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     writer: Option<std::thread::JoinHandle<()>>,
+    /// Longest wall-clock gap between two beats, in milliseconds.
+    max_gap_ms: std::sync::Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl Beat {
@@ -1232,9 +1235,18 @@ impl Beat {
         let mut pipe = child.stdin.take()?;
         let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let flag = stop.clone();
+        let max_gap_ms = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let gap = max_gap_ms.clone();
         let writer = std::thread::spawn(move || {
             use std::io::Write as _;
+            let mut last = std::time::SystemTime::now();
             while !flag.load(std::sync::atomic::Ordering::SeqCst) {
+                // A gap far above the beat period means this machine was suspended or starved.
+                if let Ok(d) = last.elapsed() {
+                    let ms = u64::try_from(d.as_millis()).unwrap_or(u64::MAX);
+                    gap.fetch_max(ms, std::sync::atomic::Ordering::SeqCst);
+                }
+                last = std::time::SystemTime::now();
                 if pipe.write_all(b".").and_then(|()| pipe.flush()).is_err() {
                     return;
                 }
@@ -1250,11 +1262,17 @@ impl Beat {
             child,
             stop,
             writer: Some(writer),
+            max_gap_ms,
         })
     }
 }
 
 impl Beat {
+    /// The longest silence between two beats so far (a suspend shows here).
+    fn max_gap(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.max_gap_ms.load(std::sync::atomic::Ordering::SeqCst))
+    }
+
     /// Why the lifeline's ssh already ended, or `None` while it is still up.
     fn broken(&mut self) -> Option<String> {
         self.child
@@ -1281,6 +1299,7 @@ impl Drop for Beat {
 /// code and whether the user interrupted. A stream that is a terminal goes
 /// through the control-sequence filter unless `mode` is raw; any other
 /// stream is inherited and so stays byte-exact.
+#[allow(clippy::too_many_lines)] // one sequence: spawn, relay, wait, explain a lost link
 fn stream(
     renderer: Renderer,
     found: &Found,
@@ -1290,6 +1309,8 @@ fn stream(
     life: &Lifeline<'_>,
 ) -> Result<(u8, bool)> {
     let interrupted = interrupt_flag();
+    let watch = lostlink::Watch::start();
+    let (out_tail, err_tail) = (lostlink::Tail::default(), lostlink::Tail::default());
     // Before the command starts, so a client that dies at once is covered.
     let mut beat = Beat::start(found, settings, life);
     let mut command = SshTransport::of(found, settings).command(cmd)?;
@@ -1318,12 +1339,16 @@ fn stream(
     let mut child = command
         .stdin(Stdio::inherit())
         .stdout(piped(filter_out || framed))
+        // Read only when filtered (a terminal): an inherited stderr keeps ssh alive after a
+        // SIGKILLed client, which the helper-side cleanup relies on, so no stderr tail then.
         .stderr(piped(filter_err))
         .spawn_locked()
         .map_err(ssh_err)?;
     let (out, err) = (child.stdout.take(), child.stderr.take());
+    let (out_tail, err_tail) = (&out_tail, &err_tail);
     let status = std::thread::scope(|s| {
         if let Some(out) = out {
+            let out = lostlink::Tap::new(out, vec![out_tail]);
             s.spawn(move || match (framed, filter_out) {
                 (true, true) => termfilter::relay(crate::remote::Framed::new(out), false),
                 (true, false) => copy_raw(crate::remote::Framed::new(out)),
@@ -1331,49 +1356,82 @@ fn stream(
             });
         }
         if let Some(err) = err {
+            let err = lostlink::Tap::new(err, vec![err_tail, out_tail]);
             s.spawn(move || termfilter::relay(err, true));
         }
         child.wait()
     })
     .map_err(ssh_err)?;
     let interrupted = interrupted.load(std::sync::atomic::Ordering::SeqCst);
-    if let Some(why) = beat.as_mut().and_then(Beat::broken) {
-        // Only the lifeline broke while the job streamed: the helper may have stopped it.
-        renderer.warn(format_args!(
-            "the lifeline connection to {} broke while the job ran ({why}); the helper stops a job whose client it considers gone, which would explain an unexpected exit 143",
-            found.target.name
-        ));
-    }
+    let lifeline_broken = beat.as_mut().and_then(Beat::broken);
     // ssh exits 255 when interrupted; report it like the shell would (128+SIGINT).
     let code = if interrupted && status.code() == Some(255) {
         130
     } else {
         exit_code_of(status)
     };
-    if code == 255 && !interrupted && !host_answers(found, settings) {
-        tracing::warn!(host = %found.target.name, "connection lost while the job ran");
+    if interrupted || !matches!(code, 255 | 143) {
+        if let Some(why) = lifeline_broken {
+            // Only the lifeline broke while the job streamed: the helper may have stopped it.
+            renderer.warn(format_args!(
+                "the lifeline connection to {} broke while the job ran ({why}); the helper stops a job whose client it considers gone",
+                found.target.name
+            ));
+        }
+        return Ok((code, interrupted));
+    }
+    let probe = probe_host(found, settings);
+    let since_output = [out_tail.last(), err_tail.last()]
+        .into_iter()
+        .flatten()
+        .max()
+        .map(|t| t.elapsed());
+    let evidence = lostlink::Evidence {
+        exit: code,
+        suspend_gap: watch.suspend_gap(),
+        beat_gap: beat.as_ref().map(Beat::max_gap),
+        net: watch.net_change(),
+        stderr: lostlink::parse_stderr(&err_tail.text()),
+        probe,
+        lifeline_broken: lifeline_broken.is_some(),
+        elapsed: watch.elapsed(),
+        since_output,
+        wsl: lostlink::under_wsl(),
+    };
+    let verdict = lostlink::classify(&evidence);
+    tracing::warn!(
+        host = %found.target.name, code, cause = ?verdict.cause,
+        confidence = verdict.confidence.word(), "connection lost while the job ran"
+    );
+    if code == 255 && probe.unreachable() {
         return Err(Error::Ssh {
             host: found.target.name.clone(),
-            message: "the connection dropped while the job ran and the host no longer \
-                      answers: it is asleep, off, or off the network (this is not a \
-                      failure of your command). goway keeps a running job's host awake, \
-                      but not through a closed lid or an empty battery. Wake it and run \
-                      again; `goway status` shows when it answers"
-                .to_owned(),
+            message: format!(
+                "the connection dropped while the job ran and the host no longer answers (this is not a failure of your command).\n{}",
+                verdict.text()
+            ),
         });
+    }
+    if code == 255 || verdict.cause != lostlink::Cause::CommandExit {
+        renderer.warn(format_args!(
+            "exit {code} may not be the command's own.\n{}",
+            verdict.text()
+        ));
     }
     Ok((code, interrupted))
 }
 
-/// Whether the host answers a trivial ssh command now (told apart from a
+/// What a trivial ssh command to the host says now (told apart from a
 /// command that itself exited 255 after a dropped connection looks alike).
-fn host_answers(found: &Found, settings: &ssh::Settings) -> bool {
-    ssh::command(&found.target, settings, ssh::KeyPolicy::Strict, "exit 0")
+fn probe_host(found: &Found, settings: &ssh::Settings) -> lostlink::Probe {
+    let probe = ssh::command(&found.target, settings, ssh::KeyPolicy::Strict, "exit 0")
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status_locked()
-        .is_ok_and(|s| s.success())
+        .output_locked()
+        .map_or(lostlink::Probe::Failed, |o| {
+            lostlink::parse_probe(o.status.success(), &String::from_utf8_lossy(&o.stderr))
+        });
+    tracing::debug!(host = %found.target.name, ?probe, "re-probed the host after a lost connection");
+    probe
 }
 
 #[cfg(test)]
