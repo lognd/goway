@@ -1,1 +1,0 @@
-goway doctor --fix now installs the C++ Build Tools (winget, with administrator rights through --rsudo), rustup and cargo-nextest (pinned hashes) on Windows hosts and records each for goway uninstall.

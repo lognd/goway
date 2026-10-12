@@ -1,1 +1,0 @@
-Concurrent cargo runs on one helper now share its cores: each gets an equal share as its job count, exports MOLD_JOBS and GOWAY_LINK_THREADS (unless set), and placement counts a running build as half the host, so an idle helper wins over a saturated one.

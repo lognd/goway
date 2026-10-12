@@ -1,1 +1,0 @@
-A helper smaller than a repository's recorded memory peak now runs a cargo or nextest run at the job count its learned fixed-plus-per-job memory model allows, cramped idle helpers rank last, a child killed by the OOM killer (cargo exit 101) raises the estimate, and a run cut short by a lost client no longer records a partial peak.

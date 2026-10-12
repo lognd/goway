@@ -1,1 +1,0 @@
-goway run without --host probes every configured host in parallel (one ssh call each) and runs on the one with the lowest (load + goway jobs) / cores, skipping unreachable hosts and hosts at max_jobs.

@@ -1,1 +1,0 @@
-Fixed: goway uninstall could report a run in progress right after a run (the post-run cleanup holds locks for moments); purge now waits briefly. The Windows build no longer warns about Unix-only test helpers.

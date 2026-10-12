@@ -1,1 +1,0 @@
-Security: --env values now reach the host over ssh's stdin into an owner-only file deleted at job start, instead of the remote command line (visible to other users on the host), and goway's debug log no longer prints command arguments.

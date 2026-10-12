@@ -1,1 +1,0 @@
---needs accepts shell-safe minimums such as cores:8 and mem:2G, and a bare key explains the unquoted >= redirect pitfall.

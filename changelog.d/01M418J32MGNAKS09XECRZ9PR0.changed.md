@@ -1,1 +1,0 @@
-goway doctor [HOST] checks each host's remote prerequisites, Rust toolchain (cargo, linker, cargo-nextest, sccache), disk and sshd password login plus the local ssh setup, printing the exact fix for each problem; --fix runs the user-level fixes, and fixes that need root are only run with --sudo (over an interactive session) after explaining why.
