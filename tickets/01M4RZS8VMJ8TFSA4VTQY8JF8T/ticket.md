@@ -7,7 +7,7 @@ priority = "medium"
 points = 5
 reporter = "lognd"
 created = "2026-10-12T21:20:02Z"
-updated = "2026-10-12T21:55:52Z"
+updated = "2026-10-12T21:55:53Z"
 scope = ["crates/goway/src/lostlink.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs", "crates/goway/src/lib.rs", "crates/goway/src/termfilter.rs", "docs/**", "README.md", "changelog.d/**"]
 
 [[acceptance]]
