@@ -7,20 +7,20 @@ priority = "medium"
 points = 5
 reporter = "lognd"
 created = "2026-10-12T21:20:02Z"
-updated = "2026-10-12T21:20:12Z"
+updated = "2026-10-12T21:55:51Z"
 scope = ["crates/goway/src/lostlink.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs", "crates/goway/src/lib.rs", "crates/goway/src/termfilter.rs", "docs/**", "README.md", "changelog.d/**"]
 
 [[acceptance]]
 text = "Given evidence of a wall-clock gap far above the monotonic gap, when a dropped connection is classified, then the verdict is local machine slept and lists the gap"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given the local default route or source address changed or vanished since the run started, when classified, then the verdict is local network changed or lost"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given the re-probe failed, when classified, then the verdict is helper unreachable and names the reason (timeout, refused, no route)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given exit 143 or a broken lifeline with an answering host, when classified, then the verdict is the helper stopped the job because the client looked gone"
