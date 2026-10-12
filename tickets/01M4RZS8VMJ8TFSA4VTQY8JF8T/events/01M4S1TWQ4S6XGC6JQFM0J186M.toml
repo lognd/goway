@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [4, 5, 6]
+captured_at = "2026-10-12T21:55:52Z"
+digest = "472a09c9048da007b550367ee132142272b20c86206ccc809a7db33c728503d9"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 79454c06-83e7-4461-9a00-ac70f7f59ed8 with nextest profile: default
+    Starting 1 test across 63 binaries (760 tests skipped)
+        PASS [   0.009s] goway lostlink::tests::table_of_watchdog_and_link_evidence
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.014s] 1 test run: 1 passed, 760 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(table_of_watchdog_and_link_evidence)'"
+size = 552
+status = "measured"
+tests = ["lostlink::tests::table_of_watchdog_and_link_evidence"]
+at = "2026-10-12T21:55:52Z"
+actor = "lognd"
+rev = 1

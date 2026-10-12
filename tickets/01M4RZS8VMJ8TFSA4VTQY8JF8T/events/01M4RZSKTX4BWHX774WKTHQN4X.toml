@@ -1,0 +1,7 @@
+kind = "transition"
+from = "todo"
+to = "in-progress"
+reason = "lease: lognd in goway-wt/QY8JF8T; scope: crates/goway/src/lostlink.rs, crates/goway/src/run.rs, crates/goway/src/shard.rs, crates/goway/src/lib.rs, crates/goway/src/termfilter.rs, docs/**, README.md, changelog.d/**; ttl 7200s"
+at = "2026-10-12T21:20:12Z"
+actor = "lognd"
+rev = 1

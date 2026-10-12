@@ -1,0 +1,23 @@
+kind = "evidence"
+accepts = [1, 2, 3]
+captured_at = "2026-10-12T21:55:51Z"
+digest = "19c4ce27c360fe20e8d010d145d8802b23338b70afb7c4308c145e3b061d6998"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c7fb0937-a628-4353-97d1-9770dffba6b9 with nextest profile: default
+    Starting 1 test across 63 binaries (760 tests skipped)
+        PASS [   0.008s] goway lostlink::tests::table_of_evidence_picks_the_cause
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.011s] 1 test run: 1 passed, 760 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(table_of_evidence_picks_the_cause)'"
+size = 550
+status = "measured"
+tests = ["lostlink::tests::table_of_evidence_picks_the_cause"]
+at = "2026-10-12T21:55:51Z"
+actor = "lognd"
+rev = 1
