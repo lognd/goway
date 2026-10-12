@@ -2,7 +2,8 @@
 id = "01M4RZS8VMJ8TFSA4VTQY8JF8T"
 title = "Say what most likely happened when a run loses its connection"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 reporter = "lognd"
