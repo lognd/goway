@@ -7,7 +7,7 @@ priority = "medium"
 points = 5
 reporter = "lognd"
 created = "2026-10-12T21:20:02Z"
-updated = "2026-10-12T21:55:51Z"
+updated = "2026-10-12T21:55:52Z"
 scope = ["crates/goway/src/lostlink.rs", "crates/goway/src/run.rs", "crates/goway/src/shard.rs", "crates/goway/src/lib.rs", "crates/goway/src/termfilter.rs", "docs/**", "README.md", "changelog.d/**"]
 
 [[acceptance]]
@@ -24,15 +24,15 @@ bound = true
 
 [[acceptance]]
 text = "Given exit 143 or a broken lifeline with an answering host, when classified, then the verdict is the helper stopped the job because the client looked gone"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given ssh stderr showing a reset or broken pipe while the host answers, when classified, then the verdict is ssh transport reset with both ends up"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given exit 255 or 143 with no supporting evidence, when classified, then the verdict is the command's own exit, with low confidence stated, and every verdict prints its evidence bullets"
-bound = false
+bound = true
 +++
 
 Pure classifier in crates/goway/src/lostlink.rs, wired into run.rs stream. Exit codes unchanged (125 for host-gone). No remote verb queries a run by id, so the lifeline state stands in.
