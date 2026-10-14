@@ -7,7 +7,7 @@ priority = "critical"
 class = "expedite"
 reporter = "lognd"
 created = "2026-10-14T04:38:37Z"
-updated = "2026-10-14T04:59:25Z"
+updated = "2026-10-14T04:59:40Z"
 scope = ["crates/goway-setup/src/hostsys.rs", "docs/install-windows.md", "docs/usage.md", "crates/goway-setup/tests/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/tests/host_plan.rs"]
 
 [[acceptance]]
