@@ -1430,9 +1430,13 @@ impl<R: Runner> System for HostSystem<R> {
 
 impl<R: Runner> HostSystem<R> {
     /// Classify a package by `dpkg-query` status. Only "absent" and "cleanly installed" are
-    /// acted on; any other state (half-configured, removed with configuration left, unpacked,
-    /// ...) is refused, so goway never installs over, or later removes, something it does not
-    /// fully understand.
+    /// acted on; any other state (half-configured, unpacked, ...) is refused, so goway never
+    /// installs over, or later removes, something it does not fully understand.
+    ///
+    /// "Removed, configuration kept" (`rc`) counts as absent: goway's own rollback and uninstall
+    /// use `apt-get remove` (never purge) so `sshd_config` and the host keys survive, which
+    /// leaves exactly this state; installing again reuses that configuration and the same host
+    /// keys.
     fn dpkg_state(&self, name: &str) -> SysResult<DpkgState> {
         let out = self.wsl_raw(&["dpkg-query", "-W", "-f=${Status}", name], None)?;
         if !out.success() {
@@ -1442,6 +1446,13 @@ impl<R: Runner> HostSystem<R> {
         match status.as_str() {
             "install ok installed" => Ok(DpkgState::Installed),
             s if s.ends_with(" not-installed") => Ok(DpkgState::Absent),
+            "deinstall ok config-files" => {
+                tracing::info!(
+                    package = name,
+                    "package was removed with its configuration kept; treating it as absent so a reinstall reuses it"
+                );
+                Ok(DpkgState::Absent)
+            }
             other => Err(SystemError::InvalidState(format!(
                 "package {name} is in dpkg state {other:?}, not cleanly installed or absent; goway will not touch it. Fix it yourself first (for example `apt-get install -f`)"
             ))),

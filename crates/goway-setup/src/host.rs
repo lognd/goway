@@ -18,8 +18,49 @@ use crate::relay::{
 
 /// Default TCP port of the WSL sshd.
 pub const DEFAULT_PORT: u16 = 2222;
-/// Default WSL distro.
+/// Fallback WSL distro name when `--distro` is not given and WSL lists no usable distro.
 pub const DEFAULT_DISTRO: &str = "Ubuntu";
+
+/// Why [`pick_distro`] could not choose a distro on its own.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DistroPick {
+    /// Several Ubuntu/Debian distros are installed and none is WSL's default.
+    Ambiguous(Vec<String>),
+}
+
+/// Whether `name` is an Ubuntu or Debian distro (the families goway knows how to set up).
+fn is_supported_distro(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.starts_with("ubuntu") || lower.starts_with("debian")
+}
+
+/// Choose the distro to set up when `--distro` is absent, from `wsl -l -q` output order (WSL
+/// lists its default distro first).
+///
+/// Returns WSL's default when it is Ubuntu/Debian, else the only Ubuntu/Debian distro installed.
+/// `Ok(None)` means no candidate exists (the caller falls back to [`DEFAULT_DISTRO`] and the WSL
+/// precheck explains what to install); several candidates with no default is an error.
+pub fn pick_distro(installed: &[String]) -> Result<Option<String>, DistroPick> {
+    let candidates: Vec<&String> = installed
+        .iter()
+        .filter(|d| is_supported_distro(d))
+        .collect();
+    let choice = match candidates.as_slice() {
+        [] => Ok(None),
+        [only] => Ok(Some((*only).clone())),
+        many => {
+            if installed.first().is_some_and(|d| is_supported_distro(d)) {
+                Ok(installed.first().cloned())
+            } else {
+                Err(DistroPick::Ambiguous(
+                    many.iter().map(|d| (*d).clone()).collect(),
+                ))
+            }
+        }
+    };
+    tracing::info!(?installed, ?choice, "picked the WSL distro");
+    choice
+}
 /// The WSL VM's Hyper-V firewall creator id (the same on every machine).
 pub const WSL_VM_CREATOR_ID: &str = "{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}";
 /// The sshd package goway installs when absent.

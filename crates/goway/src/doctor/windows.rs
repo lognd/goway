@@ -35,18 +35,46 @@ if (-not (Test-Path -LiteralPath $rustup)) {
   $c = Get-Command rustup.exe -CommandType Application | Select-Object -First 1
   $rustup = if ($c) { $c.Source } else { '' }
 }
+function Invoke-Bounded($name, $exe, $argList, $ms) {
+  $out = [IO.Path]::GetTempFileName()
+  $err = [IO.Path]::GetTempFileName()
+  try {
+    $p = Start-Process -FilePath $exe -ArgumentList $argList -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+    if ($p -and $p.WaitForExit($ms)) { return [IO.File]::ReadAllText($out) }
+    if ($p) {
+      & (Join-Path $env:SystemRoot 'System32\taskkill.exe') /T /F /PID $p.Id | Out-Null
+      try { $p.Kill() } catch {}
+    }
+    [void]$o.Append("probe_timeout.$name=1`n")
+    return $null
+  } finally {
+    Remove-Item -LiteralPath $out, $err -Force
+  }
+}
 $msvc = 'no'
 if ($rustup) {
-  $inst = (& $rustup target list --installed 2>$null) -join ' '
+  $inst = (Invoke-Bounded 'rustup' $rustup @('target', 'list', '--installed') 10000) -replace '\s+', ' '
   if ($inst -match 'windows-msvc') { $msvc = 'yes' }
 }
 [void]$o.Append("rust_msvc=$msvc`n")
 $vw = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 $bt = ''
 if (Test-Path -LiteralPath $vw) {
-  $bt = (& $vw -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1)
+  $found = Invoke-Bounded 'vswhere' $vw @('-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath') 10000
+  if ($found) { $bt = ($found -split "`r?`n" | Where-Object { $_ } | Select-Object -First 1) }
 }
 [void]$o.Append("build_tools=$bt`n")
+$ram = (Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
+if ($ram) { [void]$o.Append("mem_total_mb=$([math]::Floor($ram / 1MB))`n") }
+$wc = Join-Path $env:USERPROFILE '.wslconfig'
+if (Test-Path -LiteralPath $wc) {
+  $sec = ''
+  foreach ($l in Get-Content -LiteralPath $wc) {
+    $t = $l.Trim()
+    if ($t -match '^\[(.+)\]$') { $sec = $Matches[1].ToLower() }
+    elseif ($sec -eq 'wsl2' -and $t -match '^memory\s*=\s*(\S+)') { [void]$o.Append("wslconfig_memory=$($Matches[1])`n") }
+  }
+}
 $sd = $env:SystemDrive
 if ($sd) {
   $d = Get-PSDrive -Name $sd.TrimEnd(':') -PSProvider FileSystem
@@ -271,7 +299,9 @@ pub fn assess(kind: Kind, facts: &BTreeMap<String, String>, wants_rust: bool) ->
     )];
     if wants_rust {
         out.extend(rust_checks(facts, arch));
+        out.extend(timeout_checks(facts));
     }
+    out.extend(memory_check(facts));
     if let Some(free) = facts.get("system_free").and_then(|v| v.parse::<u64>().ok()) {
         let drive = facts.get("system_drive").map_or("the system drive", |d| d);
         let level = if free < MIN_FREE {
@@ -290,6 +320,80 @@ pub fn assess(kind: Kind, facts: &BTreeMap<String, String>, wants_rust: bool) ->
         tracing::debug!("no system drive facts from the Windows host");
     }
     out
+}
+
+/// The least memory, in MB, Windows keeps for itself when WSL is given the rest.
+/// Mirrors `MIN_HEADROOM_MB` in `crates/goway-setup/src/tune.rs` (the crates do not depend on
+/// each other, so the rule is repeated; change both together).
+const MIN_HEADROOM_MB: u64 = 3 * 1024;
+
+/// What Windows must keep on a machine with `total_mb` of RAM: 3 GB, or a quarter on large
+/// machines. Mirrors `headroom_mb` in `crates/goway-setup/src/tune.rs`.
+fn headroom_mb(total_mb: u64) -> u64 {
+    MIN_HEADROOM_MB.max(total_mb / 4)
+}
+
+/// Megabytes in a `.wslconfig` size such as `8GB` or `5632MB`; `None` for anything else.
+fn size_mb(size: &str) -> Option<u64> {
+    let t = size.trim();
+    let end = t.find(|c: char| !c.is_ascii_digit()).unwrap_or(t.len());
+    let n: u64 = t[..end].parse().ok()?;
+    match t[end..].trim().to_ascii_uppercase().as_str() {
+        "MB" | "M" => Some(n),
+        "GB" | "G" => n.checked_mul(1024),
+        _ => None,
+    }
+}
+
+/// Warn when the helper's `.wslconfig` memory leaves Windows under its headroom, naming the
+/// safe size and the journaled `goway-setup tune` command that sets it.
+fn memory_check(facts: &BTreeMap<String, String>) -> Option<Check> {
+    let total = facts.get("mem_total_mb")?.parse::<u64>().ok()?;
+    let configured = facts.get("wslconfig_memory")?;
+    let want = size_mb(configured)?;
+    let headroom = headroom_mb(total);
+    let left = total.saturating_sub(want);
+    if left >= headroom {
+        return Some(check(
+            "wsl memory",
+            Level::Ok,
+            format!("{configured} of {total} MB leaves Windows {left} MB"),
+            None,
+        ));
+    }
+    let safe_gb = total.saturating_sub(headroom) / 1024;
+    tracing::warn!(total, want, headroom, "wslconfig memory starves Windows");
+    let detail = format!(
+        "{configured} for WSL leaves Windows only {left} MB of {total} MB (it needs at least {headroom} MB); {}",
+        if safe_gb == 0 {
+            "this machine is too small to give WSL memory safely".to_owned()
+        } else {
+            format!("the largest safe size is {safe_gb}GB")
+        }
+    );
+    let fix = (safe_gb > 0).then(|| {
+        fix(
+            format!("goway-setup.exe tune --memory {safe_gb}GB"),
+            "on the helper's Windows side (journaled; `goway-setup uninstall --host` restores it); WSL restarts to apply it",
+        )
+    });
+    Some(check("wsl memory", Level::Warn, detail, fix))
+}
+
+/// A warning for each external probe the facts script had to kill after its time limit.
+fn timeout_checks(facts: &BTreeMap<String, String>) -> Vec<Check> {
+    ["rustup", "vswhere"]
+        .into_iter()
+        .filter(|n| facts.get(&format!("probe_timeout.{n}")).is_some_and(|v| v == "1"))
+        .map(|n| {
+            check(
+                "probe",
+                Level::Warn,
+                format!("{n} did not answer within 10 s on the host and was killed; its result is unknown"),
+                None,
+            )
+        })
+        .collect()
 }
 
 /// Build Tools, rustup, its msvc target and nextest.
@@ -640,6 +744,63 @@ mod tests {
 
     fn named<'a>(checks: &'a [Check], name: &str) -> &'a Check {
         checks.iter().find(|c| c.name == name).unwrap()
+    }
+
+    // frob:tests crates/goway/src/doctor/windows.rs::assess
+    #[test]
+    fn a_wslconfig_memory_that_starves_windows_warns_with_the_safe_size_and_tune_command() {
+        // The observed case: a 7.4 GB machine tuned to 5632MB.
+        let f = facts(&[("mem_total_mb", "7577"), ("wslconfig_memory", "5632MB")]);
+        let checks = assess(Kind::WindowsSsh, &f, false);
+        let c = named(&checks, "wsl memory");
+        assert_eq!(c.level, Level::Warn);
+        assert!(c.detail.contains("4GB"), "{}", c.detail);
+        assert_eq!(
+            c.fix.as_ref().unwrap().command,
+            "goway-setup.exe tune --memory 4GB"
+        );
+        let ok = facts(&[("mem_total_mb", "7577"), ("wslconfig_memory", "4GB")]);
+        assert_eq!(
+            named(&assess(Kind::WindowsSsh, &ok, false), "wsl memory").level,
+            Level::Ok
+        );
+        let none = facts(&[("mem_total_mb", "7577")]);
+        assert!(
+            assess(Kind::WindowsSsh, &none, false)
+                .iter()
+                .all(|c| c.name != "wsl memory")
+        );
+    }
+
+    // frob:tests crates/goway/src/doctor/windows.rs::assess
+    #[test]
+    fn large_machines_keep_a_quarter_of_their_ram_for_windows() {
+        let f = facts(&[("mem_total_mb", "65536"), ("wslconfig_memory", "56GB")]);
+        let checks = assess(Kind::WindowsSsh, &f, false);
+        let c = named(&checks, "wsl memory");
+        assert_eq!(c.level, Level::Warn);
+        assert!(c.detail.contains("48GB"), "{}", c.detail);
+    }
+
+    // frob:tests crates/goway/src/doctor/windows.rs::assess
+    #[test]
+    fn a_killed_external_probe_is_reported() {
+        let f = facts(&[("probe_timeout.vswhere", "1")]);
+        let checks = assess(Kind::WindowsSsh, &f, true);
+        assert!(
+            checks.iter().any(|c| c.name == "probe"
+                && c.level == Level::Warn
+                && c.detail.contains("vswhere"))
+        );
+    }
+
+    #[test]
+    fn the_facts_script_never_runs_rustup_or_vswhere_unbounded() {
+        assert!(FACTS_PS.contains("WaitForExit($ms)"));
+        assert!(!FACTS_PS.contains("& $rustup"));
+        assert!(!FACTS_PS.contains("& $vw"));
+        assert!(FACTS_PS.contains("Invoke-Bounded 'rustup'"));
+        assert!(FACTS_PS.contains("Invoke-Bounded 'vswhere'"));
     }
 
     // frob:tests crates/goway/src/doctor/windows.rs::assess

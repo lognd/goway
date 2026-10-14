@@ -85,6 +85,14 @@ reachable:
 - mirrored networking, or on Windows 10 and WSL in NAT mode a port relay
   with a task that keeps it pointed at WSL
 
+The install makes sure `openssh-server` is installed in the distro. goway removes it with
+`apt-get remove`, never `purge`, so `sshd_config` and the host keys survive an uninstall or a
+rolled-back install. dpkg then lists the package as `rc` (removed, configuration kept); the next
+install treats that as "not installed", reinstalls the package with plain `apt-get install`, which
+reuses the kept configuration, so the helper presents the same host key and your pinned
+fingerprint stays valid. No manual `apt` is needed. See "Installation problems" in
+docs/troubleshooting.md for the rare other dpkg states.
+
 `goway doctor HOST` warns while sshd still accepts passwords. Its fix
 (with `--sudo`) adds a drop-in that turns password login off. Do this
 only after `ssh setup` has made key login work.

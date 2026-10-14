@@ -376,8 +376,8 @@ fn wsl_resources_exist_by_package_state_and_unit_enablement() {
             .unwrap()
     );
     assert!(
-        s.resource_exists(ResourceKind::WslPackage, "gone").is_err(),
-        "rc state is refused"
+        !s.resource_exists(ResourceKind::WslPackage, "gone").unwrap(),
+        "rc state (removed, configuration kept) counts as absent"
     );
     assert!(
         s.resource_exists(ResourceKind::WslPackage, "half").is_err(),
@@ -464,13 +464,9 @@ fn windows_resources_run_the_matching_powershell_and_report_failures() {
 // frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.resource_exists
 #[test]
 fn packages_in_odd_dpkg_states_are_refused_and_no_apt_command_runs() {
-    // iF (half-configured) and rc (removed, configuration left) are the states that went wrong
-    // on a live machine once: both are refused outright.
-    for status in [
-        "install ok half-configured",
-        "deinstall ok config-files",
-        "install ok unpacked",
-    ] {
+    // iF (half-configured) and unpacked are refused outright. rc (removed, configuration kept) is
+    // what goway's own rollback leaves, so it is treated as absent (see the next test).
+    for status in ["install ok half-configured", "install ok unpacked"] {
         let fake = Fake::new(vec![("dpkg-query", 0, status), ("wsl.exe", 0, "")]);
         let mut s = sys(&fake);
         assert!(
@@ -502,6 +498,37 @@ fn packages_in_odd_dpkg_states_are_refused_and_no_apt_command_runs() {
         s.resource_create(ResourceKind::WslPackage, "openssh-server", "")
             .is_err()
     );
+}
+
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.resource_create
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.resource_exists
+#[test]
+fn a_package_left_removed_with_its_configuration_is_installed_again_without_purging() {
+    // `apt-get remove` (what rollback and uninstall run) leaves dpkg state rc; the next install
+    // must go ahead with a plain install so the kept sshd_config and host keys are reused.
+    let fake = Fake::new(vec![
+        ("dpkg-query", 0, "deinstall ok config-files"),
+        ("wsl.exe", 0, ""),
+    ]);
+    let mut s = sys(&fake);
+    assert!(
+        !s.resource_exists(ResourceKind::WslPackage, "openssh-server")
+            .unwrap()
+    );
+    s.resource_create(ResourceKind::WslPackage, "openssh-server", "")
+        .unwrap();
+    let cmds: Vec<String> = fake
+        .log
+        .borrow()
+        .iter()
+        .map(|i| i.args[5..].join(" "))
+        .collect();
+    assert!(
+        cmds.iter()
+            .any(|c| c.ends_with("apt-get install -y openssh-server")),
+        "{cmds:?}"
+    );
+    assert!(cmds.iter().all(|c| !c.contains("purge")), "{cmds:?}");
 }
 
 // frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.resource_create
