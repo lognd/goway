@@ -492,3 +492,35 @@ address; use your own):
 
 If Windows asks for a password or an unknown host key at step 3, fix
 that once by hand with ssh before relying on `goway doctor`.
+
+## Uninstalling, identity keys and lifeline messages
+
+### Uninstalling with helper changes
+
+Undo a helper's changes before you remove the helper from the config. `goway
+uninstall` can only undo what it can reach, and it needs the helper in the
+config to do it. If records of changes (`installed-HOST.json`,
+`fixes-HOST.json`, `ssh-setup-HOST.json`) exist for a helper that is not in
+the config, `goway uninstall` keeps those records, removes nothing, names each
+such helper, and prints the command that undoes its changes: `goway add HOST
+...` to put it back, then `goway uninstall` (or delete the files yourself if
+the machine is gone). With `--everywhere`, each helper's changes are undone
+first and its record is deleted only after the undo succeeded; when an undo
+fails, the record stays and uninstall reports the error, so you can run it
+again.
+
+### "no ssh key found" although goway made a key
+
+`goway doctor` looks for a key in the ssh agent, in the ssh defaults (from
+`ssh -G`) and in the `identity` that goway's config names for the host, which
+counts when its `.pub` file exists next to it. If you still see the warning,
+check that `identity` in `config.toml` points to the right file and that the
+`.pub` exists.
+
+### "the lifeline connection to HOST broke while the job ran"
+
+The lifeline is a second ssh connection that tells the helper the laptop is
+still there. It ends together with a finished job; that is normal and no longer
+reported. The warning appears only when the lifeline ended more than two
+seconds before the job did, which means the connection dropped (the status in
+brackets is ssh's). The job itself is not stopped by the warning.

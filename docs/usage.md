@@ -1035,6 +1035,13 @@ On every helper this removes:
 - goway's key line in `~/.ssh/authorized_keys`, with the previous modes
   restored
 
+A helper that has records of changes but is no longer in the config
+cannot be reached, so its changes cannot be undone: uninstall (with or without
+`--everywhere`, and with `--dry-run`) keeps those records, names each such helper
+and prints the command that undoes them (`goway add HOST ...`, then
+`goway uninstall`), and removes nothing. For helpers that are in the config, `--everywhere` undoes each one's
+changes first and deletes its record only after that undo succeeded.
+
 Administrator-level changes (the "no password login" setting) are
 undone with `--rsudo`, after one question. System packages goway
 installed, such as the C compiler, stay, because other software may
