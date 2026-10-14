@@ -94,6 +94,45 @@ pub fn parse_mem_levels(kv: &BTreeMap<&str, &str>) -> BTreeMap<String, BTreeMap<
     out
 }
 
+/// The prefix of a per-repository running-jobs line (`jobs.<repo id>=N`).
+pub const JOBS_KEY_PREFIX: &str = "jobs.";
+
+/// The pseudo repository id for running jobs whose repository is not known (an older helper,
+/// a Windows one, or a claim that named none): every repository is held behind them.
+pub const UNATTRIBUTED: &str = "-";
+
+/// The running jobs per repository id in a probe's `key=value` lines. `total` is the probe's
+/// overall count: when it is above zero and no line attributes it, the jobs are unattributed.
+pub fn parse_repo_jobs(kv: &BTreeMap<&str, &str>, total: u32) -> BTreeMap<String, u32> {
+    let mut out: BTreeMap<String, u32> = parse_prefixed(kv, JOBS_KEY_PREFIX)
+        .into_iter()
+        .filter_map(|(id, n)| Some((id, u32::try_from(n).ok()?)))
+        .filter(|(_, n)| *n > 0)
+        .collect();
+    if total > 0 && out.is_empty() {
+        out.insert(UNATTRIBUTED.to_owned(), total);
+    }
+    out
+}
+
+/// The goway jobs on `probe`'s host that a run keyed `key` (a repository id, or
+/// `<repo id>_<command>`) must wait behind when it has no memory record: those of its own
+/// repository, plus every job whose repository is not known.
+pub fn jobs_ahead(probe: &Probe, key: &str) -> u32 {
+    let attributed: u32 = probe.repo_jobs.values().sum();
+    let mut ahead = probe.jobs.saturating_sub(attributed);
+    for (id, &n) in &probe.repo_jobs {
+        let own = key == id
+            || key
+                .strip_prefix(id.as_str())
+                .is_some_and(|r| r.starts_with('_'));
+        if own || id == UNATTRIBUTED {
+            ahead += n;
+        }
+    }
+    ahead
+}
+
 /// How a helper's memory stands against one repository's peak.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemRoom {
@@ -110,8 +149,9 @@ pub enum MemRoom {
         /// Peak plus margin.
         need: u64,
     },
-    /// No peak is on record on any host and other goway jobs already run here: the repository
-    /// waits to be measured alone, so a host with no records is not flooded.
+    /// No peak is on record on any host and goway jobs of the same repository (or of unknown
+    /// repository) already run here: the run waits to be measured alone, so a host with no
+    /// records is not flooded. Other repositories' runs do not hold it back.
     Unmeasured {
         /// Goway jobs running (or claimed) on the helper.
         jobs: u32,
@@ -184,8 +224,16 @@ pub fn share_mem_peaks<'a>(probes: impl IntoIterator<Item = &'a mut Probe>) {
 /// recorded and when the helper is idle).
 pub fn assess_mem(probe: &Probe, repo_id: &str) -> MemRoom {
     let Some(&peak) = probe.mem_peaks.get(repo_id) else {
-        return if probe.jobs > 0 {
-            MemRoom::Unmeasured { jobs: probe.jobs }
+        // Only this repository's own runs (and jobs of unknown repository) hold it back.
+        let ahead = jobs_ahead(probe, repo_id);
+        tracing::debug!(
+            repo = repo_id,
+            ahead,
+            running = probe.jobs,
+            "no memory peak on record"
+        );
+        return if ahead > 0 {
+            MemRoom::Unmeasured { jobs: ahead }
         } else {
             MemRoom::Unknown
         };
@@ -238,7 +286,7 @@ pub fn mem_short_text(room: MemRoom) -> Option<String> {
             human_bytes(need)
         )),
         MemRoom::Unmeasured { jobs } => Some(format!(
-            "{jobs} goway jobs already run here and no host has a memory peak on record for this repository, so it waits to be measured alone"
+            "{jobs} goway jobs of this repository already run here and no host has a memory peak on record for it, so it waits to be measured alone"
         )),
         MemRoom::Unknown | MemRoom::Fits | MemRoom::Alone { .. } => None,
     }
@@ -489,6 +537,43 @@ mod tests {
         assert!(matches!(assess_mem(&tight, "r"), MemRoom::Alone { .. }));
         tight.jobs = 1;
         assert!(matches!(assess_mem(&tight, "r"), MemRoom::Short { .. }));
+    }
+
+    // frob:ticket 01M44TCANTN1ZSR2RGN8RVD8CV
+    // frob:tests crates/goway/src/footprint.rs::jobs_ahead
+    // frob:tests crates/goway/src/footprint.rs::assess_mem
+    // frob:tests crates/goway/src/footprint.rs::parse_repo_jobs
+    #[test]
+    fn a_repository_with_no_peak_is_held_only_behind_its_own_runs() {
+        let head = "arch=x86_64\nhostname=h\ncores=4\nload1=0\nload5=0\nload15=0\n";
+        let other = crate::pool::parse_probe(&format!("{head}jobs=2\njobs.big=2\n")).unwrap();
+        assert_eq!(other.repo_jobs["big"], 2);
+        assert_eq!(
+            assess_mem(&other, "small_cargo-test"),
+            MemRoom::Unknown,
+            "another repository's runs hold nobody"
+        );
+        assert_eq!(
+            assess_mem(&other, "big_cargo-build"),
+            MemRoom::Unmeasured { jobs: 2 },
+            "its own runs do, whatever the command"
+        );
+        let mixed =
+            crate::pool::parse_probe(&format!("{head}jobs=3\njobs.big=1\njobs.small=1\n")).unwrap();
+        assert_eq!(
+            jobs_ahead(&mixed, "small"),
+            2,
+            "a job of unknown repository holds everyone"
+        );
+        let old = crate::pool::parse_probe(&format!("{head}jobs=2\n")).unwrap();
+        assert_eq!(
+            jobs_ahead(&old, "small"),
+            2,
+            "no attribution holds everyone"
+        );
+        let idle = crate::pool::parse_probe(&format!("{head}jobs=0\n")).unwrap();
+        assert!(idle.repo_jobs.is_empty());
+        assert_eq!(jobs_ahead(&idle, "small"), 0);
     }
 
     // frob:ticket 01M4GMWH31KWNZ5VHK9D4HTVG7

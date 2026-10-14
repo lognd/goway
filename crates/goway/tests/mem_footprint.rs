@@ -349,3 +349,42 @@ fn the_probe_reports_what_running_jobs_have_reserved_and_not_yet_used() {
     holder.wait().unwrap();
     common::wait_for("the lock to go", || probe(&w).contains("mem_reserved=0"));
 }
+
+// frob:ticket 01M44TCANTN1ZSR2RGN8RVD8CV
+// frob:tests crates/goway/src/footprint.rs::parse_repo_jobs
+#[test]
+fn the_probe_reports_running_jobs_per_repository() {
+    let w = common::world();
+    let mut holders = Vec::new();
+    for (run, repo) in [
+        ("a1", Some("alpha")),
+        ("a2", Some("alpha")),
+        ("b1", Some("beta")),
+        ("u1", None),
+    ] {
+        let dir = w.remote.join("work").join(run);
+        std::fs::create_dir_all(&dir).unwrap();
+        if let Some(repo) = repo {
+            std::fs::write(dir.join("repo"), repo).unwrap();
+        }
+        holders.push(
+            std::process::Command::new("flock")
+                .args(["-x"])
+                .arg(dir.join("lock"))
+                .args(["sleep", "30"])
+                .spawn()
+                .unwrap(),
+        );
+    }
+    common::wait_for("the per-repository counts", || {
+        let p = probe(&w);
+        p.contains("jobs=4\n")
+            && p.contains("jobs.alpha=2\n")
+            && p.contains("jobs.beta=1\n")
+            && p.contains("jobs.-=1\n")
+    });
+    for mut h in holders {
+        h.kill().unwrap();
+        h.wait().unwrap();
+    }
+}

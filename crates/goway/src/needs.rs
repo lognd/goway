@@ -678,6 +678,7 @@ mod tests {
             mem_peaks: std::collections::BTreeMap::new(),
             mem_levels: std::collections::BTreeMap::new(),
             mem_reserved: 0,
+            repo_jobs: std::collections::BTreeMap::new(),
             facts: Facts {
                 mem_total: Some(32 * gib),
                 mem_avail: Some(30 * gib),

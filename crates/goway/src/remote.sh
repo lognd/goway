@@ -1602,6 +1602,8 @@ run() {
   # The lock protects the dir from here on; the starting-run markers are done.
   rm -f "$work/born" "$work/creator"
   printf '%s\n' "$$" >"$work/runner"
+  # Which repository this run is for: the probe reports running jobs per repository.
+  printf '%s' "$repo_id" >"$work/repo" 2>/dev/null || true
   # The memory this run has set aside: the probe subtracts what it has not used yet from the
   # host's available memory, so a run still ramping up is not mistaken for free memory.
   if [ "$mem_reserve" -gt 0 ]; then printf '%s' "$mem_reserve" >"$work/memres" 2>/dev/null || true; fi
@@ -2023,7 +2025,7 @@ idle_secs() {
 # RAM is always reported; "static" adds the rarely changing hardware facts;
 # "owner" adds power= and idle_secs= when they can be read (absent: unknown).
 probe() {
-  local root jobs=0 l a want_disk=0 want_static=0 want_owner=0 budget="" tools="" room=1073741824:10
+  local root jobs=0 repo_jobs="" l d rid a want_disk=0 want_static=0 want_owner=0 budget="" tools="" room=1073741824:10
   root=$(root_dir "$1")
   shift
   wsl_drive_init "$root"
@@ -2050,11 +2052,20 @@ probe() {
   if [ -d "$root/work" ]; then
     for l in "$root"/work/*/lock; do
       [ -e "$l" ] || continue
-      flock -n "$l" true || jobs=$((jobs + 1))
+      flock -n "$l" true && continue
+      jobs=$((jobs + 1))
+      # Running jobs per repository (jobs.ID=N), so a repository with no memory peak is held
+      # only behind its own runs. A job that names no repository counts under "-".
+      d=${l%/lock}
+      rid=$(cat "$d/repo" 2>/dev/null || true)
+      case "$rid" in "" | *[!A-Za-z0-9._-]*) rid=- ;; esac
+      repo_jobs="$repo_jobs $rid"
     done
     printf 'mem_reserved=%s\n' "$(mem_reserved "$root")"
   fi
   printf 'jobs=%s\ntask_cap=%s\n' "$jobs" "$(auto_task_cap)"
+  # shellcheck disable=SC2086 # the ids are plain words
+  [ -z "$repo_jobs" ] || printf '%s\n' $repo_jobs | sort | uniq -c | while read -r n rid; do printf 'jobs.%s=%s\n' "$rid" "$n"; done
   if [ "$want_owner" = 1 ]; then power_state; idle_secs; fi
   probe_footprints "$root" "$room" "$want_disk"
   probe_mempeaks "$root"
