@@ -7,7 +7,7 @@ priority = "critical"
 class = "expedite"
 reporter = "lognd"
 created = "2026-10-14T04:38:37Z"
-updated = "2026-10-14T04:59:24Z"
+updated = "2026-10-14T04:59:25Z"
 scope = ["crates/goway-setup/src/hostsys.rs", "docs/install-windows.md", "docs/usage.md", "crates/goway-setup/tests/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/tests/host_plan.rs"]
 
 [[acceptance]]
@@ -20,7 +20,7 @@ bound = true
 
 [[acceptance]]
 text = "A failed wsl command reports its stdout when stderr is empty, so WSL's own reason reaches the user"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "The install --host plan has no sparse virtual disk change (WSL changes the disk only while the distro is stopped, and the install needs it running) and keeps the fstrim timer"

@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-14T04:59:25Z"
+digest = "819fd97c337768aec54818a6a5efa0270ae7f9902c1bd5c26dff8175ae4db0b8"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID dd9712a2-24d5-4817-bf08-71249c3dd907 with nextest profile: default
+    Starting 1 test across 1 binary (27 tests skipped)
+        PASS [   0.004s] goway-setup::hostsys a_failed_wsl_command_reports_what_it_printed_on_stdout
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.004s] 1 test run: 1 passed, 27 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup --test hostsys -E test(a_failed_wsl_command_reports_what_it_printed_on_stdout)"
+size = 564
+status = "measured"
+test_count = 1
+tests_digest = "fd14c0438f21246f044daa2a19c2ecfce0242d2d7f852b85dc321f4957f5fa1d"
+at = "2026-10-14T04:59:25Z"
+actor = "lognd"
+rev = 1
