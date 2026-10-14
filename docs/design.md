@@ -107,9 +107,21 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
    1. Spawn the system `ssh` binary (agent, config, and Windows OpenSSH all
       work). ControlMaster multiplexing on Unix clients only.
    2. A single embedded remote script (`remote.sh`) implements every remote
-      verb (probe, receive, run, gc, status, doctor); it is sent inline
-      with each call so the remote needs no install beyond bash, coreutils,
-      tar, findutils and flock.
+      verb (probe, receive, run, gc, status, doctor). The remote needs no
+      install beyond bash, coreutils, tar, findutils, flock and a sha256
+      tool. The script is too big to send with every call (the encoded
+      line neared the 128 KiB limit of one argument), so, like
+      `remote.ps1`, goway installs it once per version on the helper at
+      `${XDG_CACHE_HOME:-~/.cache}/goway/bin/remote-<id>.sh` (id = start of
+      its sha256), by stdin, verified by hash and moved into place
+      atomically; copies of other versions are removed after a day. A call
+      is then a short line (under a few KiB) that checks the installed
+      file's hash, prints the frame mark and execs it. A missing or
+      modified copy answers `goway-script-not-installed` (exit 126; a probe
+      answers `goway-needs-install`), and the client installs and retries
+      once. A helper that cannot keep a copy (read-only home, no sha256
+      tool) is marked for this process and gets the whole script inline
+      with each call (`Call::bash`), as before.
 3. Sync (`sync`)
    1. File set: `git ls-files -co --exclude-standard -z`, minus deleted
       files, minus `.env` and `.env.*` (unless configured), never `.git`.
