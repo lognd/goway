@@ -588,6 +588,97 @@ fn the_virtual_disk_is_made_sparse_through_wsl_manage_and_set_back_on_undo() {
     );
 }
 
+/// The `wsl.exe` argument lines a fake saw, in order.
+fn wsl_lines(fake: &Fake) -> Vec<String> {
+    fake.log
+        .borrow()
+        .iter()
+        .filter(|i| i.program.to_lowercase().ends_with("wsl.exe"))
+        .map(|i| i.args.join(" "))
+        .collect()
+}
+
+/// What WSL 2.5.7 prints when it refuses `--set-sparse true`.
+const SPARSE_REFUSAL: &str = "Sparse VHD support is currently disabled due to potential data corruption.\nTo force a distribution to use a sparse vhd, please run:\nwsl.exe --manage <DistributionName> --set-sparse --allow-unsafe\nError code: Wsl/Service/E_INVALIDARG";
+
+// frob:ticket 01M4WB91QMTXFBW34MT9SC8EN4
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.set_sparse
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.run_set_sparse
+#[test]
+fn a_wsl_that_disabled_sparse_disks_is_retried_with_allow_unsafe() {
+    let fake = Fake::new(vec![
+        ("--allow-unsafe", 0, ""),
+        ("wsl.exe", -1, SPARSE_REFUSAL),
+    ]);
+    sys(&fake)
+        .resource_create(ResourceKind::WslSparseVhd, "Ubuntu-22.04", "")
+        .unwrap();
+    assert_eq!(
+        wsl_lines(&fake),
+        [
+            "--manage Ubuntu-22.04 --set-sparse true",
+            "--manage Ubuntu-22.04 --set-sparse true --allow-unsafe"
+        ]
+    );
+}
+
+// frob:ticket 01M4WB91QMTXFBW34MT9SC8EN4
+// frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.set_sparse
+#[test]
+fn allow_unsafe_is_only_added_when_wsl_asks_for_it() {
+    // A WSL that accepts the plain command never sees --allow-unsafe.
+    let fake = Fake::new(vec![("wsl.exe", 0, "")]);
+    sys(&fake)
+        .resource_create(ResourceKind::WslSparseVhd, "Ubuntu", "")
+        .unwrap();
+    assert_eq!(wsl_lines(&fake), ["--manage Ubuntu --set-sparse true"]);
+    // Another refusal is reported, not retried.
+    let fake = Fake::new(vec![(
+        "wsl.exe",
+        1,
+        "There is no distribution with the supplied name.",
+    )]);
+    assert!(
+        sys(&fake)
+            .resource_create(ResourceKind::WslSparseVhd, "Ubuntu", "")
+            .is_err()
+    );
+    assert_eq!(wsl_lines(&fake).len(), 1);
+    // Undo (set-sparse false) is never retried with --allow-unsafe.
+    let fake = Fake::new(vec![("wsl.exe", 1, SPARSE_REFUSAL)]);
+    assert!(
+        sys(&fake)
+            .resource_delete(ResourceKind::WslSparseVhd, "Ubuntu")
+            .is_err()
+    );
+    assert_eq!(wsl_lines(&fake), ["--manage Ubuntu --set-sparse false"]);
+}
+
+// frob:ticket 01M4WB91QMTXFBW34MT9SC8EN4
+// frob:tests crates/goway-setup/src/hostsys.rs::Output.reason
+#[test]
+fn a_failed_wsl_command_reports_what_it_printed_on_stdout() {
+    let fake = Fake::new(vec![(
+        "wsl.exe",
+        1,
+        "There is no distribution with the supplied name.",
+    )]);
+    let err = sys(&fake)
+        .resource_create(ResourceKind::WslSparseVhd, "Nope", "")
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("There is no distribution with the supplied name."),
+        "{err}"
+    );
+    let both = Output {
+        code: Some(1),
+        stdout: b"out".to_vec(),
+        stderr: b"err".to_vec(),
+    };
+    assert_eq!(both.reason(), "err");
+}
+
 // frob:ticket 01M44WPJWSD12YH6MEZKZE0GWF
 // frob:tests crates/goway-setup/src/hostsys.rs::parse_wsl_version
 // frob:tests crates/goway-setup/src/hostsys.rs::HostSystem.sparse_supported

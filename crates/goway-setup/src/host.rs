@@ -646,24 +646,22 @@ pub fn host_plan(layout: &Layout, params: &HostParams, facts: &HostFacts) -> Vec
     plan
 }
 
-/// The changes that let disk space goway frees inside WSL reach the Windows drive: the fstrim
-/// timer trims it, and a sparse virtual disk gives the trimmed blocks back (skipped, with a
-/// warning, on a WSL older than 2.0). Last in the plan, because making the disk sparse may stop
-/// the distro.
+/// The change that lets disk space goway frees inside WSL reach the Windows drive: the fstrim
+/// timer trims it. Making the virtual disk sparse is left to `tune --sparse`: WSL changes the
+/// disk only while the distro is stopped, and this install needs it running.
 fn disk_return_changes(params: &HostParams, facts: &HostFacts) -> Vec<Change> {
-    let mut plan = vec![Change::EnsureResource {
+    if facts.wsl_sparse_supported {
+        tracing::warn!(
+            distro = %params.distro,
+            "the virtual disk is not made sparse here (WSL must be stopped for that); to return freed space to the Windows drive, close WSL, run `wsl --shutdown`, then `goway-setup tune --sparse --distro {}`",
+            params.distro
+        );
+    }
+    vec![Change::EnsureResource {
         kind: ResourceKind::WslUnit,
         name: FSTRIM_TIMER.into(),
         spec: String::new(),
-    }];
-    if facts.wsl_sparse_supported {
-        plan.push(sparse_change(&params.distro));
-    } else {
-        tracing::warn!(
-            "this WSL is too old to make the virtual disk sparse (WSL 2.0 or later); skipping"
-        );
-    }
-    plan
+    }]
 }
 
 /// The journaled change that makes the distro's virtual disk sparse.

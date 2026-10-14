@@ -64,6 +64,13 @@ impl Output {
     pub fn error_text(&self) -> String {
         clean(&self.stderr)
     }
+
+    /// Why the command failed: standard error, or standard output when standard error is empty
+    /// (`wsl.exe` prints its refusals on standard output).
+    pub fn reason(&self) -> String {
+        let err = self.error_text();
+        if err.is_empty() { self.text() } else { err }
+    }
 }
 
 fn clean(bytes: &[u8]) -> String {
@@ -198,7 +205,7 @@ impl HostSystem<ProcessRunner> {
 fn cmd_error(what: &str, out: &Output) -> SystemError {
     SystemError::Command {
         what: what.to_owned(),
-        detail: format!("exit {:?}: {}", out.code, out.error_text()),
+        detail: format!("exit {:?}: {}", out.code, out.reason()),
     }
 }
 
@@ -447,30 +454,52 @@ impl<R: Runner> HostSystem<R> {
         Ok(version.is_some_and(|v| v >= SPARSE_MIN_VERSION))
     }
 
-    /// `wsl.exe --manage DISTRO --set-sparse true|false` (a no-op for the distro's data).
+    /// `wsl.exe --manage DISTRO --set-sparse true|false` (a no-op for the distro's data). WSL 2.5
+    /// and later refuse `true` (sparse disks were disabled over a corruption risk) and name
+    /// `--allow-unsafe` in the refusal; goway then reruns it with that flag, which older WSL
+    /// versions do not know.
     fn set_sparse(&self, distro: &str, on: bool) -> SysResult<()> {
-        let args = [
-            "--manage",
-            distro,
-            "--set-sparse",
-            if on { "true" } else { "false" },
-        ];
         tracing::info!(
             distro,
             on,
             "setting the sparse flag of the distro's virtual disk"
         );
-        let inv = Invocation {
-            program: tool_path(Tool::Wsl),
-            args: args.map(str::to_owned).to_vec(),
-            stdin: None,
-        };
-        let out = self.run("set the virtual disk sparse flag", &inv)?;
+        let out = self.run_set_sparse(distro, on, false)?;
+        if out.success() {
+            return Ok(());
+        }
+        if !(on && out.reason().contains(SPARSE_ALLOW_UNSAFE)) {
+            return Err(cmd_error("wsl --manage --set-sparse", &out));
+        }
+        tracing::warn!(
+            distro,
+            "WSL refused a sparse virtual disk without {SPARSE_ALLOW_UNSAFE}; retrying with it"
+        );
+        let out = self.run_set_sparse(distro, on, true)?;
         if out.success() {
             Ok(())
         } else {
-            Err(cmd_error("wsl --manage --set-sparse", &out))
+            Err(cmd_error("wsl --manage --set-sparse --allow-unsafe", &out))
         }
+    }
+
+    /// One `wsl.exe --manage DISTRO --set-sparse` run, with `--allow-unsafe` when `unsafe_ok`.
+    fn run_set_sparse(&self, distro: &str, on: bool, unsafe_ok: bool) -> SysResult<Output> {
+        let mut args = vec![
+            "--manage".to_owned(),
+            distro.to_owned(),
+            "--set-sparse".to_owned(),
+            if on { "true" } else { "false" }.to_owned(),
+        ];
+        if unsafe_ok {
+            args.push(SPARSE_ALLOW_UNSAFE.to_owned());
+        }
+        let inv = Invocation {
+            program: tool_path(Tool::Wsl),
+            args,
+            stdin: None,
+        };
+        self.run("set the virtual disk sparse flag", &inv)
     }
 
     /// Whether the distro answers (exists and starts).
@@ -750,6 +779,10 @@ impl<R: Runner> HostSystem<R> {
 
 /// A WSL version (`2.5.7`): major, minor, patch.
 pub type WslVersion = (u32, u32, u32);
+
+/// The `wsl.exe` flag that WSL 2.5+ requires before it makes a virtual disk sparse, and names
+/// in its refusal.
+pub const SPARSE_ALLOW_UNSAFE: &str = "--allow-unsafe";
 
 /// The first WSL version that has `wsl --manage DISTRO --set-sparse`.
 pub const SPARSE_MIN_VERSION: WslVersion = (2, 0, 0);

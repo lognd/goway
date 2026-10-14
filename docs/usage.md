@@ -1005,8 +1005,9 @@ does. With no `max_disk`, the budget is a fifth of the drive's real size, not a 
 size.
 
 Freed space only reaches the Windows drive when the virtual disk is **sparse**.
-`goway-setup install --host` and `goway-setup tune --sparse` set it
-(`wsl --manage DISTRO --set-sparse true`, WSL 2.0 or later; journaled, and
+`goway-setup tune --sparse`, run while WSL is stopped (`wsl --shutdown` first), sets it
+(`wsl --manage DISTRO --set-sparse true`, WSL 2.0 or later; on WSL 2.5 and later,
+which refuse it over a data-corruption risk, rerun with `--allow-unsafe`; journaled, and
 undone with `--set-sparse false`), and the distro's root is mounted with `discard`
 and `fstrim.timer` is enabled (journaled), so deleting caches inside WSL shrinks the
 file on Windows; goway also runs `fstrim` after an eviction when it is root. A disk

@@ -317,9 +317,13 @@ and warns when WSL is far below a suggestion that leaves Windows at least 4 GiB 
 
     goway-setup.exe tune --memory 12GB --swap 6GB --processors 14 [--nested-virtualization true]
 
-`tune --sparse` (and `install --host`, unless WSL is older than 2.0) also marks the distro's virtual disk
+`tune --sparse` (WSL 2.0 or later; close WSL and run `wsl --shutdown` first, because WSL changes the disk only
+while the distro is stopped, which is also why `install --host` leaves this step out) marks the distro's virtual disk
 sparse with `wsl --manage DISTRO --set-sparse true`, journaled and undone with `--set-sparse false`, so space
-goway frees inside WSL flows back to the Windows drive (see docs/usage.md, "The disk budget").
+goway frees inside WSL flows back to the Windows drive (see docs/usage.md, "The disk budget"). WSL 2.5 and
+later disabled sparse disks over a data-corruption risk and refuse that command unless it carries
+`--allow-unsafe`; goway then reruns it with `--allow-unsafe` (older WSL versions do not know the flag, so it is
+only added when WSL asks for it).
 
 `tune` edits only the `[wsl2]` keys you name in `%UserProfile%\.wslconfig`, through a journal of its own
 (`tune-journal.json` in the profile's per-user state directory: `.wslconfig` is yours, so no administrator
