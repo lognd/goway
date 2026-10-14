@@ -18,9 +18,20 @@
 # that directory is not on PATH yet, appends one marked line to ~/.profile
 # (the directory goes after the existing PATH, so it cannot shadow system
 # tools such as sudo or ssh).
+# Running it again upgrades in place: it replaces the binary it installed
+# (only if that file still matches the journal's hash; a binary changed by
+# hand is refused and named) and updates the journal's hash, so uninstall
+# stays exact. Nothing else (PATH line, directories) is touched.
 # Every change is recorded with its prior state in the install journal
 # (${XDG_STATE_HOME:-~/.local/state}/goway/install-journal), so
 # scripts/uninstall.sh removes exactly what this script added. No root.
+# `sh` (dash on Debian/Ubuntu) has no `pipefail` and cannot parse the rest of
+# this file, and a script piped in cannot be re-read to hand to bash, so stop
+# here, before any bash-only syntax, with the command that works.
+if [ -z "${BASH_VERSION:-}" ]; then
+  printf '%s\n' "goway-install: this installer needs bash, not sh; run it with: curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | bash" >&2
+  exit 1
+fi
 set -euo pipefail
 
 say() { printf 'goway-install: %s\n' "$*" >&2; }
@@ -79,6 +90,38 @@ make_dirs() {
   for d in ${missing[@]+"${missing[@]}"}; do mkdir "$d"; printf '%s\n' "$d"; done
 }
 
+# Replace the binary a previous run installed (journal hash $recorded_hash)
+# with $src and record the new hash. A file that no longer matches the
+# journal was changed by hand: refuse and name it. The new file is moved
+# into place, so a running goway keeps its old inode and nothing is half
+# written.
+upgrade_in_place() {
+  local target="$bin/goway" new_hash tmp l
+  if [ -e "$target" ]; then
+    [ "$(sha256 "$target")" = "$recorded_hash" ] ||
+      die "$target was changed after goway installed it (it no longer matches $journal); not replacing it. Move it aside and re-run, or run 'goway uninstall' first"
+    if cmp -s "$src" "$target"; then
+      say "$target is already this build; nothing to upgrade"
+      return 0
+    fi
+  fi
+  tmp="$target.new.$$"
+  install -m 755 "$src" "$tmp"
+  mv -f "$tmp" "$target"
+  new_hash=$(sha256 "$target")
+  tmp="$journal.new.$$"
+  : >"$tmp"
+  while IFS= read -r l || [ -n "$l" ]; do
+    case "$l" in
+      "file $target "*) printf 'file %s %s\n' "$target" "$new_hash" >>"$tmp" ;;
+      *) printf '%s\n' "$l" >>"$tmp" ;;
+    esac
+  done <"$journal"
+  mv -f "$tmp" "$journal"
+  say "upgraded $target; the journal now records the new build"
+  say "done; undo with: goway uninstall"
+}
+
 main() {
   # Run from a source checkout (scripts/install.sh) or piped from curl.
   here=${BASH_SOURCE[0]:-}
@@ -96,8 +139,10 @@ main() {
 
   # A journal with no binary and no PATH line is left by an install that was
   # cut off; clear it (and the empty directories it made) instead of refusing.
+  # A journal that lists the binary is an install to upgrade in place.
+  upgrade=0
   if [ -e "$journal" ]; then
-    if [ ! -e "$bin/goway" ] && ! grep -q '^line ' "$journal"; then
+    if [ ! -e "$bin/goway" ] && ! grep -q '^line ' "$journal" && ! grep -q '^file ' "$journal"; then
       say "clearing the journal of an incomplete earlier install"
       stale=()
       while IFS= read -r l || [ -n "$l" ]; do stale+=("$l"); done <"$journal"
@@ -105,8 +150,11 @@ main() {
       for ((i = ${#stale[@]} - 1; i >= 0; i--)); do
         case "${stale[$i]}" in "dir "*) rmdir "${stale[$i]#dir }" 2>/dev/null || true ;; esac
       done
+    elif recorded=$(grep -m1 "^file $bin/goway " "$journal"); then
+      upgrade=1
+      recorded_hash=${recorded##* }
     else
-      die "already installed (journal $journal); run 'goway uninstall' first"
+      die "an install journal exists ($journal) but does not list $bin/goway; it was made with another GOWAY_PREFIX or is damaged. Run 'goway uninstall' (or scripts/uninstall.sh), or remove the journal if you know nothing else was installed"
     fi
   fi
   # The bin path is written into ~/.profile; refuse anything a shell could
@@ -125,6 +173,11 @@ main() {
     download
   fi
   [ -x "$src" ] || die "no goway binary at $src"
+
+  if [ "$upgrade" = 1 ]; then
+    upgrade_in_place
+    return 0
+  fi
 
   created_state=$(make_dirs "$state")
   : >"$journal"

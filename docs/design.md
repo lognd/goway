@@ -240,6 +240,14 @@ ticket that owns it. Read docs/prior-art.md for why this is a new tool.
       processes keep running (they would otherwise hold the run's build slot
       lock through an inherited fd and burn CPU), so no process of a finished
       or abandoned run survives it.
+      Test worlds never make a real scope: `tests/common` puts a fake
+      `systemd-run` (it drops the options and runs the command) first on
+      each world's PATH, because a real `goway-*.scope` made by a goway
+      that runs inside another goway run is a sibling unit under the user
+      manager, not a child of the outer run's scope, so stopping the outer
+      run does not stop it and it can outlive the whole suite. A test of
+      the scope path itself calls `World::real_scopes()` and must end every
+      run it starts.
       The tag sweep reads `/proc/PID/environ`, so it exists on Linux only: on
       macOS a job that leaves its session and process group (and any scope)
       is not caught; its group still is.

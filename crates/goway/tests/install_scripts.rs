@@ -103,11 +103,89 @@ fn bin_already_on_path_means_no_profile_edit() {
     assert!(snapshot(home.path()).is_empty());
 }
 
+/// Run install.sh with bash and `binary` as the build to install; no assertion on the outcome.
+fn install_with(home: &Path, binary: &Path) -> std::process::Output {
+    Command::new("bash")
+        .arg(script("install.sh"))
+        .env_clear()
+        .env("HOME", home)
+        .env("PATH", SYS_PATH)
+        .env("GOWAY_INSTALL_BINARY", binary)
+        .output()
+        .unwrap()
+}
+
+/// A copy of the test binary with one byte appended: a different file that still runs.
+fn newer_build(dir: &Path) -> PathBuf {
+    let new = dir.join("goway-new");
+    let mut bytes = std::fs::read(env!("CARGO_BIN_EXE_goway")).unwrap();
+    bytes.push(b'\n');
+    std::fs::write(&new, bytes).unwrap();
+    std::fs::set_permissions(&new, std::fs::Permissions::from_mode(0o755)).unwrap();
+    new
+}
+
 #[test]
-fn a_changed_binary_is_kept_and_a_second_install_is_refused() {
+fn a_changed_binary_is_kept_and_an_upgrade_over_it_is_refused() {
+    let home = tempfile::tempdir().unwrap();
+    let scratch = tempfile::tempdir().unwrap();
+    run("install.sh", home.path(), SYS_PATH);
+    let bin = home.path().join(".local/bin/goway");
+    std::fs::write(&bin, "user replaced it").unwrap();
+    let again = install_with(home.path(), &newer_build(scratch.path()));
+    let err = String::from_utf8_lossy(&again.stderr);
+    assert!(!again.status.success(), "{err}");
+    assert!(
+        err.contains(&bin.display().to_string()),
+        "names the file: {err}"
+    );
+    assert_eq!(std::fs::read_to_string(&bin).unwrap(), "user replaced it");
+    run("uninstall.sh", home.path(), SYS_PATH);
+    assert_eq!(std::fs::read_to_string(&bin).unwrap(), "user replaced it");
+    assert!(!home.path().join(".profile").exists());
+}
+
+#[test]
+fn rerunning_the_same_build_changes_nothing() {
     let home = tempfile::tempdir().unwrap();
     run("install.sh", home.path(), SYS_PATH);
-    let again = Command::new("bash")
+    let before = snapshot(home.path());
+    run("install.sh", home.path(), SYS_PATH);
+    assert_eq!(snapshot(home.path()), before);
+}
+
+#[test]
+fn a_newer_build_upgrades_in_place_and_uninstall_stays_exact() {
+    let home = tempfile::tempdir().unwrap();
+    let scratch = tempfile::tempdir().unwrap();
+    let before = snapshot(home.path());
+    run("install.sh", home.path(), SYS_PATH);
+    let new = newer_build(scratch.path());
+    let out = install_with(home.path(), &new);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let bin = home.path().join(".local/bin/goway");
+    assert_eq!(std::fs::read(&bin).unwrap(), std::fs::read(&new).unwrap());
+    assert_eq!(sha256_of(&bin), sha256_of(&new));
+    let journal =
+        std::fs::read_to_string(home.path().join(".local/state/goway/install-journal")).unwrap();
+    assert!(
+        journal.contains(&format!("file {} {}", bin.display(), sha256_of(&new))),
+        "{journal}"
+    );
+    let version = Command::new(&bin).arg("--version").output().unwrap();
+    assert!(String::from_utf8_lossy(&version.stdout).starts_with("goway "));
+    run("uninstall.sh", home.path(), SYS_PATH);
+    assert_eq!(snapshot(home.path()), before, "uninstall stays exact");
+}
+
+#[test]
+fn piped_into_sh_it_names_bash_instead_of_a_syntax_error() {
+    let home = tempfile::tempdir().unwrap();
+    let out = Command::new("sh")
         .arg(script("install.sh"))
         .env_clear()
         .env("HOME", home.path())
@@ -115,17 +193,14 @@ fn a_changed_binary_is_kept_and_a_second_install_is_refused() {
         .env("GOWAY_INSTALL_BINARY", env!("CARGO_BIN_EXE_goway"))
         .output()
         .unwrap();
-    assert!(
-        !again.status.success(),
-        "second install refused while the journal exists"
-    );
-    let bin = home.path().join(".local/bin/goway");
-    std::fs::write(&bin, "user replaced it").unwrap();
-    run("uninstall.sh", home.path(), SYS_PATH);
-    assert_eq!(std::fs::read_to_string(&bin).unwrap(), "user replaced it");
-    assert!(!home.path().join(".profile").exists());
+    let err = String::from_utf8_lossy(&out.stderr);
+    // Where sh is itself bash the installer just works; elsewhere it must stop with the hint.
+    if !out.status.success() {
+        assert!(err.contains("| bash"), "{err}");
+        assert!(!err.contains("Illegal option"), "{err}");
+        assert!(!home.path().join(".local").exists());
+    }
 }
-
 #[test]
 fn a_prefix_that_could_run_code_is_refused() {
     let home = tempfile::tempdir().unwrap();

@@ -219,6 +219,7 @@ fn a_sigkilled_client_leaves_no_process_of_its_job_in_its_scope() {
         return;
     }
     let w = common::world_with_ssh(SURVIVING_SSH);
+    w.real_scopes();
     sigkilled_client_leaves_nothing(&w);
 }
 
@@ -239,6 +240,7 @@ fn a_finished_run_leaves_no_background_process_in_its_scope() {
         return;
     }
     let w = common::world();
+    w.real_scopes();
     finished_run_leaves_nothing(&w);
 }
 

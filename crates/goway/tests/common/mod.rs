@@ -135,6 +135,11 @@ done
 exec sh -c "$1"
 "#;
 
+/// Stands in for `systemd-run --user --scope`: drops the options and runs the command, so a
+/// test world never creates a real `goway-*.scope` unit (see `World::real_scopes`).
+pub const FAKE_SYSTEMD_RUN: &str =
+    "#!/bin/sh\nwhile [ \"${1#--}\" != \"$1\" ]; do shift; done\nexec \"$@\"\n";
+
 pub struct World {
     _dir: tempfile::TempDir,
     /// Scratch root.
@@ -186,6 +191,11 @@ pub fn world_with_ssh(script: &str) -> World {
     let powershell = bin.join("powershell.exe");
     std::fs::write(&powershell, "#!/bin/sh\nexit 0\n").unwrap();
     std::fs::set_permissions(&powershell, std::fs::Permissions::from_mode(0o755)).unwrap();
+    // A real `systemd-run --user --scope` made by a test world outlives it (and an outer goway
+    // run's scope, which does not contain it), so a world gets a fake that only runs the command.
+    let systemd_run = bin.join("systemd-run");
+    std::fs::write(&systemd_run, FAKE_SYSTEMD_RUN).unwrap();
+    std::fs::set_permissions(&systemd_run, std::fs::Permissions::from_mode(0o755)).unwrap();
     let remote = root.join("goway-remote");
     let config = root.join("config");
     std::fs::create_dir(&config).unwrap();
@@ -336,6 +346,12 @@ impl World {
             stdout,
             stderr,
         }
+    }
+
+    /// Opt this world into the machine's real `systemd-run`, for a test of the scope path
+    /// itself. The test must end every run it starts: a real scope outlives the world.
+    pub fn real_scopes(&self) {
+        std::fs::remove_file(self.bin.join("systemd-run")).unwrap();
     }
 
     pub fn run(&self, args: &[&str]) -> Output {

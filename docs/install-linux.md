@@ -38,17 +38,46 @@ Every change is recorded with its prior state in
 - It drops the added newline.
 - It removes created directories only if they are empty.
 
-Anything you changed after install is kept and reported. A second
-install is refused while a journal exists.
+Anything you changed after install is kept and reported.
+
+## Upgrading, and running the installer again
+
+Run the same command again to upgrade in place; do not uninstall first.
+The installer downloads and verifies the new release, then looks at the
+journal:
+
+- **Binary matches the journal**: it replaces `~/.local/bin/goway` with
+  the new build (moved into place, so a running goway is not disturbed)
+  and records the new sha256 in the journal. The PATH line and the
+  directories are left alone, and `scripts/uninstall.sh` stays exact.
+- **Same build already installed**: it says so and changes nothing.
+- **Binary changed by hand** (its hash differs from the journal): it
+  refuses and names the file. Move your file aside and re-run, or run
+  `goway uninstall` first.
+- **Journal from another `GOWAY_PREFIX`, or damaged**: it refuses and
+  says which journal; nothing is changed.
+- **Journal left by a cut-off install** (no binary, no PATH line): it
+  clears that journal and the empty directories it made, then installs
+  normally.
+
+## Use bash, not sh
+
+The documented command ends in `| bash`. `| sh` fails on Debian and
+Ubuntu, where `sh` is dash. The installer notices before it does
+anything and prints `this installer needs bash, not sh`, with the right
+command. Nothing was changed; re-run with `| bash`.
 
 `crates/goway/tests/install_scripts.rs` proves it. The test snapshots
 every file, mode and byte under a scratch `$HOME`, installs, uninstalls,
-and requires an identical snapshot. It covers four cases:
+and requires an identical snapshot. It covers these cases:
 - an empty home
 - an existing profile without a trailing newline and an existing
   `~/.local/bin`
 - `~/.local/bin` already on `PATH`
-- a binary replaced after install, plus a refused second install
+- a binary replaced after install, plus a refused upgrade over it
+- re-running the same build (no change) and a newer build (upgrade in
+  place, journal hash updated, uninstall still exact)
+- the installer piped into `sh` (stops with the `| bash` hint)
 
 Hosts need nothing installed. Run `goway doctor HOST --fix` for the
 toolchain on a build host.

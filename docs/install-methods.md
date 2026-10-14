@@ -20,6 +20,19 @@ start). Nothing else needs setting up on this laptop first.
 
 Open a new terminal after changing PATH.
 
+## Mixing methods, and upgrading the install script's copy
+
+Keep to one method per machine. `install.sh` upgrades only a copy it
+installed itself (one recorded in its install journal): run the same
+`curl ... | bash` command again and it replaces `~/.local/bin/goway` in
+place, provided you did not change that file by hand (otherwise it
+refuses and names it). It does not touch a goway installed by uv or
+pipx, even though both use `~/.local/bin/goway`: if that file is not
+the one the journal recorded, the installer stops instead of
+overwriting it. To switch methods, remove the old one first (see the
+table above). The installer must be run with `bash`, not `sh`; see
+[install-linux.md](install-linux.md#use-bash-not-sh).
+
 ## uv (preferred)
 
 [uv](https://docs.astral.sh/uv/getting-started/installation/) installs

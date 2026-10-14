@@ -492,3 +492,32 @@ address; use your own):
 
 If Windows asks for a password or an unknown host key at step 3, fix
 that once by hand with ssh before relying on `goway doctor`.
+
+## The install script stops, or an install was cut off
+
+Nothing the installer does is half-applied without a trace: every change
+is in `~/.local/state/goway/install-journal` (or under `$XDG_STATE_HOME`).
+
+- **`this installer needs bash, not sh`** (or, from an older copy,
+  `set: Illegal option -o pipefail`): you piped it into `sh`, which is
+  dash on Debian and Ubuntu. Nothing was changed. Run
+  `curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | bash`.
+- **Upgrading**: just run the same command again; no `goway uninstall`
+  first. See "Upgrading, and running the installer again" in
+  [install-linux.md](install-linux.md).
+- **`was changed after goway installed it`**: the file at
+  `~/.local/bin/goway` no longer matches the journal (you replaced or
+  patched it, or another tool wrote there). The installer will not
+  overwrite it. Move it aside (`mv ~/.local/bin/goway ~/goway.mine`) and
+  run the installer again, or run `goway uninstall`.
+- **`install journal exists ... but does not list`**: the journal came
+  from a different `GOWAY_PREFIX`, or is damaged. Run the installer with
+  the same `GOWAY_PREFIX` as before, or run `scripts/uninstall.sh`.
+- **A cut-off install** (the download or the terminal died part way):
+  re-run the installer. A journal with no binary and no PATH line is
+  cleared automatically and the install starts over. If the binary was
+  installed but not the PATH line, the re-run upgrades or leaves it as
+  is; open a new login shell or add `~/.local/bin` to `PATH` yourself.
+  To start from nothing, run `scripts/uninstall.sh` (it replays the
+  journal and removes only what the installer added), then install again.
+
