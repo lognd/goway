@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-14T04:59:24Z"
+digest = "caa17e633a1d57fedf68d42abd7fd7135ab6110d07361327d2fb81152e459fae"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 5858be92-a878-47dd-830f-8484bbc4455c with nextest profile: default
+    Starting 1 test across 1 binary (27 tests skipped)
+        PASS [   0.004s] goway-setup::hostsys a_wsl_that_disabled_sparse_disks_is_retried_with_allow_unsafe
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.005s] 1 test run: 1 passed, 27 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup --test hostsys -E test(a_wsl_that_disabled_sparse_disks_is_retried_with_allow_unsafe)"
+size = 571
+status = "measured"
+test_count = 1
+tests_digest = "523f7c8a7c1647abc07dd5c199b7c7baacd90ca0c03ab5c2aee4e5b8130d1ed8"
+at = "2026-10-14T04:59:24Z"
+actor = "lognd"
+rev = 1

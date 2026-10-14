@@ -7,12 +7,12 @@ priority = "critical"
 class = "expedite"
 reporter = "lognd"
 created = "2026-10-14T04:38:37Z"
-updated = "2026-10-14T04:59:13Z"
+updated = "2026-10-14T04:59:24Z"
 scope = ["crates/goway-setup/src/hostsys.rs", "docs/install-windows.md", "docs/usage.md", "crates/goway-setup/tests/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/tests/host_plan.rs"]
 
 [[acceptance]]
 text = "When wsl refuses set-sparse true because sparse VHDs are disabled and suggests --allow-unsafe, goway reruns it with --allow-unsafe and the change succeeds"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "On a WSL that accepts the plain command, goway runs set-sparse without --allow-unsafe"
