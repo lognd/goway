@@ -26,6 +26,12 @@ use crate::status::human_bytes;
 /// sequence), so the estimate at one job must not fall far below the recorded peak.
 const FIXED_PERCENT: u64 = 50;
 
+/// The safety margin, in percent, the fitted [`Model`] adds to its line. Peaks scatter around
+/// the line (a measured 3.7 GiB estimate met a 4.2 GiB run, 14% over), so an estimate taken
+/// from the line alone is too tight; a level recorded exactly is still used as it is, and
+/// [`footprint::mem_required`] adds its own margin on top when the estimate is judged.
+pub const MODEL_MARGIN_PERCENT: u64 = 15;
+
 /// The environment variable carrying the thread budget of one link (mold has no variable of its
 /// own for its thread count; a linker wrapper or `-Wl,--threads=$GOWAY_LINK_THREADS` uses it).
 pub const LINK_THREADS_VAR: &str = "GOWAY_LINK_THREADS";
@@ -162,10 +168,18 @@ pub struct Model {
 }
 
 impl Model {
-    /// The model's peak at `jobs` parallel jobs.
-    pub fn at(&self, jobs: u32) -> u64 {
+    /// The fitted line's peak at `jobs` parallel jobs, before the safety margin.
+    pub fn raw(&self, jobs: u32) -> u64 {
         self.fixed
             .saturating_add(self.per_job.saturating_mul(u64::from(jobs)))
+    }
+
+    /// The model's estimated peak at `jobs` parallel jobs: the fitted line plus
+    /// [`MODEL_MARGIN_PERCENT`], because a run's peak varies from run to run and a line through
+    /// earlier peaks is routinely exceeded by a later one.
+    pub fn at(&self, jobs: u32) -> u64 {
+        let raw = self.raw(jobs);
+        raw.saturating_add(raw / 100 * MODEL_MARGIN_PERCENT)
     }
 }
 
@@ -471,7 +485,7 @@ mod tests {
         p.mem_peaks.insert("r".to_owned(), 8 * GIB);
         assert_eq!(estimate(&p, "r", 8), Some(8 * GIB));
         let one = estimate(&p, "r", 1).unwrap();
-        assert!((3 * GIB..5 * GIB).contains(&one), "{one}");
+        assert!((3 * GIB..6 * GIB).contains(&one), "{one}");
         // Levels measured win over the overall record.
         p.mem_levels
             .entry("r".to_owned())
@@ -479,7 +493,11 @@ mod tests {
             .extend([(2, 3 * GIB), (8, 7 * GIB)]);
         assert_eq!(estimate(&p, "r", 2), Some(3 * GIB));
         let mid = estimate(&p, "r", 5).unwrap();
-        assert!(mid.abs_diff(5 * GIB) < (1 << 20), "interpolated: {mid}");
+        let margin = 5 * GIB / 100 * MODEL_MARGIN_PERCENT;
+        assert!(
+            mid.abs_diff(5 * GIB + margin) < (1 << 20),
+            "interpolated plus margin: {mid}"
+        );
         assert!(estimate(&p, "r", 1).unwrap() <= 3 * GIB);
         assert!(estimate(&p, "r", 16).unwrap() > 7 * GIB, "extrapolated up");
     }
@@ -492,7 +510,8 @@ mod tests {
         // Two levels on one line: 3 GiB fixed (a link), 0.5 GiB per job.
         let m = learn(&[(2, 4 * GIB), (8, 7 * GIB)]).unwrap();
         assert_eq!((m.fixed, m.per_job), (3 * GIB, GIB / 2));
-        assert_eq!(m.at(1), 3 * GIB + GIB / 2);
+        assert_eq!(m.raw(1), 3 * GIB + GIB / 2);
+        assert!(m.at(1) > m.raw(1), "the margin is added to the line");
         // Noisy levels: no record lies above the line, the fixed part carries the largest link.
         let pts = [(1, 5 * GIB), (4, 5 * GIB + GIB / 2), (12, 7 * GIB)];
         let m = learn(&pts).unwrap();
@@ -505,6 +524,34 @@ mod tests {
         // One record: half fixed, the rest per job.
         let one = learn(&[(8, 8 * GIB)]).unwrap();
         assert_eq!((one.fixed, one.per_job), (4 * GIB, GIB / 2));
+    }
+
+    // frob:ticket 01M4GPJPH76ABDNDXKDNK26EQE
+    // frob:tests crates/goway/src/fit.rs::estimate
+    // frob:tests crates/goway/src/fit.rs::Model.at
+    #[test]
+    fn the_estimate_keeps_a_margin_above_the_fitted_line() {
+        // Peaks recorded at 2, 4 and 8 jobs fit a line that reads about 3.7 GiB at 6 jobs;
+        // a later run at 6 jobs peaked at 4.2 GiB, above the line.
+        let mut p = probe(16, 8, 8);
+        p.mem_levels.entry("r".to_owned()).or_default().extend([
+            (2, 3 * GIB),
+            (4, 3 * GIB + GIB * 2 / 5),
+            (8, 4 * GIB),
+        ]);
+        let model = learn(&points_of(&p, "r")).unwrap();
+        let line = model.raw(6);
+        let actual = 4 * GIB + GIB / 5;
+        assert!(line < actual, "the line alone is too low: {line}");
+        let est = estimate(&p, "r", 6).unwrap();
+        assert!(est >= actual, "estimate {est} is below the 4.2 GiB run");
+        assert_eq!(est, model.at(6));
+        // Every recorded level is estimated at or above its recorded peak.
+        for (j, peak) in points_of(&p, "r") {
+            assert!(estimate(&p, "r", j).unwrap() >= peak);
+        }
+        // The margin is the documented percentage of the line.
+        assert_eq!(model.at(6), line + line / 100 * MODEL_MARGIN_PERCENT);
     }
 
     // frob:ticket 01M4A8H1DWYN24DXSPMK60F05J
@@ -520,7 +567,7 @@ mod tests {
             .extend([(2, 2 * GIB + GIB / 2), (12, 5 * GIB)]);
         let plan = plan_of(Mode::Adaptive, &p);
         assert!(plan.lowered && plan.fits, "{plan:?}");
-        assert!((5..=8).contains(&plan.jobs), "{plan:?}");
+        assert!((4..=8).contains(&plan.jobs), "{plan:?}");
         assert!(plan.reserve <= 4 * GIB, "{plan:?}");
         // The same repository with a fixed part above the host is refused even at one job.
         let mut big = probe(16, 5, 4);
