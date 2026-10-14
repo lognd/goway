@@ -107,6 +107,14 @@ status` has a `default pool` column: `yes`, or `no (windows)`.
 
 ## Windows hosts
 
+Setting a Windows laptop up as a helper (`goway-setup install --host`, docs/install-windows.md)
+uses its WSL default distro when that is Ubuntu or Debian, else the only such distro installed;
+with several and no default it asks for `--distro NAME`. `goway doctor` on a Windows host also
+warns when the helper's `.wslconfig` gives WSL so much memory that Windows keeps under 3 GB (or a
+quarter of the RAM), and prints the `goway-setup tune --memory` command that fixes it. Its probe
+of rustup and the Build Tools has a 10 second limit on the host, so a hung tool shows up as a
+warning rather than a stuck doctor.
+
 A `[[host]]` has an `os` (`linux`, the default, or `windows`) and a
 `transport` (`ssh`, the default, or `interop`):
 

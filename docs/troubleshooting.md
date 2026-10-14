@@ -492,3 +492,45 @@ address; use your own):
 
 If Windows asks for a password or an unknown host key at step 3, fix
 that once by hand with ssh before relying on `goway doctor`.
+
+## Installation problems on a Windows helper (`goway-setup install --host`)
+
+**Windows asks for administrator rights just to start `goway-setup.exe`.** Windows guesses that any
+program with "setup" in its file name is an installer and elevates it before it runs, even for
+`--help` or `--dry-run`. Current builds embed a manifest (`asInvoker`) that switches the guess off,
+so only the real host install prompts, through its own UAC prompt. If a build of yours still
+prompts at start, it predates the manifest: update it, or rename the file (for example
+`goway-host.exe`) and run it again. Check a build with
+`goway-setup.exe install --host --dry-run`; it must not prompt.
+
+**It picked, or complained about, the wrong distro.** Without `--distro`, the install uses the WSL
+default distro if that is Ubuntu or Debian, else the only Ubuntu or Debian distro installed. Run
+`wsl -l -v` to see which is the default (starred). With several candidates and no default, the
+install stops and lists them: rerun with `--distro NAME` using the name exactly as `wsl -l -v`
+prints it. To change the default: `wsl --set-default NAME`. `wsl --install` is only needed when no
+Ubuntu or Debian distro exists at all.
+
+**A failed or undone install left `openssh-server` in dpkg state `rc`.** goway removes the package
+with `apt-get remove` and never purges it, on purpose: `sshd_config` and the host keys stay, so a
+reinstall presents the same host key and nobody has to re-pin it. `dpkg -l openssh-server` then
+shows `rc`. Current builds treat `rc` as "not installed" and reinstall it themselves, so just run
+`goway-setup install --host` again. Older builds refused with a message about the package state;
+update, or recover by hand inside the distro:
+
+    sudo apt-get install -y openssh-server
+
+keeps the old keys. Only if that fails, `sudo dpkg --purge openssh-server` clears the leftover
+state, but it deletes `/etc/ssh` host keys and configuration for the package: the helper then has
+a new host key and clients must pin it again (`goway ssh setup HOST`). The states `half-configured`
+and `unpacked` (`iF`, `iU`) are still refused, because they mean an interrupted dpkg: run `sudo dpkg --configure -a`, then install again.
+
+**WSL memory: how much is safe.** WSL takes its `memory` from `%UserProfile%\.wslconfig`. If it is
+too large, Windows itself starves, swaps and the helper becomes unreachable. Windows must keep at
+least 3 GB of RAM, or a quarter of it on machines above 12 GB (a 7.4 GB laptop can give WSL 4GB; a
+16 GB one 12GB). `goway-setup tune --memory SIZE` refuses a size that leaves less, naming the RAM,
+your size and the largest safe size; `--memory max` sets that size, and `--force` overrides the
+check when you know better. `goway doctor HELPER` warns about a `.wslconfig` that is already too
+large and prints the `goway-setup.exe tune --memory NGB` command that fixes it (journaled, so
+`goway-setup uninstall --host` restores the file). WSL must restart to apply a new size
+(`wsl --shutdown`; `tune` asks before doing it).
+

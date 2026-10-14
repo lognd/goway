@@ -11,6 +11,17 @@ you the steps: open PowerShell as administrator, run `wsl --install -d Ubuntu`, 
 Linux user and password when the Ubuntu window opens, then run the command below again. goway never
 installs WSL for you.
 
+**Which distro.** Without `--distro`, `install --host` uses your WSL default distro when it is an
+Ubuntu or Debian one. If the default is something else (or there is none), it uses the only Ubuntu
+or Debian distro that is installed. If there are several and none is the default, it stops, lists
+them and asks you to pick one with `--distro NAME`; it never guesses and never suggests
+`wsl --install` when a usable distro is already there. `tune` chooses the same way.
+
+**Starting the exe.** `goway-setup.exe` carries a manifest that makes Windows start it as you, so
+`--help` and `install --host --dry-run` run without a UAC prompt even though the file name contains
+"setup". The real host install still asks for administrator rights through its own prompt (below).
+If an older build prompts just to start, see "Installation problems" in docs/troubleshooting.md.
+
 **1. On the helper laptop**, in a terminal, run:
 
     goway-setup.exe install --host
@@ -78,7 +89,7 @@ replaced, so `uninstall` replays the journal backwards and restores the machine.
     goway-setup install [--client] [--host] [--native [--authorized-key KEY]] [--profile NAME] [--dry-run]
                         [--port N] [--distro NAME] [--keepalive logon|boot [--allow-elevated-wsl]] [--no-harden]
                         [--allow-from CIDR]... [--allow-wide] [--no-activate] [--no-elevate] [--yes]
-    goway-setup tune [--memory SIZE] [--swap SIZE] [--processors N] [--nested-virtualization BOOL] [--sparse]
+    goway-setup tune [--memory SIZE|max] [--force] [--swap SIZE] [--processors N] [--nested-virtualization BOOL] [--sparse]
                      [--distro NAME] [--yes] [--dry-run] [--profile NAME]
     goway-setup uninstall [--client] [--host] [--profile NAME] [--no-activate] [--no-elevate]
     goway-setup status [--profile NAME]
@@ -316,6 +327,14 @@ and warns when WSL is far below a suggestion that leaves Windows at least 4 GiB 
 (memory under 60% of it, processors under 70%, swap under half). It prints the exact command:
 
     goway-setup.exe tune --memory 12GB --swap 6GB --processors 14 [--nested-virtualization true]
+
+Windows must keep at least 3 GB of RAM, or a quarter of it on machines with more than 12 GB.
+`tune` refuses a `--memory` that leaves less: it names the machine's RAM, your size and the
+largest safe size (whole GB), and changes nothing unless you pass `--force`. `--memory max` picks
+that largest safe size for you (4GB on a 7.4 GB laptop). `goway doctor HELPER` warns about a helper
+whose `.wslconfig` already starves Windows, with the safe size and the `tune` command that sets it.
+Where the RAM cannot be read (not on Windows), `--memory max` is refused and explicit sizes are
+not checked.
 
 `tune --sparse` (WSL 2.0 or later; close WSL and run `wsl --shutdown` first, because WSL changes the disk only
 while the distro is stopped, which is also why `install --host` leaves this step out) marks the distro's virtual disk

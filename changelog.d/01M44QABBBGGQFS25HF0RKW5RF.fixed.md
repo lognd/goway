@@ -1,0 +1,1 @@
+goway doctor's Windows facts probe no longer hangs on a stuck rustup or vswhere: both now run under a 10 second limit enforced on the Windows host, are killed with their process tree when it expires, and a warning says which probe timed out.

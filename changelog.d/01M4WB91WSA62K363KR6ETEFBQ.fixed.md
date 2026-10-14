@@ -1,0 +1,1 @@
+goway-setup.exe no longer demands administrator rights just to start: it embeds an asInvoker manifest so Windows' installer detection (triggered by "setup" in the file name) stays out of the way, and only the real host install elevates, through its own prompt.
