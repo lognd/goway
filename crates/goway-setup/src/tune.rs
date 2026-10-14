@@ -70,6 +70,98 @@ pub fn parse_size(text: &str) -> Result<String, SetupError> {
     }
 }
 
+/// The least memory, in MB, Windows keeps for itself when WSL is given the rest.
+pub const MIN_HEADROOM_MB: u64 = 3 * 1024;
+
+/// What Windows must keep, in MB, on a machine with `total_mb` of RAM: at least
+/// [`MIN_HEADROOM_MB`], and a quarter of the RAM on larger machines.
+///
+/// The goway doctor applies the same rule to a helper's `.wslconfig` (`doctor/windows.rs`).
+pub fn headroom_mb(total_mb: u64) -> u64 {
+    MIN_HEADROOM_MB.max(total_mb / 4)
+}
+
+/// The largest WSL memory, in whole GB expressed in MB, that leaves [`headroom_mb`]; 0 when the
+/// machine is too small to give WSL anything safely.
+pub fn max_safe_memory_mb(total_mb: u64) -> u64 {
+    total_mb.saturating_sub(headroom_mb(total_mb)) / 1024 * 1024
+}
+
+/// [`max_safe_memory_mb`] spelled the way `.wslconfig` takes it (`4GB`).
+pub fn max_safe_memory(total_mb: u64) -> Result<String, SetupError> {
+    match max_safe_memory_mb(total_mb) {
+        0 => Err(SetupError::BadTuneValue(format!(
+            "this machine has {} of RAM, too little to give WSL memory and keep {} for Windows",
+            gb_text(total_mb),
+            gb_text(headroom_mb(total_mb))
+        ))),
+        mb => Ok(format!("{}GB", mb / 1024)),
+    }
+}
+
+/// `7.4 GB` style text for `mb` megabytes.
+fn gb_text(mb: u64) -> String {
+    #[allow(clippy::cast_precision_loss)] // display only
+    let gb = mb as f64 / 1024.0;
+    format!("{gb:.1} GB")
+}
+
+/// Refuse a `.wslconfig` memory (`8GB`, `2048MB`) that leaves Windows under the headroom on a
+/// machine with `total_mb` of RAM, naming the RAM, the request and the largest safe size.
+pub fn check_memory(memory: &str, total_mb: u64) -> Result<(), SetupError> {
+    let Some(want_mb) = memory_mb(memory) else {
+        return Ok(());
+    };
+    let safe_mb = max_safe_memory_mb(total_mb);
+    if want_mb <= safe_mb {
+        return Ok(());
+    }
+    tracing::warn!(
+        memory,
+        total_mb,
+        safe_mb,
+        "tune memory leaves Windows too little"
+    );
+    Err(SetupError::BadTuneValue(format!(
+        "memory {memory} would leave Windows only {} of this machine's {} (it needs at least {}); the largest safe size is {}. Pass --force to set it anyway",
+        gb_text(total_mb.saturating_sub(want_mb)),
+        gb_text(total_mb),
+        gb_text(headroom_mb(total_mb)),
+        max_safe_memory(total_mb)?
+    )))
+}
+
+/// Megabytes in a `.wslconfig` size such as `8GB` or `512MB`; `None` for anything else.
+pub fn memory_mb(size: &str) -> Option<u64> {
+    let t = size.trim();
+    let end = t.find(|c: char| !c.is_ascii_digit()).unwrap_or(t.len());
+    let n: u64 = t[..end].parse().ok()?;
+    match t[end..].trim().to_ascii_uppercase().as_str() {
+        "MB" | "M" => Some(n),
+        "GB" | "G" => n.checked_mul(1024),
+        _ => None,
+    }
+}
+
+/// This machine's installed RAM in MB; `None` when it cannot be read (always off Windows).
+#[cfg(windows)]
+#[allow(unsafe_code)] // GlobalMemoryStatusEx FFI; see SAFETY
+pub fn total_memory_mb() -> Option<u64> {
+    use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    // SAFETY: an all-zero MEMORYSTATUSEX is valid plain data.
+    let mut status: MEMORYSTATUSEX = unsafe { std::mem::zeroed() };
+    status.dwLength = u32::try_from(std::mem::size_of::<MEMORYSTATUSEX>()).ok()?;
+    // SAFETY: `status` is writable and its `dwLength` is set as the call requires.
+    let ok = unsafe { GlobalMemoryStatusEx(&raw mut status) };
+    (ok != 0).then(|| status.ullTotalPhys / (1024 * 1024))
+}
+
+/// This machine's installed RAM in MB; `None` when it cannot be read (always off Windows).
+#[cfg(not(windows))]
+pub fn total_memory_mb() -> Option<u64> {
+    None
+}
+
 /// Check a processor count: 1 to 1024.
 pub fn parse_processors(n: u32) -> Result<u32, SetupError> {
     if (1..=1024).contains(&n) {
@@ -166,4 +258,31 @@ pub fn revert_tune_reported(
     std::fs::remove_file(path).map_err(|e| SetupError::io(path, e))?;
     tracing::info!(path = %path.display(), "tune journal reverted and removed");
     Ok(Some(report))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // frob:tests crates/goway-setup/src/tune.rs::max_safe_memory_mb
+    #[test]
+    fn headroom_is_three_gb_and_grows_on_large_machines() {
+        assert_eq!(headroom_mb(7600), 3072);
+        assert_eq!(headroom_mb(16 * 1024), 4096);
+        assert_eq!(headroom_mb(64 * 1024), 16 * 1024);
+        assert_eq!(max_safe_memory_mb(7600), 4096);
+        assert_eq!(max_safe_memory_mb(2048), 0);
+    }
+
+    // frob:tests crates/goway-setup/src/tune.rs::check_memory
+    #[test]
+    fn a_size_that_starves_windows_is_refused_with_the_safe_size() {
+        let err = check_memory("5632MB", 7600).unwrap_err().to_string();
+        assert!(
+            err.contains("7.4 GB") && err.contains("5632MB") && err.contains("4GB"),
+            "{err}"
+        );
+        assert!(check_memory("4GB", 7600).is_ok());
+        assert!(check_memory("0", 7600).is_ok());
+    }
 }

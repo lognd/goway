@@ -829,3 +829,26 @@ fn an_old_boot_only_keepalive_is_replaced_through_the_journal_and_undo_restores_
     assert_eq!(sys.resources[&task], "boot-only xml");
     assert_eq!(sys.resources.get(&task), before.resources.get(&task));
 }
+
+// frob:tests crates/goway-setup/src/host.rs::pick_distro
+#[test]
+fn the_distro_is_wsls_default_or_the_only_candidate_never_a_guess() {
+    let v = |names: &[&str]| names.iter().map(|n| (*n).to_owned()).collect::<Vec<_>>();
+    let pick = |names: &[&str]| host::pick_distro(&v(names));
+    assert_eq!(pick(&["Ubuntu-24.04"]), Ok(Some("Ubuntu-24.04".to_owned())));
+    assert_eq!(
+        pick(&["docker-desktop", "Debian"]),
+        Ok(Some("Debian".to_owned()))
+    );
+    assert_eq!(
+        pick(&["Debian", "Ubuntu"]),
+        Ok(Some("Debian".to_owned())),
+        "the default is listed first"
+    );
+    assert_eq!(pick(&["docker-desktop"]), Ok(None));
+    assert_eq!(pick(&[]), Ok(None));
+    assert_eq!(
+        pick(&["docker-desktop", "Ubuntu", "Debian"]),
+        Err(host::DistroPick::Ambiguous(v(&["Ubuntu", "Debian"])))
+    );
+}

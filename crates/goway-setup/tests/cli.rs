@@ -318,3 +318,53 @@ fn the_network_flag_parses_and_a_nat_host_dry_run_succeeds_on_any_machine() {
         Cli::try_parse_from(["goway-setup", "install", "--host", "--network", "bridged"]).is_err()
     );
 }
+
+// frob:tests crates/goway-setup/src/cli.rs::run
+#[test]
+fn distro_is_optional_and_tune_takes_force_and_memory_max() {
+    use goway_setup::cli::Command;
+    let Command::Install { distro, .. } =
+        Cli::try_parse_from(["goway-setup", "install", "--host", "--dry-run"])
+            .unwrap()
+            .command
+    else {
+        panic!("install expected");
+    };
+    assert!(distro.is_none(), "no --distro means detect, not Ubuntu");
+    let Command::Tune { force, memory, .. } = Cli::try_parse_from([
+        "goway-setup",
+        "tune",
+        "--memory",
+        "max",
+        "--force",
+        "--dry-run",
+    ])
+    .unwrap()
+    .command
+    else {
+        panic!("tune expected");
+    };
+    assert!(force);
+    assert_eq!(memory.as_deref(), Some("max"));
+}
+
+// frob:tests crates/goway-setup/src/cli.rs::run
+#[cfg(not(windows))]
+#[test]
+fn memory_max_needs_a_readable_ram_size() {
+    let cli = Cli::try_parse_from([
+        "goway-setup",
+        "tune",
+        "--memory",
+        "max",
+        "--dry-run",
+        "--distro",
+        "Ubuntu",
+    ])
+    .unwrap();
+    let err = run(&cli, Renderer::new(ColorWhen::Never)).unwrap_err();
+    assert!(
+        matches!(err, goway_setup::error::SetupError::BadTuneValue(_)),
+        "{err:?}"
+    );
+}

@@ -100,9 +100,10 @@ pub enum Command {
         /// Host: TCP port the WSL sshd listens on (default 2222; a native install uses 22).
         #[arg(long)]
         port: Option<u16>,
-        /// Host: WSL distro to set up.
-        #[arg(long, default_value = DEFAULT_DISTRO)]
-        distro: String,
+        /// Host: WSL distro to set up (default: WSL's default distro, or the only Ubuntu/Debian
+        /// one installed).
+        #[arg(long)]
+        distro: Option<String>,
         /// Host: when the keepalive task starts the distro.
         #[arg(long, value_enum, default_value_t)]
         keepalive: Keepalive,
@@ -174,9 +175,13 @@ pub enum Command {
     /// Give the WSL helper more of this machine: journaled `.wslconfig` memory, swap,
     /// processors and nested virtualization (undone by `uninstall --host`).
     Tune {
-        /// Memory for WSL, such as 12GB.
+        /// Memory for WSL, such as 12GB, or `max` for the most that leaves Windows its headroom
+        /// (at least 3 GB, a quarter of the RAM on large machines).
         #[arg(long, value_name = "SIZE")]
         memory: Option<String>,
+        /// Set a memory size even though it leaves Windows less than its headroom.
+        #[arg(long)]
+        force: bool,
         /// Swap for WSL, such as 4GB (0 disables it).
         #[arg(long, value_name = "SIZE")]
         swap: Option<String>,
@@ -190,9 +195,9 @@ pub enum Command {
         /// flows back to the Windows drive; undone by `uninstall --host`.
         #[arg(long)]
         sparse: bool,
-        /// WSL distro whose goway jobs are counted before a restart.
-        #[arg(long, default_value = DEFAULT_DISTRO)]
-        distro: String,
+        /// WSL distro whose goway jobs are counted before a restart (default: as for install).
+        #[arg(long)]
+        distro: Option<String>,
         /// Change `.wslconfig` even while goway jobs run (WSL is then never restarted for you).
         #[arg(long)]
         yes: bool,
@@ -308,7 +313,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
                 authorized_key: authorized_key.clone(),
                 dry_run: *dry_run,
                 port: resolve_port(*native, *port)?,
-                distro: distro.clone(),
+                distro: resolve_distro(distro.as_deref())?,
                 keepalive: *keepalive,
                 allow_elevated_wsl: *allow_elevated_wsl,
                 network: *network,
@@ -350,6 +355,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
         }
         Command::Tune {
             memory,
+            force,
             swap,
             processors,
             nested_virtualization,
@@ -359,17 +365,34 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             dry_run,
             profile,
         } => {
+            let distro = &resolve_distro(distro.as_deref())?;
             let req = tune::TuneRequest {
-                memory: memory.as_deref().map(tune::parse_size).transpose()?,
+                memory: memory.as_deref().map(parse_memory_arg).transpose()?,
                 swap: swap.as_deref().map(tune::parse_size).transpose()?,
                 processors: processors.map(tune::parse_processors).transpose()?,
                 nested_virtualization: *nested_virtualization,
                 sparse_distro: sparse.then(|| distro.clone()),
             };
-            run_tune(r, &profile.profile, distro, &req, *yes, *dry_run)
+            run_tune(r, &profile.profile, distro, &req, *yes, *dry_run, *force)
         }
         Command::Status { profile } => status(r, &profile.profile),
     }
+}
+
+/// The `--memory` value: `max` becomes the largest size that leaves Windows its headroom
+/// (needs this machine's RAM), anything else is a size checked by [`tune::parse_size`].
+fn parse_memory_arg(text: &str) -> Result<String, SetupError> {
+    if !text.trim().eq_ignore_ascii_case("max") {
+        return tune::parse_size(text);
+    }
+    let total_mb = tune::total_memory_mb().ok_or_else(|| {
+        SetupError::BadTuneValue(
+            "cannot read this machine's RAM for --memory max; give a size such as 4GB".to_owned(),
+        )
+    })?;
+    let size = tune::max_safe_memory(total_mb)?;
+    tracing::info!(total_mb, %size, "--memory max resolved");
+    Ok(size)
 }
 
 /// goway's default remote root inside the distro (relative to the default user's home).
@@ -383,12 +406,20 @@ fn run_tune(
     req: &tune::TuneRequest,
     yes: bool,
     dry_run: bool,
+    force: bool,
 ) -> Result<(), SetupError> {
     if req.is_empty() {
         return Err(SetupError::BadTuneValue(
             "nothing to change: pass --memory, --swap, --processors, --nested-virtualization or --sparse"
                 .to_owned(),
         ));
+    }
+    if let (Some(memory), Some(total_mb)) = (&req.memory, tune::total_memory_mb()) {
+        if force {
+            tracing::warn!(%memory, total_mb, "--force: skipping the Windows memory headroom check");
+        } else {
+            tune::check_memory(memory, total_mb)?;
+        }
     }
     let layout = Layout::from_environment(profile)?;
     let home = dirs::home_dir().ok_or(SetupError::NoLocalAppData)?;
@@ -645,6 +676,29 @@ fn stage_if_elevating(req: &InstallRequest) -> Result<Option<stage::StagedExe>, 
         return Ok(None);
     }
     stage::stage(&current_exe()?).map(Some)
+}
+
+/// The distro to act on: `--distro` as given, else WSL's default or only Ubuntu/Debian distro.
+///
+/// With no candidate the [`DEFAULT_DISTRO`] name is used so the WSL precheck explains the setup.
+fn resolve_distro(requested: Option<&str>) -> Result<String, SetupError> {
+    if let Some(name) = requested {
+        return Ok(name.to_owned());
+    }
+    let probe = probe_wsl(&ProcessRunner, wsl_exe_present());
+    let installed = probe.distros.unwrap_or_default();
+    match host::pick_distro(&installed) {
+        Ok(Some(name)) => Ok(name),
+        Ok(None) => Ok(DEFAULT_DISTRO.to_owned()),
+        Err(host::DistroPick::Ambiguous(names)) => {
+            tracing::warn!(?names, "several distros and none is the default");
+            Err(SetupError::WslMissing(format!(
+                "Several Linux distros are installed ({}) and none of them is WSL's default. Nothing was changed. Choose one and run this command again with --distro NAME, for example: --distro {}",
+                names.join(", "),
+                names[0]
+            )))
+        }
+    }
 }
 
 /// Stop before anything changes (and before any administrator prompt) when WSL or the distro is
