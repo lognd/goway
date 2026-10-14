@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "On a WSL that accepts the plain command, goway runs set-sparse without --allow-unsafe"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "A failed wsl command reports its stdout when stderr is empty, so WSL's own reason reaches the user"

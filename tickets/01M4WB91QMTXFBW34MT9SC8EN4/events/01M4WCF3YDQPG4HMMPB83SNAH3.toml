@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-14T04:59:24Z"
+digest = "4406c8bcc782bf009f838592b32c1ffacadb18f3c82f862515aca0757dc0e56d"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9f522e82-e75d-455c-84d8-15a1c05c768a with nextest profile: default
+    Starting 1 test across 1 binary (27 tests skipped)
+        PASS [   0.004s] goway-setup::hostsys allow_unsafe_is_only_added_when_wsl_asks_for_it
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.004s] 1 test run: 1 passed, 27 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup --test hostsys -E test(allow_unsafe_is_only_added_when_wsl_asks_for_it)"
+size = 557
+status = "measured"
+test_count = 1
+tests_digest = "bb8e10d94c032f7ebf158555d421e731b64c6c12df8f7e9f848d34dca1e95675"
+at = "2026-10-14T04:59:24Z"
+actor = "lognd"
+rev = 1
