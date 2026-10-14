@@ -2,12 +2,12 @@
 id = "01M4WB91QMTXFBW34MT9SC8EN4"
 title = "install --host cannot finish on WSL 2.5+: set-sparse is refused, so the install always rolls back"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 class = "expedite"
 reporter = "lognd"
 created = "2026-10-14T04:38:37Z"
-updated = "2026-10-14T04:50:39Z"
+updated = "2026-10-14T04:50:42Z"
 scope = ["crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/src/tune.rs", "docs/install-windows.md", "docs/usage.md"]
 
 [[acceptance]]
