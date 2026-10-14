@@ -123,6 +123,17 @@ mod tests {
         }
     }
 
+    /// Poll `check` for up to a second; true as soon as it holds.
+    fn eventually(mut check: impl FnMut() -> bool) -> bool {
+        for _ in 0..50 {
+            if check() {
+                return true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        false
+    }
+
     // frob:tests crates/goway/src/ssh/mux.rs::take_token
     #[test]
     fn tokens_run_out_after_slots_times_per_slot() {
@@ -133,7 +144,9 @@ mod tests {
         assert_eq!(held.len(), SLOTS * PER_SLOT);
         assert!(take_token(tmp.path(), "h", 0).is_none());
         drop(held);
-        assert!(take_token(tmp.path(), "h", 0).is_some());
+        // A concurrently forked test child can hold an inherited copy of the
+        // lock until it execs, so allow the release a moment.
+        assert!(eventually(|| take_token(tmp.path(), "h", 0).is_some()));
     }
 
     // frob:tests crates/goway/src/ssh/mux.rs::host_id
@@ -153,8 +166,11 @@ mod tests {
         let stale = tmp.path().join("stale.sock");
         drop(std::os::unix::net::UnixListener::bind(&stale).unwrap());
         assert!(stale.exists());
-        remove_if_stale(&stale);
-        assert!(!stale.exists());
+        // A forked sibling may briefly hold the closed listener's fd.
+        assert!(eventually(|| {
+            remove_if_stale(&stale);
+            !stale.exists()
+        }));
         let live = tmp.path().join("live.sock");
         let _listener = std::os::unix::net::UnixListener::bind(&live).unwrap();
         remove_if_stale(&live);

@@ -68,16 +68,28 @@ impl Machine {
 
     /// Run `goway <args>` from `exe` with only this machine's PATH and home.
     fn run(&self, exe: &Path, args: &[&str]) -> Output {
-        Command::new(exe)
-            .args(["--color", "never"])
-            .args(args)
-            .env_clear()
-            .env("HOME", &self.home)
-            // macOS ignores XDG variables, so name the config dir outright.
-            .env("GOWAY_CONFIG_DIR", self.home.join(".config/goway"))
-            .env("PATH", format!("{}:/usr/bin:/bin", self.bin.display()))
-            .output()
-            .unwrap()
+        // A sibling test thread that forks while the binary copy is still
+        // open for writing makes the first exec fail with ETXTBSY until the
+        // child execs; retry for a moment instead of failing the test.
+        let mut tries = 0;
+        loop {
+            let out = Command::new(exe)
+                .args(["--color", "never"])
+                .args(args)
+                .env_clear()
+                .env("HOME", &self.home)
+                // macOS ignores XDG variables, so name the config dir outright.
+                .env("GOWAY_CONFIG_DIR", self.home.join(".config/goway"))
+                .env("PATH", format!("{}:/usr/bin:/bin", self.bin.display()))
+                .output();
+            match out {
+                Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy && tries < 50 => {
+                    tries += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                other => return other.unwrap(),
+            }
+        }
     }
 
     /// What the stubs were called with, one line per call.
