@@ -1,0 +1,6 @@
+kind = "comment"
+subtype = "note"
+body = 'Broader than first written: this hits every install --host on WSL 2.0+ whose disk is not already sparse, not only runs started from inside WSL. The install needs the distro running (it installs openssh-server inside it, and refuses to start WSL from an elevated process, hostsys.rs:276), yet the final set-sparse step needs it stopped. So "wsl --shutdown, then install" cannot work either. Workaround that makes step 23 report "in place": from a normal shell run `wsl --shutdown` and `wsl --manage DISTRO --set-sparse true` before the install. A fix should either do the sparse step from the non-elevated parent after a terminate the user agreed to, or leave it out of install --host and point to `tune --sparse`.'
+at = "2026-10-14T04:45:23Z"
+actor = "lognd"
+rev = 1

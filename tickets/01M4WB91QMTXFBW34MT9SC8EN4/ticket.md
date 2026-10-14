@@ -6,7 +6,7 @@ category = "todo"
 priority = "high"
 reporter = "lognd"
 created = "2026-10-14T04:38:37Z"
-updated = "2026-10-14T04:38:37Z"
+updated = "2026-10-14T04:45:23Z"
 scope = ["crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/host.rs"]
 
 [[acceptance]]
