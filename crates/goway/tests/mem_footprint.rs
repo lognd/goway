@@ -228,11 +228,14 @@ fn fake_cargo(w: &common::World) {
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
 }
 
-/// Record `peak` as the overall memory peak of this world's repository on the helper.
+/// Record `peak` as the memory peak of `cargo build` in this world's repository on the helper
+/// (peaks are kept per repository and command).
 fn seed_peak(w: &common::World, peak: u64) {
     let id = goway::repo::Repo::discover(&w.repo).unwrap().id;
+    let words: Vec<String> = ["cargo", "build"].map(str::to_owned).to_vec();
+    let key = goway::fit::mem_key(&id, goway::fit::command_slug(&words).as_deref());
     std::fs::create_dir_all(w.remote.join("mempeaks")).unwrap();
-    std::fs::write(w.remote.join("mempeaks").join(id), format!("{peak}\n")).unwrap();
+    std::fs::write(w.remote.join("mempeaks").join(key), format!("{peak}\n")).unwrap();
 }
 
 fn cores() -> u64 {

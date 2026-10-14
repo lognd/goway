@@ -45,6 +45,50 @@ pub enum Mode {
     Explicit(u32),
 }
 
+/// Most words kept in a command slug (the program and its leading subcommands).
+const SLUG_WORDS: usize = 3;
+/// Longest command slug: the memory key (`<repo id>_<slug>`) must stay a valid peak id.
+const SLUG_MAX: usize = 40;
+
+/// A short, stable name for what `command` runs, for keying memory peaks: the program's
+/// basename plus its leading subcommand words (`cargo-nextest-run`, `cargo-dev-ci`), stopping
+/// at the first flag, `--` or word with other than letters and digits. `None` for no command.
+/// Peaks are per command because a light run (`nextest run` on one crate) must not be judged by
+/// the peak of a heavy one (`dev ci` with doctests and links).
+pub fn command_slug(command: &[String]) -> Option<String> {
+    let program = command.first()?;
+    let base = program.rsplit('/').next().unwrap_or(program);
+    let clean = |w: &str| {
+        w.chars()
+            .all(|c| c.is_ascii_alphanumeric())
+            .then(|| w.to_ascii_lowercase())
+            .filter(|w| !w.is_empty())
+    };
+    let mut parts = vec![clean(base.split('.').next().unwrap_or(base))?];
+    for word in command[1..]
+        .iter()
+        .filter(|w| !w.starts_with('+'))
+        .take(SLUG_WORDS - 1)
+    {
+        match clean(word) {
+            Some(w) => parts.push(w),
+            None => break,
+        }
+    }
+    let mut slug = parts.join("-");
+    slug.truncate(SLUG_MAX);
+    Some(slug.trim_end_matches('-').to_owned())
+}
+
+/// The key a repository's memory peaks are recorded under for one command: `<repo id>_<slug>`
+/// (just the id without a slug). The helper stores them under the same key (`mem-key:` run word).
+pub fn mem_key(repo_id: &str, slug: Option<&str>) -> String {
+    match slug {
+        Some(s) if !s.is_empty() => format!("{repo_id}_{s}"),
+        _ => repo_id.to_owned(),
+    }
+}
+
 /// The value of `name` in `KEY=VALUE` environment words, if set.
 fn env_value<'a>(env: &'a [String], name: &str) -> Option<&'a str> {
     env.iter()
@@ -637,5 +681,57 @@ mod tests {
             !got.iter().any(|w| w.starts_with(LINK_THREADS_VAR)),
             "{got:?}"
         );
+    }
+
+    // frob:ticket 01M4GPJF9TZ9FXETB4G7ASVM8H
+    // frob:tests crates/goway/src/fit.rs::command_slug
+    #[test]
+    fn a_command_is_named_by_its_program_and_leading_subcommands() {
+        let slug = |s: &str| command_slug(&words(s));
+        assert_eq!(slug("cargo dev ci").as_deref(), Some("cargo-dev-ci"));
+        assert_eq!(
+            slug("cargo nextest run --workspace").as_deref(),
+            Some("cargo-nextest-run")
+        );
+        assert_eq!(slug("cargo build -j 4").as_deref(), Some("cargo-build"));
+        assert_eq!(
+            slug("cargo +nightly test -p x").as_deref(),
+            Some("cargo-test")
+        );
+        assert_eq!(slug("/usr/bin/make all").as_deref(), Some("make-all"));
+        assert_eq!(slug("sh -c 'cargo build'").as_deref(), Some("sh"));
+        assert_eq!(slug("cargo -- dev").as_deref(), Some("cargo"));
+        assert_eq!(command_slug(&[]), None);
+        assert_eq!(mem_key("abc", Some("cargo-dev-ci")), "abc_cargo-dev-ci");
+        assert_eq!(mem_key("abc", None), "abc");
+    }
+
+    // frob:ticket 01M4GPJF9TZ9FXETB4G7ASVM8H
+    // frob:tests crates/goway/src/fit.rs::estimate
+    #[test]
+    fn a_light_command_is_not_judged_by_a_heavy_commands_peak() {
+        // The bug: one peak per repository made `cargo nextest run` (about 1 GiB) wait or be
+        // lowered for the 4 GiB a `cargo dev ci` of the same repository once recorded.
+        let heavy = mem_key("r", command_slug(&words("cargo dev ci")).as_deref());
+        let light = mem_key("r", command_slug(&words("cargo nextest run")).as_deref());
+        assert_ne!(heavy, light);
+        let mut p = probe(8, 8, 3);
+        p.mem_peaks.insert(heavy.clone(), 4 * GIB);
+        p.mem_levels
+            .insert(heavy.clone(), [(8, 4 * GIB)].into_iter().collect());
+        p.mem_peaks.insert(light.clone(), GIB);
+        p.mem_levels
+            .insert(light.clone(), [(8, GIB)].into_iter().collect());
+        let heavy_plan = plan(Mode::Adaptive, &p, &heavy).unwrap();
+        let light_plan = plan(Mode::Adaptive, &p, &light).unwrap();
+        assert!(
+            heavy_plan.lowered,
+            "the heavy command is lowered: {heavy_plan:?}"
+        );
+        assert_eq!(
+            light_plan.jobs, 8,
+            "the light command keeps full jobs: {light_plan:?}"
+        );
+        assert_eq!(estimate(&p, &light, 8), Some(GIB));
     }
 }

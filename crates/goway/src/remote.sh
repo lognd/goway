@@ -1554,7 +1554,7 @@ run() {
   shift 10
   # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
   # framework detection of the command's program (see shard_run).
-  local jobs="" jobs_set=0 mem_reserve=0 mold_procs="" mold_threads=""
+  local jobs="" jobs_set=0 mem_reserve=0 mold_procs="" mold_threads="" mem_key=""
   local limits="" detect="" gpu_per="" slot_wait=300 verify="" fresh=0 attempt=1 level=changed room=""
   while [ $# -gt 0 ] && [ "$1" != "--" ]; do
     case "$1" in
@@ -1566,6 +1566,9 @@ run() {
       reserve:*) WIN_RESERVE=${1#reserve:} ;;
       jobs:[0-9]*:rec | jobs:[0-9]*) jobs=${1#jobs:}; jobs=${jobs%%:*}; case "$1" in *:rec) jobs_set=0 ;; *) jobs_set=1 ;; esac ;;
       reserve-mem:[0-9]*) mem_reserve=${1#reserve-mem:} ;;
+      # The key this run's memory peaks are kept under: the repository id plus the command's
+      # slug (peaks are per command; without the word, per repository).
+      mem-key:[A-Za-z0-9]*) mem_key=${1#mem-key:} ;;
       mold:[0-9]*:[0-9]*) mold_procs=${1#mold:}; mold_threads=${mold_procs#*:}; mold_procs=${mold_procs%%:*} ;;
       verify:[12]:changed | verify:[12]:all | verify:[12]:changed:fresh | verify:[12]:all:fresh)
         # The attempt number is goway's explicit argument, never read from
@@ -1583,6 +1586,7 @@ run() {
   case "$detect" in *[!A-Za-z0-9:]*) die "run: bad shard-detect" ;; esac
   case "$gpu_per" in *[!0-9]*) die "run: bad gpu-slots" ;; esac
   case "$slot_wait" in *[!0-9]*) die "run: bad slot-wait" ;; esac
+  case "$mem_key" in *[!A-Za-z0-9._-]*) die "run: bad mem-key" ;; esac
   case "$jobs$mem_reserve$mold_procs$mold_threads" in *[!0-9]*) die "run: bad jobs, reserve-mem or mold" ;; esac
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
@@ -1829,7 +1833,7 @@ run() {
   reap_job "$work" "$(cat "$work/pid" 2>/dev/null || true)" "$run_id"
   : >"$work/done"
   cd "$root"
-  memory_report "$root" "$repo_id" "$work" "$rc" "$jobs"
+  memory_report "$root" "${mem_key:-$repo_id}" "$work" "$rc" "$jobs"
   lost_note "$work"
   # A failed command: before blaming the code, goway compares every synced
   # file the command did not itself change with the laptop's.
@@ -2781,7 +2785,8 @@ mempeaks_reset() {
   [ "$2" = apply ] || return 0
   if [ -n "$3" ]; then
     case "$3" in *[!A-Za-z0-9._-]*) return 0 ;; esac
-    rm -f "$1/mempeaks/$3" "$1/mempeaks/$3".j[0-9]* 2>/dev/null || true
+    # The bare id (older records) and every per-command key `ID_SLUG` with its job levels.
+    rm -f "$1/mempeaks/$3" "$1/mempeaks/$3".j[0-9]* "$1/mempeaks/$3"_* 2>/dev/null || true
   elif [ "$4" = 0 ]; then
     rm -f "$1"/mempeaks/* 2>/dev/null || true
   fi

@@ -780,7 +780,8 @@ pub fn pinned_footprint_warning(selection: &Selection, probe: &Probe) -> Option<
         .repo_id
         .as_deref()
         .filter(|_| !selection.footprint_ignored())?;
-    let mem = crate::fit::assess(selection.fit, probe, id);
+    let mem_id = selection.mem_id()?;
+    let mem = crate::fit::assess(selection.fit, probe, &mem_id);
     let why = (!matches!(mem, crate::footprint::MemRoom::Unmeasured { .. }))
         .then(|| crate::footprint::mem_short_text(mem))
         .flatten()
@@ -838,10 +839,9 @@ fn hold_back_reserved(probe: &mut Probe) {
 /// 0 when none is known (the repository's recorded peak is used instead).
 pub fn memory_reserve(selection: &Selection, probe: &Probe) -> u64 {
     selection
-        .repo_id
-        .as_deref()
+        .mem_id()
         .filter(|_| !selection.footprint_ignored())
-        .and_then(|id| crate::fit::plan(selection.fit, probe, id))
+        .and_then(|id| crate::fit::plan(selection.fit, probe, &id))
         .map_or(0, |plan| plan.reserve)
 }
 
@@ -912,7 +912,7 @@ fn apply_pending(config: &Config, snap: &Snapshot, results: &mut [Probed<'_>]) {
                 .get(&key)
                 .into_iter()
                 .flatten()
-                .filter_map(|id| probe.mem_peaks.get(id))
+                .filter_map(|id| crate::footprint::repo_peak(probe, id))
                 .map(|peak| peak.saturating_sub(reserve))
                 .sum();
             if let Some(avail) = probe.facts.mem_avail.as_mut() {
@@ -954,11 +954,10 @@ fn room_shortage(selection: &Selection, probe: &Probe) -> Option<String> {
 /// The memory assessment of `probe` for the run's repository.
 fn mem_room(selection: &Selection, probe: &Probe) -> crate::footprint::MemRoom {
     selection
-        .repo_id
-        .as_deref()
+        .mem_id()
         .filter(|_| !selection.footprint_ignored())
         .map_or(crate::footprint::MemRoom::Unknown, |id| {
-            crate::fit::assess(selection.fit, probe, id)
+            crate::fit::assess(selection.fit, probe, &id)
         })
 }
 

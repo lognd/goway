@@ -193,6 +193,18 @@ pub fn assess_mem(probe: &Probe, repo_id: &str) -> MemRoom {
     judge_mem(probe, peak)
 }
 
+/// The largest memory peak recorded for repository `repo_id` under any command (its bare id
+/// or `<id>_<command>`), for a run whose command is not known (a queued claim).
+pub fn repo_peak(probe: &Probe, repo_id: &str) -> Option<u64> {
+    let prefix = format!("{repo_id}_");
+    probe
+        .mem_peaks
+        .iter()
+        .filter(|(id, _)| id.as_str() == repo_id || id.starts_with(&prefix))
+        .map(|(_, &peak)| peak)
+        .max()
+}
+
 /// Judge `probe`'s total and available memory against a run expected to peak at `peak` bytes.
 pub fn judge_mem(probe: &Probe, peak: u64) -> MemRoom {
     let need = mem_required(peak);

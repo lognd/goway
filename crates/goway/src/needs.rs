@@ -504,9 +504,19 @@ pub struct Selection {
     pub only_host: Option<String>,
     /// How the run's parallelism is fitted to a host's memory (see [`crate::fit`]).
     pub fit: crate::fit::Mode,
+    /// The command's short name (see [`crate::fit::command_slug`]): memory peaks are kept per
+    /// repository and command, since `cargo nextest run` and `cargo dev ci` peak very differently.
+    pub command_slug: Option<String>,
 }
 
 impl Selection {
+    /// The key memory peaks are recorded and read under: the repository id, plus the command's
+    /// slug when one is set (`<repo>_<slug>`). `None` without a repository.
+    pub fn mem_id(&self) -> Option<String> {
+        let id = self.repo_id.as_deref()?;
+        Some(crate::fit::mem_key(id, self.command_slug.as_deref()))
+    }
+
     /// Parse the `--needs` and `--prefers` values (each may hold comma-separated terms).
     ///
     /// # Errors
@@ -528,6 +538,7 @@ impl Selection {
             ignore_footprint: false,
             only_host: None,
             fit: crate::fit::Mode::Off,
+            command_slug: None,
         })
     }
 

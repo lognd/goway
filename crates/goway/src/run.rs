@@ -288,11 +288,10 @@ fn discard_work(env: &Env<'_>, found: &Found, remote_root: &str, run_id: &str) {
 /// fitted only while the repository's footprint checks are on; the CPU share always).
 pub(crate) fn fit_plan(selection: &Selection, probe: &pool::Probe) -> Option<crate::fit::Plan> {
     let id = selection
-        .repo_id
-        .as_deref()
+        .mem_id()
         .filter(|_| !selection.footprint_ignored())
         .unwrap_or_default();
-    crate::fit::plan(selection.fit, probe, id)
+    crate::fit::plan(selection.fit, probe, &id)
 }
 
 /// One attempt of `goway run`; `own_os_only` limits the pool to this machine's OS (the
@@ -328,6 +327,7 @@ fn run_picked(
     selection.repo_id = Some(repo.id.clone());
     selection.ignore_footprint = args.ignore_footprint;
     selection.fit = crate::fit::Mode::for_run(&args.command, &args.env);
+    selection.command_slug = crate::fit::command_slug(&args.command);
     if own_os_only {
         selection = selection.with_default_os(needs::laptop_os());
     }
@@ -496,6 +496,11 @@ fn run_picked(
             if plan.reserve > 0 {
                 extra.push(format!("reserve-mem:{}", plan.reserve));
             }
+        }
+        if found.kind == crate::transport::Kind::Unix
+            && let Some(key) = selection.mem_id()
+        {
+            extra.push(format!("mem-key:{key}"));
         }
         extra.push(verify.word());
         extra.push(slot_wait_word(args.wait));
