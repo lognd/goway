@@ -1,1 +1,0 @@
-goway-setup install --host now works again after a failed or undone install: openssh-server left in dpkg state rc (removed, configuration kept, which is what goway's apt-get remove produces) is reinstalled instead of refused, without purging, so the helper presents the same host key.

@@ -1,1 +1,0 @@
-goway-setup tune now refuses a WSL memory size that leaves Windows under 3 GB (or a quarter of the RAM on large machines), naming the RAM, the request and the largest safe size, unless --force is given; tune --memory max picks that size, and goway doctor warns about a helper whose .wslconfig already starves Windows and prints the tune command that fixes it.

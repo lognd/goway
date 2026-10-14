@@ -1,1 +1,0 @@
-goway-setup install --host and tune no longer assume the Ubuntu distro: without --distro they use the WSL default distro when it is Ubuntu or Debian, else the only such distro installed, and with several candidates and no default they list them and ask for --distro NAME instead of suggesting wsl --install.

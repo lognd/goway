@@ -1,1 +1,0 @@
-Helper installs on WSL 2.5 and later no longer fail and roll back at the last step: WSL disabled sparse virtual disks and refuses to make one unless asked with --allow-unsafe, so goway now retries with that flag when WSL asks for it, and a failed wsl command shows WSL's own message.

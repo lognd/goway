@@ -1,1 +1,0 @@
-`goway doctor` no longer warns "no ssh key found" when the host config names goway's own identity key and its .pub exists; it still warns when neither the agent, the ssh defaults nor the host identity provides a key.

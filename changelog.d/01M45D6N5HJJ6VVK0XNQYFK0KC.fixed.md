@@ -1,1 +1,0 @@
-install.sh now upgrades an existing install in place instead of asking for `goway uninstall` first: it replaces the binary it installed (refusing, and naming the file, if it was changed by hand) and updates the install journal, so uninstall stays exact.

@@ -1,1 +1,0 @@
-`goway uninstall` no longer deletes the records of changes on helpers it cannot undo: helpers that are not in the config but have active records are kept and named with the command that undoes them, and `--everywhere` deletes a helper's record only after its changes were undone.

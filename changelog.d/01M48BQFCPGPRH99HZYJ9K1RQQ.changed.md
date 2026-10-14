@@ -1,1 +1,0 @@
-A cargo run with no memory record for its command now starts at lowered jobs (assuming 1 GiB fixed plus 1 GiB per job) and says why, instead of full parallelism that could exhaust a small helper; once a peak is recorded it replaces the guess.

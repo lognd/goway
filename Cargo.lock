@@ -341,7 +341,7 @@ dependencies = [
 
 [[package]]
 name = "goway"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anstream 0.6.21",
  "anstyle",
@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "goway-journal"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "proptest",
  "serde",
@@ -381,7 +381,7 @@ dependencies = [
 
 [[package]]
 name = "goway-setup"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anstream 0.6.21",
  "anstyle",

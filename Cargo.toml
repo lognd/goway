@@ -4,7 +4,7 @@ members = ["crates/*"]
 resolver = "3"
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 license = "MIT"
 rust-version = "1.98"
@@ -18,7 +18,7 @@ categories = ["command-line-utilities", "development-tools::build-utils"]
 
 [workspace.dependencies]
 # Path plus version: the path serves the workspace, the version serves crates.io.
-goway-journal = { path = "crates/goway-journal", version = "0.1.1" }
+goway-journal = { path = "crates/goway-journal", version = "0.1.2" }
 
 [workspace.lints.rust]
 missing_docs = "deny"

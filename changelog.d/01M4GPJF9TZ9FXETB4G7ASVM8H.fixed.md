@@ -1,1 +1,0 @@
-Peaks recorded for memory fitting are now kept per repository and per command, so a light run (such as a nextest run) on a small helper is no longer judged by the peak of a heavy one (such as a full CI run).
