@@ -1208,7 +1208,9 @@ const HEARTBEAT_SECS: u64 = 5;
 /// `remote.ps1`). Never fails the run: without it the run is only as
 /// protected as before.
 struct Beat {
-    child: std::process::Child,
+    child: std::sync::Arc<std::sync::Mutex<std::process::Child>>,
+    /// When the lifeline's ssh was first seen ended, and how (set by the writer thread).
+    ended: std::sync::Arc<std::sync::Mutex<Option<(std::time::Instant, String)>>>,
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     writer: Option<std::thread::JoinHandle<()>>,
     /// Longest wall-clock gap between two beats, in milliseconds.
@@ -1237,6 +1239,9 @@ impl Beat {
         let flag = stop.clone();
         let max_gap_ms = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         let gap = max_gap_ms.clone();
+        let child = std::sync::Arc::new(std::sync::Mutex::new(child));
+        let ended = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let (watched, seen) = (child.clone(), ended.clone());
         let writer = std::thread::spawn(move || {
             use std::io::Write as _;
             let mut last = std::time::SystemTime::now();
@@ -1248,10 +1253,11 @@ impl Beat {
                 }
                 last = std::time::SystemTime::now();
                 if pipe.write_all(b".").and_then(|()| pipe.flush()).is_err() {
+                    note_end(&watched, &seen);
                     return;
                 }
                 for _ in 0..HEARTBEAT_SECS * 10 {
-                    if flag.load(std::sync::atomic::Ordering::SeqCst) {
+                    if flag.load(std::sync::atomic::Ordering::SeqCst) || note_end(&watched, &seen) {
                         return;
                     }
                     std::thread::sleep(std::time::Duration::from_millis(100));
@@ -1260,6 +1266,7 @@ impl Beat {
         });
         Some(Self {
             child,
+            ended,
             stop,
             writer: Some(writer),
             max_gap_ms,
@@ -1273,13 +1280,40 @@ impl Beat {
         std::time::Duration::from_millis(self.max_gap_ms.load(std::sync::atomic::Ordering::SeqCst))
     }
 
-    /// Why the lifeline's ssh already ended, or `None` while it is still up.
-    fn broken(&mut self) -> Option<String> {
-        self.child
-            .try_wait()
-            .ok()
-            .flatten()
-            .map(|status| format!("ssh {status}"))
+    /// Why the lifeline's ssh ended while the job still ran, or `None` while it is
+    /// up or when it ended with (at or just before) the job: the helper closes the
+    /// lifeline as a finished job's run ends, which is not a break.
+    fn broken(&self, job_ended: std::time::Instant) -> Option<String> {
+        note_end(&self.child, &self.ended);
+        let (at, why) = self.ended.lock().ok()?.clone()?;
+        if at + LIFELINE_GRACE >= job_ended {
+            tracing::debug!(%why, "lifeline ended with the job; not a break");
+            return None;
+        }
+        Some(why)
+    }
+}
+
+/// How long before the job's end a lifeline end still counts as part of the end.
+const LIFELINE_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Record, once, when and how the lifeline's ssh ended; true once it has.
+fn note_end(
+    child: &std::sync::Mutex<std::process::Child>,
+    ended: &std::sync::Mutex<Option<(std::time::Instant, String)>>,
+) -> bool {
+    let (Ok(mut child), Ok(mut ended)) = (child.lock(), ended.lock()) else {
+        return false;
+    };
+    if ended.is_some() {
+        return true;
+    }
+    match child.try_wait() {
+        Ok(Some(status)) => {
+            *ended = Some((std::time::Instant::now(), format!("ssh {status}")));
+            true
+        }
+        _ => false,
     }
 }
 
@@ -1287,10 +1321,12 @@ impl Drop for Beat {
     /// The run is over: stop beating and close the lifeline.
     fn drop(&mut self) {
         self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
-        let _ = self.child.kill();
-        let _ = self.child.wait();
         if let Some(w) = self.writer.take() {
             let _ = w.join();
+        }
+        if let Ok(mut child) = self.child.lock() {
+            let _ = child.kill();
+            let _ = child.wait();
         }
     }
 }
@@ -1312,7 +1348,7 @@ fn stream(
     let watch = lostlink::Watch::start();
     let (out_tail, err_tail) = (lostlink::Tail::default(), lostlink::Tail::default());
     // Before the command starts, so a client that dies at once is covered.
-    let mut beat = Beat::start(found, settings, life);
+    let beat = Beat::start(found, settings, life);
     let mut command = SshTransport::of(found, settings).command(cmd)?;
     if std::io::IsTerminal::is_terminal(&std::io::stderr()) {
         command.env("CARGO_TERM_COLOR", "always");
@@ -1362,8 +1398,9 @@ fn stream(
         child.wait()
     })
     .map_err(ssh_err)?;
+    let job_ended = std::time::Instant::now();
     let interrupted = interrupted.load(std::sync::atomic::Ordering::SeqCst);
-    let lifeline_broken = beat.as_mut().and_then(Beat::broken);
+    let lifeline_broken = beat.as_ref().and_then(|b| b.broken(job_ended));
     // ssh exits 255 when interrupted; report it like the shell would (128+SIGINT).
     let code = if interrupted && status.code() == Some(255) {
         130
@@ -1567,5 +1604,64 @@ mod tests {
         assert_eq!(json["os"], "windows");
         assert_eq!(json["arch"], "aarch64");
         assert_eq!(json["exit_code"], 101);
+    }
+
+    /// A lifeline whose ssh is the shell command `script` (no writer thread: `broken` only reads
+    /// the child's status).
+    #[cfg(unix)]
+    fn beat_running(script: &str) -> Beat {
+        let child = std::process::Command::new("sh")
+            .args(["-c", script])
+            .spawn()
+            .unwrap();
+        Beat {
+            child: std::sync::Arc::new(std::sync::Mutex::new(child)),
+            ended: std::sync::Arc::default(),
+            stop: std::sync::Arc::default(),
+            writer: None,
+            max_gap_ms: std::sync::Arc::default(),
+        }
+    }
+
+    /// Wait until the lifeline's ssh has ended.
+    #[cfg(unix)]
+    fn wait_ended(beat: &Beat) {
+        for _ in 0..200 {
+            if note_end(&beat.child, &beat.ended) {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!("the lifeline child did not end");
+    }
+
+    // frob:tests crates/goway/src/run.rs::Beat
+    #[cfg(unix)]
+    #[test]
+    fn a_lifeline_that_ends_cleanly_with_the_job_is_not_a_break() {
+        let beat = beat_running("exit 0");
+        wait_ended(&beat);
+        assert_eq!(beat.broken(std::time::Instant::now()), None);
+    }
+
+    // frob:tests crates/goway/src/run.rs::Beat
+    #[cfg(unix)]
+    #[test]
+    fn a_lifeline_that_ends_while_the_job_still_runs_is_a_break() {
+        let beat = beat_running("exit 0");
+        wait_ended(&beat);
+        let later = std::time::Instant::now() + LIFELINE_GRACE * 5;
+        let why = beat
+            .broken(later)
+            .expect("a lifeline that ended long before the job");
+        assert!(why.contains("exit status: 0"), "{why}");
+    }
+
+    // frob:tests crates/goway/src/run.rs::Beat
+    #[cfg(unix)]
+    #[test]
+    fn a_lifeline_that_is_still_up_is_not_a_break() {
+        let beat = beat_running("sleep 30");
+        assert_eq!(beat.broken(std::time::Instant::now()), None);
     }
 }
