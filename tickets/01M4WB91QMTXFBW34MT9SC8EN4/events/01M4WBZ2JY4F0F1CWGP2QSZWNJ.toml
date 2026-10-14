@@ -1,0 +1,9 @@
+kind = "field"
+field = "acceptance"
+old = ["With the distro running, install --host finishes: the sparse step is skipped or deferred, and the summary prints the command to make the disk sparse later", "The dry run flags the sparse step as needing a stopped distro when the distro is running", "A failing sparse step never rolls back the rest of the host install"]
+new = ["Without --allow-unsafe-sparse, the install --host plan contains no sparse virtual disk change, so the install finishes on a WSL that refuses set-sparse", "With --allow-unsafe-sparse, install --host plans the sparse change and applies it as wsl --manage DISTRO --set-sparse true --allow-unsafe", "tune --sparse --allow-unsafe-sparse passes --allow-unsafe to wsl; tune --sparse alone does not", "A failed wsl command reports its stdout when stderr is empty, so WSL's own reason reaches the user"]
+reason = "Root cause found 2026-10-14 on Nova: WSL 2.5.7 disables sparse VHDs (E_INVALIDARG, data corruption) unless --allow-unsafe; owner asked for that flag"
+moved = [0, 0, 0]
+at = "2026-10-14T04:50:39Z"
+actor = "lognd"
+rev = 1

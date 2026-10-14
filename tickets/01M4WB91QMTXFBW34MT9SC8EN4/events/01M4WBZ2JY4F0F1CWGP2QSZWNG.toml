@@ -1,0 +1,8 @@
+kind = "field"
+field = "priority"
+old = "high"
+new = "critical"
+reason = "Root cause found 2026-10-14 on Nova: WSL 2.5.7 disables sparse VHDs (E_INVALIDARG, data corruption) unless --allow-unsafe; owner asked for that flag"
+at = "2026-10-14T04:50:39Z"
+actor = "lognd"
+rev = 1
