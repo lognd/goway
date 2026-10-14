@@ -203,3 +203,103 @@ fn settling_from_a_position_keeps_earlier_entries_live_and_removes_a_settled_log
     changelog::settle_from(dir.path(), 0).unwrap();
     assert!(!dir.path().join(FILE_NAME).exists());
 }
+
+const PIN_SCRIPT: &str = "t=$(mktemp -d) && curl -fsSL https://github.com/astral-sh/uv/releases/download/0.12.23/uv-x86_64-unknown-linux-gnu.tar.gz -o \"$t/a\" && echo \"abc  $t/a\" | sha256sum -c --quiet && rm -rf $HOME/.local/opt/goway-uv\" && mkdir -p \"$HOME/.local/opt/goway-uv\" && tar xf \"$t/a\" -C $HOME/.local/opt/goway-uv\" --strip-components=1 && ln -sf x \"$HOME/.local/bin/uv\"; rc=$?; rm -rf \"$t\"; exit $rc";
+
+/// Record a pinned-tool install the way `doctor --fix` does: the action in the change log and the
+/// resource in the helper's fix journal.
+fn record_pinned_install(dir: &std::path::Path) {
+    use goway_journal::{Change, Entry, Journal, Prior, ResourceKind};
+    changelog::record_action(
+        dir,
+        ActionKind::RunFix,
+        PIN_SCRIPT,
+        "Helios",
+        "doctor --fix (journaled in fixes-helios.json)",
+        Some("`goway uninstall` takes back what doctor --fix installed"),
+    )
+    .unwrap();
+    let mut fixes = Journal::generate();
+    fixes.entries.push(Entry {
+        change: Change::EnsureResource {
+            kind: ResourceKind::PinnedTool,
+            name: "uv:uv,uvx".to_owned(),
+            spec: PIN_SCRIPT.to_owned(),
+        },
+        prior: Prior::ResourceCreated,
+        reverted: false,
+    });
+    fixes
+        .save(&goway::doctor::fixes_path(dir, "Helios"))
+        .unwrap();
+}
+
+// frob:tests crates/goway/src/changelog.rs::rows
+#[test]
+fn a_pinned_tool_install_is_one_undoable_line_with_a_local_time() {
+    let dir = tempfile::tempdir().unwrap();
+    record_pinned_install(dir.path());
+    let rows = changelog::rows(dir.path()).unwrap();
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert!(row.reversible, "{row:?}");
+    assert!(
+        row.what
+            .starts_with("installed uv 0.12.23 user-level on Helios at "),
+        "{}",
+        row.what
+    );
+    assert!(
+        !row.what.contains('\n') && !row.what.contains("curl"),
+        "{}",
+        row.what
+    );
+    assert!(!row.what.contains("unix time"), "{}", row.what);
+    // A local date and time ("YYYY-MM-DD HH:MM"), not a unix stamp.
+    let when = row.what.split(" at ").nth(1).unwrap();
+    let bytes = when.as_bytes();
+    assert!(
+        bytes[4] == b'-' && bytes[7] == b'-' && bytes[10] == b' ' && bytes[13] == b':',
+        "{when}"
+    );
+}
+
+// frob:tests crates/goway/src/changelog.rs::undo_with
+#[test]
+fn undoing_a_pinned_tool_install_reverts_it_through_the_fix_journal() {
+    let dir = tempfile::tempdir().unwrap();
+    record_pinned_install(dir.path());
+    let mut reached = Vec::new();
+    let done = changelog::undo_with(dir.path(), None, &mut |host, journal| {
+        reached.push(host.to_owned());
+        assert_eq!(journal.entries.len(), 1);
+        journal.entries[0].reverted = true;
+        Ok(goway_journal::RevertReport {
+            outcomes: vec![(0, Outcome::Restored)],
+        })
+    })
+    .unwrap();
+    assert_eq!(reached, ["Helios"]);
+    assert_eq!(done.len(), 1);
+    assert_eq!(done[0].outcome, Outcome::Restored);
+    assert!(
+        !goway::doctor::fixes_path(dir.path(), "Helios").exists(),
+        "the fix journal is gone once nothing in it is live"
+    );
+    assert!(changelog::rows(dir.path()).unwrap().is_empty(), "settled");
+}
+
+// frob:tests crates/goway/src/changelog.rs::undo_with
+#[test]
+fn a_pinned_tool_that_cannot_be_reached_stays_active_and_undoable() {
+    let dir = tempfile::tempdir().unwrap();
+    record_pinned_install(dir.path());
+    let done = changelog::undo(dir.path(), None).unwrap();
+    assert!(
+        matches!(done[0].outcome, Outcome::NotReversible(_)),
+        "{done:?}"
+    );
+    let rows = changelog::rows(dir.path()).unwrap();
+    assert!(!rows[0].settled && rows[0].reversible, "{rows:?}");
+    assert!(goway::doctor::fixes_path(dir.path(), "Helios").exists());
+}
