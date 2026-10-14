@@ -7,19 +7,15 @@ priority = "critical"
 class = "expedite"
 reporter = "lognd"
 created = "2026-10-14T04:38:37Z"
-updated = "2026-10-14T04:50:42Z"
-scope = ["crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/src/tune.rs", "docs/install-windows.md", "docs/usage.md"]
+updated = "2026-10-14T04:51:05Z"
+scope = ["crates/goway-setup/src/hostsys.rs", "docs/install-windows.md", "docs/usage.md"]
 
 [[acceptance]]
-text = "Without --allow-unsafe-sparse, the install --host plan contains no sparse virtual disk change, so the install finishes on a WSL that refuses set-sparse"
+text = "When wsl refuses set-sparse true because sparse VHDs are disabled and suggests --allow-unsafe, goway reruns it with --allow-unsafe and the change succeeds"
 bound = false
 
 [[acceptance]]
-text = "With --allow-unsafe-sparse, install --host plans the sparse change and applies it as wsl --manage DISTRO --set-sparse true --allow-unsafe"
-bound = false
-
-[[acceptance]]
-text = "tune --sparse --allow-unsafe-sparse passes --allow-unsafe to wsl; tune --sparse alone does not"
+text = "On a WSL that accepts the plain command, goway runs set-sparse without --allow-unsafe"
 bound = false
 
 [[acceptance]]
