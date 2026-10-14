@@ -1,0 +1,8 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/src/cli.rs", "crates/goway-setup/src/tune.rs", "docs/install-windows.md", "docs/usage.md"]
+new = ["crates/goway-setup/src/hostsys.rs", "docs/install-windows.md", "docs/usage.md"]
+reason = "Owner: pass --allow-unsafe to wsl, no new goway flag"
+at = "2026-10-14T04:51:05Z"
+actor = "lognd"
+rev = 1

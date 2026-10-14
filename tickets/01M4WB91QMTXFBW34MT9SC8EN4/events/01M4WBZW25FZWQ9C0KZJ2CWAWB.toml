@@ -1,0 +1,9 @@
+kind = "field"
+field = "acceptance"
+old = ["Without --allow-unsafe-sparse, the install --host plan contains no sparse virtual disk change, so the install finishes on a WSL that refuses set-sparse", "With --allow-unsafe-sparse, install --host plans the sparse change and applies it as wsl --manage DISTRO --set-sparse true --allow-unsafe", "tune --sparse --allow-unsafe-sparse passes --allow-unsafe to wsl; tune --sparse alone does not", "A failed wsl command reports its stdout when stderr is empty, so WSL's own reason reaches the user"]
+new = ["When wsl refuses set-sparse true because sparse VHDs are disabled and suggests --allow-unsafe, goway reruns it with --allow-unsafe and the change succeeds", "On a WSL that accepts the plain command, goway runs set-sparse without --allow-unsafe", "A failed wsl command reports its stdout when stderr is empty, so WSL's own reason reaches the user"]
+reason = "Owner: pass --allow-unsafe to wsl, no new goway flag"
+moved = [0, 0, 0, 0]
+at = "2026-10-14T04:51:05Z"
+actor = "lognd"
+rev = 1

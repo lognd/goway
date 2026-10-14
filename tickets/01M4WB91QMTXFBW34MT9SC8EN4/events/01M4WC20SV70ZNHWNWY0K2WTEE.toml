@@ -1,0 +1,8 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway-setup/src/hostsys.rs", "docs/install-windows.md", "docs/usage.md"]
+new = ["crates/goway-setup/src/hostsys.rs", "docs/install-windows.md", "docs/usage.md", "crates/goway-setup/tests/hostsys.rs"]
+reason = "tests for the fix"
+at = "2026-10-14T04:52:15Z"
+actor = "lognd"
+rev = 1

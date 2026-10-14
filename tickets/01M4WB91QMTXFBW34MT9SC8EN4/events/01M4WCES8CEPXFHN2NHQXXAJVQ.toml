@@ -1,0 +1,8 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway-setup/src/hostsys.rs", "docs/install-windows.md", "docs/usage.md", "crates/goway-setup/tests/hostsys.rs"]
+new = ["crates/goway-setup/src/hostsys.rs", "docs/install-windows.md", "docs/usage.md", "crates/goway-setup/tests/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/tests/host_plan.rs"]
+reason = "Second root cause on Nova: WSL_E_DISTRO_NOT_STOPPED"
+at = "2026-10-14T04:59:13Z"
+actor = "lognd"
+rev = 1
