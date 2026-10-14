@@ -287,6 +287,42 @@ fn a_cargo_run_that_would_not_fit_is_lowered_and_told_so_and_its_level_is_record
     );
 }
 
+// frob:ticket 01M48BQFCPGPRH99HZYJ9K1RQQ
+// frob:tests crates/goway/src/fit.rs::plan
+// frob:tests crates/goway/src/fit.rs::note
+#[test]
+fn a_cargo_run_with_no_record_starts_lowered_and_says_why_until_a_record_exists() {
+    if cores() < 4 {
+        return;
+    }
+    let w = common::world();
+    fake_cargo(&w);
+    let (_, avail) = meminfo();
+    // What the cold-start guess asks for at full parallelism, margins included (generously).
+    let wants = (goway::fit::COLD_FIXED + goway::fit::COLD_PER_JOB * cores()) * 13 / 10;
+    let out = w.run(&["run", "--", "cargo", "build"]);
+    let (stdout, err) = (
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    );
+    assert!(out.status.success(), "{err}");
+    if wants > avail {
+        // A host too small for the guess at full parallelism: lowered, and it says why.
+        let n: u64 = stdout
+            .split_whitespace()
+            .find_map(|w| w.strip_prefix("jobs=")?.parse().ok())
+            .unwrap_or_else(|| panic!("no job count in {stdout}"));
+        assert!((1..cores()).contains(&n), "{n} of {}: {stdout}", cores());
+        assert!(err.contains("no memory record"), "{err}");
+    }
+    // Once a peak is on record, the recorded estimate replaces the guess.
+    seed_peak(&w, 1 << 20);
+    let out = w.run(&["run", "--", "cargo", "build"]);
+    let err = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(out.status.success(), "{err}");
+    assert!(!err.contains("no memory record"), "{err}");
+}
+
 // frob:ticket 01M47SYH8F5YD6P5G2741CG5RF
 // frob:tests crates/goway/src/fit.rs::Mode.for_run
 #[test]

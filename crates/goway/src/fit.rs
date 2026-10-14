@@ -32,6 +32,16 @@ const FIXED_PERCENT: u64 = 50;
 /// [`footprint::mem_required`] adds its own margin on top when the estimate is judged.
 pub const MODEL_MARGIN_PERCENT: u64 = 15;
 
+/// The fixed part, in bytes, of the cold-start estimate used when a repository and command have
+/// no recorded peak yet: 1 GiB for the final link, rustdoc and the harness.
+pub const COLD_FIXED: u64 = 1 << 30;
+
+/// The per-job part, in bytes, of the cold-start estimate: 1 GiB for each parallel rustc (a
+/// large crate's codegen, or a link). Deliberately pessimistic: the first run on a small
+/// helper must not be killed by the kernel for lack of a record, and the run's own measured
+/// peak replaces this guess for every later run.
+pub const COLD_PER_JOB: u64 = 1 << 30;
+
 /// The environment variable carrying the thread budget of one link (mold has no variable of its
 /// own for its thread count; a linker wrapper or `-Wl,--threads=$GOWAY_LINK_THREADS` uses it).
 pub const LINK_THREADS_VAR: &str = "GOWAY_LINK_THREADS";
@@ -251,6 +261,17 @@ pub fn estimate(probe: &Probe, repo: &str, jobs: u32) -> Option<u64> {
     Some(learn(&points)?.at(jobs).max(seen_below))
 }
 
+/// The cold-start [`Model`]: what an adaptive run is assumed to need before anything is recorded.
+const COLD_MODEL: Model = Model {
+    fixed: COLD_FIXED,
+    per_job: COLD_PER_JOB,
+};
+
+/// Whether `repo` has no recorded peak on `probe`'s host (so only the cold-start guess exists).
+fn is_cold(probe: &Probe, repo: &str) -> bool {
+    points_of(probe, repo).is_empty()
+}
+
 /// What goway decided for one run on one host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Plan {
@@ -266,6 +287,8 @@ pub struct Plan {
     pub reserve: u64,
     /// Whether the plan fits the host's available memory (false: it is the one-job last resort).
     pub fits: bool,
+    /// Whether `peak` is the conservative cold-start guess, nothing being recorded yet.
+    pub cold: bool,
     /// The cores this run may use: an equal share of the host with the runs already there.
     pub cpu_share: u32,
     /// Concurrent mold processes allowed (`MOLD_JOBS`).
@@ -310,13 +333,26 @@ pub fn plan(mode: Mode, probe: &Probe, repo: &str) -> Option<Plan> {
         probe.facts.mem_total.is_none_or(|t| need <= t)
             && probe.facts.mem_avail.is_none_or(|a| need <= a)
     };
+    // An adaptive run with nothing recorded is judged by the cold-start guess; a record, once
+    // there, replaces it. An explicit count is never lowered, so it needs no guess.
+    let cold = matches!(mode, Mode::Adaptive) && is_cold(probe, repo);
+    let guess = |j: u32| {
+        if cold {
+            Some(COLD_MODEL.at(j))
+        } else {
+            estimate(probe, repo, j)
+        }
+    };
     let chosen = tries
         .iter()
         .copied()
-        .find(|&j| estimate(probe, repo, j).is_none_or(&fitting))
+        .find(|&j| guess(j).is_none_or(&fitting))
         .map(|j| (j, true));
     let (jobs, fits) = chosen.unwrap_or((tries.last().copied().unwrap_or(first), false));
-    let peak = estimate(probe, repo, jobs);
+    let peak = guess(jobs);
+    if cold {
+        tracing::debug!(repo, jobs, ?peak, "no memory record: cold-start estimate");
+    }
     let (mold_jobs, link_threads) = link_budget(jobs);
     Some(Plan {
         cpu_share: cpu_share(probe),
@@ -326,8 +362,14 @@ pub fn plan(mode: Mode, probe: &Probe, repo: &str) -> Option<Plan> {
         natural,
         lowered: matches!(mode, Mode::Adaptive) && jobs < natural,
         peak,
-        reserve: peak.map_or(0, footprint::mem_required),
+        // A guess is not worth holding memory back from other runs for.
+        reserve: if cold {
+            0
+        } else {
+            peak.map_or(0, footprint::mem_required)
+        },
         fits,
+        cold,
     })
 }
 
@@ -336,8 +378,11 @@ pub fn plan(mode: Mode, probe: &Probe, repo: &str) -> Option<Plan> {
 /// overall record when the run is not adaptive.
 pub fn assess(mode: Mode, probe: &Probe, repo: &str) -> MemRoom {
     match plan(mode, probe, repo) {
+        // A cold-start guess never refuses a host: only a measured peak does.
         Some(Plan {
-            peak: Some(peak), ..
+            peak: Some(peak),
+            cold: false,
+            ..
         }) => footprint::judge_mem(probe, peak),
         _ => footprint::assess_mem(probe, repo),
     }
@@ -398,8 +443,13 @@ pub fn note(host: &str, plan: &Plan, avail: Option<u64>) -> Option<String> {
     let peak = plan.peak.map_or_else(String::new, |p| {
         format!(", estimated peak {}", human_bytes(p))
     });
+    let cold = if plan.cold {
+        " (no memory record for this command yet, so starting conservatively; the run records one)"
+    } else {
+        ""
+    };
     Some(format!(
-        "{host} has {why}: running with {} of {} jobs (CARGO_BUILD_JOBS={n}, NEXTEST_TEST_THREADS={n}, MOLD_JOBS={}, {LINK_THREADS_VAR}={}{peak}){}",
+        "{host} has {why}: running with {} of {} jobs (CARGO_BUILD_JOBS={n}, NEXTEST_TEST_THREADS={n}, MOLD_JOBS={}, {LINK_THREADS_VAR}={}{peak}){cold}{}",
         plan.jobs,
         plan.natural,
         plan.mold_jobs,
@@ -554,6 +604,41 @@ mod tests {
         assert_eq!(model.at(6), line + line / 100 * MODEL_MARGIN_PERCENT);
     }
 
+    // frob:ticket 01M48BQFCPGPRH99HZYJ9K1RQQ
+    // frob:tests crates/goway/src/fit.rs::plan
+    // frob:tests crates/goway/src/fit.rs::note
+    #[test]
+    fn a_run_with_no_record_starts_conservatively_and_a_record_replaces_the_guess() {
+        // A 4.8 GiB helper, 4.1 free, 8 cores, nothing recorded: not 8 jobs.
+        let mut p = probe(8, 5, 4);
+        let cold = plan_of(Mode::Adaptive, &p);
+        assert!(cold.cold && cold.lowered && cold.fits, "{cold:?}");
+        assert!((1..8).contains(&cold.jobs), "{cold:?}");
+        assert_eq!(cold.reserve, 0, "a guess holds no memory back");
+        let text = note("small", &cold, p.facts.mem_avail).unwrap();
+        assert!(text.contains("no memory record"), "{text}");
+        assert!(!matches!(
+            assess(Mode::Adaptive, &p, "r"),
+            MemRoom::TooSmall { .. }
+        ));
+        // A big host is not held back by the guess.
+        let big = plan_of(Mode::Adaptive, &probe(12, 64, 64));
+        assert!(big.cold && !big.lowered, "{big:?}");
+        assert_eq!(note("big", &big, None), None);
+        // An explicit count is never replaced by a guess.
+        assert!(!plan_of(Mode::Explicit(8), &p).cold);
+        // Once a peak is recorded the recorded estimate replaces the guess.
+        p.mem_levels
+            .entry("r".to_owned())
+            .or_default()
+            .insert(8, 2 * GIB);
+        p.mem_peaks.insert("r".to_owned(), 2 * GIB);
+        let warm = plan_of(Mode::Adaptive, &p);
+        assert!(!warm.cold, "{warm:?}");
+        assert_eq!(warm.jobs, 8, "the light record fits at full jobs: {warm:?}");
+        assert_eq!(warm.peak, Some(2 * GIB));
+    }
+
     // frob:ticket 01M4A8H1DWYN24DXSPMK60F05J
     // frob:tests crates/goway/src/fit.rs::plan
     #[test]
@@ -647,6 +732,7 @@ mod tests {
             peak: None,
             reserve: 0,
             fits: true,
+            cold: false,
             cpu_share: 3,
             mold_jobs: 1,
             link_threads: 3,
@@ -713,6 +799,7 @@ mod tests {
             peak: None,
             reserve: 0,
             fits: true,
+            cold: false,
             cpu_share: 12,
             mold_jobs,
             link_threads,
