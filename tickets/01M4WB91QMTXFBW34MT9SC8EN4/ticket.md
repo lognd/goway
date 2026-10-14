@@ -24,7 +24,7 @@ bound = true
 
 [[acceptance]]
 text = "The install --host plan has no sparse virtual disk change (WSL changes the disk only while the distro is stopped, and the install needs it running) and keeps the fstrim timer"
-bound = false
+bound = true
 +++
 
 Seen 2026-10-14 on Nova (Windows 11 26200 ARM64, WSL NAT, Ubuntu-22.04, goway-setup 0.1.1) run from inside WSL. All 23 earlier changes applied, then change 23 'ensure sparse WSL virtual disk' ran `wsl --manage Ubuntu-22.04 --set-sparse true`, which exited -1 with empty output because the distro was running. The whole install rolled back. The dry run reported it as 'will do' with no warning. Running the installer from a WSL terminal is common, so the normal path cannot finish without a `wsl --shutdown` that ends the user's sessions.
