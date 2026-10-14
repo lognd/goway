@@ -17,6 +17,14 @@ modules (see "How this is enforced" below).
 | `.wslconfig` tuning and the sparse virtual disk (`tune --sparse`) | `tune-journal.json` in the per-user state directory | read the JSON file (no list command yet) | `goway-setup uninstall --host` (restores the previous values and sets the disk back to non-sparse) |
 | goway's own install on this laptop | the install journal written by `scripts/install.sh` | `goway uninstall --dry-run` | `goway uninstall` |
 
+`goway changes` shows one line per change with its local time (not a unix
+time). A pinned tool that `goway doctor --fix` installed reads
+`installed uv 0.12.23 user-level on HOST at 2026-10-14 09:30` and is marked
+undoable: `goway changes undo` removes the tool tree and its links through the
+helper's fix journal (`fixes-HOST.json`), so the helper must be reachable;
+when it is not, the row stays active and the undo says why. Other fix
+commands are shown by their first line only.
+
 Undo runs newest first and keeps what you changed since: a file edited again
 after goway wrote it is left alone and reported (`kept`), never overwritten.
 
@@ -50,7 +58,7 @@ one silently.
 | start a scheduled task | `goway-setup install --host` (the keepalive), and after a WSL restart |
 | shut down WSL, terminate a distro | `goway-setup tune`, only after an explicit yes (recorded in the tune journal) |
 | reload or restart the distro's sshd | `goway-setup install --host` |
-| run a fix command on a helper (a system package, the rustup toolchain, `loginctl enable-linger`, sshd hardening) | `goway doctor --fix`, `goway add`; the entry says to use `goway uninstall` |
+| run a fix command on a helper (a system package, the rustup toolchain, `loginctl enable-linger`, sshd hardening) | `goway doctor --fix`, `goway add`; the entry says to use `goway uninstall` (a pinned-tool install is the exception: `goway changes undo` takes it back) |
 | install the tools goway needs on this laptop | `goway add --lsudo` |
 | authorize goway's key through a Windows administrator step | `goway ssh setup --rsudo` (the elevated `goway-setup` journals its own changes on the helper too) |
 
@@ -58,7 +66,9 @@ An action is written before it runs. When it cannot be written, it does not run.
 
 Undo steps themselves (`goway uninstall`, `--undo`, the restart of sshd after
 its drop-in is removed) are not new changes and are not recorded; `goway
-uninstall` deletes the change log with the rest of goway's files.
+uninstall` deletes the change log with the rest of goway's files. It never
+deletes the record of a helper it could not undo: see "Uninstalling with
+helper changes" in `docs/troubleshooting.md`.
 
 ## What is not recorded: goway's own run state
 

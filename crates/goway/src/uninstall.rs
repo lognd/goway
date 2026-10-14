@@ -71,6 +71,42 @@ pub fn local_files(paths: &Paths) -> Vec<PathBuf> {
     out
 }
 
+/// The helper a per-host record file belongs to (lower-cased, as the file name has it), or `None`
+/// for any other file.
+fn record_host(path: &Path) -> Option<String> {
+    let name = path.file_name()?.to_str()?;
+    let stem = name.strip_suffix(".json")?;
+    ["ssh-setup-", "installed-", "fixes-"]
+        .iter()
+        .find_map(|prefix| stem.strip_prefix(prefix))
+        .map(str::to_owned)
+}
+
+/// Per-host records (installs, doctor fixes, `authorized_keys` edits) of helpers that are no longer
+/// in the config, grouped by helper. goway cannot reach those helpers to undo what the records
+/// describe, so uninstall must keep the records rather than orphan the changes.
+pub fn orphaned_records(paths: &Paths, config: &Config) -> Vec<(String, Vec<PathBuf>)> {
+    let known: Vec<String> = config
+        .hosts
+        .iter()
+        .map(|h| h.name.to_ascii_lowercase())
+        .collect();
+    let mut out: Vec<(String, Vec<PathBuf>)> = Vec::new();
+    for file in local_files(paths) {
+        let Some(host) = record_host(&file) else {
+            continue;
+        };
+        if known.contains(&host) {
+            continue;
+        }
+        match out.iter_mut().find(|(h, _)| *h == host) {
+            Some((_, files)) => files.push(file),
+            None => out.push((host, vec![file])),
+        }
+    }
+    out
+}
+
 /// The install journal written by scripts/install.sh.
 pub fn install_journal() -> PathBuf {
     let state = std::env::var_os("XDG_STATE_HOME")
@@ -565,8 +601,21 @@ fn show_plan(renderer: Renderer, paths: &Paths, config: &Config, removal: &Remov
         }
     }
     renderer.line("  on this laptop:");
+    let orphans = orphaned_records(paths, config);
     for f in local_files(paths) {
-        renderer.line(format_args!("    - delete {}", f.display()));
+        if orphans.iter().any(|(_, files)| files.contains(&f)) {
+            renderer.line(format_args!(
+                "    - KEEP {} (changes on a helper that is not in the config; uninstall refuses until they are undone)",
+                f.display()
+            ));
+        } else if record_host(&f).is_some() {
+            renderer.line(format_args!(
+                "    - delete {} (only after that helper's changes are undone)",
+                f.display()
+            ));
+        } else {
+            renderer.line(format_args!("    - delete {}", f.display()));
+        }
     }
     match removal {
         Removal::Journal => {
@@ -658,10 +707,13 @@ fn clean_host(
             "{}: undid {n} journaled install(s) (pinned tools, rustup targets)",
             host.name
         )),
-        Err(e) => renderer.warn(format_args!(
-            "{}: could not undo the journaled installs: {e}",
-            host.name
-        )),
+        Err(e) => {
+            // The journal stays, so a rerun can undo what is still there.
+            tracing::warn!(host = %host.name, error = %e, "journaled installs not undone; keeping the journal");
+            return Err(Error::Usage(format!(
+                "could not undo the journaled installs ({e}); their journal is kept, rerun `goway uninstall --everywhere` when the helper answers"
+            )));
+        }
     }
     let items = doctor::load_installed(paths, &host.name);
     let mut root_undos = Vec::new();
@@ -776,8 +828,27 @@ pub fn uninstall(
     let config = Config::load(&paths.config_file())?;
     let removal = current_removal();
     show_plan(renderer, paths, &config, &removal);
+    let orphans = orphaned_records(paths, &config);
+    for (host, files) in &orphans {
+        tracing::warn!(%host, ?files, "records of a helper outside the config");
+        renderer.warn(format_args!(
+            "{host}: records of changes goway made on this helper are still here, but the helper is not in the config, so they cannot be undone"
+        ));
+        renderer.next(format_args!(
+            "re-add it (`goway add {host} ...`), then run `goway uninstall --everywhere`; or delete {} yourself to give up undoing them",
+            files
+                .iter()
+                .map(|f| f.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
     if args.dry_run {
-        return Ok(0);
+        return Ok(u8::from(!orphans.is_empty()));
+    }
+    if !orphans.is_empty() {
+        renderer.failed("nothing was removed: uninstall would orphan the changes listed above");
+        return Ok(1);
     }
     if !args.everywhere && !args.yes {
         let go = crate::render::ask("Remove all of that now? [y/N]: ")
@@ -855,6 +926,35 @@ mod tests {
         let path = dir.join("install-journal");
         std::fs::write(&path, lines.join("\n") + "\n").unwrap();
         path
+    }
+
+    #[test]
+    fn records_of_helpers_outside_the_config_are_orphans() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("cfg");
+        std::fs::create_dir_all(&dir).unwrap();
+        for name in [
+            "fixes-gone.json",
+            "installed-gone.json",
+            "fixes-here.json",
+            "config.toml",
+        ] {
+            std::fs::write(dir.join(name), "{}").unwrap();
+        }
+        let paths = Paths {
+            config_dir: dir.clone(),
+            state_dir: tmp.path().join("state"),
+            runtime_dir: None,
+        };
+        let mut config = Config::default();
+        config.hosts.push(HostConfig {
+            name: "Here".to_owned(),
+            ..HostConfig::default()
+        });
+        let orphans = orphaned_records(&paths, &config);
+        assert_eq!(orphans.len(), 1, "{orphans:?}");
+        assert_eq!(orphans[0].0, "gone");
+        assert_eq!(orphans[0].1.len(), 2);
     }
 
     #[test]

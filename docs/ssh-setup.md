@@ -31,6 +31,9 @@ chmods, and it can be undone.
      (`icacls KEY /inheritance:r /grant:r USER:F`), because Windows
      OpenSSH refuses private keys that others can read. goway then
      offers this key for that host only (`identity` in the host config).
+     `goway doctor` counts that configured identity (when its `.pub`
+     exists) as a key for the host, so it does not warn "no ssh key
+     found" for it.
 3. **Log in once with a password** (ssh prompts; on Unix clients one
    multiplexed connection carries every step, so you type it once).
    goway checks that the machine runs Linux and that its hostname

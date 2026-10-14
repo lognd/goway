@@ -6,6 +6,8 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+use crate::config::Config;
+use crate::paths::Paths;
 use crate::spawn::CommandExt as _;
 
 /// Something about the local ssh setup worth telling the user.
@@ -135,14 +137,44 @@ pub fn assess(ssh_present: bool, agent: Option<bool>, identity_files: &[PathBuf]
     out
 }
 
-/// Inspect the local ssh setup for `address:port`.
+/// The identity files goway's config names for hosts reached at `address` (or called that), kept
+/// only when the key's `.pub` exists: ssh gets them with `-i`, so `ssh -G` cannot show them.
+fn configured_identities(config: &Config, address: &str, port: u16) -> Vec<PathBuf> {
+    let home = dirs::home_dir().unwrap_or_default();
+    config
+        .hosts
+        .iter()
+        .filter(|h| {
+            (h.address.as_deref() == Some(address) || h.name == address)
+                && config.port_of(h) == port
+        })
+        .filter_map(|h| h.identity.as_deref())
+        .map(|i| {
+            i.strip_prefix("~/")
+                .map_or_else(|| PathBuf::from(i), |rest| home.join(rest))
+        })
+        .filter(|key| {
+            let mut pubkey = key.clone().into_os_string();
+            pubkey.push(".pub");
+            Path::new(&pubkey).is_file()
+        })
+        .collect()
+}
+
+/// Inspect the local ssh setup for `address:port`: the agent, the ssh defaults and the identity
+/// goway's config names for that host.
 pub fn check(address: &str, port: u16) -> Vec<Finding> {
     let eff = effective(address, port);
-    let findings = assess(
-        eff.is_some(),
-        agent_keys(),
-        &eff.unwrap_or_default().identity_files,
-    );
+    let mut identities = eff
+        .as_ref()
+        .map(|e| e.identity_files.clone())
+        .unwrap_or_default();
+    if let Ok(config) = Config::load(&Paths::from_env().config_file()) {
+        let own = configured_identities(&config, address, port);
+        tracing::debug!(?own, "identity files from goway's host config");
+        identities.extend(own);
+    }
+    let findings = assess(eff.is_some(), agent_keys(), &identities);
     tracing::debug!(?findings, "local ssh assessment");
     findings
 }
@@ -192,6 +224,34 @@ mod tests {
         for f in [Finding::NoSshClient, Finding::NoKey, Finding::AgentEmpty] {
             assert!(!f.to_string().is_empty());
         }
+    }
+
+    #[test]
+    fn a_hosts_configured_identity_counts_as_a_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let key = dir.path().join("id_ed25519");
+        std::fs::write(&key, "not a real key").unwrap();
+        let config: Config = toml::from_str(&format!(
+            "[[host]]\nname = \"box\"\naddress = \"10.0.0.2\"\nport = 22\nidentity = '{}'\n",
+            key.display()
+        ))
+        .unwrap();
+        // No .pub yet: not counted, so the check still warns without an agent.
+        assert!(configured_identities(&config, "10.0.0.2", 22).is_empty());
+        assert_eq!(
+            assess(true, None, &configured_identities(&config, "10.0.0.2", 22)),
+            [Finding::NoKey]
+        );
+        std::fs::write(dir.path().join("id_ed25519.pub"), "ssh-ed25519 AAAA").unwrap();
+        let own = configured_identities(&config, "10.0.0.2", 22);
+        assert_eq!(own, std::slice::from_ref(&key));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        assert!(assess(true, None, &own).is_empty());
+        assert!(configured_identities(&config, "10.9.9.9", 22).is_empty());
     }
 
     // frob:tests crates/goway/src/sshenv.rs::check
