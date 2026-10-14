@@ -153,7 +153,7 @@ pub fn total_memory_mb() -> Option<u64> {
     status.dwLength = u32::try_from(std::mem::size_of::<MEMORYSTATUSEX>()).ok()?;
     // SAFETY: `status` is writable and its `dwLength` is set as the call requires.
     let ok = unsafe { GlobalMemoryStatusEx(&raw mut status) };
-    (ok != 0).then(|| status.ullTotalPhys / (1024 * 1024))
+    (ok != 0).then_some(status.ullTotalPhys / (1024 * 1024))
 }
 
 /// This machine's installed RAM in MB; `None` when it cannot be read (always off Windows).

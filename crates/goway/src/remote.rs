@@ -479,6 +479,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     /// Run `line` through `sh -c` with a private cache dir and `input` on stdin.
     fn run_line(cache: &std::path::Path, line: &str, input: &[u8]) -> std::process::Output {
         use std::io::Write as _;
@@ -494,6 +495,7 @@ mod tests {
         child.wait_with_output().unwrap()
     }
 
+    #[cfg(unix)]
     fn installed_file(cache: &std::path::Path) -> std::path::PathBuf {
         cache
             .join("goway/bin")
@@ -503,6 +505,7 @@ mod tests {
     // frob:ticket 01M4557B4FQ51Y1T49Y0B12Y4D
     // frob:tests crates/goway/src/remote.rs::installed_invocation
     // frob:tests crates/goway/src/remote.rs::unix_install
+    #[cfg(unix)]
     #[test]
     fn a_helper_without_the_script_gets_it_once_and_then_runs_it_from_disk() {
         let cache = tempfile::tempdir().unwrap();
@@ -541,6 +544,7 @@ mod tests {
 
     // frob:ticket 01M4557B4FQ51Y1T49Y0B12Y4D
     // frob:tests crates/goway/src/remote.rs::installed_probe
+    #[cfg(unix)]
     #[test]
     fn a_probe_of_a_helper_without_the_script_asks_for_an_install() {
         let cache = tempfile::tempdir().unwrap();
@@ -554,6 +558,7 @@ mod tests {
 
     // frob:ticket 01M4557B4FQ51Y1T49Y0B12Y4D
     // frob:tests crates/goway/src/remote.rs::installed_invocation
+    #[cfg(unix)]
     #[test]
     fn a_modified_installed_script_is_refused_and_reinstalled() {
         let cache = tempfile::tempdir().unwrap();
@@ -585,6 +590,7 @@ mod tests {
 
     // frob:ticket 01M4557B4FQ51Y1T49Y0B12Y4D
     // frob:tests crates/goway/src/remote.rs::unix_install
+    #[cfg(unix)]
     #[test]
     fn an_install_of_bytes_that_do_not_hash_right_is_refused() {
         let cache = tempfile::tempdir().unwrap();
@@ -595,6 +601,7 @@ mod tests {
 
     // frob:ticket 01M4557B4FQ51Y1T49Y0B12Y4D
     // frob:tests crates/goway/src/remote.rs::unix_install
+    #[cfg(unix)]
     #[test]
     fn an_install_into_a_read_only_home_fails_so_the_caller_falls_back() {
         use std::os::unix::fs::PermissionsExt as _;
