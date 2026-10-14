@@ -1,0 +1,25 @@
++++
+id = "01M4WB91QMTXFBW34MT9SC8EN4"
+title = "install --host fails and rolls back when the distro is running: wsl --set-sparse exits -1"
+type = "bug"
+category = "todo"
+priority = "high"
+reporter = "lognd"
+created = "2026-10-14T04:38:37Z"
+updated = "2026-10-14T04:38:37Z"
+scope = ["crates/goway-setup/src/hostsys.rs", "crates/goway-setup/src/host.rs"]
+
+[[acceptance]]
+text = "With the distro running, install --host finishes: the sparse step is skipped or deferred, and the summary prints the command to make the disk sparse later"
+bound = false
+
+[[acceptance]]
+text = "The dry run flags the sparse step as needing a stopped distro when the distro is running"
+bound = false
+
+[[acceptance]]
+text = "A failing sparse step never rolls back the rest of the host install"
+bound = false
++++
+
+Seen 2026-10-14 on Nova (Windows 11 26200 ARM64, WSL NAT, Ubuntu-22.04, goway-setup 0.1.1) run from inside WSL. All 23 earlier changes applied, then change 23 'ensure sparse WSL virtual disk' ran `wsl --manage Ubuntu-22.04 --set-sparse true`, which exited -1 with empty output because the distro was running. The whole install rolled back. The dry run reported it as 'will do' with no warning. Running the installer from a WSL terminal is common, so the normal path cannot finish without a `wsl --shutdown` that ends the user's sessions.
