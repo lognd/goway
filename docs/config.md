@@ -155,6 +155,16 @@ Caps, all on the laptop side:
   small helper or one whose RAM per core is thin.
 - `max_load` skips a host whose load per core is above the limit, and
   `mem_per_core` scores hosts with little free RAM worse.
+- Memory estimates are recorded per repository and per command, carry a
+  15% safety margin above the fitted line, and a first cargo run with no
+  record starts conservatively (1 GiB fixed plus 1 GiB per job). These are
+  built in, not settings: `max_jobs`, `job_mem` and `job_memory` are the
+  knobs (see usage, "Memory: a repository's peak").
+- On a Unix helper goway keeps one copy of its remote script at
+  `$XDG_CACHE_HOME/goway/bin/remote-<id>.sh` (default
+  `~/.cache/goway/bin`), installed on first use and again whenever the
+  version changes or the file no longer matches its hash. There is nothing
+  to configure; to refresh it by hand, delete the file.
 - `target_slots` bounds the target dirs per repository; `cache_ttl` and
   `goway gc` (see usage) remove idle caches, `goway status` shows the disk
   goway uses on each host.

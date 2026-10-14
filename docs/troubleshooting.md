@@ -595,3 +595,44 @@ large and prints the `goway-setup.exe tune --memory NGB` command that fixes it (
 `goway-setup uninstall --host` restores the file). WSL must restart to apply a new size
 (`wsl --shutdown`; `tune` asks before doing it).
 
+
+## Memory and the helper's script: first runs, upgrades, read-only homes
+
+Three problems that follow from how goway sizes a run and keeps its remote
+script on a helper.
+
+### A cargo run is killed for memory on a small helper
+
+A cargo command with no memory record on a helper starts conservatively (1 GiB
+fixed plus 1 GiB per job), and says so in its note ("no memory record for this
+command yet, so starting conservatively"). If it is still killed, the helper is
+smaller than that guess: set `job_mem` or lower `max_jobs` for that host (see
+config, "Disk and memory on helpers"). The killed run records its peak, a
+quarter higher than what it saw, so the next run of the same command in the
+same repository starts lower. Peaks are kept per repository and per command,
+so a light `cargo nextest` run is not judged by a heavy `cargo build`: the
+first run of each command is a fresh guess. Estimates carry a 15% margin; a
+helper that is still tight needs `max_jobs`, not a bigger margin.
+
+### The helper runs an old script after upgrading goway
+
+goway installs its remote script once per version on each Unix helper, at
+`${XDG_CACHE_HOME:-~/.cache}/goway/bin/remote-<id>.sh`, and checks its sha256
+on every call. After an upgrade the id changes, so the first call finds no
+copy, installs the new one and retries; nothing needs doing. A copy edited or
+truncated on the helper fails the hash check and is replaced the same way. To
+force a refresh by hand, delete the file (`rm ~/.cache/goway/bin/remote-*.sh`
+on the helper); older copies are also removed a day after a newer one is
+installed. `goway uninstall --everywhere` removes them with the rest of the
+helper's state.
+
+### The helper cannot keep the script (read-only or full home)
+
+If goway cannot write the script (read-only home, full disk, no `sha256sum`,
+`shasum` or `openssl` on the helper) it warns "the helper cannot keep the
+remote script; sending it with every call" and falls back to sending the whole
+script with each call, as older versions did. Runs still work, but each call
+carries about 120 KB, which is slow over a poor link. Fix the cause: make
+`$XDG_CACHE_HOME` (or `~/.cache`) writable on the helper, or install a hash
+tool. The choice is remembered only for the life of one goway process, so the
+next command tries the install again.

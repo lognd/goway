@@ -254,6 +254,11 @@ const ALLOW: &[Allow] = &[
         why: "wsl_trim hands the blocks goway's own eviction freed back to the Windows drive, only as root; it changes no configuration, and the sparse flag and fstrim.timer that make it effective are journaled by goway-setup",
     },
     Allow {
+        file: "crates/goway/src/remote.rs",
+        labels: &["chmod"],
+        why: "unix_install marks goway's own cached copy of remote.sh (in goway's cache directory on the helper) executable: run state, removed by gc and uninstall",
+    },
+    Allow {
         file: "crates/goway/src/remote.ps1",
         labels: &["chmod"],
         why: "marks files of a run's own synced work tree executable on the helper: run state",

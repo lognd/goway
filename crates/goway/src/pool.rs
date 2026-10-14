@@ -54,6 +54,9 @@ pub struct Probe {
     pub mem_levels: BTreeMap<String, BTreeMap<u32, u64>>,
     /// Memory the running goway jobs there have reserved but not yet used, in bytes.
     pub mem_reserved: u64,
+    /// goway jobs running now per repository id (`jobs.ID=N`); jobs whose repository is not
+    /// known count under [`crate::footprint::UNATTRIBUTED`] and are held behind by everyone.
+    pub repo_jobs: BTreeMap<String, u32>,
     /// RAM, GPUs and other facts (see [`crate::facts`]).
     pub facts: Facts,
 }
@@ -93,6 +96,7 @@ pub fn parse_probe(text: &str) -> Option<Probe> {
         footprints: crate::footprint::parse(&kv),
         mem_peaks: crate::footprint::parse_mem_peaks(&kv),
         mem_levels: crate::footprint::parse_mem_levels(&kv),
+        repo_jobs: crate::footprint::parse_repo_jobs(&kv, jobs),
         mem_reserved: kv
             .get("mem_reserved")
             .and_then(|v| v.parse().ok())
@@ -780,7 +784,8 @@ pub fn pinned_footprint_warning(selection: &Selection, probe: &Probe) -> Option<
         .repo_id
         .as_deref()
         .filter(|_| !selection.footprint_ignored())?;
-    let mem = crate::fit::assess(selection.fit, probe, id);
+    let mem_id = selection.mem_id()?;
+    let mem = crate::fit::assess(selection.fit, probe, &mem_id);
     let why = (!matches!(mem, crate::footprint::MemRoom::Unmeasured { .. }))
         .then(|| crate::footprint::mem_short_text(mem))
         .flatten()
@@ -838,10 +843,9 @@ fn hold_back_reserved(probe: &mut Probe) {
 /// 0 when none is known (the repository's recorded peak is used instead).
 pub fn memory_reserve(selection: &Selection, probe: &Probe) -> u64 {
     selection
-        .repo_id
-        .as_deref()
+        .mem_id()
         .filter(|_| !selection.footprint_ignored())
-        .and_then(|id| crate::fit::plan(selection.fit, probe, id))
+        .and_then(|id| crate::fit::plan(selection.fit, probe, &id))
         .map_or(0, |plan| plan.reserve)
 }
 
@@ -903,6 +907,18 @@ fn apply_pending(config: &Config, snap: &Snapshot, results: &mut [Probed<'_>]) {
         };
         if let Ok((_, probe)) = &mut p.result {
             probe.jobs += n;
+            // The same claims per repository: a claim naming no repository holds everyone.
+            let named = snap.pending_repos.get(&key).map_or(&[][..], Vec::as_slice);
+            for id in named {
+                *probe.repo_jobs.entry(id.clone()).or_insert(0) += 1;
+            }
+            let unnamed = n.saturating_sub(u32::try_from(named.len()).unwrap_or(u32::MAX));
+            if unnamed > 0 {
+                *probe
+                    .repo_jobs
+                    .entry(crate::footprint::UNATTRIBUTED.to_owned())
+                    .or_insert(0) += unnamed;
+            }
             // Memory: a claim that set memory aside takes that (a fitted run's expected peak),
             // any other the per-job reserve, and a pending run of a repository its recorded peak
             // (at least the per-job reserve already taken).
@@ -912,7 +928,7 @@ fn apply_pending(config: &Config, snap: &Snapshot, results: &mut [Probed<'_>]) {
                 .get(&key)
                 .into_iter()
                 .flatten()
-                .filter_map(|id| probe.mem_peaks.get(id))
+                .filter_map(|id| crate::footprint::repo_peak(probe, id))
                 .map(|peak| peak.saturating_sub(reserve))
                 .sum();
             if let Some(avail) = probe.facts.mem_avail.as_mut() {
@@ -954,11 +970,10 @@ fn room_shortage(selection: &Selection, probe: &Probe) -> Option<String> {
 /// The memory assessment of `probe` for the run's repository.
 fn mem_room(selection: &Selection, probe: &Probe) -> crate::footprint::MemRoom {
     selection
-        .repo_id
-        .as_deref()
+        .mem_id()
         .filter(|_| !selection.footprint_ignored())
         .map_or(crate::footprint::MemRoom::Unknown, |id| {
-            crate::fit::assess(selection.fit, probe, id)
+            crate::fit::assess(selection.fit, probe, &id)
         })
 }
 
@@ -1343,6 +1358,7 @@ mod tests {
             mem_peaks: std::collections::BTreeMap::new(),
             mem_levels: std::collections::BTreeMap::new(),
             mem_reserved: 0,
+            repo_jobs: BTreeMap::new(),
             facts: Facts::default(),
         }
     }

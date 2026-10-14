@@ -667,8 +667,10 @@ helper measures the whole job tree's memory: exactly, from the kernel's
 cgroup v2, found automatically; the command line reaches the job untouched);
 otherwise by sampling the resident memory of the job's session (its process
 group on macOS) twice a second (a short spike between samples can be missed, which the margin
-covers). The highest value is kept per repository and reported in the probe.
-The next run never goes to a helper whose total memory is below the peak
+covers). The highest value is kept per repository and per command (the command's
+first two words, such as `cargo nextest` or `cargo build`; a light `nextest run`
+on a small helper is never judged by the peak of a heavy `cargo dev ci`) and
+reported in the probe. The next run never goes to a helper whose total memory is below the peak
 plus a margin (the larger of 256 MiB and 10% of it), and waits in the queue
 while the helper's available memory (less what runs still starting will
 take) is below it, like for disk (`h1: 1.2 GiB of memory free, this
@@ -681,8 +683,10 @@ Three rules cover a host with a missing or awkward record:
   helper recorded as the estimate, so a fresh or restarted helper is not
   flooded.
 - With no peak on any helper, a run of the repository is admitted only to a
-  helper that runs no goway jobs (runs still starting count), so the first
-  run is measured alone and a second one waits (`... waits to be measured
+  helper that runs none of that repository's own goway jobs (runs still
+  starting count; the probe reports running jobs per repository, so another
+  repository's jobs do not hold it back), so the first run is measured alone
+  and a second one of the same repository waits (`... waits to be measured
   alone`) until a peak is recorded; `job_mem` still applies.
 - On a helper that runs no goway jobs, memory below the peak will not free by
   waiting: the run goes there alone, with a warning, instead of waiting.
@@ -743,6 +747,19 @@ too little free memory still runs it alone at one job, with a warning, but only
 after every host that has room: a busy big helper beats an idle small one that
 would be OOM-killed, and while a busy host will have the memory soon, a cramped
 one is not used meanwhile.
+The estimate carries a safety margin of 15% above the fitted line
+(`MODEL_MARGIN_PERCENT` in `fit.rs`), because real peaks scatter above a line
+through a few levels: with recorded runs of 3.0, 3.4 and 4.0 GiB at 2, 4 and 8
+jobs, the 6-job estimate is at or above a 4.2 GiB run recorded there, where
+the bare line said 3.7 GiB.
+
+The first cargo run of a command on a helper that has no record for it (a new
+helper, a new command, or after `goway gc`) starts conservatively instead of at
+full parallelism: it assumes 1 GiB fixed plus 1 GiB per job (`COLD_FIXED` and
+`COLD_PER_JOB`), so a small helper starts with fewer jobs, and the note says so
+(`... no memory record for this command yet, so starting conservatively; the
+run records one`). Such a guess never refuses a host; once the run has
+recorded its peak, the recorded estimate replaces the guess.
 Every finished run records its peak under the job count it ran at (an OOM-killed
 one a quarter higher), so the estimate improves with use. A helper that has recorded levels
 of its own for a repository is fitted from those alone; only a helper with none borrows the

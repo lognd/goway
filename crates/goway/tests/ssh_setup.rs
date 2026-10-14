@@ -90,6 +90,15 @@ fn snapshot(dir: &Path) -> BTreeMap<String, (u32, Vec<u8>)> {
     out
 }
 
+/// Drops goway's installed copy of remote.sh (and the cache directories that hold
+/// it) from a home snapshot: it is goway's own cache on the helper, not ssh state.
+fn without_script_cache(
+    mut snap: BTreeMap<String, (u32, Vec<u8>)>,
+) -> BTreeMap<String, (u32, Vec<u8>)> {
+    snap.retain(|k, _| !k.starts_with(".cache"));
+    snap
+}
+
 fn mode(p: &Path) -> u32 {
     std::fs::metadata(p).unwrap().permissions().mode() & 0o777
 }
@@ -147,7 +156,13 @@ fn setup_authorizes_a_key_with_one_password_login_and_undo_restores_everything()
         "{}",
         String::from_utf8_lossy(&undo.stderr)
     );
-    assert_eq!((snapshot(&s.home), snapshot(&s.w.config)), before);
+    assert_eq!(
+        (
+            without_script_cache(snapshot(&s.home)),
+            snapshot(&s.w.config)
+        ),
+        (without_script_cache(before.0), before.1)
+    );
 }
 
 #[test]
@@ -353,6 +368,12 @@ fn uninstall_everywhere_removes_goway_from_helper_and_laptop() {
     // ~/.rustup; a real helper has its own toolchain. Not goway's change.
     let mut home_after = snapshot(&s.home);
     home_after.retain(|k, _| !k.starts_with(".rustup"));
+    assert!(
+        !home_after.keys().any(|k| k.contains("remote-")),
+        "the installed remote script is removed too: {home_after:?}"
+    );
+    let home_after = without_script_cache(home_after);
+    let home_before = without_script_cache(home_before);
     assert_eq!(home_after, home_before, "the helper's ~/.ssh is as before");
     let left: Vec<String> = std::fs::read_dir(&s.w.config)
         .map(|d| {

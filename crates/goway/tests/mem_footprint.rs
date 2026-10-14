@@ -228,11 +228,14 @@ fn fake_cargo(w: &common::World) {
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
 }
 
-/// Record `peak` as the overall memory peak of this world's repository on the helper.
+/// Record `peak` as the memory peak of `cargo build` in this world's repository on the helper
+/// (peaks are kept per repository and command).
 fn seed_peak(w: &common::World, peak: u64) {
     let id = goway::repo::Repo::discover(&w.repo).unwrap().id;
+    let words: Vec<String> = ["cargo", "build"].map(str::to_owned).to_vec();
+    let key = goway::fit::mem_key(&id, goway::fit::command_slug(&words).as_deref());
     std::fs::create_dir_all(w.remote.join("mempeaks")).unwrap();
-    std::fs::write(w.remote.join("mempeaks").join(id), format!("{peak}\n")).unwrap();
+    std::fs::write(w.remote.join("mempeaks").join(key), format!("{peak}\n")).unwrap();
 }
 
 fn cores() -> u64 {
@@ -282,6 +285,42 @@ fn a_cargo_run_that_would_not_fit_is_lowered_and_told_so_and_its_level_is_record
         probe(&w).contains(&format!(".{n}=")),
         "mempeakj is reported"
     );
+}
+
+// frob:ticket 01M48BQFCPGPRH99HZYJ9K1RQQ
+// frob:tests crates/goway/src/fit.rs::plan
+// frob:tests crates/goway/src/fit.rs::note
+#[test]
+fn a_cargo_run_with_no_record_starts_lowered_and_says_why_until_a_record_exists() {
+    if cores() < 4 {
+        return;
+    }
+    let w = common::world();
+    fake_cargo(&w);
+    let (_, avail) = meminfo();
+    // What the cold-start guess asks for at full parallelism, margins included (generously).
+    let wants = (goway::fit::COLD_FIXED + goway::fit::COLD_PER_JOB * cores()) * 13 / 10;
+    let out = w.run(&["run", "--", "cargo", "build"]);
+    let (stdout, err) = (
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    );
+    assert!(out.status.success(), "{err}");
+    if wants > avail {
+        // A host too small for the guess at full parallelism: lowered, and it says why.
+        let n: u64 = stdout
+            .split_whitespace()
+            .find_map(|w| w.strip_prefix("jobs=")?.parse().ok())
+            .unwrap_or_else(|| panic!("no job count in {stdout}"));
+        assert!((1..cores()).contains(&n), "{n} of {}: {stdout}", cores());
+        assert!(err.contains("no memory record"), "{err}");
+    }
+    // Once a peak is on record, the recorded estimate replaces the guess.
+    seed_peak(&w, 1 << 20);
+    let out = w.run(&["run", "--", "cargo", "build"]);
+    let err = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(out.status.success(), "{err}");
+    assert!(!err.contains("no memory record"), "{err}");
 }
 
 // frob:ticket 01M47SYH8F5YD6P5G2741CG5RF
@@ -345,4 +384,43 @@ fn the_probe_reports_what_running_jobs_have_reserved_and_not_yet_used() {
     holder.kill().unwrap();
     holder.wait().unwrap();
     common::wait_for("the lock to go", || probe(&w).contains("mem_reserved=0"));
+}
+
+// frob:ticket 01M44TCANTN1ZSR2RGN8RVD8CV
+// frob:tests crates/goway/src/footprint.rs::parse_repo_jobs
+#[test]
+fn the_probe_reports_running_jobs_per_repository() {
+    let w = common::world();
+    let mut holders = Vec::new();
+    for (run, repo) in [
+        ("a1", Some("alpha")),
+        ("a2", Some("alpha")),
+        ("b1", Some("beta")),
+        ("u1", None),
+    ] {
+        let dir = w.remote.join("work").join(run);
+        std::fs::create_dir_all(&dir).unwrap();
+        if let Some(repo) = repo {
+            std::fs::write(dir.join("repo"), repo).unwrap();
+        }
+        holders.push(
+            std::process::Command::new("flock")
+                .args(["-x"])
+                .arg(dir.join("lock"))
+                .args(["sleep", "30"])
+                .spawn()
+                .unwrap(),
+        );
+    }
+    common::wait_for("the per-repository counts", || {
+        let p = probe(&w);
+        p.contains("jobs=4\n")
+            && p.contains("jobs.alpha=2\n")
+            && p.contains("jobs.beta=1\n")
+            && p.contains("jobs.-=1\n")
+    });
+    for mut h in holders {
+        h.kill().unwrap();
+        h.wait().unwrap();
+    }
 }

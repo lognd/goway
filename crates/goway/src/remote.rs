@@ -204,16 +204,134 @@ pub const MAX_LINE: usize = 126_000;
 /// and bash decodes and evaluates it; the first thing it prints is
 /// [`FRAME_MARK`].
 pub fn invocation(verb: &str, args: &[&str]) -> String {
-    use base64::Engine as _;
-    let mut words = vec![verb];
-    words.extend_from_slice(args);
     let payload = format!(
         "printf '\\001goway-frame\\n'\nset -- {}\n{}",
-        shell_join(&words),
+        shell_join(&verb_words(verb, args)),
         without_comments(SCRIPT)
     );
+    wrap_payload(&payload)
+}
+
+/// `verb` followed by `args`, as one word list.
+fn verb_words<'a>(verb: &'a str, args: &[&'a str]) -> Vec<&'a str> {
+    let mut words = vec![verb];
+    words.extend_from_slice(args);
+    words
+}
+
+/// The login-shell-safe line that makes bash evaluate `payload`: the shell
+/// only ever sees `bash -c '<fixed text>' goway` around base64.
+fn wrap_payload(payload: &str) -> String {
+    use base64::Engine as _;
     let b64 = base64::engine::general_purpose::STANDARD.encode(payload);
     format!("bash -c 'eval \"$(printf %s {b64} | base64 -d)\"' goway")
+}
+
+/// The full sha256 of [`SCRIPT`], lowercase hex: what a helper's installed
+/// copy must hash to before it is run.
+pub fn script_hash() -> String {
+    use sha2::Digest as _;
+    sha2::Sha256::digest(SCRIPT.as_bytes())
+        .iter()
+        .fold(String::new(), |mut s, b| {
+            use std::fmt::Write as _;
+            let _ = write!(s, "{b:02x}");
+            s
+        })
+}
+
+/// A short id of this version of [`SCRIPT`] (names the installed file).
+pub fn script_id() -> String {
+    script_hash().chars().take(12).collect()
+}
+
+/// Shell source that sets `d` and `f` to the installed script's directory and path.
+/// The directory is `$XDG_CACHE_HOME/goway/bin` (else `~/.cache/goway/bin`).
+fn sh_locate() -> String {
+    format!(
+        "d=\"${{XDG_CACHE_HOME:-$HOME/.cache}}/goway/bin\"; f=\"$d/remote-{}.sh\"",
+        script_id()
+    )
+}
+
+/// Shell source that sets `ok=1` when the file named by `var` hashes to
+/// [`script_hash`]. Uses whichever of sha256sum, shasum or openssl exists;
+/// with none of them the file is never trusted.
+fn sh_verify(var: &str) -> String {
+    format!(
+        "h=$(sha256sum \"{var}\" 2>/dev/null || shasum -a 256 \"{var}\" 2>/dev/null || openssl dgst -sha256 \"{var}\" 2>/dev/null); ok=0; case \"$h\" in *{}*) ok=1;; esac",
+        script_hash()
+    )
+}
+
+/// The command line running `verb` with `args` from the copy of the script
+/// installed on the helper, a few hundred bytes whatever the script's size.
+/// A missing or modified copy (it must hash to [`script_hash`]) is answered
+/// on stderr with [`NOT_INSTALLED_MARK`] and exit code [`PS_NOT_INSTALLED`]:
+/// send [`unix_install`] the script, then retry.
+pub fn installed_invocation(verb: &str, args: &[&str]) -> String {
+    let payload = format!(
+        "set -- {}\n{}\n{}\nif [ \"$ok\" = 1 ]; then printf '\\001goway-frame\\n'; exec bash \"$f\" \"$@\"; fi\necho {NOT_INSTALLED_MARK} >&2; exit {PS_NOT_INSTALLED}\n",
+        shell_join(&verb_words(verb, args)),
+        sh_locate(),
+        sh_verify("$f"),
+    );
+    wrap_payload(&payload)
+}
+
+/// [`installed_invocation`] for a probe: a missing script is answered with
+/// [`PROBE_NEEDS_INSTALL`] on stdout and exit 0, so address resolution
+/// (which treats any failure as "wrong address") still succeeds and the
+/// caller installs the script and probes again.
+pub fn installed_probe(verb: &str, args: &[&str]) -> String {
+    let payload = format!(
+        "set -- {}\n{}\n{}\nif [ \"$ok\" = 1 ]; then printf '\\001goway-frame\\n'; exec bash \"$f\" \"$@\"; fi\necho {PROBE_NEEDS_INSTALL}; exit 0\n",
+        shell_join(&verb_words(verb, args)),
+        sh_locate(),
+        sh_verify("$f"),
+    );
+    wrap_payload(&payload)
+}
+
+/// The command line that installs [`SCRIPT`] on a Unix helper from its
+/// standard input (the script bytes): written beside the target, verified
+/// against [`script_hash`], then moved into place atomically, and copies of
+/// other versions older than a day are removed. Fails (non-zero) when the
+/// home is read-only or no sha256 tool exists.
+pub fn unix_install() -> String {
+    let payload = format!(
+        "{}\numask 077; mkdir -p \"$d\" || exit 1; t=\"$f.$$.tmp\"\n\
+         cat > \"$t\" || {{ rm -f \"$t\"; exit 1; }}\n{}\n\
+         if [ \"$ok\" != 1 ]; then rm -f \"$t\"; echo goway-script-hash-mismatch >&2; exit 1; fi\n\
+         chmod 700 \"$t\" && mv -f \"$t\" \"$f\" || {{ rm -f \"$t\"; exit 1; }}\n\
+         find \"$d\" -name 'remote-*.sh' ! -name \"remote-{}.sh\" -mtime +0 -exec rm -f {{}} + 2>/dev/null\nexit 0\n",
+        sh_locate(),
+        sh_verify("$t"),
+        script_id(),
+    );
+    wrap_payload(&payload)
+}
+
+/// Hosts whose helper could not keep an installed copy (read-only home, no
+/// hash tool): their calls carry the whole script, as before.
+static INLINE_ONLY: std::sync::Mutex<std::collections::BTreeSet<String>> =
+    std::sync::Mutex::new(std::collections::BTreeSet::new());
+
+/// Remember that `host` cannot keep an installed script, so its calls send
+/// the whole script inline from now on (this process only).
+pub fn mark_inline_only(host: &str) {
+    tracing::warn!(
+        host,
+        "the helper cannot keep the remote script; sending it with every call"
+    );
+    if let Ok(mut set) = INLINE_ONLY.lock() {
+        set.insert(host.to_owned());
+    }
+}
+
+/// Whether `host` was marked by [`mark_inline_only`].
+pub fn is_inline_only(host: &str) -> bool {
+    INLINE_ONLY.lock().is_ok_and(|set| set.contains(host))
 }
 
 /// One call of a remote verb, before it is turned into the language of the
@@ -239,9 +357,21 @@ impl Call {
         self.args.iter().map(String::as_str).collect()
     }
 
-    /// The command line for a Unix host.
+    /// The command line for a Unix host that carries the whole script (this
+    /// machine, or a helper that cannot keep an installed copy).
     pub fn bash(&self) -> String {
         invocation(&self.verb, &self.arg_refs())
+    }
+
+    /// The short command line for a Unix host that runs its installed copy
+    /// of the script (see [`installed_invocation`]).
+    pub fn bash_installed(&self) -> String {
+        installed_invocation(&self.verb, &self.arg_refs())
+    }
+
+    /// [`Call::bash_installed`] for a probe (see [`installed_probe`]).
+    pub fn bash_probe(&self) -> String {
+        installed_probe(&self.verb, &self.arg_refs())
     }
 
     /// The PowerShell source for a Windows host.
@@ -347,6 +477,162 @@ mod tests {
             "the encoded command line is {} bytes; the limit is {MAX_LINE} (one argument may not exceed 131072)",
             line.len()
         );
+    }
+
+    /// Run `line` through `sh -c` with a private cache dir and `input` on stdin.
+    fn run_line(cache: &std::path::Path, line: &str, input: &[u8]) -> std::process::Output {
+        use std::io::Write as _;
+        let mut child = std::process::Command::new("sh")
+            .args(["-c", line])
+            .env("XDG_CACHE_HOME", cache)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let _ = child.stdin.take().unwrap().write_all(input);
+        child.wait_with_output().unwrap()
+    }
+
+    fn installed_file(cache: &std::path::Path) -> std::path::PathBuf {
+        cache
+            .join("goway/bin")
+            .join(format!("remote-{}.sh", script_id()))
+    }
+
+    // frob:ticket 01M4557B4FQ51Y1T49Y0B12Y4D
+    // frob:tests crates/goway/src/remote.rs::installed_invocation
+    // frob:tests crates/goway/src/remote.rs::unix_install
+    #[test]
+    fn a_helper_without_the_script_gets_it_once_and_then_runs_it_from_disk() {
+        let cache = tempfile::tempdir().unwrap();
+        let line = installed_invocation("ping", &[]);
+        let out = run_line(cache.path(), &line, b"");
+        assert_eq!(out.status.code(), Some(PS_NOT_INSTALLED));
+        assert!(String::from_utf8_lossy(&out.stderr).contains(NOT_INSTALLED_MARK));
+        assert!(out.stdout.is_empty());
+
+        let out = run_line(cache.path(), &unix_install(), SCRIPT.as_bytes());
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(
+            std::fs::read_to_string(installed_file(cache.path())).unwrap(),
+            SCRIPT
+        );
+
+        let out = run_line(cache.path(), &line, b"");
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let (noise, payload) = split_frame(out.stdout);
+        assert!(noise.is_empty());
+        assert_eq!(String::from_utf8_lossy(&payload), "goway-remote ok\n");
+
+        // Arguments arrive exactly, and an unknown verb is the script's own error.
+        let out = run_line(cache.path(), &installed_invocation("nope", &["it's"]), b"");
+        assert_eq!(out.status.code(), Some(125));
+        assert!(String::from_utf8_lossy(&out.stderr).contains("unknown verb"));
+    }
+
+    // frob:ticket 01M4557B4FQ51Y1T49Y0B12Y4D
+    // frob:tests crates/goway/src/remote.rs::installed_probe
+    #[test]
+    fn a_probe_of_a_helper_without_the_script_asks_for_an_install() {
+        let cache = tempfile::tempdir().unwrap();
+        let out = run_line(cache.path(), &installed_probe("ping", &[]), b"");
+        assert!(out.status.success());
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout).trim(),
+            PROBE_NEEDS_INSTALL
+        );
+    }
+
+    // frob:ticket 01M4557B4FQ51Y1T49Y0B12Y4D
+    // frob:tests crates/goway/src/remote.rs::installed_invocation
+    #[test]
+    fn a_modified_installed_script_is_refused_and_reinstalled() {
+        let cache = tempfile::tempdir().unwrap();
+        let line = installed_invocation("ping", &[]);
+        assert!(
+            run_line(cache.path(), &unix_install(), SCRIPT.as_bytes())
+                .status
+                .success()
+        );
+        let file = installed_file(cache.path());
+        std::fs::write(&file, format!("{SCRIPT}\necho tampered\n")).unwrap();
+
+        let out = run_line(cache.path(), &line, b"");
+        assert_eq!(out.status.code(), Some(PS_NOT_INSTALLED));
+        assert!(!String::from_utf8_lossy(&out.stdout).contains("tampered"));
+
+        assert!(
+            run_line(cache.path(), &unix_install(), SCRIPT.as_bytes())
+                .status
+                .success()
+        );
+        let out = run_line(cache.path(), &line, b"");
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    // frob:ticket 01M4557B4FQ51Y1T49Y0B12Y4D
+    // frob:tests crates/goway/src/remote.rs::unix_install
+    #[test]
+    fn an_install_of_bytes_that_do_not_hash_right_is_refused() {
+        let cache = tempfile::tempdir().unwrap();
+        let out = run_line(cache.path(), &unix_install(), b"not the script");
+        assert!(!out.status.success());
+        assert!(!installed_file(cache.path()).exists());
+    }
+
+    // frob:ticket 01M4557B4FQ51Y1T49Y0B12Y4D
+    // frob:tests crates/goway/src/remote.rs::unix_install
+    #[test]
+    fn an_install_into_a_read_only_home_fails_so_the_caller_falls_back() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let cache = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(cache.path(), std::fs::Permissions::from_mode(0o500)).unwrap();
+        let out = run_line(cache.path(), &unix_install(), SCRIPT.as_bytes());
+        std::fs::set_permissions(cache.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        // Running as root ignores the mode; only assert when the dir was really read-only.
+        if !installed_file(cache.path()).exists() {
+            assert!(!out.status.success());
+        }
+    }
+
+    // frob:ticket 01M4557B4FQ51Y1T49Y0B12Y4D
+    // frob:tests crates/goway/src/remote.rs::installed_invocation
+    #[test]
+    fn the_installed_command_line_stays_short_whatever_the_script_size() {
+        let short = installed_invocation("probe", &["a", "b"]);
+        assert!(short.len() < 4096, "{} bytes", short.len());
+        assert!(
+            short.len() * 20 < SCRIPT.len(),
+            "must not grow with remote.sh"
+        );
+        assert!(short.starts_with("bash -c 'eval \"$(printf %s "), "{short}");
+        assert!(!short.contains('\n') && !short.contains('\\') && !short.contains('!'));
+        let long = "x".repeat(2 * 1024);
+        let line = installed_invocation("run", &[long.as_str(), "--", "cargo", "test"]);
+        assert!(line.len() < 8192, "{} bytes", line.len());
+        assert!(unix_install().len() < 4096);
+        assert!(installed_probe("probe", &[]).len() < 4096);
+    }
+
+    // frob:tests crates/goway/src/remote.rs::mark_inline_only
+    #[test]
+    fn a_host_marked_inline_only_is_remembered() {
+        assert!(!is_inline_only("never-marked-host"));
+        mark_inline_only("marked-host-for-test");
+        assert!(is_inline_only("marked-host-for-test"));
     }
 
     // frob:tests crates/goway/src/remote.rs::Call

@@ -26,6 +26,22 @@ use crate::status::human_bytes;
 /// sequence), so the estimate at one job must not fall far below the recorded peak.
 const FIXED_PERCENT: u64 = 50;
 
+/// The safety margin, in percent, the fitted [`Model`] adds to its line. Peaks scatter around
+/// the line (a measured 3.7 GiB estimate met a 4.2 GiB run, 14% over), so an estimate taken
+/// from the line alone is too tight; a level recorded exactly is still used as it is, and
+/// [`footprint::mem_required`] adds its own margin on top when the estimate is judged.
+pub const MODEL_MARGIN_PERCENT: u64 = 15;
+
+/// The fixed part, in bytes, of the cold-start estimate used when a repository and command have
+/// no recorded peak yet: 1 GiB for the final link, rustdoc and the harness.
+pub const COLD_FIXED: u64 = 1 << 30;
+
+/// The per-job part, in bytes, of the cold-start estimate: 1 GiB for each parallel rustc (a
+/// large crate's codegen, or a link). Deliberately pessimistic: the first run on a small
+/// helper must not be killed by the kernel for lack of a record, and the run's own measured
+/// peak replaces this guess for every later run.
+pub const COLD_PER_JOB: u64 = 1 << 30;
+
 /// The environment variable carrying the thread budget of one link (mold has no variable of its
 /// own for its thread count; a linker wrapper or `-Wl,--threads=$GOWAY_LINK_THREADS` uses it).
 pub const LINK_THREADS_VAR: &str = "GOWAY_LINK_THREADS";
@@ -43,6 +59,50 @@ pub enum Mode {
     Adaptive,
     /// The user fixed the job count (`CARGO_BUILD_JOBS`, `-j`): never changed, only judged.
     Explicit(u32),
+}
+
+/// Most words kept in a command slug (the program and its leading subcommands).
+const SLUG_WORDS: usize = 3;
+/// Longest command slug: the memory key (`<repo id>_<slug>`) must stay a valid peak id.
+const SLUG_MAX: usize = 40;
+
+/// A short, stable name for what `command` runs, for keying memory peaks: the program's
+/// basename plus its leading subcommand words (`cargo-nextest-run`, `cargo-dev-ci`), stopping
+/// at the first flag, `--` or word with other than letters and digits. `None` for no command.
+/// Peaks are per command because a light run (`nextest run` on one crate) must not be judged by
+/// the peak of a heavy one (`dev ci` with doctests and links).
+pub fn command_slug(command: &[String]) -> Option<String> {
+    let program = command.first()?;
+    let base = program.rsplit('/').next().unwrap_or(program);
+    let clean = |w: &str| {
+        w.chars()
+            .all(|c| c.is_ascii_alphanumeric())
+            .then(|| w.to_ascii_lowercase())
+            .filter(|w| !w.is_empty())
+    };
+    let mut parts = vec![clean(base.split('.').next().unwrap_or(base))?];
+    for word in command[1..]
+        .iter()
+        .filter(|w| !w.starts_with('+'))
+        .take(SLUG_WORDS - 1)
+    {
+        match clean(word) {
+            Some(w) => parts.push(w),
+            None => break,
+        }
+    }
+    let mut slug = parts.join("-");
+    slug.truncate(SLUG_MAX);
+    Some(slug.trim_end_matches('-').to_owned())
+}
+
+/// The key a repository's memory peaks are recorded under for one command: `<repo id>_<slug>`
+/// (just the id without a slug). The helper stores them under the same key (`mem-key:` run word).
+pub fn mem_key(repo_id: &str, slug: Option<&str>) -> String {
+    match slug {
+        Some(s) if !s.is_empty() => format!("{repo_id}_{s}"),
+        _ => repo_id.to_owned(),
+    }
 }
 
 /// The value of `name` in `KEY=VALUE` environment words, if set.
@@ -118,10 +178,18 @@ pub struct Model {
 }
 
 impl Model {
-    /// The model's peak at `jobs` parallel jobs.
-    pub fn at(&self, jobs: u32) -> u64 {
+    /// The fitted line's peak at `jobs` parallel jobs, before the safety margin.
+    pub fn raw(&self, jobs: u32) -> u64 {
         self.fixed
             .saturating_add(self.per_job.saturating_mul(u64::from(jobs)))
+    }
+
+    /// The model's estimated peak at `jobs` parallel jobs: the fitted line plus
+    /// [`MODEL_MARGIN_PERCENT`], because a run's peak varies from run to run and a line through
+    /// earlier peaks is routinely exceeded by a later one.
+    pub fn at(&self, jobs: u32) -> u64 {
+        let raw = self.raw(jobs);
+        raw.saturating_add(raw / 100 * MODEL_MARGIN_PERCENT)
     }
 }
 
@@ -193,6 +261,17 @@ pub fn estimate(probe: &Probe, repo: &str, jobs: u32) -> Option<u64> {
     Some(learn(&points)?.at(jobs).max(seen_below))
 }
 
+/// The cold-start [`Model`]: what an adaptive run is assumed to need before anything is recorded.
+const COLD_MODEL: Model = Model {
+    fixed: COLD_FIXED,
+    per_job: COLD_PER_JOB,
+};
+
+/// Whether `repo` has no recorded peak on `probe`'s host (so only the cold-start guess exists).
+fn is_cold(probe: &Probe, repo: &str) -> bool {
+    points_of(probe, repo).is_empty()
+}
+
 /// What goway decided for one run on one host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Plan {
@@ -208,6 +287,8 @@ pub struct Plan {
     pub reserve: u64,
     /// Whether the plan fits the host's available memory (false: it is the one-job last resort).
     pub fits: bool,
+    /// Whether `peak` is the conservative cold-start guess, nothing being recorded yet.
+    pub cold: bool,
     /// The cores this run may use: an equal share of the host with the runs already there.
     pub cpu_share: u32,
     /// Concurrent mold processes allowed (`MOLD_JOBS`).
@@ -252,13 +333,26 @@ pub fn plan(mode: Mode, probe: &Probe, repo: &str) -> Option<Plan> {
         probe.facts.mem_total.is_none_or(|t| need <= t)
             && probe.facts.mem_avail.is_none_or(|a| need <= a)
     };
+    // An adaptive run with nothing recorded is judged by the cold-start guess; a record, once
+    // there, replaces it. An explicit count is never lowered, so it needs no guess.
+    let cold = matches!(mode, Mode::Adaptive) && is_cold(probe, repo);
+    let guess = |j: u32| {
+        if cold {
+            Some(COLD_MODEL.at(j))
+        } else {
+            estimate(probe, repo, j)
+        }
+    };
     let chosen = tries
         .iter()
         .copied()
-        .find(|&j| estimate(probe, repo, j).is_none_or(&fitting))
+        .find(|&j| guess(j).is_none_or(&fitting))
         .map(|j| (j, true));
     let (jobs, fits) = chosen.unwrap_or((tries.last().copied().unwrap_or(first), false));
-    let peak = estimate(probe, repo, jobs);
+    let peak = guess(jobs);
+    if cold {
+        tracing::debug!(repo, jobs, ?peak, "no memory record: cold-start estimate");
+    }
     let (mold_jobs, link_threads) = link_budget(jobs);
     Some(Plan {
         cpu_share: cpu_share(probe),
@@ -268,8 +362,14 @@ pub fn plan(mode: Mode, probe: &Probe, repo: &str) -> Option<Plan> {
         natural,
         lowered: matches!(mode, Mode::Adaptive) && jobs < natural,
         peak,
-        reserve: peak.map_or(0, footprint::mem_required),
+        // A guess is not worth holding memory back from other runs for.
+        reserve: if cold {
+            0
+        } else {
+            peak.map_or(0, footprint::mem_required)
+        },
         fits,
+        cold,
     })
 }
 
@@ -278,8 +378,11 @@ pub fn plan(mode: Mode, probe: &Probe, repo: &str) -> Option<Plan> {
 /// overall record when the run is not adaptive.
 pub fn assess(mode: Mode, probe: &Probe, repo: &str) -> MemRoom {
     match plan(mode, probe, repo) {
+        // A cold-start guess never refuses a host: only a measured peak does.
         Some(Plan {
-            peak: Some(peak), ..
+            peak: Some(peak),
+            cold: false,
+            ..
         }) => footprint::judge_mem(probe, peak),
         _ => footprint::assess_mem(probe, repo),
     }
@@ -340,8 +443,13 @@ pub fn note(host: &str, plan: &Plan, avail: Option<u64>) -> Option<String> {
     let peak = plan.peak.map_or_else(String::new, |p| {
         format!(", estimated peak {}", human_bytes(p))
     });
+    let cold = if plan.cold {
+        " (no memory record for this command yet, so starting conservatively; the run records one)"
+    } else {
+        ""
+    };
     Some(format!(
-        "{host} has {why}: running with {} of {} jobs (CARGO_BUILD_JOBS={n}, NEXTEST_TEST_THREADS={n}, MOLD_JOBS={}, {LINK_THREADS_VAR}={}{peak}){}",
+        "{host} has {why}: running with {} of {} jobs (CARGO_BUILD_JOBS={n}, NEXTEST_TEST_THREADS={n}, MOLD_JOBS={}, {LINK_THREADS_VAR}={}{peak}){cold}{}",
         plan.jobs,
         plan.natural,
         plan.mold_jobs,
@@ -427,7 +535,7 @@ mod tests {
         p.mem_peaks.insert("r".to_owned(), 8 * GIB);
         assert_eq!(estimate(&p, "r", 8), Some(8 * GIB));
         let one = estimate(&p, "r", 1).unwrap();
-        assert!((3 * GIB..5 * GIB).contains(&one), "{one}");
+        assert!((3 * GIB..6 * GIB).contains(&one), "{one}");
         // Levels measured win over the overall record.
         p.mem_levels
             .entry("r".to_owned())
@@ -435,7 +543,11 @@ mod tests {
             .extend([(2, 3 * GIB), (8, 7 * GIB)]);
         assert_eq!(estimate(&p, "r", 2), Some(3 * GIB));
         let mid = estimate(&p, "r", 5).unwrap();
-        assert!(mid.abs_diff(5 * GIB) < (1 << 20), "interpolated: {mid}");
+        let margin = 5 * GIB / 100 * MODEL_MARGIN_PERCENT;
+        assert!(
+            mid.abs_diff(5 * GIB + margin) < (1 << 20),
+            "interpolated plus margin: {mid}"
+        );
         assert!(estimate(&p, "r", 1).unwrap() <= 3 * GIB);
         assert!(estimate(&p, "r", 16).unwrap() > 7 * GIB, "extrapolated up");
     }
@@ -448,7 +560,8 @@ mod tests {
         // Two levels on one line: 3 GiB fixed (a link), 0.5 GiB per job.
         let m = learn(&[(2, 4 * GIB), (8, 7 * GIB)]).unwrap();
         assert_eq!((m.fixed, m.per_job), (3 * GIB, GIB / 2));
-        assert_eq!(m.at(1), 3 * GIB + GIB / 2);
+        assert_eq!(m.raw(1), 3 * GIB + GIB / 2);
+        assert!(m.at(1) > m.raw(1), "the margin is added to the line");
         // Noisy levels: no record lies above the line, the fixed part carries the largest link.
         let pts = [(1, 5 * GIB), (4, 5 * GIB + GIB / 2), (12, 7 * GIB)];
         let m = learn(&pts).unwrap();
@@ -461,6 +574,69 @@ mod tests {
         // One record: half fixed, the rest per job.
         let one = learn(&[(8, 8 * GIB)]).unwrap();
         assert_eq!((one.fixed, one.per_job), (4 * GIB, GIB / 2));
+    }
+
+    // frob:ticket 01M4GPJPH76ABDNDXKDNK26EQE
+    // frob:tests crates/goway/src/fit.rs::estimate
+    // frob:tests crates/goway/src/fit.rs::Model.at
+    #[test]
+    fn the_estimate_keeps_a_margin_above_the_fitted_line() {
+        // Peaks recorded at 2, 4 and 8 jobs fit a line that reads about 3.7 GiB at 6 jobs;
+        // a later run at 6 jobs peaked at 4.2 GiB, above the line.
+        let mut p = probe(16, 8, 8);
+        p.mem_levels.entry("r".to_owned()).or_default().extend([
+            (2, 3 * GIB),
+            (4, 3 * GIB + GIB * 2 / 5),
+            (8, 4 * GIB),
+        ]);
+        let model = learn(&points_of(&p, "r")).unwrap();
+        let line = model.raw(6);
+        let actual = 4 * GIB + GIB / 5;
+        assert!(line < actual, "the line alone is too low: {line}");
+        let est = estimate(&p, "r", 6).unwrap();
+        assert!(est >= actual, "estimate {est} is below the 4.2 GiB run");
+        assert_eq!(est, model.at(6));
+        // Every recorded level is estimated at or above its recorded peak.
+        for (j, peak) in points_of(&p, "r") {
+            assert!(estimate(&p, "r", j).unwrap() >= peak);
+        }
+        // The margin is the documented percentage of the line.
+        assert_eq!(model.at(6), line + line / 100 * MODEL_MARGIN_PERCENT);
+    }
+
+    // frob:ticket 01M48BQFCPGPRH99HZYJ9K1RQQ
+    // frob:tests crates/goway/src/fit.rs::plan
+    // frob:tests crates/goway/src/fit.rs::note
+    #[test]
+    fn a_run_with_no_record_starts_conservatively_and_a_record_replaces_the_guess() {
+        // A 4.8 GiB helper, 4.1 free, 8 cores, nothing recorded: not 8 jobs.
+        let mut p = probe(8, 5, 4);
+        let cold = plan_of(Mode::Adaptive, &p);
+        assert!(cold.cold && cold.lowered && cold.fits, "{cold:?}");
+        assert!((1..8).contains(&cold.jobs), "{cold:?}");
+        assert_eq!(cold.reserve, 0, "a guess holds no memory back");
+        let text = note("small", &cold, p.facts.mem_avail).unwrap();
+        assert!(text.contains("no memory record"), "{text}");
+        assert!(!matches!(
+            assess(Mode::Adaptive, &p, "r"),
+            MemRoom::TooSmall { .. }
+        ));
+        // A big host is not held back by the guess.
+        let big = plan_of(Mode::Adaptive, &probe(12, 64, 64));
+        assert!(big.cold && !big.lowered, "{big:?}");
+        assert_eq!(note("big", &big, None), None);
+        // An explicit count is never replaced by a guess.
+        assert!(!plan_of(Mode::Explicit(8), &p).cold);
+        // Once a peak is recorded the recorded estimate replaces the guess.
+        p.mem_levels
+            .entry("r".to_owned())
+            .or_default()
+            .insert(8, 2 * GIB);
+        p.mem_peaks.insert("r".to_owned(), 2 * GIB);
+        let warm = plan_of(Mode::Adaptive, &p);
+        assert!(!warm.cold, "{warm:?}");
+        assert_eq!(warm.jobs, 8, "the light record fits at full jobs: {warm:?}");
+        assert_eq!(warm.peak, Some(2 * GIB));
     }
 
     // frob:ticket 01M4A8H1DWYN24DXSPMK60F05J
@@ -476,7 +652,7 @@ mod tests {
             .extend([(2, 2 * GIB + GIB / 2), (12, 5 * GIB)]);
         let plan = plan_of(Mode::Adaptive, &p);
         assert!(plan.lowered && plan.fits, "{plan:?}");
-        assert!((5..=8).contains(&plan.jobs), "{plan:?}");
+        assert!((4..=8).contains(&plan.jobs), "{plan:?}");
         assert!(plan.reserve <= 4 * GIB, "{plan:?}");
         // The same repository with a fixed part above the host is refused even at one job.
         let mut big = probe(16, 5, 4);
@@ -556,6 +732,7 @@ mod tests {
             peak: None,
             reserve: 0,
             fits: true,
+            cold: false,
             cpu_share: 3,
             mold_jobs: 1,
             link_threads: 3,
@@ -622,6 +799,7 @@ mod tests {
             peak: None,
             reserve: 0,
             fits: true,
+            cold: false,
             cpu_share: 12,
             mold_jobs,
             link_threads,
@@ -637,5 +815,57 @@ mod tests {
             !got.iter().any(|w| w.starts_with(LINK_THREADS_VAR)),
             "{got:?}"
         );
+    }
+
+    // frob:ticket 01M4GPJF9TZ9FXETB4G7ASVM8H
+    // frob:tests crates/goway/src/fit.rs::command_slug
+    #[test]
+    fn a_command_is_named_by_its_program_and_leading_subcommands() {
+        let slug = |s: &str| command_slug(&words(s));
+        assert_eq!(slug("cargo dev ci").as_deref(), Some("cargo-dev-ci"));
+        assert_eq!(
+            slug("cargo nextest run --workspace").as_deref(),
+            Some("cargo-nextest-run")
+        );
+        assert_eq!(slug("cargo build -j 4").as_deref(), Some("cargo-build"));
+        assert_eq!(
+            slug("cargo +nightly test -p x").as_deref(),
+            Some("cargo-test")
+        );
+        assert_eq!(slug("/usr/bin/make all").as_deref(), Some("make-all"));
+        assert_eq!(slug("sh -c 'cargo build'").as_deref(), Some("sh"));
+        assert_eq!(slug("cargo -- dev").as_deref(), Some("cargo"));
+        assert_eq!(command_slug(&[]), None);
+        assert_eq!(mem_key("abc", Some("cargo-dev-ci")), "abc_cargo-dev-ci");
+        assert_eq!(mem_key("abc", None), "abc");
+    }
+
+    // frob:ticket 01M4GPJF9TZ9FXETB4G7ASVM8H
+    // frob:tests crates/goway/src/fit.rs::estimate
+    #[test]
+    fn a_light_command_is_not_judged_by_a_heavy_commands_peak() {
+        // The bug: one peak per repository made `cargo nextest run` (about 1 GiB) wait or be
+        // lowered for the 4 GiB a `cargo dev ci` of the same repository once recorded.
+        let heavy = mem_key("r", command_slug(&words("cargo dev ci")).as_deref());
+        let light = mem_key("r", command_slug(&words("cargo nextest run")).as_deref());
+        assert_ne!(heavy, light);
+        let mut p = probe(8, 8, 3);
+        p.mem_peaks.insert(heavy.clone(), 4 * GIB);
+        p.mem_levels
+            .insert(heavy.clone(), [(8, 4 * GIB)].into_iter().collect());
+        p.mem_peaks.insert(light.clone(), GIB);
+        p.mem_levels
+            .insert(light.clone(), [(8, GIB)].into_iter().collect());
+        let heavy_plan = plan(Mode::Adaptive, &p, &heavy).unwrap();
+        let light_plan = plan(Mode::Adaptive, &p, &light).unwrap();
+        assert!(
+            heavy_plan.lowered,
+            "the heavy command is lowered: {heavy_plan:?}"
+        );
+        assert_eq!(
+            light_plan.jobs, 8,
+            "the light command keeps full jobs: {light_plan:?}"
+        );
+        assert_eq!(estimate(&p, &light, 8), Some(GIB));
     }
 }

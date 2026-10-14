@@ -80,8 +80,8 @@ pub trait Prober {
     /// classified failure and stderr otherwise.
     fn probe(&self, target: &Target, policy: KeyPolicy, remote: &str) -> ProbeResult;
 
-    /// Install the PowerShell remote script on the Windows host at `target`
-    /// (a probe found it missing). Unix hosts never need this.
+    /// Install the remote script on the host at `target`
+    /// (a probe found it missing or modified).
     fn install(&self, _kind: Kind, _target: &Target) -> std::result::Result<(), String> {
         Ok(())
     }
@@ -131,13 +131,24 @@ pub fn resolve_call(
     }
     let line = transport::probe_line(kind, call);
     let mut found = resolve(config, host, state, lookup, prober, policy, &line)?;
-    if kind != Kind::Unix && found.output.trim() == remote::PROBE_NEEDS_INSTALL {
+    if found.output.trim() == remote::PROBE_NEEDS_INSTALL {
         tracing::info!(host = %host.name, "installing the remote script");
         let fail = |message: String| Error::Ssh {
             host: host.name.clone(),
             message,
         };
-        prober.install(kind, &found.target).map_err(fail)?;
+        let mut line = line;
+        match prober.install(kind, &found.target) {
+            Ok(()) => {}
+            // A Unix helper that cannot keep a copy gets the whole script
+            // with each call instead (Windows has no such form).
+            Err(e) if kind == Kind::Unix => {
+                tracing::warn!(host = %host.name, error = %e, "cannot install the remote script");
+                remote::mark_inline_only(&host.name);
+                line = call.bash();
+            }
+            Err(e) => return Err(fail(e)),
+        }
         found.output = prober
             .probe(&found.target, policy, &line)
             .map_err(|(_, e)| fail(e))?;

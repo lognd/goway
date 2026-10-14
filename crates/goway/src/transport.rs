@@ -138,16 +138,16 @@ pub fn command(
 /// has no command line (see [`call_command`]).
 pub fn ssh_line(kind: Kind, call: &Call) -> String {
     match kind {
-        Kind::Unix => call.bash(),
+        Kind::Unix => call.bash_installed(),
         Kind::WindowsSsh | Kind::WindowsInterop => windows_ssh_line(&call.powershell()),
     }
 }
 
-/// [`ssh_line`] for a probe: on a Windows host a missing script answers
+/// [`ssh_line`] for a probe: on any host a missing script answers
 /// [`crate::remote::PROBE_NEEDS_INSTALL`] instead of failing.
 pub fn probe_line(kind: Kind, call: &Call) -> String {
     match kind {
-        Kind::Unix => call.bash(),
+        Kind::Unix => call.bash_probe(),
         Kind::WindowsSsh | Kind::WindowsInterop => windows_ssh_line(&call.powershell_probe()),
     }
 }
@@ -162,7 +162,14 @@ pub fn call_command(
     call: &Call,
 ) -> Result<Command> {
     let script = match kind {
-        Kind::Unix => return Ok(ssh::command(target, settings, policy, &call.bash())),
+        Kind::Unix => {
+            let line = if crate::remote::is_inline_only(&target.name) {
+                call.bash()
+            } else {
+                call.bash_installed()
+            };
+            return Ok(ssh::command(target, settings, policy, &line));
+        }
         Kind::WindowsSsh | Kind::WindowsInterop => call.powershell(),
     };
     command(kind, target, settings, policy, Script::Ps(&script))

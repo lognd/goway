@@ -43,8 +43,9 @@ root_dir() {
 
 # Mark ROOT as goway's (gc refuses to remove anything under an unmarked root).
 # A directory that already exists, holds anything besides goway's own work,
-# seed and cache directories, and carries no marker is somebody else's: refuse
-# to adopt it, so a mis-set remote_root can never later be purged.
+# seed, cache and bin (the installed script) directories, and carries no
+# marker is somebody else's: refuse to adopt it, so a mis-set remote_root can
+# never later be purged.
 mark_root() {
   local e
   [ -e "$1/.goway-root" ] && return 0
@@ -52,7 +53,7 @@ mark_root() {
   for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
     [ -e "$e" ] || [ -L "$e" ] || continue
     case "${e##*/}" in
-      work | seed | cache | gpu | footprints | mempeaks | gc.lock | evicted.log | .goway-root) ;;
+      work | seed | bin | cache | gpu | footprints | mempeaks | gc.lock | evicted.log | .goway-root) ;;
       *) die "$1 exists, is not empty and is not goway state; pick a dedicated remote_root" ;;
     esac
   done
@@ -1554,7 +1555,7 @@ run() {
   shift 10
   # Optional words before "--": shard-detect:INDEX:COUNT:NONCE asks for
   # framework detection of the command's program (see shard_run).
-  local jobs="" jobs_set=0 mem_reserve=0 mold_procs="" mold_threads=""
+  local jobs="" jobs_set=0 mem_reserve=0 mold_procs="" mold_threads="" mem_key=""
   local limits="" detect="" gpu_per="" slot_wait=300 verify="" fresh=0 attempt=1 level=changed room=""
   while [ $# -gt 0 ] && [ "$1" != "--" ]; do
     case "$1" in
@@ -1566,6 +1567,9 @@ run() {
       reserve:*) WIN_RESERVE=${1#reserve:} ;;
       jobs:[0-9]*:rec | jobs:[0-9]*) jobs=${1#jobs:}; jobs=${jobs%%:*}; case "$1" in *:rec) jobs_set=0 ;; *) jobs_set=1 ;; esac ;;
       reserve-mem:[0-9]*) mem_reserve=${1#reserve-mem:} ;;
+      # The key this run's memory peaks are kept under: the repository id plus the command's
+      # slug (peaks are per command; without the word, per repository).
+      mem-key:[A-Za-z0-9]*) mem_key=${1#mem-key:} ;;
       mold:[0-9]*:[0-9]*) mold_procs=${1#mold:}; mold_threads=${mold_procs#*:}; mold_procs=${mold_procs%%:*} ;;
       verify:[12]:changed | verify:[12]:all | verify:[12]:changed:fresh | verify:[12]:all:fresh)
         # The attempt number is goway's explicit argument, never read from
@@ -1583,6 +1587,7 @@ run() {
   case "$detect" in *[!A-Za-z0-9:]*) die "run: bad shard-detect" ;; esac
   case "$gpu_per" in *[!0-9]*) die "run: bad gpu-slots" ;; esac
   case "$slot_wait" in *[!0-9]*) die "run: bad slot-wait" ;; esac
+  case "$mem_key" in *[!A-Za-z0-9._-]*) die "run: bad mem-key" ;; esac
   case "$jobs$mem_reserve$mold_procs$mold_threads" in *[!0-9]*) die "run: bad jobs, reserve-mem or mold" ;; esac
   [ "${1:-}" = "--" ] && shift
   [ $# -gt 0 ] || die "run: no command"
@@ -1598,6 +1603,8 @@ run() {
   # The lock protects the dir from here on; the starting-run markers are done.
   rm -f "$work/born" "$work/creator"
   printf '%s\n' "$$" >"$work/runner"
+  # Which repository this run is for: the probe reports running jobs per repository.
+  printf '%s' "$repo_id" >"$work/repo" 2>/dev/null || true
   # The memory this run has set aside: the probe subtracts what it has not used yet from the
   # host's available memory, so a run still ramping up is not mistaken for free memory.
   if [ "$mem_reserve" -gt 0 ]; then printf '%s' "$mem_reserve" >"$work/memres" 2>/dev/null || true; fi
@@ -1829,7 +1836,7 @@ run() {
   reap_job "$work" "$(cat "$work/pid" 2>/dev/null || true)" "$run_id"
   : >"$work/done"
   cd "$root"
-  memory_report "$root" "$repo_id" "$work" "$rc" "$jobs"
+  memory_report "$root" "${mem_key:-$repo_id}" "$work" "$rc" "$jobs"
   lost_note "$work"
   # A failed command: before blaming the code, goway compares every synced
   # file the command did not itself change with the laptop's.
@@ -2019,7 +2026,7 @@ idle_secs() {
 # RAM is always reported; "static" adds the rarely changing hardware facts;
 # "owner" adds power= and idle_secs= when they can be read (absent: unknown).
 probe() {
-  local root jobs=0 l a want_disk=0 want_static=0 want_owner=0 budget="" tools="" room=1073741824:10
+  local root jobs=0 repo_jobs="" l d rid a want_disk=0 want_static=0 want_owner=0 budget="" tools="" room=1073741824:10
   root=$(root_dir "$1")
   shift
   wsl_drive_init "$root"
@@ -2046,11 +2053,20 @@ probe() {
   if [ -d "$root/work" ]; then
     for l in "$root"/work/*/lock; do
       [ -e "$l" ] || continue
-      flock -n "$l" true || jobs=$((jobs + 1))
+      flock -n "$l" true && continue
+      jobs=$((jobs + 1))
+      # Running jobs per repository (jobs.ID=N), so a repository with no memory peak is held
+      # only behind its own runs. A job that names no repository counts under "-".
+      d=${l%/lock}
+      rid=$(cat "$d/repo" 2>/dev/null || true)
+      case "$rid" in "" | *[!A-Za-z0-9._-]*) rid=- ;; esac
+      repo_jobs="$repo_jobs $rid"
     done
     printf 'mem_reserved=%s\n' "$(mem_reserved "$root")"
   fi
   printf 'jobs=%s\ntask_cap=%s\n' "$jobs" "$(auto_task_cap)"
+  # shellcheck disable=SC2086 # the ids are plain words
+  [ -z "$repo_jobs" ] || printf '%s\n' $repo_jobs | sort | uniq -c | while read -r n rid; do printf 'jobs.%s=%s\n' "$rid" "$n"; done
   if [ "$want_owner" = 1 ]; then power_state; idle_secs; fi
   probe_footprints "$root" "$room" "$want_disk"
   probe_mempeaks "$root"
@@ -2781,7 +2797,8 @@ mempeaks_reset() {
   [ "$2" = apply ] || return 0
   if [ -n "$3" ]; then
     case "$3" in *[!A-Za-z0-9._-]*) return 0 ;; esac
-    rm -f "$1/mempeaks/$3" "$1/mempeaks/$3".j[0-9]* 2>/dev/null || true
+    # The bare id (older records) and every per-command key `ID_SLUG` with its job levels.
+    rm -f "$1/mempeaks/$3" "$1/mempeaks/$3".j[0-9]* "$1/mempeaks/$3"_* 2>/dev/null || true
   elif [ "$4" = 0 ]; then
     rm -f "$1"/mempeaks/* 2>/dev/null || true
   fi
@@ -2959,11 +2976,19 @@ sccache_socket() {
   printf '%s/sccache-%s.sock\n' "$d" "$(printf '%s' "$1" | cksum | cut -d' ' -f1)"
 }
 
+# Remove the copies of this script that goway installed on the host
+# (<cache>/goway/bin/remote-<id>.sh); the running copy stays readable until it exits.
+purge_script() {
+  local d="${XDG_CACHE_HOME:-$HOME/.cache}/goway/bin"
+  rm -f "$d"/remote-*.sh "$d"/remote-*.sh.*.tmp 2>/dev/null || true
+  rmdir "$d" "$d/.." 2>/dev/null || true
+}
+
 # Refuses an unmarked root and a root with a run in progress.
 purge() {
   local root l s
   root=$(root_dir "$1")
-  if [ ! -d "$root" ]; then printf 'absent\n'; return 0; fi
+  if [ ! -d "$root" ]; then purge_script; printf 'absent\n'; return 0; fi
   [ -e "$root/.goway-root" ] || die "$root is not marked as goway state; not removing it"
   for l in "$root"/work/*/lock "$root"/cache/*/target-*.lock; do
     [ -e "$l" ] || continue
@@ -2977,6 +3002,7 @@ purge() {
   done
   # Only goway's own entries: a root that also holds foreign files keeps them.
   rm -rf "$root/work" "$root/seed" "$root/cache" "$root/gpu" "$root/footprints" "$root/mempeaks" "$root/gc.lock" "$root/evicted.log"
+  purge_script
   rm -f "$root/.goway-root"
   rmdir "$root" 2>/dev/null || true
   printf 'removed\n'
