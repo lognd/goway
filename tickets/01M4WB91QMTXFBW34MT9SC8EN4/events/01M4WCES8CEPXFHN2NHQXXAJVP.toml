@@ -1,0 +1,9 @@
+kind = "field"
+field = "acceptance"
+old = ["When wsl refuses set-sparse true because sparse VHDs are disabled and suggests --allow-unsafe, goway reruns it with --allow-unsafe and the change succeeds", "On a WSL that accepts the plain command, goway runs set-sparse without --allow-unsafe", "A failed wsl command reports its stdout when stderr is empty, so WSL's own reason reaches the user"]
+new = ["When wsl refuses set-sparse true because sparse VHDs are disabled and suggests --allow-unsafe, goway reruns it with --allow-unsafe and the change succeeds", "On a WSL that accepts the plain command, goway runs set-sparse without --allow-unsafe", "A failed wsl command reports its stdout when stderr is empty, so WSL's own reason reaches the user", "The install --host plan has no sparse virtual disk change (WSL changes the disk only while the distro is stopped, and the install needs it running) and keeps the fstrim timer"]
+reason = "Second root cause on Nova: WSL_E_DISTRO_NOT_STOPPED"
+moved = [1, 2, 3]
+at = "2026-10-14T04:59:13Z"
+actor = "lognd"
+rev = 1

@@ -7,8 +7,8 @@ priority = "critical"
 class = "expedite"
 reporter = "lognd"
 created = "2026-10-14T04:38:37Z"
-updated = "2026-10-14T04:52:15Z"
-scope = ["crates/goway-setup/src/hostsys.rs", "docs/install-windows.md", "docs/usage.md", "crates/goway-setup/tests/hostsys.rs"]
+updated = "2026-10-14T04:59:13Z"
+scope = ["crates/goway-setup/src/hostsys.rs", "docs/install-windows.md", "docs/usage.md", "crates/goway-setup/tests/hostsys.rs", "crates/goway-setup/src/host.rs", "crates/goway-setup/tests/host_plan.rs"]
 
 [[acceptance]]
 text = "When wsl refuses set-sparse true because sparse VHDs are disabled and suggests --allow-unsafe, goway reruns it with --allow-unsafe and the change succeeds"
@@ -20,6 +20,10 @@ bound = false
 
 [[acceptance]]
 text = "A failed wsl command reports its stdout when stderr is empty, so WSL's own reason reaches the user"
+bound = false
+
+[[acceptance]]
+text = "The install --host plan has no sparse virtual disk change (WSL changes the disk only while the distro is stopped, and the install needs it running) and keeps the fstrim timer"
 bound = false
 +++
 
