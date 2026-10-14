@@ -43,8 +43,9 @@ root_dir() {
 
 # Mark ROOT as goway's (gc refuses to remove anything under an unmarked root).
 # A directory that already exists, holds anything besides goway's own work,
-# seed and cache directories, and carries no marker is somebody else's: refuse
-# to adopt it, so a mis-set remote_root can never later be purged.
+# seed, cache and bin (the installed script) directories, and carries no
+# marker is somebody else's: refuse to adopt it, so a mis-set remote_root can
+# never later be purged.
 mark_root() {
   local e
   [ -e "$1/.goway-root" ] && return 0
@@ -52,7 +53,7 @@ mark_root() {
   for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
     [ -e "$e" ] || [ -L "$e" ] || continue
     case "${e##*/}" in
-      work | seed | cache | gpu | footprints | mempeaks | gc.lock | evicted.log | .goway-root) ;;
+      work | seed | bin | cache | gpu | footprints | mempeaks | gc.lock | evicted.log | .goway-root) ;;
       *) die "$1 exists, is not empty and is not goway state; pick a dedicated remote_root" ;;
     esac
   done
@@ -2975,11 +2976,19 @@ sccache_socket() {
   printf '%s/sccache-%s.sock\n' "$d" "$(printf '%s' "$1" | cksum | cut -d' ' -f1)"
 }
 
+# Remove the copies of this script that goway installed on the host
+# (<cache>/goway/bin/remote-<id>.sh); the running copy stays readable until it exits.
+purge_script() {
+  local d="${XDG_CACHE_HOME:-$HOME/.cache}/goway/bin"
+  rm -f "$d"/remote-*.sh "$d"/remote-*.sh.*.tmp 2>/dev/null || true
+  rmdir "$d" "$d/.." 2>/dev/null || true
+}
+
 # Refuses an unmarked root and a root with a run in progress.
 purge() {
   local root l s
   root=$(root_dir "$1")
-  if [ ! -d "$root" ]; then printf 'absent\n'; return 0; fi
+  if [ ! -d "$root" ]; then purge_script; printf 'absent\n'; return 0; fi
   [ -e "$root/.goway-root" ] || die "$root is not marked as goway state; not removing it"
   for l in "$root"/work/*/lock "$root"/cache/*/target-*.lock; do
     [ -e "$l" ] || continue
@@ -2993,6 +3002,7 @@ purge() {
   done
   # Only goway's own entries: a root that also holds foreign files keeps them.
   rm -rf "$root/work" "$root/seed" "$root/cache" "$root/gpu" "$root/footprints" "$root/mempeaks" "$root/gc.lock" "$root/evicted.log"
+  purge_script
   rm -f "$root/.goway-root"
   rmdir "$root" 2>/dev/null || true
   printf 'removed\n'

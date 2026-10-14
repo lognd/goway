@@ -696,40 +696,65 @@ impl<'a> SshTransport<'a> {
         )
     }
 
-    /// Run `attempt`; when a Windows host does not have this version of the
-    /// remote script yet, install it and run `attempt` once more.
+    /// Run `attempt`; when the host does not have this version of the remote
+    /// script yet (or its copy was modified), install it and run `attempt`
+    /// once more. A Unix helper that cannot keep a copy is sent the whole
+    /// script with each call instead.
     fn with_script<T>(&self, mut attempt: impl FnMut() -> Result<T>) -> Result<T> {
         match attempt() {
-            Err(Error::Ssh { message, .. })
-                if self.kind != HostKind::Unix && message.contains(remote::NOT_INSTALLED_MARK) =>
-            {
+            Err(Error::Ssh { message, .. }) if message.contains(remote::NOT_INSTALLED_MARK) => {
                 tracing::info!(host = %self.target.name, "installing the remote script");
-                self.install_script()?;
+                self.install_or_fall_back()?;
                 attempt()
             }
             other => other,
         }
     }
 
-    /// Install this version of the PowerShell remote script on the host.
+    /// Install the remote script. On a Unix helper a failure (read-only home,
+    /// no hash tool) is not fatal: the host is marked to receive the script
+    /// inline. Windows hosts have no inline form, so their failure is an error.
+    fn install_or_fall_back(&self) -> Result<()> {
+        match self.install_script() {
+            Ok(()) => Ok(()),
+            Err(e) if self.kind == HostKind::Unix => {
+                tracing::warn!(host = %self.target.name, error = %e, "cannot install the remote script");
+                remote::mark_inline_only(&self.target.name);
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Install this version of the remote script on the host (PowerShell for
+    /// Windows, bash under `~/.cache/goway/bin` for Unix).
     ///
     /// # Errors
     ///
     /// [`Error::Ssh`] when the host cannot be reached or refuses it.
     pub fn install_script(&self) -> Result<()> {
+        let unix = self.kind == HostKind::Unix;
+        let line = if unix {
+            remote::unix_install()
+        } else {
+            remote::ps_install()
+        };
+        let (source, bytes) = if unix {
+            (transport::Script::Sh(&line), remote::SCRIPT.as_bytes())
+        } else {
+            (transport::Script::Ps(&line), remote::SCRIPT_PS.as_bytes())
+        };
         let cmd = transport::command(
             self.kind,
             self.target,
             self.settings,
             KeyPolicy::Strict,
-            transport::Script::Ps(&remote::ps_install()),
+            source,
         )?;
-        exchange_child(cmd, remote::SCRIPT_PS.as_bytes())
-            .map(drop)
-            .map_err(|e| match e {
-                Error::Ssh { message, .. } => self.fail(message),
-                other => other,
-            })
+        exchange_child(cmd, bytes).map(drop).map_err(|e| match e {
+            Error::Ssh { message, .. } => self.fail(message),
+            other => other,
+        })
     }
 }
 
@@ -926,7 +951,7 @@ impl SshTransport<'_> {
         };
         match spawn() {
             Err(e) if e.contains(remote::NOT_INSTALLED_MARK) => {
-                self.install_script().map_err(|e| e.to_string())?;
+                self.install_or_fall_back().map_err(|e| e.to_string())?;
                 spawn()
             }
             other => other,
