@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-17T10:54:18Z"
+digest = "697f73ba1fcdde08a38445abd4ded4ae3f500313480a9457260562ead15ad305"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 9da5311d-4d70-4919-8d5d-bbefeafbc448 with nextest profile: default
+    Starting 1 test across 65 binaries (850 tests skipped)
+        PASS [   0.005s] goway doctor::windows::tests::a_wslconfig_memory_that_starves_windows_warns_with_the_safe_size_and_tune_command
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 850 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E test(a_wslconfig_memory_that_starves_windows_warns_with_the_safe_size_and_tune_command)"
+size = 605
+status = "measured"
+test_count = 1
+tests_digest = "b19347d66d967a1c16cd7f32dfd7ac1fb7f4cd33e68d2824bd8a891abf8f2284"
+at = "2026-10-17T10:54:18Z"
+actor = "lognd"
+rev = 1
