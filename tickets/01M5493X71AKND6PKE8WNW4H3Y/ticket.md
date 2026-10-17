@@ -2,7 +2,7 @@
 id = "01M5493X71AKND6PKE8WNW4H3Y"
 title = "OS keystore integration for the circle node and admin keys"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 reporter = "lognd"
