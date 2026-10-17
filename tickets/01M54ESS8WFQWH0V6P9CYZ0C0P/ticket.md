@@ -2,7 +2,8 @@
 id = "01M54ESS8WFQWH0V6P9CYZ0C0P"
 title = "Circle cert expiry: learn expiry of certs issued by other admins"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
