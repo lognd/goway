@@ -13,7 +13,7 @@ scope = ["crates/goway-circle/src/sshcert.rs"]
 
 [[acceptance]]
 text = "Minted certs carry the no-forwarding options"
-bound = false
+bound = true
 +++
 
 See audit-0.2.0.md L4 and L7. Mint certs with documented -O options; put short circle id in marker, still match old form when removing.
