@@ -7,7 +7,7 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-17T07:20:01Z"
-updated = "2026-10-17T07:20:26Z"
+updated = "2026-10-17T07:20:28Z"
 idempotency_key = "docs-circles-fold"
 scope = ["docs/circles.md", "docs/config.md", "docs/circle-admin.md"]
 
