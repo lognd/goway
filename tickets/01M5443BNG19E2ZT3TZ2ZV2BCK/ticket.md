@@ -2,7 +2,8 @@
 id = "01M5443BNG19E2ZT3TZ2ZV2BCK"
 title = "Phase 1: goway-circle crate (ops, signing, fold, merge, anti-rollback)"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
