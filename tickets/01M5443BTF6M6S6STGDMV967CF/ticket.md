@@ -11,7 +11,7 @@ created = "2026-10-17T05:07:06Z"
 updated = "2026-10-17T06:28:06Z"
 idempotency_key = "c5"
 labels = ["circles"]
-scope = ["crates/goway-circle/src/keys.rs", "crates/goway-circle/src/state.rs", "crates/goway-circle/src/store.rs", "crates/goway-circle/src/sshcert.rs", "crates/goway-circle/src/crypto.rs", "crates/goway-circle/src/error.rs", "crates/goway-circle/src/lib.rs"]
+scope = ["crates/goway-circle/src/keys.rs", "crates/goway-circle/src/state.rs", "crates/goway-circle/src/store.rs", "crates/goway-circle/src/sshcert.rs", "crates/goway-circle/src/crypto.rs", "crates/goway-circle/src/error.rs", "crates/goway-circle/src/lib.rs", "crates/goway-circle/src/pairing.rs"]
 +++
 
 Walk the 16-row table in docs/circles.md against the code; agent/keystore support for the node key (config.md notes the unencrypted key); FIDO2 admin key path; add frob rules for the invariants.
