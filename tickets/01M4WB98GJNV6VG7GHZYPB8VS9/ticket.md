@@ -4,9 +4,10 @@ title = "doctor warns 'no ssh key found' when the host config names goway's own 
 type = "bug"
 category = "todo"
 priority = "low"
+points = 2
 reporter = "lognd"
 created = "2026-10-14T04:38:44Z"
-updated = "2026-10-14T04:38:44Z"
+updated = "2026-10-17T09:40:55Z"
 scope = ["crates/goway/src/sshenv.rs"]
 
 [[acceptance]]
