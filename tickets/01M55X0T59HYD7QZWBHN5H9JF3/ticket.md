@@ -7,7 +7,7 @@ priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T21:41:51Z"
-updated = "2026-10-17T21:44:44Z"
+updated = "2026-10-17T21:45:19Z"
 idempotency_key = "audit-l4l7"
 scope = ["crates/goway-circle/src/sshcert.rs"]
 
