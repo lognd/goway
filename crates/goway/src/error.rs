@@ -135,7 +135,44 @@ pub enum Error {
     NotImplemented(&'static str),
 }
 
+/// Which kind of machine goway runs on, for hints that differ by platform.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Platform {
+    /// A Windows laptop.
+    Windows,
+    /// Anything else (Linux, macOS).
+    Unix,
+}
+
+impl Platform {
+    /// The platform this binary was built for.
+    const fn current() -> Self {
+        if cfg!(windows) {
+            Self::Windows
+        } else {
+            Self::Unix
+        }
+    }
+}
+
+/// True when ssh's explanation says the local `ssh` program itself is missing.
+fn ssh_program_missing(detail: &str) -> bool {
+    let d = detail.to_ascii_lowercase();
+    [
+        "not recognized",
+        "program not found",
+        "cannot find",
+        "no such file",
+    ]
+    .iter()
+    .any(|m| d.contains(m))
+}
+
 fn render_misses(misses: &[crate::resolve::Miss]) -> String {
+    render_misses_on(misses, Platform::current())
+}
+
+fn render_misses_on(misses: &[crate::resolve::Miss], platform: Platform) -> String {
     use crate::ssh::Failure;
     if misses.is_empty() {
         return ": no address found for it (no cached address, no `address` in the config, and neither the name nor NAME.local resolved)\n  next: is it switched on, awake and on the same network? check with `goway status`\n  next: if it is on and nearby, this network may block name discovery (mDNS) between devices; give its address in the config (`address = \"192.0.2.10\"`) or use a network where devices can see each other (details in docs/troubleshooting.md, \"A network that hides the helpers\")".to_owned();
@@ -165,6 +202,14 @@ fn render_misses(misses: &[crate::resolve::Miss]) -> String {
     }
     if misses.iter().all(|m| m.failure == Failure::Unreachable) {
         out.push_str("\n  next: is it switched on, awake and on the same network, with WSL running? check with `goway status`");
+    }
+    if platform == Platform::Windows
+        && misses
+            .iter()
+            .any(|m| m.failure == Failure::Other && ssh_program_missing(&m.detail))
+    {
+        tracing::debug!("ssh program missing on Windows; adding the OpenSSH client hint");
+        out.push_str("\n  next: the OpenSSH client is missing on this laptop; install it in an administrator PowerShell: `Add-WindowsCapability -Online -Name 'OpenSSH.Client~~~~0.0.1.0'` (or run `goway add NAME --lsudo`), then open a new terminal");
     }
     out.push_str(&network_hints(misses));
     out
@@ -335,6 +380,24 @@ mod tests {
             miss(22, Failure::HostKeyUnknown),
         ]);
         assert!(!one_answered.contains("isolates devices"), "{one_answered}");
+    }
+
+    // frob:tests crates/goway/src/error.rs::render_misses_on
+    #[test]
+    fn missing_ssh_gets_the_windows_hint_only_on_windows() {
+        use crate::resolve::{Miss, Source};
+        use crate::ssh::Failure;
+        let missing = [Miss {
+            address: "192.0.2.5".to_owned(),
+            port: 22,
+            source: Source::Mdns,
+            failure: Failure::Other,
+            detail: "'ssh' is not recognized as an internal or external command".to_owned(),
+        }];
+        let win = render_misses_on(&missing, Platform::Windows);
+        assert!(win.contains("Add-WindowsCapability"), "{win}");
+        let unix = render_misses_on(&missing, Platform::Unix);
+        assert!(!unix.contains("Add-WindowsCapability"), "{unix}");
     }
 
     #[test]
