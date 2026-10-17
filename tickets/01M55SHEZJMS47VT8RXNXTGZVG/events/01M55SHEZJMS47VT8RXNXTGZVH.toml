@@ -1,0 +1,14 @@
+kind = "create"
+title = "Audit M6: OS keystore saves a typed passphrase before it is verified"
+type = "security"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M54433AG8J1V0GYT3ZWY9C9A"
+idempotency_key = "audit-m6"
+scope = ["crates/goway-circle/src/keystore.rs,crates/goway-circle/src/passphrase.rs"]
+acceptance = ["Given a mistyped passphrase, when it is entered, then it is not stored until verified"]
+body = "Verify against the key before saving."
+at = "2026-10-17T20:41:03Z"
+actor = "lognd"
+rev = 1
