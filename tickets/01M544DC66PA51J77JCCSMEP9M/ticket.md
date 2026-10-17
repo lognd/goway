@@ -2,7 +2,8 @@
 id = "01M544DC66PA51J77JCCSMEP9M"
 title = "Unreachable helper: probe port 22 when the recorded port is closed, and stop blaming client isolation"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 reporter = "lognd"
