@@ -2,7 +2,7 @@
 id = "01M548GAQ2DM0A38BZPWF3BY7Y"
 title = "Triage ~20 failing goway tests on main (run_local, slot_trees, client_loss, cmake_api, clock, copy_integrity) and 84 exec-failures"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 reporter = "lognd"
