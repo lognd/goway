@@ -2,7 +2,8 @@
 id = "01M54EQ3CGJEFP5BT3TSG8MFPH"
 title = "goway-setup --join leftovers: end-to-end native join test and goway.exe on PATH in the distro"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
