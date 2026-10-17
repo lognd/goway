@@ -7,7 +7,7 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:06:07Z"
-updated = "2026-10-17T11:47:22Z"
+updated = "2026-10-17T11:56:15Z"
 scope = ["crates/goway-circle/src/lan.rs", "crates/goway-circle/**", "crates/goway/src/lanpair.rs", "docs/circles.md", "README.md", "Cargo.lock"]
 
 [[acceptance]]
