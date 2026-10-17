@@ -2,12 +2,12 @@
 id = "01M45D6N0V2XF3CZFD1MM4GRP6"
 title = "goway uninstall deletes the journals of changes on helpers without undoing them"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 3
 reporter = "lognd"
 created = "2026-10-05T06:49:43Z"
-updated = "2026-10-05T06:49:43Z"
+updated = "2026-10-17T09:40:57Z"
 scope = ["crates/goway/src/uninstall.rs"]
 
 [[acceptance]]
