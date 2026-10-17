@@ -8,9 +8,10 @@ points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:07:06Z"
-updated = "2026-10-17T05:56:00Z"
+updated = "2026-10-17T05:56:09Z"
 idempotency_key = "c2"
 labels = ["circles"]
+scope = ["Cargo.toml"]
 
 [[acceptance]]
 text = "A helper and a lead join with no network pairing"
