@@ -1,0 +1,14 @@
+kind = "create"
+title = "Audit M3: removing a lead role does not bump the epoch"
+type = "security"
+category = "todo"
+priority = "medium"
+points = 3
+parent = "01M54433AG8J1V0GYT3ZWY9C9A"
+idempotency_key = "audit-m3"
+scope = ["crates/goway-circle/src/state.rs"]
+acceptance = ["Given set_roles removes a lead role, when the roster is applied, then the epoch advances and old certs stop validating"]
+body = "Bump epoch on role removal."
+at = "2026-10-17T20:41:03Z"
+actor = "lognd"
+rev = 1
