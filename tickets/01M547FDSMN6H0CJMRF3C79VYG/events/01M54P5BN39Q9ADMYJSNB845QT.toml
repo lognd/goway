@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["circle card --qr and pair-host --qr print an ASCII-only QR code of the card or host:port"]
+moved = []
+at = "2026-10-17T10:22:46Z"
+actor = "lognd"
+rev = 1
