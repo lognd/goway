@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/tests/journal_invariant.rs", "crates/goway-circle/src/error.rs", "crates/goway-circle/src/lib.rs", "crates/goway-circle/src/sshcert.rs", "crates/goway/src/access.rs", "crates/goway/src/circle.rs", "crates/goway/src/cli.rs"]
+new = ["crates/goway/tests/journal_invariant.rs", "crates/goway-circle/src/error.rs", "crates/goway-circle/src/lib.rs", "crates/goway-circle/src/sshcert.rs", "crates/goway/src/access.rs", "crates/goway/src/circle.rs", "crates/goway/src/cli.rs", "crates/goway/src/config.rs"]
+at = "2026-10-17T06:25:00Z"
+actor = "lognd"
+rev = 1
