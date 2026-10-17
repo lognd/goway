@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T21:51:46Z"
+digest = "9a503c0c99e1e01a09261e410a8a5059f53a213f71f0c26b40739dd420e61048"
+exit_code = 0
+inline = '''
+   Compiling goway v0.2.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2bcac0b2-920c-4255-a9a6-fb069c1b5e1a with nextest profile: default
+    Starting 1 test across 65 binaries (863 tests skipped)
+        PASS [   0.162s] goway access::tests::pin_refuses_a_name_held_by_a_manual_host
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.166s] 1 test run: 1 passed, 863 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(pin_refuses_a_name_held_by_a_manual_host)'"
+size = 608
+status = "measured"
+test_count = 1
+tests_digest = "edb9b6fce490805b267624f778c8006c929fa16f21e5b08b537ba75aa22498f0"
+at = "2026-10-17T21:51:46Z"
+actor = "lognd"
+rev = 1
