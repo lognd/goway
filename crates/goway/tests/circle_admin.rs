@@ -80,6 +80,7 @@ fn new_admin_candidate(w: &World, name: &str) -> Paths {
             role: "lead".to_owned(),
             name: Some(name.to_owned()),
             host_fp: Some(String::new()),
+            qr: false,
         },
     )
     .unwrap();

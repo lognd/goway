@@ -69,6 +69,7 @@ fn circle(root: &Path, names: &[&str]) -> Paths {
                 role: "helper".to_owned(),
                 name: Some((*name).to_owned()),
                 host_fp: Some(String::new()),
+                qr: false,
             },
         )
         .unwrap();

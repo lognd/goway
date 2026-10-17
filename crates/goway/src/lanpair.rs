@@ -152,6 +152,7 @@ pub fn pair_join(
             role: args.role.clone(),
             name: args.name.clone(),
             host_fp: args.host_fp.clone(),
+            qr: false,
         },
     )?;
     let addr = args
@@ -195,12 +196,55 @@ fn typed_matches(renderer: Renderer, code: &str) -> bool {
     }
 }
 
+/// The `host:port` the new machine should dial, when it is known without guessing.
+fn advertised(args: &CirclePairHostArgs, port: u16) -> Option<String> {
+    let host = match &args.advertise {
+        Some(host) => host.clone(),
+        None => match args.bind.parse::<IpAddr>() {
+            Ok(ip) if !ip.is_unspecified() => ip.to_string(),
+            _ => return None,
+        },
+    };
+    Some(if host.contains(':') && !host.starts_with('[') { format!("[{host}]:{port}") } else { format!("{host}:{port}") })
+}
+
+/// Render `text` as an ASCII QR code ('#' dark, ' ' light) with a quiet zone.
+pub fn qr_ascii(text: &str) -> Result<String> {
+    let code = qrcode::QrCode::new(text.as_bytes()).map_err(|e| Error::Usage(format!("cannot make a QR code: {e}")))?;
+    tracing::debug!(width = code.width(), "QR code rendered");
+    Ok(code
+        .render::<char>()
+        .dark_color('#')
+        .light_color(' ')
+        .module_dimensions(2, 1)
+        .build())
+}
+
+/// Print `text` as a QR code, one renderer line per row so the rows stay aligned.
+pub fn print_qr(renderer: Renderer, text: &str) -> Result<()> {
+    for row in qr_ascii(text)?.lines() {
+        renderer.line(row);
+    }
+    Ok(())
+}
+
 /// `goway circle pair-host`.
 pub fn pair_host_cli(paths: &Paths, renderer: Renderer, args: &CirclePairHostArgs) -> Result<()> {
     let listener = bind_listener(&args.bind, args.port)?;
     let local = listener.local_addr().map_err(|e| Error::Usage(e.to_string()))?;
     renderer.headline(format!("waiting {} min for a new machine", args.wait));
-    renderer.next(format!("on the new machine run `goway circle pair-join <this machine's LAN address>:{}`", local.port()));
+    match advertised(args, local.port()) {
+        Some(addr) => {
+            renderer.next(format!("on the new machine run `goway circle pair-join {addr}`"));
+            if args.qr {
+                print_qr(renderer, &addr)?;
+            }
+        }
+        None if args.qr => {
+            return Err(Error::Usage("--qr needs --advertise ADDRESS or a specific --bind address".to_owned()));
+        }
+        None => renderer.next(format!("on the new machine run `goway circle pair-join <this machine's LAN address>:{}`", local.port())),
+    }
     let peer = serve(
         paths,
         renderer,
@@ -246,6 +290,37 @@ mod tests {
     use crate::render::ColorWhen;
     use std::path::Path;
     use std::sync::Mutex;
+
+    #[test]
+    fn qr_ascii_is_ascii_square_with_quiet_zone() {
+        let qr = qr_ascii("192.168.1.20:41234").unwrap();
+        assert!(qr.is_ascii());
+        assert!(qr.contains('#'));
+        let rows: Vec<&str> = qr.lines().collect();
+        assert!(rows.len() >= 21);
+        assert!(rows[0].trim().is_empty());
+    }
+
+    #[test]
+    fn qr_ascii_encodes_a_full_card_length_text() {
+        assert!(qr_ascii(&"gwc1.".repeat(40)).is_ok());
+    }
+
+    #[test]
+    fn advertised_prefers_flag_then_specific_bind() {
+        let mk = |bind: &str, adv: Option<&str>| CirclePairHostArgs {
+            port: 0,
+            bind: bind.to_owned(),
+            wait: 5,
+            circle: None,
+            advertise: adv.map(str::to_owned),
+            qr: true,
+        };
+        assert_eq!(advertised(&mk("0.0.0.0", None), 9), None);
+        assert_eq!(advertised(&mk("192.168.1.2", None), 9).as_deref(), Some("192.168.1.2:9"));
+        assert_eq!(advertised(&mk("0.0.0.0", Some("10.0.0.5")), 9).as_deref(), Some("10.0.0.5:9"));
+        assert_eq!(advertised(&mk("0.0.0.0", Some("fe80::1")), 9).as_deref(), Some("[fe80::1]:9"));
+    }
 
     fn paths(dir: &Path) -> Paths {
         Paths {

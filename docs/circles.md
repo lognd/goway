@@ -197,7 +197,7 @@ human to confirm at both ends.
 
 1. New machine: `goway circle card [--role lead|helper|both]` prints a
    **card**: `gwc1.` plus base32 of `{node pubkey, host fingerprint, name,
-   roles}` (about 150 characters; also a QR code on request).
+   roles}` (about 150 characters; `--qr` also prints it as an ASCII QR code).
 2. Admin: `goway circle admit <card>` shows name, roles and fingerprint,
    asks to confirm, appends an `admit` operation and prints a **welcome**:
    `gww1.` plus base32 of `{circle name, genesis id, every operation of the
@@ -254,7 +254,10 @@ the person gives the new machine the admin's LAN address.
 
 On success the admin remembers the new machine's address, and
 `pair-join --peer NAME` remembers the admin's, as peer address hints (4.5).
-The QR code for the card is not built yet.
+`pair-host --qr` prints the address the new machine should dial as an ASCII QR
+code, using `--advertise ADDRESS` or a specific `--bind` address (a wildcard
+bind has no address worth encoding). `goway circle card --qr` prints the card
+the same way. QR output uses the `qrcode` crate with default features off.
 
 ### 4.5 Discovery and resolution
 
@@ -427,6 +430,6 @@ tests for convergence and for unauthorized operations never changing state.
 2. `goway circle` card, admit, join, list, revoke; `goway-setup --join`.
 3. Certificates, `authorized_keys` lines, roster-fed pinning, config merge,
    Windows path.
-4. LAN pairing (commit-reveal SAS; CPace and QR are follow-ups), peer address hints. Done except QR and CPace.
+4. LAN pairing (commit-reveal SAS; CPace is a follow-up), peer address hints. Done except CPace.
 5. Later: forced-command gate for instant revocation, guest sandbox,
    cross-circle federation.

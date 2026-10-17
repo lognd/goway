@@ -378,6 +378,7 @@ mod tests {
                 role: "both".to_owned(),
                 name: Some("box".to_owned()),
                 host_fp: Some(host_fp),
+                qr: false,
             },
         )
         .unwrap();

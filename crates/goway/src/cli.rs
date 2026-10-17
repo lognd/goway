@@ -603,6 +603,9 @@ pub struct CircleCardArgs {
     /// Fingerprint of this machine's sshd host key (default: read from /etc/ssh when possible).
     #[arg(long)]
     pub host_fp: Option<String>,
+    /// Also print the card as a QR code (ASCII) to scan from the admin's machine.
+    #[arg(long)]
+    pub qr: bool,
 }
 
 /// Arguments of `goway circle admit`.
@@ -643,6 +646,12 @@ pub struct CirclePairHostArgs {
     /// Which circle to admit into.
     #[arg(long)]
     pub circle: Option<String>,
+    /// LAN address to show the new machine (default: --bind when it is a specific address).
+    #[arg(long)]
+    pub advertise: Option<String>,
+    /// Also print the pair-host address as a QR code (ASCII).
+    #[arg(long)]
+    pub qr: bool,
 }
 
 /// Arguments of `goway circle pair-join`.

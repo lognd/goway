@@ -768,7 +768,11 @@ pub fn run(paths: &Paths, renderer: Renderer, command: &CircleCommand) -> Result
         }
         CircleCommand::Card(args) => {
             let out = make_card(paths, renderer, args)?;
-            renderer.line(out.card.encode());
+            let encoded = out.card.encode();
+            renderer.line(&encoded);
+            if args.qr {
+                crate::lanpair::print_qr(renderer, &encoded)?;
+            }
             renderer.note(format!("node key fingerprint: {}", out.fingerprint));
             renderer.next("paste the card into `goway circle admit` on an admin machine; it will ask for that fingerprint");
         }
@@ -835,6 +839,7 @@ mod tests {
             role: "helper".to_owned(),
             name: Some(name.to_owned()),
             host_fp: Some("SHA256:abc".to_owned()),
+            qr: false,
         }
     }
 
