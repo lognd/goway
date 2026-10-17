@@ -8,5 +8,6 @@ points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T12:23:05Z"
-updated = "2026-10-17T12:40:55Z"
+updated = "2026-10-17T12:41:32Z"
+scope = ["crates/goway/src/circle.rs", "crates/goway-circle/src/**", "docs/circles.md"]
 +++
