@@ -1,0 +1,14 @@
+kind = "create"
+title = "Audit M2: roster read-merge-write is not locked, concurrent sync can lose a revoke"
+type = "security"
+category = "todo"
+priority = "high"
+points = 3
+parent = "01M54433AG8J1V0GYT3ZWY9C9A"
+idempotency_key = "audit-m2"
+scope = ["crates/goway-circle/src/store.rs,crates/goway/src/circle.rs"]
+acceptance = ["Given two concurrent syncs, when both merge, then no operation is lost"]
+body = "Take an exclusive file lock around read-merge-write."
+at = "2026-10-17T20:41:03Z"
+actor = "lognd"
+rev = 1
