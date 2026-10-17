@@ -2,12 +2,12 @@
 id = "01M44RBYY6SD0N8H3WX482YN88"
 title = "goway changes prints whole fix scripts and unix times, and says undo no for a journaled pinned-tool install"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T00:45:38Z"
-updated = "2026-10-05T00:45:38Z"
+updated = "2026-10-17T09:10:59Z"
 scope = ["crates/goway/src/changelog.rs"]
 
 [[acceptance]]
