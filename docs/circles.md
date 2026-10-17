@@ -1,6 +1,8 @@
 # Circles: peer-to-peer trust for goway
 
-Status: design, not implemented. Target release: 0.2.0 (a minor bump; the
+Status: phases 1 and 2 are implemented (the `goway-circle` crate and
+`goway circle init|card|admit|join|list|revoke|roles`); certificates, host
+pinning from the roster and `goway-setup --join` are not yet. Target release: 0.2.0 (a minor bump; the
 version is raised when the work lands, not by this document). The executable model of the rules in this
 document is `docs/model/circle_model.py` (run its tests with
 `python -I -m unittest discover -s docs/model`). Tickets are under the
@@ -151,12 +153,13 @@ human to confirm at both ends.
    roles}` (about 150 characters; also a QR code on request).
 2. Admin: `goway circle admit <card>` shows name, roles and fingerprint,
    asks to confirm, appends an `admit` operation and prints a **welcome**:
-   `gww1.` plus base32 of `{genesis op, admin pubkeys, admission op, first
-   certificate}`.
+   `gww1.` plus base32 of `{circle name, genesis id, every operation of the
+   roster}` (the first certificate joins it in phase 3).
 3. New machine: `goway circle join <welcome>` verifies the genesis hash it is
    shown against the admin's fingerprint (printed by step 2, compared by
    eye), stores the circle and, on first contact, pulls the full roster.
-   `goway-setup install --host --join <welcome>` does the same for a helper.
+   `goway-setup install --host --join <welcome>` does the same for a helper
+   (not yet built; until then run `goway circle join` on the helper).
 
 Convenience layers on top (same card and welcome bytes): LAN auto-pairing
 with CPace (a PAKE) using a short code, and a short authentication string
@@ -184,9 +187,9 @@ applied.
 
     <config dir>/circle/node_ed25519{,.pub}   node key
     <config dir>/circle/admin_ed25519{,.pub}  admin key (admins only; or a *-sk handle)
-    <config dir>/circle/<id>/ops.jsonl        the operations
-    <config dir>/circle/<id>/heads.json       anti-rollback heads
-    <config dir>/circle/<id>/certs/           issued certificate (leads)
+    <config dir>/circle/circles/<id>/ops.jsonl   the operations (<id> = first 16 hex of the genesis id)
+    <config dir>/circle/circles/<id>/heads.json  anti-rollback heads
+    <config dir>/circle/circles/<id>/certs/      issued certificate (leads; phase 3)
     <config dir>/policy.toml                  helper policy (helpers)
 
 Existing `[[host]]` entries keep working as a "manual" source and win over a
@@ -197,6 +200,13 @@ Every file change is recorded through `goway-journal` and shown in
 `goway changes`. Every state change, branch and error path logs through the
 module logger; tokens, cards and welcomes are never logged beyond a
 fingerprint.
+
+Implemented in phase 2: the confirmation is a fingerprint a person types back
+(or passes as `--fingerprint SHA256:...`); `admit` compares the card's
+node-key fingerprint, `join` compares an admin-key fingerprint of the
+welcome. A wrong fingerprint changes nothing. `revoke` asks unless `--yes`.
+Not yet: `admin add|remove`, `renew`, `policy`, `revoke --now`, certificate
+expiry and last seen in `list`.
 
 ## 5. Commands
 

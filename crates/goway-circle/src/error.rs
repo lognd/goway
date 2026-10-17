@@ -71,3 +71,83 @@ pub enum CertError {
     #[error("subject is not a lead")]
     NotLead,
 }
+
+/// A card or welcome that cannot be accepted.
+#[derive(Debug, thiserror::Error)]
+pub enum PairingError {
+    /// The text lacks the expected `gwc1.` or `gww1.` prefix.
+    #[error("not a {expected} string (expected the prefix `{prefix}`)")]
+    Prefix {
+        /// What was being decoded: "card" or "welcome".
+        expected: &'static str,
+        /// The required prefix.
+        prefix: &'static str,
+    },
+    /// The text is longer than the cap for its kind.
+    #[error("the {expected} is {len} characters, over the cap of {max}")]
+    TooLong {
+        /// What was being decoded.
+        expected: &'static str,
+        /// Length offered.
+        len: usize,
+        /// The cap.
+        max: usize,
+    },
+    /// The text after the prefix is not base32.
+    #[error("the {0} is not valid base32 (was it cut when pasted?)")]
+    Base32(&'static str),
+    /// The decoded payload is not the strict JSON shape for its kind.
+    #[error("the {expected} is malformed: {reason}")]
+    Malformed {
+        /// What was being decoded.
+        expected: &'static str,
+        /// Why it was refused.
+        reason: String,
+    },
+    /// A field of the card or welcome is refused.
+    #[error("invalid {field}: {reason}")]
+    Field {
+        /// The field name.
+        field: &'static str,
+        /// Why it was refused.
+        reason: String,
+    },
+}
+
+/// A failure reading or writing the circle files.
+#[derive(Debug, thiserror::Error)]
+pub enum StoreError {
+    /// A file operation failed.
+    #[error("{op} {path}: {source}")]
+    Io {
+        /// What was being done.
+        op: &'static str,
+        /// The file or directory.
+        path: std::path::PathBuf,
+        /// The underlying error.
+        source: std::io::Error,
+    },
+    /// No circle is stored here.
+    #[error("no circle is set up on this machine")]
+    NoCircle,
+    /// More than one circle is stored; the caller must pick.
+    #[error("more than one circle is stored ({0}); pass --circle")]
+    Ambiguous(String),
+    /// The stored `heads.json` cannot be read.
+    #[error("heads file {path} is malformed: {reason}")]
+    Heads {
+        /// The file.
+        path: std::path::PathBuf,
+        /// Why.
+        reason: String,
+    },
+    /// The operations are refused (parse, genesis or rollback).
+    #[error(transparent)]
+    Circle(#[from] CircleError),
+    /// The operations do not contain exactly one genesis operation.
+    #[error("the operations do not hold exactly one genesis")]
+    NoGenesis,
+    /// `ssh-keygen` failed to make or read a key.
+    #[error(transparent)]
+    Crypto(#[from] CryptoError),
+}

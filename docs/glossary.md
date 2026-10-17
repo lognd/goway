@@ -63,6 +63,10 @@ Plain explanations of the words goway's documentation uses.
 | work dir | A private folder for one run. It is deleted when the run ends. |
 | gc | "Garbage collection": deleting old leftovers. goway does it on its own. |
 | journal, record | goway's list of every change it made and what was there before, used to undo them exactly. |
+| circle | A group of your own machines that trust each other. Made with `goway circle init`; see `docs/circles.md`. |
+| card | A short text (`gwc1.` ...) a new machine prints so an admin can admit it. It holds only public keys. |
+| welcome | A short text (`gww1.` ...) the admin prints for the new machine to join the circle. It holds only public data. |
+| admin | A machine in a circle that holds an admin key and may admit and revoke machines. |
 | doctor | `goway doctor`: checks everything and says how to fix it. |
 | `--` | In `goway run -- COMMAND`, separates goway's options from the command the helper runs. |
 | PATH | The list of folders where the terminal looks for programs. |

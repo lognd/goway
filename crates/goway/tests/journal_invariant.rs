@@ -35,6 +35,27 @@ const ALLOW: &[Allow] = &[
         labels: &["*"],
         why: "LocalSystem, the System implementation: runs only inside apply/revert of recorded changes",
     },
+    // ---- goway-circle: signing, key generation and the unjournaled default sink
+    Allow {
+        file: "crates/goway-circle/src/crypto.rs",
+        labels: &["fs", "ssh-keygen"],
+        why: "signs and verifies with ssh-keygen over files in a private temp dir that is deleted at once; changes no machine state",
+    },
+    Allow {
+        file: "crates/goway-circle/src/error.rs",
+        labels: &["ssh-keygen"],
+        why: "an error message that names the tool",
+    },
+    Allow {
+        file: "crates/goway-circle/src/keys.rs",
+        labels: &["fs", "ssh-keygen"],
+        why: "creates a new private key once and never overwrites one; undo would destroy the only copy, so it is not journaled",
+    },
+    Allow {
+        file: "crates/goway-circle/src/store.rs",
+        labels: &["fs"],
+        why: "PlainSink, the default FileSink for tests; goway circle always passes a sink that records the write in the journal",
+    },
     // ---- goway-setup: the System implementation and what it builds
     Allow {
         file: "crates/goway-setup/src/hostsys.rs",

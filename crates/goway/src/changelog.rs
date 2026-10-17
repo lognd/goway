@@ -44,6 +44,12 @@ fn journal_err(path: &Path, source: JournalError) -> Error {
 ///
 /// The record is saved first: when it cannot be, the file is not touched.
 pub fn write_file(file: &Path, bytes: &[u8]) -> Result<()> {
+    write_file_in(file.parent().unwrap_or_else(|| Path::new(".")), file, bytes)
+}
+
+/// Like [`write_file`], but the record goes into the change log of `log_dir` (the config
+/// directory), so a file under a subdirectory still shows in `goway changes`.
+pub fn write_file_in(log_dir: &Path, file: &Path, bytes: &[u8]) -> Result<()> {
     let after = std::str::from_utf8(bytes)
         .map_err(|e| Error::Usage(format!("{} would not be text: {e}", file.display())))?;
     let before = match std::fs::read_to_string(file) {
@@ -55,10 +61,13 @@ pub fn write_file(file: &Path, bytes: &[u8]) -> Result<()> {
         tracing::debug!(file = %file.display(), "unchanged; nothing to record");
         return Ok(());
     }
+    let log = journal_path(log_dir);
     let dir = file.parent().unwrap_or_else(|| Path::new("."));
-    let log = journal_path(dir);
     if !dir.as_os_str().is_empty() {
         std::fs::create_dir_all(dir).map_err(|e| Error::io("create", dir, e))?;
+    }
+    if !log_dir.as_os_str().is_empty() {
+        std::fs::create_dir_all(log_dir).map_err(|e| Error::io("create", log_dir, e))?;
     }
     Journal::record_write_at(&log, file, before, after).map_err(|e| journal_err(&log, e))?;
     crate::config::write_atomic(file, bytes)

@@ -210,7 +210,7 @@ fn current_user_sid() -> Option<String> {
 
 /// On Windows, OpenSSH refuses a private key others can read: keep only
 /// the current user on goway's key.
-fn restrict_key_acl(path: &Path, renderer: Renderer) {
+pub(crate) fn restrict_key_acl(path: &Path, renderer: Renderer) {
     if !cfg!(windows) {
         return;
     }

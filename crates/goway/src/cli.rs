@@ -74,6 +74,9 @@ pub enum Command {
     /// Show where goway keeps its files.
     #[command(subcommand)]
     Config(ConfigCommand),
+    /// Pair machines into a circle by pasting two short texts (card and welcome).
+    #[command(subcommand)]
+    Circle(CircleCommand),
 }
 
 impl Command {
@@ -90,6 +93,7 @@ impl Command {
             Self::Ssh(_) => "ssh",
             Self::Changes { .. } => "changes",
             Self::Config(_) => "config",
+            Self::Circle(_) => "circle",
         }
     }
 }
@@ -385,6 +389,115 @@ pub struct SshSetupArgs {
     pub yes: bool,
 }
 
+/// `goway circle` verbs.
+#[derive(Debug, Subcommand)]
+pub enum CircleCommand {
+    /// Found a circle on this machine; this machine becomes its first admin and lead.
+    Init(CircleInitArgs),
+    /// Print this machine's card (`gwc1.`...) to paste into `goway circle admit` on an admin.
+    Card(CircleCardArgs),
+    /// Admit the machine behind a pasted card and print the welcome to paste back.
+    Admit(CircleAdmitArgs),
+    /// Join a circle from a pasted welcome (`gww1.`...).
+    Join(CircleJoinArgs),
+    /// Show the members of the circle.
+    List(CircleSelect),
+    /// Remove a member for good (admin only).
+    Revoke(CircleRevokeArgs),
+    /// Change a member's roles (admin only).
+    Roles(CircleRolesArgs),
+}
+
+/// Which circle a verb works on when this machine holds more than one.
+#[derive(Debug, Args)]
+pub struct CircleSelect {
+    /// Id (or unique prefix) of the circle; optional when there is only one.
+    #[arg(long)]
+    pub circle: Option<String>,
+}
+
+/// Arguments of `goway circle init`.
+#[derive(Debug, Args)]
+pub struct CircleInitArgs {
+    /// Name of the circle.
+    #[arg(default_value = "home", value_parser = circle_label)]
+    pub name: String,
+    /// This machine's name in the circle (default: its host name).
+    #[arg(long, value_parser = circle_label)]
+    pub machine: Option<String>,
+}
+
+/// Arguments of `goway circle card`.
+#[derive(Debug, Args)]
+pub struct CircleCardArgs {
+    /// Roles to ask for: lead, helper or both.
+    #[arg(long, default_value = "both", value_parser = ["lead", "helper", "both"])]
+    pub role: String,
+    /// This machine's name in the circle (default: its host name).
+    #[arg(long, value_parser = circle_label)]
+    pub name: Option<String>,
+    /// Fingerprint of this machine's sshd host key (default: read from /etc/ssh when possible).
+    #[arg(long)]
+    pub host_fp: Option<String>,
+}
+
+/// Arguments of `goway circle admit`.
+#[derive(Debug, Args)]
+pub struct CircleAdmitArgs {
+    /// The pasted card.
+    pub card: String,
+    /// The fingerprint the new machine shows; admits without asking when it matches the card.
+    #[arg(long)]
+    pub fingerprint: Option<String>,
+    /// Which circle to admit into.
+    #[arg(long)]
+    pub circle: Option<String>,
+}
+
+/// Arguments of `goway circle join`.
+#[derive(Debug, Args)]
+pub struct CircleJoinArgs {
+    /// The pasted welcome.
+    pub welcome: String,
+    /// The admin fingerprint the admin shows; joins without asking when it is in the welcome.
+    #[arg(long)]
+    pub fingerprint: Option<String>,
+}
+
+/// Arguments of `goway circle revoke`.
+#[derive(Debug, Args)]
+pub struct CircleRevokeArgs {
+    /// Name of the member to remove.
+    pub name: String,
+    /// Remove without asking.
+    #[arg(long)]
+    pub yes: bool,
+    /// Which circle.
+    #[arg(long)]
+    pub circle: Option<String>,
+}
+
+/// Arguments of `goway circle roles`.
+#[derive(Debug, Args)]
+pub struct CircleRolesArgs {
+    /// Name of the member.
+    pub name: String,
+    /// New roles: lead, helper or lead,helper.
+    pub roles: String,
+    /// Which circle.
+    #[arg(long)]
+    pub circle: Option<String>,
+}
+
+/// Clap parser for circle and machine names (letters, digits, `.`, `_`, `-`).
+fn circle_label(text: &str) -> Result<String, String> {
+    if goway_circle::valid_name(text) {
+        Ok(text.to_owned())
+    } else {
+        Err("use 1-64 letters, digits, . _ -".to_owned())
+    }
+}
+
 /// `goway changes` verbs.
 #[derive(Debug, Subcommand)]
 pub enum ChangesCommand {
@@ -441,6 +554,31 @@ mod tests {
             );
         }
         assert!(Cli::try_parse_from(["goway", "host", "add", "Orion-Notebook"]).is_ok());
+    }
+
+    #[test]
+    fn circle_verbs_parse() {
+        for args in [
+            vec!["goway", "circle", "init"],
+            vec!["goway", "circle", "init", "lab", "--machine", "orion"],
+            vec!["goway", "circle", "card", "--role", "helper"],
+            vec![
+                "goway",
+                "circle",
+                "admit",
+                "gwc1.AAAA",
+                "--fingerprint",
+                "SHA256:x",
+            ],
+            vec!["goway", "circle", "join", "gww1.AAAA"],
+            vec!["goway", "circle", "list"],
+            vec!["goway", "circle", "revoke", "orion", "--yes"],
+            vec!["goway", "circle", "roles", "orion", "lead,helper"],
+        ] {
+            assert!(Cli::try_parse_from(&args).is_ok(), "{args:?}");
+        }
+        assert!(Cli::try_parse_from(["goway", "circle", "init", "bad name"]).is_err());
+        assert!(Cli::try_parse_from(["goway", "circle", "card", "--role", "boss"]).is_err());
     }
 
     #[test]

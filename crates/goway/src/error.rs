@@ -115,6 +115,18 @@ pub enum Error {
         /// Whether an unpinned run may pick a host of this machine's OS instead of stopping.
         repickable: bool,
     },
+    /// The circle files could not be read, checked or written.
+    #[error(transparent)]
+    CircleStore(#[from] goway_circle::StoreError),
+    /// A pasted card or welcome is not valid.
+    #[error(transparent)]
+    CirclePairing(#[from] goway_circle::PairingError),
+    /// A roster rule was broken.
+    #[error(transparent)]
+    CircleRoster(#[from] goway_circle::CircleError),
+    /// Signing with `ssh-keygen` failed.
+    #[error(transparent)]
+    CircleCrypto(#[from] goway_circle::CryptoError),
     /// A command line feature that is planned but not built yet.
     #[error("`{0}` is not implemented yet")]
     NotImplemented(&'static str),

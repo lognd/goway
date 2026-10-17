@@ -240,6 +240,15 @@ interop is switched off (on purpose, on some helpers), on a plain Linux
 helper, on a Windows helper or when the probe times out, the state is
 **unknown**: it neither blocks nor penalises, and status shows `-`.
 
+## Circle files
+
+`goway circle` keeps its files under `<config dir>/circle/`: the node key
+`node_ed25519` and, on an admin machine, `admin_ed25519` (both private,
+readable only by you; the `.pub` files are public), and one directory per
+circle at `circles/<id>/` with `ops.jsonl` (the signed roster) and
+`heads.json` (the newest roster seen, so an older one is refused). Private
+keys are never printed or logged. See `docs/circles.md`.
+
 ## Changes goway makes
 
 Edits of this config and of goway's pinned `known_hosts` are recorded in

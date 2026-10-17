@@ -3,6 +3,7 @@
 
 pub mod add;
 pub mod changelog;
+pub mod circle;
 pub mod cli;
 pub mod cmakeapi;
 pub mod config;
@@ -165,6 +166,7 @@ fn dispatch(command: &Command, renderer: Renderer) -> Result<u8> {
         Command::Changes {
             command: Some(ChangesCommand::Undo { last, all }),
         } => changelog::undo_command(&paths, renderer, *last, *all),
+        Command::Circle(command) => circle::run(&paths, renderer, command).map(|()| 0),
         Command::Config(ConfigCommand::Path) => {
             renderer.table(&[
                 vec!["what".to_owned(), "path".to_owned()],

@@ -18,6 +18,7 @@ categories = ["command-line-utilities", "development-tools::build-utils"]
 
 [workspace.dependencies]
 # Path plus version: the path serves the workspace, the version serves crates.io.
+goway-circle = { path = "crates/goway-circle", version = "0.1.2" }
 goway-journal = { path = "crates/goway-journal", version = "0.1.2" }
 
 [workspace.lints.rust]

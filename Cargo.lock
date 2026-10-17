@@ -349,6 +349,7 @@ dependencies = [
  "clap",
  "ctrlc",
  "dirs",
+ "goway-circle",
  "goway-journal",
  "humantime",
  "humantime-serde",
@@ -369,10 +370,12 @@ dependencies = [
 name = "goway-circle"
 version = "0.1.2"
 dependencies = [
+ "base64",
  "goway-journal",
  "proptest",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "thiserror",
  "tracing",
