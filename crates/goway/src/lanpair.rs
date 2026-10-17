@@ -38,6 +38,7 @@ pub struct PairedPeer {
     pub address: IpAddr,
 }
 
+#[allow(clippy::needless_pass_by_value)] // used as a `map_err` callback, which hands the error over by value
 fn lan_error(e: LanError) -> Error {
     Error::Usage(e.to_string())
 }
@@ -199,12 +200,11 @@ pub fn pair_join(
 /// Ask the admin's person to approve admitting `card`; false when they decline or cannot answer.
 fn approve(renderer: Renderer, card: &Card) -> bool {
     renderer.line(format!("  `{}` asks for {}", card.name, card.roles));
-    match render::ask("admit this machine? [y/N]: ") {
-        Some(line) => matches!(line.trim().to_ascii_lowercase().as_str(), "y" | "yes"),
-        None => {
-            renderer.warn("cannot ask here; run this in a terminal");
-            false
-        }
+    if let Some(line) = render::ask("admit this machine? [y/N]: ") {
+        matches!(line.trim().to_ascii_lowercase().as_str(), "y" | "yes")
+    } else {
+        renderer.warn("cannot ask here; run this in a terminal");
+        false
     }
 }
 

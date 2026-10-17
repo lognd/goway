@@ -56,9 +56,7 @@ fn parse_policy(text: &str) -> Policy {
 
 /// The saved policy of circle `id`, `open` when none was saved.
 fn saved_policy(paths: &Paths, id: &str) -> Policy {
-    std::fs::read_to_string(policy_path(paths, id))
-        .map(|t| parse_policy(&t))
-        .unwrap_or(Policy::Open)
+    std::fs::read_to_string(policy_path(paths, id)).map_or(Policy::Open, |t| parse_policy(&t))
 }
 
 /// The `authorized_keys` file `args` selects.
@@ -195,14 +193,13 @@ pub fn run_renew(paths: &Paths, renderer: Renderer, args: &CircleRenewArgs) -> R
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| d.as_secs());
-            if let Ok(cert) = parse_cert(&text) {
-                if !needs_renewal(cert.valid_before, now) {
-                    tracing::info!(valid_before = cert.valid_before, "certificate still fresh");
-                    renderer
-                        .ok("the certificate has more than half of its life left; nothing renewed");
-                    renderer.next("pass --force to renew anyway");
-                    return Ok(());
-                }
+            if let Ok(cert) = parse_cert(&text)
+                && !needs_renewal(cert.valid_before, now)
+            {
+                tracing::info!(valid_before = cert.valid_before, "certificate still fresh");
+                renderer.ok("the certificate has more than half of its life left; nothing renewed");
+                renderer.next("pass --force to renew anyway");
+                return Ok(());
             }
         }
     }
@@ -348,7 +345,7 @@ mod tests {
     }
 
     struct Rig {
-        _tmp: tempfile::TempDir,
+        tmp: tempfile::TempDir,
         admin: Paths,
         helper: Paths,
         keys: PathBuf,
@@ -404,7 +401,7 @@ mod tests {
         .unwrap();
         let keys = tmp.path().join("authorized_keys");
         Rig {
-            _tmp: tmp,
+            tmp,
             admin,
             helper,
             keys,
@@ -520,7 +517,7 @@ mod tests {
         let hosts = roster_hosts(&r.admin.config_dir);
         let names: Vec<_> = hosts.iter().map(|h| h.name.as_str()).collect();
         assert_eq!(names, ["box"]);
-        assert!(roster_hosts(&r._tmp.path().join("nothing")).is_empty());
+        assert!(roster_hosts(&r.tmp.path().join("nothing")).is_empty());
     }
 
     // frob:tests crates/goway/src/config.rs::merge_roster

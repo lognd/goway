@@ -26,7 +26,7 @@ use crate::pairing::{Card, MAX_CARD_CHARS, MAX_WELCOME_CHARS, Welcome};
 /// Bytes of the host's random session id.
 const SID_BYTES: usize = 16;
 /// Digits in the one-time pairing code.
-const CODE_DIGITS: usize = 8;
+const CODE_DIGITS: u32 = 8;
 /// Most characters of any message before the welcome.
 const MAX_SMALL_MSG: usize = MAX_CARD_CHARS + 1024;
 /// Most fingerprints a host may present.
@@ -134,8 +134,9 @@ fn feed<D: Digest>(h: &mut D, part: &[u8]) {
 
 /// A fresh one-time pairing code, shown as "1234 5678".
 pub fn new_code() -> Result<String, LanError> {
-    let n = u64::from_be_bytes(random::<8>()?) % 10u64.pow(CODE_DIGITS as u32);
-    let digits = format!("{n:0width$}", width = CODE_DIGITS);
+    let n = u64::from_be_bytes(random::<8>()?) % 10u64.pow(CODE_DIGITS);
+    let width = CODE_DIGITS as usize;
+    let digits = format!("{n:0width$}");
     Ok(format!("{} {}", &digits[..4], &digits[4..]))
 }
 
@@ -145,7 +146,7 @@ pub fn normalize_code(typed: &str) -> Option<String> {
         .chars()
         .all(|c| c.is_ascii_digit() || c.is_whitespace() || c == '-');
     let digits: String = typed.chars().filter(char::is_ascii_digit).collect();
-    (ok && digits.len() == CODE_DIGITS).then_some(digits)
+    (ok && digits.len() == CODE_DIGITS as usize).then_some(digits)
 }
 
 /// One side's `CPace` state: the secret scalar and the code digits.
@@ -598,6 +599,7 @@ mod tests {
     );
 
     /// Drive host and guest over loopback TCP with the given codes and host approval.
+    #[allow(clippy::many_single_char_names)] // a, r, w and the like are the conventional names for a test session
     fn session(host_code: &str, guest_code: &str, host_says: bool) -> Run {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();

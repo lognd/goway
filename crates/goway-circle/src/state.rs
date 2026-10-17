@@ -14,7 +14,7 @@ const MAX_FP: usize = 128;
 
 /// True for an empty fingerprint or a short token with no space, quote, comma or control byte.
 ///
-/// Fingerprints reach `authorized_keys` and known_hosts text, so anything that could break out
+/// Fingerprints reach `authorized_keys` and `known_hosts` text, so anything that could break out
 /// of a quoted option or add a line is refused when the op is applied.
 fn safe_fp(fp: &str) -> bool {
     fp.len() <= MAX_FP

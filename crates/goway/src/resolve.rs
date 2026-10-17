@@ -6,11 +6,11 @@
 //! Windows interop lookup takes seconds):
 //!
 //! 1. the cached last good address,
-//! 1b. unsigned peer address hints (learned from other circle members),
-//! 2. the configured `address`,
-//! 3. the name through the system resolver,
-//! 4. `<name>.local` through the system resolver (mDNS where supported),
-//! 5. `<name>.local` through Windows, when running under WSL in NAT mode.
+//! 2. unsigned peer address hints (learned from other circle members),
+//! 3. the configured `address`,
+//! 4. the name through the system resolver,
+//! 5. `<name>.local` through the system resolver (mDNS where supported),
+//! 6. `<name>.local` through Windows, when running under WSL in NAT mode.
 //!
 //! ssh's own strict host key check rejects every address that is not the
 //! pinned host, so a stale or wrong candidate costs one failed probe.
@@ -266,7 +266,6 @@ fn stage(source: Source, host: &HostConfig, state: &State, lookup: &dyn Lookup) 
             }
             out
         }
-        Source::Roster => Vec::new(),
         Source::Configured => match &host.address {
             Some(a) if a.parse::<IpAddr>().is_ok() => vec![a.clone()],
             Some(a) => {
@@ -285,7 +284,7 @@ fn stage(source: Source, host: &HostConfig, state: &State, lookup: &dyn Lookup) 
         Source::Name => addresses(lookup.system(&host.name)),
         Source::Mdns => addresses(lookup.system(&local)),
         Source::WindowsMdns => addresses(lookup.windows(&local)),
-        Source::Local | Source::Fallback | Source::Interop => Vec::new(),
+        Source::Roster | Source::Local | Source::Fallback | Source::Interop => Vec::new(),
     }
 }
 

@@ -187,6 +187,7 @@ fn a_newer_build_upgrades_in_place_and_uninstall_stays_exact() {
 /// frob:ticket 01M45D1XYFTD3NAV2BJZ31VW6Y
 /// Pipe install.sh into dash (the Debian `sh`) and expect the one-line bash hint, never a syntax error.
 #[test]
+#[allow(clippy::disallowed_macros, clippy::print_stderr)] // a test skip notice has no logger
 fn piped_into_dash_it_names_bash_instead_of_a_syntax_error() {
     use std::io::Write;
     use std::process::Stdio;

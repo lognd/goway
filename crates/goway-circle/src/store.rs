@@ -115,15 +115,15 @@ impl Store {
     pub fn ops(&self) -> Result<Vec<Op>, StoreError> {
         let path = self.ops_path();
         let max = (MAX_OPS * MAX_OP_BYTES) as u64;
-        if let Ok(meta) = std::fs::metadata(&path) {
-            if meta.len() > max {
-                warn!(path = %path.display(), len = meta.len(), "operations file over the cap");
-                return Err(StoreError::OpsTooLarge {
-                    path,
-                    len: meta.len(),
-                    max,
-                });
-            }
+        if let Ok(meta) = std::fs::metadata(&path)
+            && meta.len() > max
+        {
+            warn!(path = %path.display(), len = meta.len(), "operations file over the cap");
+            return Err(StoreError::OpsTooLarge {
+                path,
+                len: meta.len(),
+                max,
+            });
         }
         match std::fs::read_to_string(&path) {
             Ok(text) => Ok(parse_ops(&text)?),
@@ -237,7 +237,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let admin = FakeCrypto::new("admin");
         let g = genesis(&admin);
-        let admit = Op::signed(
+        let admission = Op::signed(
             Kind::Admit,
             &[
                 ("key", "n"),
@@ -251,7 +251,7 @@ mod tests {
         .unwrap();
         let store = Store::for_genesis(dir.path(), &g.id());
         store
-            .commit(&[g.clone(), admit.clone()], &PlainSink)
+            .commit(&[g.clone(), admission.clone()], &PlainSink)
             .unwrap();
         let err = store
             .commit(std::slice::from_ref(&g), &PlainSink)

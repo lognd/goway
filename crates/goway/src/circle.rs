@@ -623,7 +623,11 @@ fn push_epoch(
     let (store, ops, state) = load(paths, circle)?;
     let me = read_public_key(&pub_of(&node_key_path(paths))).ok();
     let hosts = crate::circle_push::helper_names(&state, me.as_deref());
-    let text: String = ops.iter().map(|o| format!("{}\n", o.to_line())).collect();
+    let text = ops.iter().fold(String::new(), |mut acc, o| {
+        acc.push_str(&o.to_line());
+        acc.push('\n');
+        acc
+    });
     let offer = crate::circle_push::RosterOffer::new(store.id(), &text);
     let report = crate::circle_push::push_all(&hosts, &offer, pusher);
     crate::circle_push::record_seen(paths, store.id(), &report.reached, now_secs())?;
