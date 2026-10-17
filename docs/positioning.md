@@ -52,7 +52,7 @@ runs other build systems rather than replacing them.
 
 | Rule | Mechanism |
 |---|---|
-| goway never owns a host: no daemons, services or root on the remote. | The remote side is `remote.sh`, sent inline per call. Host setup (firewall, keepalive, sshd) is a separate, opt-in, journaled installer that `uninstall` reverses exactly (docs/install-windows.md). |
+| goway never owns a host: no daemons, services or root on the remote. | The remote side is `remote.sh`, installed once per version (hash-verified) in `~/.cache/goway/bin` and run from there; each call sends only a short command line. Host setup (firewall, keepalive, sshd) is a separate, opt-in, journaled installer that `uninstall` reverses exactly (docs/install-windows.md). |
 | All goway state lives in one labelled directory and expires on its own. | `remote_root` (default `~/.cache/goway`). Every entry carries a `meta.json` label and a `flock` lock. TTLs come from the config. `goway gc` runs automatically after runs. |
 | No process outlives its run (except sccache's server, which keeps the cache warm and exits after `SCCACHE_IDLE_TIMEOUT`, 300 s by default). | Each job runs in its own session. A watchdog kills the job's process group when the ssh session dies, and the work directory is removed on exit. Tested by interrupting a live `sleep 300` on a real host. |
 | Scheduling respects everyone's load, not only goway's. | The score uses the OS load average, which includes CI runners, sccache-dist servers and the human at the keyboard, plus goway's own running jobs: (load1 + goway jobs) / cores. Hosts at `max_jobs` are skipped. |
