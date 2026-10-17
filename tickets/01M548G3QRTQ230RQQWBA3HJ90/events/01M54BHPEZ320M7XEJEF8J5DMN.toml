@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["goway doctor reports ssh-keygen without -Y support (OpenSSH < 8.0) and clock skew beyond the circle cert backdate"]
+moved = []
+at = "2026-10-17T07:17:16Z"
+actor = "lognd"
+rev = 1

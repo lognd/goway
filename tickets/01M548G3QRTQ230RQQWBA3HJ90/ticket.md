@@ -7,8 +7,12 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:23:58Z"
-updated = "2026-10-17T07:11:34Z"
+updated = "2026-10-17T07:17:16Z"
 scope = ["crates/goway/src/doctor.rs", "docs/circles.md"]
+
+[[acceptance]]
+text = "goway doctor reports ssh-keygen without -Y support (OpenSSH < 8.0) and clock skew beyond the circle cert backdate"
+bound = false
 +++
 
 found while working ~Q5WP11P
