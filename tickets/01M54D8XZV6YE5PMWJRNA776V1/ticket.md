@@ -4,10 +4,11 @@ title = "Circle push leftovers: stdin transport for large rosters and per-member
 type = "task"
 category = "todo"
 priority = "medium"
+points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T07:47:26Z"
-updated = "2026-10-17T07:47:26Z"
+updated = "2026-10-17T08:10:56Z"
 idempotency_key = "XQGX5E1-leftovers"
 +++
 
