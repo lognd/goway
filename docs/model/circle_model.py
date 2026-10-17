@@ -121,6 +121,8 @@ def _apply(state: State, op: Op, forced: bool = False) -> bool:
             return False
         if key in state.admins and "lead" not in roles:
             return False
+        if "lead" in state.members[key]["roles"] and "lead" not in roles:
+            state.epoch += 1
         state.members[key]["roles"] = roles
         return True
     if op.kind == "add_admin":

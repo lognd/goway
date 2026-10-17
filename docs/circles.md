@@ -142,7 +142,7 @@ A helper has, once, one line per admin in `authorized_keys`:
   The line is tagged `goway:<id>` and managed through `goway-journal`, so
   uninstall removes it. Windows uses `administrators_authorized_keys` through
   the existing elevated `goway-setup` path.
-- **Epoch**: bumping the epoch (on `revoke`, `remove_admin`) invalidates every
+- **Epoch**: bumping the epoch (on `revoke`, `remove_admin`, and `roles` removing the `lead` role) invalidates every
   outstanding certificate; admins reissue to the remaining leads. A helper
   learns the new epoch the next time any trusted member contacts it. The
   revocation window for an offline helper is therefore at most the

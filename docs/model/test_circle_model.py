@@ -229,6 +229,11 @@ class RosterTests(unittest.TestCase):
         self.assertFalse(m.accept_superset({g, l, h}, {g, h}))
         self.assertTrue(m.accept_superset({g, l, h}, {g, l, h}))
 
+    def test_removing_lead_role_bumps_epoch(self):
+        g, l, h = self.chain()
+        demote = m.sign("set_roles", {"key": "L", "roles": "helper"}, (h.id,), ("A",))
+        self.assertEqual(m.fold({g, l, h, demote}).epoch, m.fold({g, l, h}).epoch + 1)
+
     def test_merge_is_commutative_and_idempotent(self):
         g, l, h = self.chain()
         a, b = {g, l}, {g, h, l}

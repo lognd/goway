@@ -217,6 +217,11 @@ impl State {
                 let Some(member) = self.members.get_mut(key) else {
                     return false;
                 };
+                if member.roles.contains(&Role::Lead) && !roles.contains(&Role::Lead) {
+                    // A demoted lead's certificate must stop working, and the epoch is the only lever.
+                    self.epoch += 1;
+                    debug!(key = %key, epoch = self.epoch, "lead role removed: epoch bumped");
+                }
                 member.roles = roles;
                 true
             }

@@ -308,6 +308,28 @@ fn rotate_host_key_is_self_signed_only() {
     assert_eq!(s.members["H"].host_fp, "fp-H");
 }
 
+// frob:tests crates/goway-circle/src/state.rs::fold
+#[test]
+fn removing_the_lead_role_bumps_the_epoch() {
+    let (g, l, h) = chain();
+    let before = run(&[g.clone(), l.clone(), h.clone()]).epoch;
+    let demote = sign(
+        Kind::SetRoles,
+        &[("key", "L"), ("roles", "helper")],
+        &[h.id()],
+        &["A"],
+    );
+    let after = run(&[g.clone(), l.clone(), h.clone(), demote]).epoch;
+    assert_eq!(after, before + 1);
+    let keep = sign(
+        Kind::SetRoles,
+        &[("key", "H"), ("roles", "helper")],
+        &[h.id()],
+        &["A"],
+    );
+    assert_eq!(run(&[g, l, h, keep]).epoch, before);
+}
+
 // frob:ticket 01M5443BNG19E2ZT3TZ2ZV2BCK
 // frob:tests crates/goway-circle/src/state.rs::accept_roster
 // frob:tests crates/goway-circle/src/state.rs::heads
