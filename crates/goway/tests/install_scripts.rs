@@ -182,25 +182,42 @@ fn a_newer_build_upgrades_in_place_and_uninstall_stays_exact() {
     assert_eq!(snapshot(home.path()), before, "uninstall stays exact");
 }
 
+/// frob:ticket 01M45D1XYFTD3NAV2BJZ31VW6Y
+/// Pipe install.sh into dash (the Debian `sh`) and expect the one-line bash hint, never a syntax error.
 #[test]
-fn piped_into_sh_it_names_bash_instead_of_a_syntax_error() {
+fn piped_into_dash_it_names_bash_instead_of_a_syntax_error() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let dash = ["/usr/bin/dash", "/bin/dash"]
+        .into_iter()
+        .find(|p| Path::new(p).exists());
+    let Some(dash) = dash else {
+        eprintln!("SKIP piped_into_dash: dash is not installed on this host");
+        return;
+    };
     let home = tempfile::tempdir().unwrap();
-    let out = Command::new("sh")
-        .arg(script("install.sh"))
+    let text = std::fs::read(script("install.sh")).unwrap();
+    let mut child = Command::new(dash)
         .env_clear()
         .env("HOME", home.path())
         .env("PATH", SYS_PATH)
         .env("GOWAY_INSTALL_BINARY", env!("CARGO_BIN_EXE_goway"))
-        .output()
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .unwrap();
+    // The child may exit before reading everything; a broken pipe here is expected.
+    let _ = child.stdin.take().unwrap().write_all(&text);
+    let out = child.wait_with_output().unwrap();
     let err = String::from_utf8_lossy(&out.stderr);
-    // Where sh is itself bash the installer just works; elsewhere it must stop with the hint.
-    if !out.status.success() {
-        assert!(err.contains("| bash"), "{err}");
-        assert!(!err.contains("Illegal option"), "{err}");
-        assert!(!home.path().join(".local").exists());
-    }
+    assert!(!out.status.success(), "{err}");
+    assert!(err.contains("| bash"), "{err}");
+    assert!(!err.contains("Illegal option"), "{err}");
+    assert_eq!(err.trim().lines().count(), 1, "{err}");
+    assert!(!home.path().join(".local").exists());
 }
+
 #[test]
 fn a_prefix_that_could_run_code_is_refused() {
     let home = tempfile::tempdir().unwrap();
