@@ -8,10 +8,10 @@ points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:07:06Z"
-updated = "2026-10-17T05:56:10Z"
+updated = "2026-10-17T05:56:13Z"
 idempotency_key = "c2"
 labels = ["circles"]
-scope = ["Cargo.toml", "Cargo.lock", "crates/goway-circle/**", "crates/goway/Cargo.toml", "crates/goway/tests/journal_invariant.rs"]
+scope = ["Cargo.toml", "Cargo.lock", "crates/goway-circle/**", "crates/goway/Cargo.toml", "crates/goway/tests/journal_invariant.rs", "crates/goway/src/circle.rs"]
 
 [[acceptance]]
 text = "A helper and a lead join with no network pairing"
