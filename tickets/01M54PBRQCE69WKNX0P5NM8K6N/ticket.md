@@ -4,8 +4,9 @@ title = "Four goway tests fail on main: spawn lock invariant, journal invariant,
 type = "bug"
 category = "todo"
 priority = "medium"
+points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T10:26:16Z"
-updated = "2026-10-17T10:26:16Z"
+updated = "2026-10-17T10:40:55Z"
 +++
