@@ -2,13 +2,13 @@
 id = "01M55SHERW6M3D3ZXM6Y1EKY38"
 title = "Audit H1: a revoked admin key can act by backdating its parents"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "critical"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T20:41:02Z"
-updated = "2026-10-17T20:41:02Z"
+updated = "2026-10-17T20:41:07Z"
 idempotency_key = "audit-h1"
 scope = ["crates/goway-circle/src/state.rs,crates/goway-circle/tests/**,docs/model/**"]
 
