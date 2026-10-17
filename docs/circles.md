@@ -107,6 +107,13 @@ State is computed by deterministic replay (the `fold` function of the model):
 - Each operation is validated against the state at its own point of replay.
   An invalid or unauthorized operation is ignored, not an error, so a bad
   operation cannot block the circle.
+- Removal dominates backdating. A valid `revoke` or `remove_admin` is judged
+  against the state of its own causal past (its ancestors). Every op signed by
+  the removed key that is not an ancestor of that removal is ignored, so a
+  stolen admin key cannot choose old parents to act "before" its revocation.
+  Two admins that remove each other concurrently are both removed (fail
+  closed): a stolen key can then brick the circle, which must be re-founded,
+  but it can never take it over or undo the honest revoke.
 - A revoked node key is tombstoned forever. A later `admit` of that key is
   ignored (remove wins). Re-joining takes a new key.
 - Merging two rosters is set union followed by replay. Operations

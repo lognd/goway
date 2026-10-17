@@ -84,9 +84,9 @@ impl State {
     }
 
     /// Apply one signature-checked op if valid at this point; return whether it took effect.
-    fn apply(&mut self, op: &Op) -> bool {
+    fn apply(&mut self, op: &Op, forced: bool) -> bool {
         let short = &op.id()[..8];
-        let ok = self.apply_inner(op);
+        let ok = self.apply_inner(op, forced);
         if ok {
             info!(op = short, kind = ?op.kind, "op applied");
         } else {
@@ -119,11 +119,11 @@ impl State {
     }
 
     /// Add or remove an admin; needs the admin quorum.
-    fn apply_admin_change(&mut self, op: &Op) -> bool {
+    fn apply_admin_change(&mut self, op: &Op, forced: bool) -> bool {
         let Some(key) = op.body.get("key").map(String::as_str) else {
             return false;
         };
-        if !self.admin_quorum(&op.signers) {
+        if !forced && !self.admin_quorum(&op.signers) {
             return false;
         }
         if op.kind == Kind::AddAdmin {
@@ -144,7 +144,9 @@ impl State {
         true
     }
 
-    fn apply_inner(&mut self, op: &Op) -> bool {
+    /// `forced` skips the signer-admin and quorum checks for a removal already proven valid in
+    /// its own causal past (see [`resolve`]).
+    fn apply_inner(&mut self, op: &Op, forced: bool) -> bool {
         let get = |k: &str| op.body.get(k).map(String::as_str);
         let Some(signer) = op.signers.first() else {
             return false;
@@ -155,7 +157,7 @@ impl State {
         if self.circle.is_empty() {
             return false;
         }
-        let is_admin = self.admins.contains(signer);
+        let is_admin = forced || self.admins.contains(signer);
         match op.kind {
             Kind::Genesis => false,
             Kind::Admit => {
@@ -193,7 +195,7 @@ impl State {
                     return false;
                 }
                 // Revoking an admin is an admin change: it needs the same quorum.
-                if self.admins.contains(key) && !self.admin_quorum(&op.signers) {
+                if !forced && self.admins.contains(key) && !self.admin_quorum(&op.signers) {
                     return false;
                 }
                 self.members.remove(key);
@@ -218,7 +220,7 @@ impl State {
                 member.roles = roles;
                 true
             }
-            Kind::AddAdmin | Kind::RemoveAdmin => self.apply_admin_change(op),
+            Kind::AddAdmin | Kind::RemoveAdmin => self.apply_admin_change(op, forced),
             Kind::RotateHostKey => {
                 let (Some(host_fp), Some(member)) = (get("host_fp"), self.members.get_mut(signer))
                 else {
@@ -268,6 +270,102 @@ pub fn fold_pinned(
             pending.insert(id, op);
         }
     }
+    let (excluded, forced) = resolve(&pending);
+    Ok(replay(&pending, &excluded, &forced))
+}
+
+/// What a removal proved about itself when judged against its own causal past.
+struct Verdict {
+    /// Key the removal takes out.
+    target: String,
+    /// True when the target was an admin in that past (an admin-versus-admin removal).
+    admin_target: bool,
+    /// Strict ancestors of the removal.
+    anc: BTreeSet<String>,
+}
+
+/// Strict ancestors of `id`, or `None` when any of them has a parent that is not in `ops`.
+fn ancestors(ops: &BTreeMap<String, &Op>, id: &str) -> Option<BTreeSet<String>> {
+    let mut seen = BTreeSet::new();
+    let mut stack: Vec<&String> = ops.get(id)?.parents.iter().collect();
+    while let Some(p) = stack.pop() {
+        if seen.insert(p.clone()) {
+            stack.extend(&ops.get(p)?.parents);
+        }
+    }
+    Some(seen)
+}
+
+/// Ops to skip and removals to force, derived from the removals already judged in `verdicts`.
+///
+/// A key that a valid removal takes out loses every op it signed that does not causally precede
+/// that removal, so it cannot backdate its parents to act before its own revocation. Removals of
+/// admins by admins stay in force even when the other side is removed too (fail closed).
+fn derive(
+    ops: &BTreeMap<String, &Op>,
+    verdicts: &BTreeMap<String, Verdict>,
+) -> (BTreeSet<String>, BTreeSet<String>) {
+    let forced: BTreeSet<String> = verdicts
+        .iter()
+        .filter(|(id, v)| v.admin_target && ops.contains_key(*id))
+        .map(|(id, _)| id.clone())
+        .collect();
+    let mut excluded = BTreeSet::new();
+    for (rid, v) in verdicts.iter().filter(|(id, _)| ops.contains_key(*id)) {
+        for (id, op) in ops {
+            if id != rid
+                && op.kind != Kind::Genesis
+                && !v.anc.contains(id)
+                && !forced.contains(id)
+                && op.signers.contains(&v.target)
+            {
+                excluded.insert(id.clone());
+            }
+        }
+    }
+    (excluded, forced)
+}
+
+/// Judge every removal against the state of its own causal past, smallest past first.
+fn resolve(ops: &BTreeMap<String, &Op>) -> (BTreeSet<String>, BTreeSet<String>) {
+    let mut removals: Vec<(String, BTreeSet<String>)> = ops
+        .iter()
+        .filter(|(_, o)| o.kind.is_removing())
+        .filter_map(|(id, _)| ancestors(ops, id).map(|a| (id.clone(), a)))
+        .collect();
+    removals.sort_by(|(ia, a), (ib, b)| (a.len(), ia).cmp(&(b.len(), ib)));
+    let mut verdicts: BTreeMap<String, Verdict> = BTreeMap::new();
+    for (id, anc) in removals {
+        let op = ops[&id];
+        let Some(target) = op.body.get("key") else {
+            continue;
+        };
+        let past: BTreeMap<String, &Op> = anc.iter().map(|a| (a.clone(), ops[a])).collect();
+        let (excluded, forced) = derive(&past, &verdicts);
+        let mut state = replay(&past, &excluded, &forced);
+        let admin_target = state.admins.contains(target);
+        if state.apply(op, false) {
+            debug!(op = &id[..8], "removal valid in its causal past");
+            verdicts.insert(
+                id,
+                Verdict {
+                    target: target.clone(),
+                    admin_target,
+                    anc,
+                },
+            );
+        }
+    }
+    derive(ops, &verdicts)
+}
+
+/// Kahn-layer replay of `ops`, skipping `excluded` ops and forcing the `forced` removals.
+fn replay(
+    ops: &BTreeMap<String, &Op>,
+    excluded: &BTreeSet<String>,
+    forced: &BTreeSet<String>,
+) -> State {
+    let mut pending: BTreeMap<String, &Op> = ops.clone();
     let mut state = State::default();
     let mut done: BTreeSet<String> = BTreeSet::new();
     while !pending.is_empty() {
@@ -288,13 +386,20 @@ pub fn fold_pinned(
         });
         let ids: Vec<(String, &Op)> = ready.into_iter().map(|(i, o)| (i.clone(), o)).collect();
         for (id, op) in ids {
-            state.apply(op);
+            if excluded.contains(&id) {
+                debug!(
+                    op = &id[..8],
+                    "op excluded: signed by a key removed earlier"
+                );
+            } else {
+                state.apply(op, forced.contains(&id));
+            }
             pending.remove(&id);
             done.insert(id);
         }
     }
     state.applied = done;
-    Ok(state)
+    state
 }
 
 /// Merge two op sets: union by id, verified at fold time.

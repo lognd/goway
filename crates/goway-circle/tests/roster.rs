@@ -492,3 +492,57 @@ proptest! {
         let _ = run(&all[..n.min(3)]);
     }
 }
+
+/// Genesis A, admit lead B, B becomes admin; returns ops and the `add_admin` id.
+fn two_admins() -> (Vec<Op>, String) {
+    let g = genesis("A");
+    let b = admit("A", "B", "lead", &[g.id()]);
+    let add = simple(Kind::AddAdmin, &["A"], "B", &[b.id()]);
+    let id = add.id();
+    (vec![g, b, add], id)
+}
+
+// frob:ticket ~Y1EKY38
+// frob:tests crates/goway-circle/src/state.rs::fold
+#[test]
+fn backdated_revoke_of_honest_admin_cannot_undo_a_revoke() {
+    let (mut ops, add) = two_admins();
+    let honest = simple(Kind::Revoke, &["B"], "A", std::slice::from_ref(&add));
+    let backdated = simple(Kind::Revoke, &["A"], "B", &[add]);
+    ops.extend([honest.clone(), backdated.clone()]);
+    let s = run(&ops);
+    assert!(s.tombstones.contains("A"));
+    assert!(!s.admins.contains("A"));
+    // fail closed: the attacker never ends up as the only admin
+    assert!(s.admins.is_empty());
+    ops.reverse();
+    assert_eq!(run(&ops), s);
+}
+
+// frob:ticket ~Y1EKY38
+// frob:tests crates/goway-circle/src/state.rs::fold
+#[test]
+fn backdated_admin_additions_cannot_break_the_revoke_quorum() {
+    let (mut ops, add) = two_admins();
+    let honest = simple(Kind::Revoke, &["B"], "A", std::slice::from_ref(&add));
+    let evil = admit("A", "EVIL", "lead", &[add]);
+    let evil_admin = simple(Kind::AddAdmin, &["A"], "EVIL", &[evil.id()]);
+    ops.extend([honest, evil, evil_admin]);
+    let s = run(&ops);
+    assert!(s.admins.contains("B") && !s.admins.contains("A"));
+    assert!(!s.admins.contains("EVIL") && !s.members.contains_key("EVIL"));
+    ops.reverse();
+    assert_eq!(run(&ops), s);
+}
+
+// frob:ticket ~Y1EKY38
+// frob:tests crates/goway-circle/src/state.rs::fold
+#[test]
+fn ops_signed_before_the_removal_still_count() {
+    let (mut ops, add) = two_admins();
+    let early = admit("A", "H", "helper", &[add]);
+    let revoke = simple(Kind::Revoke, &["B"], "A", &[early.id()]);
+    ops.extend([early, revoke]);
+    let s = run(&ops);
+    assert!(s.members.contains_key("H") && !s.admins.contains("A"));
+}
