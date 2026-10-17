@@ -2,13 +2,13 @@
 id = "01M55V8H4Q52Z733TCA0NP7DAT"
 title = "Audit M8: access --windows-admin rewrites administrators_authorized_keys without its protected DACL"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T21:11:07Z"
-updated = "2026-10-17T21:11:07Z"
+updated = "2026-10-17T21:15:13Z"
 idempotency_key = "audit-m8"
 scope = ["crates/goway/src/access.rs"]
 
