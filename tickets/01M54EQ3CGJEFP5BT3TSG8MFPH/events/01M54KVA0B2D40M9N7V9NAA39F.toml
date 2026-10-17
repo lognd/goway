@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["native join runs end to end against a real child process standing in for goway.exe (card, join, access)", "the WSL join links goway.exe into the distro PATH when goway is missing and never replaces an existing one"]
+moved = []
+at = "2026-10-17T09:42:19Z"
+actor = "lognd"
+rev = 1
