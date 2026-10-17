@@ -10,7 +10,7 @@
 //! card.
 //!
 //! Flow: host `pake` -> guest `pake` -> host `proof` (fingerprints + tag) -> guest `card`
-//! (card + tag) -> host person approves -> host admits and sends `welcome`.
+//! (card + tag) -> host person approves -> host admits and sends `welcome` (tagged under the session key).
 
 use std::io::{BufRead, Read, Write};
 
@@ -91,6 +91,8 @@ pub enum Msg {
     Welcome {
         /// The welcome string.
         welcome: String,
+        /// Hex of the host's tag binding the welcome to the session key.
+        tag: String,
     },
     /// Either side: stop.
     Abort {
@@ -361,10 +363,12 @@ pub fn run_host<R: BufRead, W: Write>(
         );
         LanError::Admit(e)
     })?;
+    let welcome_text = welcome.encode();
     write_msg(
         writer,
         &Msg::Welcome {
-            welcome: welcome.encode(),
+            tag: tag(&isk, b"welcome", &[&blob, welcome_text.as_bytes()]),
+            welcome: welcome_text,
         },
     )?;
     info!(name = %card.name, "lan pairing: welcome sent");
@@ -423,7 +427,14 @@ pub fn run_guest<R: BufRead, W: Write>(
         },
     )?;
     match read_msg(reader, MAX_WELCOME_CHARS + 1024)? {
-        Msg::Welcome { welcome } => {
+        Msg::Welcome {
+            welcome,
+            tag: welcome_tag,
+        } => {
+            if tag(&isk, b"welcome", &[&blob, welcome.as_bytes()]) != welcome_tag {
+                warn!("lan pairing: welcome tag mismatch (tampered in transit?)");
+                return Err(protocol("welcome failed authentication"));
+            }
             let w = Welcome::decode(&welcome).map_err(|e| protocol(e.to_string()))?;
             Ok((w, ident))
         }
@@ -654,6 +665,59 @@ mod tests {
         assert!(matches!(h, Err(LanError::Declined)));
         assert!(g.is_err());
         assert!(!admitted);
+    }
+
+    #[test]
+    fn a_welcome_swapped_in_transit_is_refused() {
+        let host_l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let host_addr = host_l.local_addr().unwrap();
+        let proxy_l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let proxy_addr = proxy_l.local_addr().unwrap();
+        let host = std::thread::spawn(move || {
+            let (s, _) = host_l.accept().unwrap();
+            let mut r = BufReader::new(s.try_clone().unwrap());
+            let mut w = s;
+            let _ = run_host(
+                &mut r,
+                &mut w,
+                "12345678",
+                &["SHA256:adminfp".to_owned()],
+                &mut |_| true,
+                &mut |_| Ok(welcome()),
+            );
+        });
+        let proxy = std::thread::spawn(move || {
+            let (guest, _) = proxy_l.accept().unwrap();
+            let up = TcpStream::connect(host_addr).unwrap();
+            let mut up_r = BufReader::new(up.try_clone().unwrap());
+            let mut up_w = up;
+            let mut g_r = BufReader::new(guest.try_clone().unwrap());
+            let mut g_w = guest;
+            let mut line = String::new();
+            // host pake -> guest, guest pake -> host, host proof -> guest, guest card -> host
+            for _ in 0..2 {
+                line.clear();
+                up_r.read_line(&mut line).unwrap();
+                g_w.write_all(line.as_bytes()).unwrap();
+                line.clear();
+                g_r.read_line(&mut line).unwrap();
+                up_w.write_all(line.as_bytes()).unwrap();
+            }
+            line.clear();
+            up_r.read_line(&mut line).unwrap();
+            let mut v: serde_json::Value = serde_json::from_str(&line).unwrap();
+            let mut other = welcome();
+            other.circle = "evil".into();
+            v["welcome"] = serde_json::Value::String(other.encode());
+            g_w.write_all(format!("{v}\n").as_bytes()).unwrap();
+        });
+        let s = TcpStream::connect(proxy_addr).unwrap();
+        let mut r = BufReader::new(s.try_clone().unwrap());
+        let mut w = s;
+        let g = run_guest(&mut r, &mut w, "12345678", &card());
+        assert!(matches!(g, Err(LanError::Protocol(_))), "{g:?}");
+        proxy.join().unwrap();
+        host.join().unwrap();
     }
 
     #[test]
