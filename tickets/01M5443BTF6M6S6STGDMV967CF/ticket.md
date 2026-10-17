@@ -2,7 +2,8 @@
 id = "01M5443BTF6M6S6STGDMV967CF"
 title = "Security: circle threat model review and key-at-rest hardening"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
