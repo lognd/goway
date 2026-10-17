@@ -4,9 +4,10 @@ title = "QR output for circle cards and pair-host address"
 type = "task"
 category = "todo"
 priority = "medium"
+points = 2
 reporter = "lognd"
 created = "2026-10-17T06:06:07Z"
-updated = "2026-10-17T06:06:07Z"
+updated = "2026-10-17T10:11:04Z"
 scope = ["crates/goway/src/lanpair.rs"]
 +++
 
