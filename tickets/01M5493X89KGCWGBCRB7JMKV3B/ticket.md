@@ -7,8 +7,16 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:34:47Z"
-updated = "2026-10-17T11:56:29Z"
+updated = "2026-10-17T11:57:57Z"
 scope = ["crates/goway-circle/**"]
+
+[[acceptance]]
+text = "A node key can be created encrypted and signing works only with the right passphrase"
+bound = false
+
+[[acceptance]]
+text = "Passphrase values are redacted in Debug and empty passphrases are refused"
+bound = false
 +++
 
 found while working ~MV967CF; deferred hardening, see docs/circles.md section 6
