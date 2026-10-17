@@ -2,12 +2,12 @@
 id = "01M55X0T3ZVTASAQTZDDZ9JCA3"
 title = "Audit L2+L3: LAN pairing single-use, pre-PAKE timeout, welcome tag"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T21:41:51Z"
-updated = "2026-10-17T21:41:51Z"
+updated = "2026-10-17T21:41:58Z"
 idempotency_key = "audit-l2l3"
 scope = ["crates/goway/src/lanpair.rs"]
 
