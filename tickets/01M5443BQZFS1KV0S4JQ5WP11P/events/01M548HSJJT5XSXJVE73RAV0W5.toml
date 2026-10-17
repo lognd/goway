@@ -1,0 +1,33 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T06:24:51Z"
+digest = "3b3ec054fe32beb5e2cef1a5f947b8e665052540da4e6b6139dabcceb46ccaf3"
+exit_code = 0
+inline = '''
+warning: constant `NOW` is never used
+   --> crates/goway-circle/src/sshcert.rs:350:11
+    |
+350 |     const NOW: u64 = 1_800_000_000;
+    |           ^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `goway-circle` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.29s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e12099aa-a721-4b40-8917-10b6849d96ca with nextest profile: default
+    Starting 1 test across 88 binaries (1076 tests skipped)
+        PASS [   0.034s] goway-circle sshcert::tests::a_bumped_epoch_refuses_old_certs
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.036s] 1 test run: 1 passed, 1076 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "goway-circle sshcert::tests::a_bumped_epoch_refuses_old_certs"
+size = 849
+status = "measured"
+test_count = 1
+tests_digest = "2f6adf4f417e1bbc47a8fc42a7564999ab8e8610394528c6cd430b990403cc20"
+at = "2026-10-17T06:24:51Z"
+actor = "lognd"
+rev = 1
