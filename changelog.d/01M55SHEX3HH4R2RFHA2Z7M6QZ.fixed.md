@@ -1,0 +1,1 @@
+Concurrent roster writers (two `sync` runs, or sync and an admin command) no longer lose an operation such as a revoke: the circle directory is locked exclusively, with a bounded wait, across read, merge and write.

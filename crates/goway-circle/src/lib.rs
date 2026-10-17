@@ -46,4 +46,4 @@ pub use sshcert::{
     merge_authorized_keys, mint_lead_cert, parse_cert, pin_line,
 };
 pub use state::{Member, Role, State, accept_roster, fold, fold_pinned, heads, merge};
-pub use store::{FileSink, PlainSink, Store};
+pub use store::{FileSink, PlainSink, Store, StoreLock};
