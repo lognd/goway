@@ -7,7 +7,7 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T00:37:02Z"
-updated = "2026-10-17T10:54:18Z"
+updated = "2026-10-17T10:54:32Z"
 scope = ["crates/goway-setup/src/tune.rs", "crates/goway-setup/tests/cli.rs", "crates/goway/src/doctor/windows.rs"]
 
 [[acceptance]]
