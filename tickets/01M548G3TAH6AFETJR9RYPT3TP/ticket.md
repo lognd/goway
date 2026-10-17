@@ -7,8 +7,8 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:23:58Z"
-updated = "2026-10-17T07:11:02Z"
-scope = ["crates/goway/src/resolve.rs"]
+updated = "2026-10-17T07:11:43Z"
+scope = ["crates/goway/src/resolve.rs", "docs/config.md"]
 +++
 
 found while working ~Q5WP11P
