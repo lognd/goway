@@ -200,6 +200,7 @@ fn make_executable(path: &Path) -> Result<(), CryptoError> {
 }
 
 #[cfg(not(unix))]
+#[allow(clippy::unnecessary_wraps)] // must match the unix signature, which can fail
 fn make_executable(_path: &Path) -> Result<(), CryptoError> {
     Ok(())
 }
