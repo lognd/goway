@@ -29,6 +29,12 @@ const CERT_KIND: &str = "ssh-ed25519-cert-v01@openssh.com";
 const BACKDATE: &str = "-5m";
 /// `authorized_keys` options on a cert-authority line: no forwarding of any kind.
 const LINE_OPTIONS: &str = "no-agent-forwarding,no-port-forwarding,no-X11-forwarding";
+/// `ssh-keygen -O` options stamped on every minted cert (the documented forwarding bans).
+const CERT_OPTIONS: [&str; 3] = [
+    "no-agent-forwarding",
+    "no-port-forwarding",
+    "no-x11-forwarding",
+];
 /// Prefix of the trailing comment that marks goway's lines in `authorized_keys`.
 const MARKER_PREFIX: &str = "goway-circle:";
 
@@ -269,8 +275,12 @@ pub fn mint_lead_cert(
     if agent {
         cmd.arg("-U");
     }
+    cmd.args(["-I", &key_id, "-n", &principals]);
+    for option in CERT_OPTIONS {
+        cmd.args(["-O", option]);
+    }
     let out = cmd
-        .args(["-I", &key_id, "-n", &principals, "-V"])
+        .arg("-V")
         .arg(format!("{BACKDATE}:+{CERT_TTL_DAYS}d"))
         .arg(&pub_file)
         .stdin(Stdio::null())
@@ -588,6 +598,31 @@ mod tests {
             accepts(&r.state, &Policy::Open, &cert, NOW_REAL()),
             Err(Rejection::Signer)
         );
+    }
+
+    // frob:tests crates/goway-circle/src/sshcert.rs::mint_lead_cert
+    #[test]
+    fn minted_certs_carry_the_forwarding_bans() {
+        let r = rig();
+        let text =
+            mint_lead_cert(&r.state, &r.admin.public, &r.admin.private, &r.lead.public).unwrap();
+        let file = r.dir_guard.path().join("minted-cert.pub");
+        std::fs::write(&file, text).unwrap();
+        let out = Command::new("ssh-keygen")
+            .arg("-L")
+            .arg("-f")
+            .arg(&file)
+            .output()
+            .unwrap();
+        let shown = String::from_utf8_lossy(&out.stdout);
+        for banned in [
+            "permit-agent-forwarding",
+            "permit-port-forwarding",
+            "permit-X11-forwarding",
+        ] {
+            assert!(!shown.contains(banned), "{banned} still granted: {shown}");
+        }
+        assert!(shown.contains("permit-pty"), "pty dropped: {shown}");
     }
 
     // frob:tests crates/goway-circle/src/sshcert.rs::mint_lead_cert
