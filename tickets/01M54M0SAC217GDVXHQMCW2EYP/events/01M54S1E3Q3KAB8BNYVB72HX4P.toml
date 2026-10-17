@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["The distro goway wrapper is a journaled change, written only when goway is not on PATH", "Native join is not run as an account other than the ssh login account"]
+moved = []
+at = "2026-10-17T11:13:03Z"
+actor = "lognd"
+rev = 1
