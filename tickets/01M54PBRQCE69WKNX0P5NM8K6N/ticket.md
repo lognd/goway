@@ -8,7 +8,7 @@ points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T10:26:16Z"
-updated = "2026-10-17T10:51:12Z"
+updated = "2026-10-17T10:51:33Z"
 scope = ["crates/goway/src/doctor.rs", "crates/goway/tests/evict_live.rs", "crates/goway/tests/footprint.rs", "crates/goway/tests/journal_invariant.rs"]
 
 [[acceptance]]
@@ -17,13 +17,13 @@ bound = true
 
 [[acceptance]]
 text = "no_machine_change_appears_outside_the_journal_backed_modules passes"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "a_failure_on_a_nearly_full_disk_is_explained_in_plain_words passes"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "a_wave_over_a_tiny_budget_never_loses_a_live_runs_work_dir passes"
-bound = false
+bound = true
 +++
