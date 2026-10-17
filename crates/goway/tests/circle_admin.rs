@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use goway::access::{needs_renewal, run_policy, run_renew};
 use goway::circle::{admit, init, join, make_card};
-use goway::circle_admin::{Proposed, admin_card, cosign, propose, run_admin_with};
+use goway::circle_admin::{Proposed, admin_card, cosign, cosign_with, propose, run_admin_with};
 use goway::cli::{
     CircleAdminCardArgs, CircleAdminChangeArgs, CircleAdmitArgs, CircleCardArgs, CircleCosignArgs,
     CircleInitArgs, CircleJoinArgs, CirclePolicyArgs, CircleRenewArgs,
@@ -209,6 +209,7 @@ fn three_admins_need_a_second_signature_to_add_a_fourth() {
         quiet(),
         &CircleCosignArgs {
             file: file.clone(),
+            yes: true,
             circle: None,
         },
     );
@@ -216,7 +217,17 @@ fn three_admins_need_a_second_signature_to_add_a_fourth() {
         wrong.is_err(),
         "an admin who is not a named signer cannot finish it"
     );
-    cosign(&bee, quiet(), &CircleCosignArgs { file, circle: None }).unwrap();
+    let args = |yes| CircleCosignArgs {
+        file: file.clone(),
+        yes,
+        circle: None,
+    };
+    let no_tty = cosign(&bee, quiet(), &args(false));
+    assert!(no_tty.is_err(), "no terminal and no --yes must refuse");
+    let declined = cosign_with(&bee, quiet(), &args(false), &|_| Some("n\n".into()));
+    assert!(declined.is_err(), "answering no must refuse");
+    assert_eq!(state_of(&bee).admins.len(), 3, "nothing was signed");
+    cosign_with(&bee, quiet(), &args(false), &|_| Some("y\n".into())).unwrap();
     assert_eq!(state_of(&bee).admins.len(), 4);
 }
 

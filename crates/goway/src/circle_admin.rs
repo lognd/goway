@@ -137,8 +137,31 @@ pub fn propose(
     Ok(Proposed::NeedsCosign(op.to_line()))
 }
 
-/// Finish the half-signed proposal in `args.file` with this admin's signature and apply it.
+/// Finish the half-signed proposal in `args.file` after the admin confirms it on the terminal.
 pub fn cosign(paths: &Paths, renderer: Renderer, args: &CircleCosignArgs) -> Result<()> {
+    cosign_with(paths, renderer, args, &crate::render::ask)
+}
+
+/// Whether `answer` (one typed line, `None` when there is no terminal) approves the change.
+fn approved(answer: Option<&str>) -> Result<bool> {
+    match answer {
+        None => Err(usage(
+            "cosigning needs a terminal to confirm on; pass --yes to sign without asking",
+        )),
+        Some(a) => Ok(matches!(
+            a.trim().to_ascii_lowercase().as_str(),
+            "y" | "yes"
+        )),
+    }
+}
+
+/// Like [`cosign`], reading the confirmation through `ask` (a parameter so tests can script it).
+pub fn cosign_with(
+    paths: &Paths,
+    renderer: Renderer,
+    args: &CircleCosignArgs,
+    ask: &dyn Fn(&str) -> Option<String>,
+) -> Result<()> {
     let (store, ops, state) = load(paths, args.circle.as_deref())?;
     let (_, signer) = own_admin(paths, renderer, &state)?;
     let text = read_proposal(&args.file)?;
@@ -149,11 +172,31 @@ pub fn cosign(paths: &Paths, renderer: Renderer, args: &CircleCosignArgs) -> Res
     if !matches!(op.kind, Kind::AddAdmin | Kind::RemoveAdmin) {
         return Err(usage("only admin changes can be cosigned"));
     }
+    let key = op.body.get("key").cloned().unwrap_or_default();
+    let adding = op.kind == Kind::AddAdmin;
+    let target = state
+        .members
+        .get(&key)
+        .map_or("(not a member)", |m| m.name.as_str());
+    let proposer = op
+        .signers
+        .first()
+        .map_or_else(String::new, |k| fingerprint_of(k));
+    renderer.note(format!(
+        "proposal: {} admin `{target}` (key {}), proposed by admin key {proposer}",
+        if adding { "PROMOTE to" } else { "DEMOTE from" },
+        fingerprint_of(&key),
+    ));
+    if !args.yes {
+        let answer = ask("sign this admin change? [y/N] ");
+        if !approved(answer.as_deref())? {
+            tracing::warn!(circle = store.id(), adding, "cosign declined");
+            return Err(usage("cosign declined; nothing was signed"));
+        }
+    }
     if !op.cosign(&signer)? {
         return Err(usage("this admin is not a pending signer of that proposal"));
     }
-    let key = op.body.get("key").cloned().unwrap_or_default();
-    let adding = op.kind == Kind::AddAdmin;
     append_checked(
         paths,
         &store,

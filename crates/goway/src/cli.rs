@@ -477,6 +477,9 @@ pub struct CircleAdminChangeArgs {
 pub struct CircleCosignArgs {
     /// The proposal file written by `admin add|remove --out`.
     pub file: std::path::PathBuf,
+    /// Sign without asking (the proposal is still printed first); required without a terminal.
+    #[arg(long, short = 'y')]
+    pub yes: bool,
     /// Which circle.
     #[arg(long)]
     pub circle: Option<String>,

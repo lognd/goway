@@ -184,6 +184,10 @@ minute certificate backdate.
   or more admins the op needs 2 distinct admin signers: pass
   `--cosigner OTHER [--out FILE]` to write a half-signed proposal, then the
   other admin runs `goway circle admin cosign FILE` to finish and append it.
+  `cosign` first prints what it approves (promote or demote, the member's
+  name and key fingerprint, the proposer's fingerprint) and asks `y/N`; pass
+  `--yes` to skip the question, which is required when stdin is not a
+  terminal.
   Without a cosigner the command is refused. Removing an admin bumps the
   roster epoch.
 - `goway circle renew [--force]` reissues the node certificate when it is
