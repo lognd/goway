@@ -1,0 +1,33 @@
+kind = "evidence"
+captured_at = "2026-10-17T06:20:55Z"
+digest = "3af444918fb97c81c911d4f83ee1ec1bb6346386a12b882532668330f9a7f9db"
+exit_code = 0
+inline = '''
+   Compiling goway-circle v0.1.2 (<worktree>/crates/goway-circle)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 15s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID fe949746-2205-4323-9ca4-ebb8697e42e4 with nextest profile: default
+    Starting 10 tests across 4 binaries (46 tests skipped)
+        PASS [   0.006s] goway-circle lan::tests::messages_refuse_unknown_fields_and_oversize
+        PASS [   0.006s] goway-circle lan::tests::a_tampered_reveal_is_refused_before_any_code_is_shown
+        PASS [   0.006s] goway-circle lan::tests::a_guest_refuses_a_bad_nonce_or_fingerprint_list
+        PASS [   0.007s] goway-circle lan::tests::a_swapped_host_identity_gives_a_different_code
+        PASS [   0.007s] goway-circle lan::tests::guard_expires_is_single_use_rate_limited_and_strikes_out
+        PASS [   0.007s] goway-circle lan::tests::sas_changes_with_every_input
+        PASS [   0.007s] goway-circle lan::tests::typed_codes_must_match_exactly
+        PASS [   0.030s] goway-circle lan::tests::a_host_decline_admits_nothing
+        PASS [   0.085s] goway-circle lan::tests::a_guest_decline_admits_nothing
+        PASS [   0.090s] goway-circle lan::tests::both_confirming_admits_and_codes_agree
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.091s] 10 tests run: 10 passed, 46 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E 'test(lan::tests)'"
+size = 1447
+status = "measured"
+test_count = 10
+tests_digest = "8d2d3c40768a9dfd762331e9c580ac0d9c7baee20005aeeee9c27ea87fe59b35"
+at = "2026-10-17T06:20:55Z"
+actor = "lognd"
+rev = 1
