@@ -2,7 +2,7 @@
 id = "01M4557B4FQ51Y1T49Y0B12Y4D"
 title = "Stop sending all of remote.sh on every call: install it once per version on the helper, like remote.ps1"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 reporter = "lognd"
