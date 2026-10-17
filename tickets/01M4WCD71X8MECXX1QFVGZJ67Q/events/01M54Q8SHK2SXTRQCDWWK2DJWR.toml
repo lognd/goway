@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["After install --host is rolled back or uninstalled, rerunning install --host succeeds without manual apt commands", "The reinstalled sshd presents the same host key as before the uninstall"]
+new = ["After install --host is rolled back or uninstalled, rerunning install --host succeeds without manual apt commands", "The reinstalled sshd presents the same host key as before the uninstall", "Test a_package_left_removed_with_its_configuration_is_installed_again_without_purging passes: rc state reinstalls without purge"]
+moved = [1, 2]
+at = "2026-10-17T10:42:07Z"
+actor = "lognd"
+rev = 1
