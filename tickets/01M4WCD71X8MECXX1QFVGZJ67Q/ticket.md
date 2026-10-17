@@ -12,7 +12,7 @@ scope = ["crates/goway-setup/src/hostsys.rs"]
 
 [[acceptance]]
 text = "After install --host is rolled back or uninstalled, rerunning install --host succeeds without manual apt commands"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "The reinstalled sshd presents the same host key as before the uninstall"
