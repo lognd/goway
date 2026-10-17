@@ -2,7 +2,8 @@
 id = "01M54BYD885RDTAR95TXQGX5E1"
 title = "Push the circle roster to helpers on revoke --now so they adopt the new epoch"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
