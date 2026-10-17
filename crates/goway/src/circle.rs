@@ -269,7 +269,7 @@ pub fn init(paths: &Paths, renderer: Renderer, args: &CircleInitArgs) -> Result<
 }
 
 /// [`init`] with the passphrase prompt injected; `--passphrase` asks twice and refuses a mismatch.
-// frob:ticket ~2FFPC53
+// frob:ticket 01M54X1N9MVWMYR7B0A2FFPC53
 pub fn init_with(
     paths: &Paths,
     renderer: Renderer,

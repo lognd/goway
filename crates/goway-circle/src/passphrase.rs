@@ -80,7 +80,7 @@ impl PassphraseSource for TtyPrompt {
 }
 
 /// Ask `source` for a new passphrase twice and refuse unless both entries match.
-// frob:ticket ~2FFPC53
+// frob:ticket 01M54X1N9MVWMYR7B0A2FFPC53
 pub fn ask_new_passphrase(
     source: &dyn PassphraseSource,
     prompt: &str,
