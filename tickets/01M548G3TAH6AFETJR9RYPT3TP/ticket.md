@@ -2,7 +2,8 @@
 id = "01M548G3TAH6AFETJR9RYPT3TP"
 title = "resolve: roster stage for circle hosts"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 reporter = "lognd"
