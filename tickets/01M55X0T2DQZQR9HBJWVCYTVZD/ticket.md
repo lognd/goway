@@ -2,7 +2,8 @@
 id = "01M55X0T2DQZQR9HBJWVCYTVZD"
 title = "Audit L1+L9: roster stores unverified ops; undo can roll back roster files"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 2
 reporter = "lognd"
