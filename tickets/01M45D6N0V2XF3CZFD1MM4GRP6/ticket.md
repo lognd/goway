@@ -7,7 +7,7 @@ priority = "high"
 points = 3
 reporter = "lognd"
 created = "2026-10-05T06:49:43Z"
-updated = "2026-10-17T09:45:09Z"
+updated = "2026-10-17T09:45:22Z"
 scope = ["crates/goway/src/uninstall.rs", "changelog.d/01M45D6N0V2XF3CZFD1MM4GRP6.fixed.md"]
 
 [[acceptance]]
