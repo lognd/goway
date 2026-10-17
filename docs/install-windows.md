@@ -30,8 +30,10 @@ To make this helper join a circle in the same step (see `docs/circles.md`), add
 `--join <welcome> --join-fingerprint <fp>`; after the install it runs `goway circle join` and
 `goway circle access` inside the distro (with `--native`: on this laptop, using the installed
 `goway.exe`, as the user who ran the installer). It first makes this helper's node key if missing and
-prints the circle card (`goway circle card`). When the distro has no `goway` on its PATH, the installer
-links the installed `goway.exe` there as `/usr/local/bin/goway` (remove that link to undo it).
+prints the circle card (`goway circle card`). When the distro has no `goway` on its PATH, the install
+journals a small wrapper script `/usr/local/bin/goway` that runs the installed `goway.exe`; uninstalling
+removes it. With `--native`, if the ssh login account differs from the account running the install, the
+join is not attempted there and the exact command to run as the login account is printed instead.
 
 Windows asks permission once (the administrator prompt); say yes. What you are asked: nothing else,
 except possibly "Restart WSL now? [y/N]". Answer `n` (the default) if you have Linux windows open: the

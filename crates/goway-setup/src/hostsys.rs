@@ -16,7 +16,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
-use goway_journal::{LocalSystem, RegValue, ResourceKind, SysResult, System, SystemError};
+use goway_journal::{Change, LocalSystem, RegValue, ResourceKind, SysResult, System, SystemError};
 
 use crate::helper::{HOST_KEY_FILE, WslProbe, parse_fingerprint};
 use crate::host::{FirewallSpec, HostFacts, HyperVSpec, TaskSpec};
@@ -240,8 +240,16 @@ fn circle_card_step(run: impl Fn(&[&str]) -> SysResult<Output>) -> SysResult<Str
     Ok(out.text())
 }
 
-/// Where the distro's `goway` link to the Windows `goway.exe` goes.
+/// Where the distro's `goway` wrapper for the Windows `goway.exe` goes.
 const GOWAY_LINK: &str = "/usr/local/bin/goway";
+
+/// The wrapper script that runs the Windows executable at the distro path `target`.
+pub fn goway_wrapper(target: &str) -> String {
+    format!(
+        "#!/bin/sh\n# written by goway-setup\nexec '{}' \"$@\"\n",
+        target.replace('\'', "'\\''")
+    )
+}
 
 fn cmd_error(what: &str, out: &Output) -> SystemError {
     SystemError::Command {
@@ -576,26 +584,36 @@ impl<R: Runner> HostSystem<R> {
         circle_join_steps(welcome, fingerprint, |argv| self.wsl_user(argv))
     }
 
-    /// Make `goway` resolvable in the distro: when `command -v goway` finds nothing, link
-    /// `/usr/local/bin/goway` to the installed `goway.exe` (reached through `wslpath` and
-    /// WSL interop). Returns whether a link was made; an existing `goway` is never replaced.
-    pub fn ensure_goway_on_path(&self, goway_exe: &Path) -> SysResult<bool> {
+    /// The journaled changes that make `goway` resolvable in the distro: empty when
+    /// `command -v goway` already finds one (an existing `goway` is never replaced), else a
+    /// `/usr/local/bin/goway` wrapper script that runs the installed `goway.exe` (reached through
+    /// `wslpath` and WSL interop). A script rather than a symlink, so the journal can write and
+    /// revert it like any other file.
+    pub fn goway_link_changes(&self, goway_exe: &Path) -> SysResult<Vec<Change>> {
         if self
             .wsl_raw(&["sh", "-c", "command -v goway"], None)?
             .success()
         {
             tracing::debug!("goway is already on the distro PATH");
-            return Ok(false);
+            return Ok(Vec::new());
         }
         let win = goway_exe.display().to_string();
         let out = self.wsl(&["wslpath", "-u", &win])?;
         let target = out.text();
-        if target.is_empty() {
+        if !target.starts_with('/') || target.contains(['\n', '\r', '\0']) {
             return Err(cmd_error("wsl wslpath -u", &out));
         }
-        self.wsl(&["ln", "-s", &target, GOWAY_LINK])?;
-        tracing::info!(%target, link = GOWAY_LINK, "linked goway.exe into the distro PATH");
-        Ok(true)
+        tracing::info!(%target, link = GOWAY_LINK, "planning the goway wrapper in the distro PATH");
+        Ok(vec![
+            Change::WriteFile {
+                path: GOWAY_LINK.into(),
+                contents: goway_wrapper(&target),
+            },
+            Change::SetUnixMode {
+                path: GOWAY_LINK.into(),
+                mode: 0o755,
+            },
+        ])
     }
 
     /// This machine's circle card as the distro's default user (`goway circle card`, which

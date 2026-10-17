@@ -3,11 +3,11 @@
 use std::cell::RefCell;
 use std::path::Path;
 
-use goway_journal::{ResourceKind, System, SystemError};
+use goway_journal::{Change, ResourceKind, System, SystemError};
 use goway_setup::host::{FirewallSpec, HyperVSpec, Keepalive, Scope, TaskSpec};
 use goway_setup::hostsys::{
-    Activation, HostSystem, Invocation, Output, Runner, is_wsl_path, parse_listening_ports,
-    parse_sshd_ports,
+    Activation, HostSystem, Invocation, Output, Runner, goway_wrapper, is_wsl_path,
+    parse_listening_ports, parse_sshd_ports,
 };
 use goway_setup::ps;
 use goway_setup::sysapi::{Tool, tool_path};
@@ -1205,38 +1205,45 @@ fn a_native_join_runs_join_then_access_and_stops_on_failure() {
     assert_eq!(bad.log.borrow().len(), 1);
 }
 
-// frob:tests crates/goway-setup/src/hostsys.rs::ensure_goway_on_path
+// frob:tests crates/goway-setup/src/hostsys.rs::goway_link_changes
+// frob:tests crates/goway-setup/src/hostsys.rs::goway_wrapper
 #[test]
-fn goway_is_linked_into_the_distro_only_when_missing() {
+fn goway_is_planned_into_the_distro_as_journaled_changes_only_when_missing() {
     let exe = Path::new("C:\\p\\bin\\goway.exe");
     let missing = Fake::new(vec![
         ("command -v goway", 1, ""),
         ("wslpath -u", 0, "/mnt/c/p/bin/goway.exe\n"),
-        ("ln -s", 0, ""),
     ]);
-    assert!(sys(&missing).ensure_goway_on_path(exe).unwrap());
-    let log = missing.log.borrow();
-    let last = log.last().unwrap().args.join(" ");
-    assert!(last.contains("--exec ln -s /mnt/c/p/bin/goway.exe /usr/local/bin/goway"));
-    assert!(log[2].args.contains(&"root".to_owned()));
-    drop(log);
-
+    let changes = sys(&missing).goway_link_changes(exe).unwrap();
+    assert_eq!(
+        changes,
+        vec![
+            Change::WriteFile {
+                path: "/usr/local/bin/goway".into(),
+                contents: goway_wrapper("/mnt/c/p/bin/goway.exe"),
+            },
+            Change::SetUnixMode {
+                path: "/usr/local/bin/goway".into(),
+                mode: 0o755,
+            },
+        ]
+    );
+    assert_eq!(
+        goway_wrapper("/m/it's"),
+        "#!/bin/sh\n# written by goway-setup\nexec '/m/it'\\''s' \"$@\"\n"
+    );
     let present = Fake::new(vec![("command -v goway", 0, "/usr/bin/goway\n")]);
-    assert!(!sys(&present).ensure_goway_on_path(exe).unwrap());
-    assert_eq!(present.log.borrow().len(), 1, "nothing is linked over it");
+    assert!(sys(&present).goway_link_changes(exe).unwrap().is_empty());
+    assert_eq!(present.log.borrow().len(), 1, "nothing is planned over it");
 }
 
-// frob:tests crates/goway-setup/src/hostsys.rs::ensure_goway_on_path
+// frob:tests crates/goway-setup/src/hostsys.rs::goway_link_changes
 #[test]
-fn a_failed_link_is_an_error() {
-    let fake = Fake::new(vec![
-        ("command -v goway", 1, ""),
-        ("wslpath -u", 0, "/mnt/c/g.exe\n"),
-        ("ln -s", 1, ""),
-    ]);
+fn an_unconvertible_goway_path_is_an_error() {
+    let fake = Fake::new(vec![("command -v goway", 1, ""), ("wslpath -u", 0, "\n")]);
     assert!(
         sys(&fake)
-            .ensure_goway_on_path(Path::new("C:\\g.exe"))
+            .goway_link_changes(Path::new("C:\\g.exe"))
             .is_err()
     );
 }

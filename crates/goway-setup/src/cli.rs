@@ -782,14 +782,6 @@ fn after_host_install(r: Renderer, layout: &Layout, req: &InstallRequest) {
 /// exact commands to retry, never failing the finished install.
 fn join_circle(r: Renderer, layout: &Layout, distro: &str, welcome: &str, fingerprint: &str) {
     let sys = HostSystem::new(distro);
-    match sys.ensure_goway_on_path(&layout.goway_exe) {
-        Ok(true) => r.notice("linked goway.exe as /usr/local/bin/goway in the distro"),
-        Ok(false) => {}
-        Err(e) => {
-            tracing::error!(error = %e, "could not put goway on the distro PATH");
-            r.notice(&format!("could not put goway on the distro PATH ({e})"));
-        }
-    }
     show_card(r, sys.circle_card());
     report_join(
         r,
@@ -801,6 +793,15 @@ fn join_circle(r: Renderer, layout: &Layout, distro: &str, welcome: &str, finger
 
 /// [`join_circle`] for a native helper, running the installed `goway.exe` as the current user.
 fn join_native(r: Renderer, layout: &Layout, welcome: &str, fingerprint: &str) {
+    if let Some(account) = other_login_account(layout) {
+        tracing::warn!(%account, "not joining the circle as the installing account");
+        r.notice(&format!(
+            "not joining the circle here: ssh logins land on {account}, not on the account running this install. \
+             Sign in as {account} and run: {}",
+            helper::join_command(welcome, fingerprint)
+        ));
+        return;
+    }
     let sys = HostSystem::new(DEFAULT_DISTRO);
     show_card(r, sys.native_circle_card(&layout.goway_exe));
     report_join(
@@ -809,6 +810,20 @@ fn join_native(r: Renderer, layout: &Layout, welcome: &str, fingerprint: &str) {
         welcome,
         fingerprint,
     );
+}
+
+/// The ssh login account of the native install when it is not the account running this process
+/// (the circle state belongs to the account that logs in); `None` when they are the same or the
+/// settings or the current account cannot be read.
+fn other_login_account(layout: &Layout) -> Option<String> {
+    let settings = app::load_settings(layout).ok().flatten()?;
+    let account = settings.native?.account.name;
+    let user = std::env::var("USERNAME").ok()?;
+    let current = match std::env::var("USERDOMAIN") {
+        Ok(domain) => format!("{domain}\\{user}"),
+        Err(_) => user,
+    };
+    (!helper::same_account(&current, &account)).then_some(account)
 }
 
 /// Print this machine's circle card, or say why there is none (the install is not failed).
@@ -1074,7 +1089,8 @@ fn install_host(r: Renderer, layout: &Layout, req: &InstallRequest) -> Result<()
     host::check_relay_port(network, req.port, &facts.portproxy)?;
     host::check_boot_keepalive(req.keepalive, &facts, req.allow_elevated_wsl)?;
     let params = host_params(req, network)?;
-    let plan = host_plan(layout, &params, &facts);
+    let mut plan = host_plan(layout, &params, &facts);
+    plan.extend(sys.goway_link_changes(&layout.goway_exe)?);
     app::save_settings(
         layout,
         &HostSettings {

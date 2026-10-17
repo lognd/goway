@@ -754,3 +754,13 @@ fn a_native_dry_run_lists_the_plan_and_changes_nothing() {
     );
     assert!(words.iter().any(|w| w.contains("service")), "{words:?}");
 }
+
+// frob:tests crates/goway-setup/src/helper.rs::same_account
+#[test]
+fn only_the_ssh_login_account_counts_as_the_installing_account() {
+    use goway_setup::helper::same_account;
+    assert!(same_account(r"HELIOS\Logan", r"helios\logan"));
+    assert!(same_account("logan", r"HELIOS\logan"));
+    assert!(!same_account(r"HELIOS\admin", r"HELIOS\logan"));
+    assert!(!same_account(r"OTHER\logan", r"HELIOS\logan"));
+}

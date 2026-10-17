@@ -311,6 +311,18 @@ pub struct NativeInfo {
     pub key_file: Option<String>,
 }
 
+/// Whether `current` and `account` (`DOMAIN\\user` or `user`) name the same Windows account:
+/// the login names match ignoring case, and the domains too when both are given.
+pub fn same_account(current: &str, account: &str) -> bool {
+    let domain = |a: &str| a.rsplit_once('\\').map(|(d, _)| d.to_ascii_lowercase());
+    let names = login_name(current).eq_ignore_ascii_case(login_name(account));
+    let domains = match (domain(current), domain(account)) {
+        (Some(a), Some(b)) => a == b,
+        _ => true,
+    };
+    names && domains
+}
+
 /// The login name part of a Windows account (`DESKTOP\user` becomes `user`).
 pub fn login_name(account: &str) -> &str {
     account.rsplit_once('\\').map_or(account, |(_, user)| user)
