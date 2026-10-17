@@ -2,7 +2,8 @@
 id = "01M55X0T7TTSY1HHH7T121EBDN"
 title = "Audit L5+L8: anti-rollback docs and circle pin collision with manual host"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 2
 reporter = "lognd"
