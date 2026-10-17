@@ -2,12 +2,12 @@
 id = "01M55X0T2DQZQR9HBJWVCYTVZD"
 title = "Audit L1+L9: roster stores unverified ops; undo can roll back roster files"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T21:41:51Z"
-updated = "2026-10-17T21:41:51Z"
+updated = "2026-10-17T21:41:57Z"
 idempotency_key = "audit-l1l9"
 scope = ["crates/goway/src/circle.rs"]
 
