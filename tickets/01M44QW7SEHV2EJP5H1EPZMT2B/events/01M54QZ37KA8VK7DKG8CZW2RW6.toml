@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T10:54:18Z"
+digest = "926d535abfbdb63db07ceb9812799bedd4853724c5791de906655cc94b990af5"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID cde1182f-7d6d-41a8-b925-a2411f07e431 with nextest profile: default
+    Starting 1 test across 1 binary (11 tests skipped)
+        PASS [   0.005s] goway-setup::cli distro_is_optional_and_tune_takes_force_and_memory_max
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.005s] 1 test run: 1 passed, 11 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup --test cli -E test(distro_is_optional_and_tune_takes_force_and_memory_max)"
+size = 560
+status = "measured"
+test_count = 1
+tests_digest = "323e99e4fe2c0b8d6e51637ee0438c85a002021696b2a8c76bc0a3096d3665c8"
+at = "2026-10-17T10:54:18Z"
+actor = "lognd"
+rev = 1

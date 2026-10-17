@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T10:53:50Z"
+digest = "78791b28f918ef600ea65ee267a98b47112914b00d0a03358f4dcbbcb128d70b"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 22.66s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 12e1c3d4-c1c1-45ed-91a7-6bf7c698e747 with nextest profile: default
+    Starting 1 test across 1 binary (450 tests skipped)
+        PASS [   0.158s] goway remote::tests::a_modified_installed_script_is_refused_and_reinstalled
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.159s] 1 test run: 1 passed, 450 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --lib -E test(a_modified_installed_script_is_refused_and_reinstalled)"
+size = 621
+status = "measured"
+test_count = 1
+tests_digest = "d049a258b7c7a0e7be135c698bb9c204b3557d95185c964b57ae4b8fe187ddaf"
+at = "2026-10-17T10:53:50Z"
+actor = "lognd"
+rev = 1
