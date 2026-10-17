@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T20:52:43Z"
+digest = "f80179148a64ba824e00afb417f7206a94a7f4b2b3453a6a78d5b3227a6bf039"
+exit_code = 0
+inline = '''
+   Compiling goway-circle v0.2.0 (<worktree>/crates/goway-circle)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.78s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 439805a1-2c83-44a5-8251-4227eaac308e with nextest profile: default
+    Starting 1 test across 4 binaries (100 tests skipped)
+        PASS [   0.006s] goway-circle store::tests::an_offer_keeping_the_head_but_dropping_an_ancestor_is_refused
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 100 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E 'test(an_offer_keeping_the_head_but_dropping_an_ancestor_is_refused)'"
+size = 647
+status = "measured"
+test_count = 1
+tests_digest = "f86f6d88577a39b59e78636082ab0688417df08a89db10e8f57bf74a94727369"
+at = "2026-10-17T20:52:43Z"
+actor = "lognd"
+rev = 1
