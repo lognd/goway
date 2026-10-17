@@ -7,7 +7,7 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T04:30:18Z"
-updated = "2026-10-17T10:53:37Z"
+updated = "2026-10-17T10:53:50Z"
 scope = ["crates/goway/src/remote.rs", "crates/goway/src/remote.sh"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "Given the installed script was modified on the helper, When a call runs, Then the hash check refuses it and the client reinstalls"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given the guard test, When it measures the per-call command line, Then it stays under a few KiB regardless of remote.sh's size"
