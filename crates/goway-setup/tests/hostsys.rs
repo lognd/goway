@@ -1204,3 +1204,85 @@ fn a_native_join_runs_join_then_access_and_stops_on_failure() {
     );
     assert_eq!(bad.log.borrow().len(), 1);
 }
+
+// frob:tests crates/goway-setup/src/hostsys.rs::ensure_goway_on_path
+#[test]
+fn goway_is_linked_into_the_distro_only_when_missing() {
+    let exe = Path::new("C:\\p\\bin\\goway.exe");
+    let missing = Fake::new(vec![
+        ("command -v goway", 1, ""),
+        ("wslpath -u", 0, "/mnt/c/p/bin/goway.exe\n"),
+        ("ln -s", 0, ""),
+    ]);
+    assert!(sys(&missing).ensure_goway_on_path(exe).unwrap());
+    let log = missing.log.borrow();
+    let last = log.last().unwrap().args.join(" ");
+    assert!(last.contains("--exec ln -s /mnt/c/p/bin/goway.exe /usr/local/bin/goway"));
+    assert!(log[2].args.contains(&"root".to_owned()));
+    drop(log);
+
+    let present = Fake::new(vec![("command -v goway", 0, "/usr/bin/goway\n")]);
+    assert!(!sys(&present).ensure_goway_on_path(exe).unwrap());
+    assert_eq!(present.log.borrow().len(), 1, "nothing is linked over it");
+}
+
+// frob:tests crates/goway-setup/src/hostsys.rs::ensure_goway_on_path
+#[test]
+fn a_failed_link_is_an_error() {
+    let fake = Fake::new(vec![
+        ("command -v goway", 1, ""),
+        ("wslpath -u", 0, "/mnt/c/g.exe\n"),
+        ("ln -s", 1, ""),
+    ]);
+    assert!(
+        sys(&fake)
+            .ensure_goway_on_path(Path::new("C:\\g.exe"))
+            .is_err()
+    );
+}
+
+/// A real child process stands in for `goway.exe`: the whole native join runs end to end.
+#[cfg(unix)]
+mod native_end_to_end {
+    use super::*;
+    use goway_setup::hostsys::ProcessRunner;
+    use std::os::unix::fs::PermissionsExt;
+
+    // frob:tests crates/goway-setup/src/hostsys.rs::native_join_circle
+    // frob:tests crates/goway-setup/src/hostsys.rs::native_circle_card
+    #[test]
+    fn a_native_join_runs_a_real_goway_for_card_join_and_access() {
+        let tmp = tempfile::tempdir().unwrap();
+        let log = tmp.path().join("calls.log");
+        let exe = tmp.path().join("goway.exe");
+        std::fs::write(
+            &exe,
+            format!(
+                "#!/bin/sh\necho \"$@\" >> {}\ncase \"$2\" in card) echo gwc1.REAL;; access) echo 3 lines;; esac\n",
+                log.display()
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let sys = HostSystem::with_runner("Ubuntu", ProcessRunner);
+        assert_eq!(sys.native_circle_card(&exe).unwrap(), "gwc1.REAL");
+        let out = sys
+            .native_join_circle(&exe, "gww1.ABC", "SHA256:x")
+            .unwrap();
+        assert_eq!(out, "3 lines");
+        let calls = std::fs::read_to_string(&log).unwrap();
+        assert_eq!(
+            calls.lines().collect::<Vec<_>>(),
+            [
+                "circle card",
+                "circle join gww1.ABC --fingerprint SHA256:x",
+                "circle access"
+            ]
+        );
+        std::fs::write(&exe, "#!/bin/sh\nexit 3\n").unwrap();
+        assert!(
+            sys.native_join_circle(&exe, "gww1.ABC", "SHA256:x")
+                .is_err()
+        );
+    }
+}

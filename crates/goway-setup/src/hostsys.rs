@@ -240,6 +240,9 @@ fn circle_card_step(run: impl Fn(&[&str]) -> SysResult<Output>) -> SysResult<Str
     Ok(out.text())
 }
 
+/// Where the distro's `goway` link to the Windows `goway.exe` goes.
+const GOWAY_LINK: &str = "/usr/local/bin/goway";
+
 fn cmd_error(what: &str, out: &Output) -> SystemError {
     SystemError::Command {
         what: what.to_owned(),
@@ -571,6 +574,28 @@ impl<R: Runner> HostSystem<R> {
     /// last command's output.
     pub fn join_circle(&self, welcome: &str, fingerprint: &str) -> SysResult<String> {
         circle_join_steps(welcome, fingerprint, |argv| self.wsl_user(argv))
+    }
+
+    /// Make `goway` resolvable in the distro: when `command -v goway` finds nothing, link
+    /// `/usr/local/bin/goway` to the installed `goway.exe` (reached through `wslpath` and
+    /// WSL interop). Returns whether a link was made; an existing `goway` is never replaced.
+    pub fn ensure_goway_on_path(&self, goway_exe: &Path) -> SysResult<bool> {
+        if self
+            .wsl_raw(&["sh", "-c", "command -v goway"], None)?
+            .success()
+        {
+            tracing::debug!("goway is already on the distro PATH");
+            return Ok(false);
+        }
+        let win = goway_exe.display().to_string();
+        let out = self.wsl(&["wslpath", "-u", &win])?;
+        let target = out.text();
+        if target.is_empty() {
+            return Err(cmd_error("wsl wslpath -u", &out));
+        }
+        self.wsl(&["ln", "-s", &target, GOWAY_LINK])?;
+        tracing::info!(%target, link = GOWAY_LINK, "linked goway.exe into the distro PATH");
+        Ok(true)
     }
 
     /// This machine's circle card as the distro's default user (`goway circle card`, which

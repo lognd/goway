@@ -774,14 +774,22 @@ fn after_host_install(r: Renderer, layout: &Layout, req: &InstallRequest) {
     }
     show_helper_block(r, &req.distro, req.port, network);
     if let Some((welcome, fingerprint)) = &req.join {
-        join_circle(r, &req.distro, welcome, fingerprint);
+        join_circle(r, layout, &req.distro, welcome, fingerprint);
     }
 }
 
 /// Join the circle inside the distro and install its access lines; a failure is reported with the
 /// exact commands to retry, never failing the finished install.
-fn join_circle(r: Renderer, distro: &str, welcome: &str, fingerprint: &str) {
+fn join_circle(r: Renderer, layout: &Layout, distro: &str, welcome: &str, fingerprint: &str) {
     let sys = HostSystem::new(distro);
+    match sys.ensure_goway_on_path(&layout.goway_exe) {
+        Ok(true) => r.notice("linked goway.exe as /usr/local/bin/goway in the distro"),
+        Ok(false) => {}
+        Err(e) => {
+            tracing::error!(error = %e, "could not put goway on the distro PATH");
+            r.notice(&format!("could not put goway on the distro PATH ({e})"));
+        }
+    }
     show_card(r, sys.circle_card());
     report_join(
         r,
