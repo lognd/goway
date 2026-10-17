@@ -37,7 +37,10 @@ pub use lan::{
 };
 pub use op::{Kind, MAX_OP_BYTES, MAX_OPS, Op, Sig, parse_ops};
 pub use pairing::{Card, Welcome, decode_blob, encode_blob, valid_name, valid_roles};
-pub use passphrase::{FixedPassphrase, Passphrase, PassphraseSource, TtyPrompt, key_is_encrypted};
+pub use passphrase::{
+    FixedPassphrase, Passphrase, PassphraseSource, ScriptedPassphrase, TtyPrompt,
+    ask_new_passphrase, key_is_encrypted,
+};
 pub use sshcert::{
     ParsedCert, Policy, Rejection, accepts, authority_lines, lead_principal, line_marker,
     merge_authorized_keys, mint_lead_cert, parse_cert, pin_line,

@@ -79,6 +79,44 @@ impl PassphraseSource for TtyPrompt {
     }
 }
 
+/// Ask `source` for a new passphrase twice and refuse unless both entries match.
+// frob:ticket ~2FFPC53
+pub fn ask_new_passphrase(
+    source: &dyn PassphraseSource,
+    prompt: &str,
+    confirm_prompt: &str,
+) -> Result<Passphrase, CryptoError> {
+    let first = source.passphrase(prompt)?;
+    let second = source.passphrase(confirm_prompt)?;
+    if first.expose() != second.expose() {
+        warn!("new passphrase refused: the confirmation did not match");
+        return Err(CryptoError::Mismatch);
+    }
+    debug!("new passphrase confirmed");
+    Ok(first)
+}
+
+/// A scripted source that returns its passphrases in order, for tests driving a double prompt.
+#[derive(Debug, Default)]
+pub struct ScriptedPassphrase(std::sync::Mutex<std::collections::VecDeque<Passphrase>>);
+
+impl ScriptedPassphrase {
+    /// A source that answers each prompt with the next of `answers`.
+    pub fn new(answers: Vec<Passphrase>) -> Self {
+        Self(std::sync::Mutex::new(answers.into()))
+    }
+}
+
+impl PassphraseSource for ScriptedPassphrase {
+    fn passphrase(&self, _prompt: &str) -> Result<Passphrase, CryptoError> {
+        self.0
+            .lock()
+            .expect("scripted passphrase lock")
+            .pop_front()
+            .ok_or_else(|| CryptoError::Tool("no scripted passphrase left".into()))
+    }
+}
+
 // frob:tests crates/goway-circle/src/passphrase.rs::PassphraseSource.passphrase
 #[cfg(test)]
 mod tests {
@@ -89,6 +127,26 @@ mod tests {
         let p = Passphrase::new("abc def ghi".into()).unwrap();
         let got = FixedPassphrase(p).passphrase("x: ").unwrap();
         assert_eq!(got.expose(), "abc def ghi");
+    }
+
+    fn pp(s: &str) -> Passphrase {
+        Passphrase::new(s.into()).unwrap()
+    }
+
+    // frob:tests crates/goway-circle/src/passphrase.rs::ask_new_passphrase
+    #[test]
+    fn passphrase_confirmation_mismatch_is_refused() {
+        let src = ScriptedPassphrase::new(vec![pp("one one one"), pp("two two two")]);
+        let err = ask_new_passphrase(&src, "a: ", "b: ").unwrap_err();
+        assert!(matches!(err, CryptoError::Mismatch));
+    }
+
+    // frob:tests crates/goway-circle/src/passphrase.rs::ask_new_passphrase
+    #[test]
+    fn passphrase_confirmation_match_is_accepted() {
+        let src = ScriptedPassphrase::new(vec![pp("same same"), pp("same same")]);
+        let got = ask_new_passphrase(&src, "a: ", "b: ").unwrap();
+        assert_eq!(got.expose(), "same same");
     }
 }
 

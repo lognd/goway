@@ -38,7 +38,9 @@ impl FakeKeystore {
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, Passphrase>> {
-        self.items.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.items
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 

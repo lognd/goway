@@ -9,6 +9,9 @@ pub enum CryptoError {
     /// `ssh-keygen` could not run or refused to sign.
     #[error("ssh-keygen failed: {0}")]
     Tool(String),
+    /// A new passphrase was typed twice and the two entries differed.
+    #[error("the two passphrases do not match")]
+    Mismatch,
     /// A temporary file for `ssh-keygen` could not be written.
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),

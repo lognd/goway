@@ -12,10 +12,10 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use std::path::{Path, PathBuf};
 
 use goway_circle::{
-    Card, FixedPassphrase, Kind, Op, Passphrase, PassphraseSource, Role, SecretToolKeystore,
-    Signer, SshKeygenSigner, SshKeygenVerifier, State, Store, TtyPrompt, Welcome,
-    KeystorePassphrase, ensure_keypair_with, fold, fold_pinned, key_fingerprint, key_is_encrypted,
-    read_public_key, valid_roles,
+    Card, FixedPassphrase, KeystorePassphrase, Kind, Op, Passphrase, PassphraseSource, Role,
+    SecretToolKeystore, Signer, SshKeygenSigner, SshKeygenVerifier, State, Store, TtyPrompt,
+    Welcome, ask_new_passphrase, ensure_keypair_with, fold, fold_pinned, key_fingerprint,
+    key_is_encrypted, read_public_key, valid_roles,
 };
 
 use crate::changelog;
@@ -98,7 +98,10 @@ pub(crate) fn key_pair_with(
 /// A signer for `pair`; an encrypted key gets its passphrase from the OS keystore, else a prompt.
 pub(crate) fn signer_for(pair: &goway_circle::KeyPair) -> Result<SshKeygenSigner> {
     let account = pair.private.display().to_string();
-    signer_with(pair, &KeystorePassphrase::new(&SecretToolKeystore, TtyPrompt, account))
+    signer_with(
+        pair,
+        &KeystorePassphrase::new(&SecretToolKeystore, TtyPrompt, account),
+    )
 }
 
 /// A signer for `pair` that asks `source` for the passphrase only when the key is encrypted.
@@ -262,8 +265,23 @@ pub struct InitOut {
 
 /// Found a circle: genesis signed by this machine's admin key, then this machine's node key.
 pub fn init(paths: &Paths, renderer: Renderer, args: &CircleInitArgs) -> Result<InitOut> {
+    init_with(paths, renderer, args, &TtyPrompt)
+}
+
+/// [`init`] with the passphrase prompt injected; `--passphrase` asks twice and refuses a mismatch.
+// frob:ticket ~2FFPC53
+pub fn init_with(
+    paths: &Paths,
+    renderer: Renderer,
+    args: &CircleInitArgs,
+    source: &dyn PassphraseSource,
+) -> Result<InitOut> {
     let pass = if args.passphrase {
-        Some(TtyPrompt.passphrase("New passphrase for the circle keys: ")?)
+        Some(ask_new_passphrase(
+            source,
+            "New passphrase for the circle keys: ",
+            "Repeat the passphrase: ",
+        )?)
     } else {
         None
     };
@@ -847,6 +865,7 @@ pub fn run(paths: &Paths, renderer: Renderer, command: &CircleCommand) -> Result
 mod tests {
     use super::*;
     use crate::render::ColorWhen;
+    use goway_circle::ScriptedPassphrase;
 
     // frob:tests crates/goway/src/circle.rs::has_key
     #[test]
@@ -1152,7 +1171,10 @@ mod tests {
     fn a_plain_key_never_asks_for_a_passphrase() {
         struct Never;
         impl PassphraseSource for Never {
-            fn passphrase(&self, _p: &str) -> std::result::Result<Passphrase, goway_circle::CryptoError> {
+            fn passphrase(
+                &self,
+                _p: &str,
+            ) -> std::result::Result<Passphrase, goway_circle::CryptoError> {
                 panic!("a plain key must not prompt");
             }
         }
@@ -1161,6 +1183,46 @@ mod tests {
             return;
         };
         assert!(signer_with(&pair, &Never).is_ok());
+    }
+
+    fn pp(s: &str) -> Passphrase {
+        Passphrase::new(s.into()).unwrap()
+    }
+
+    fn pass_args() -> CircleInitArgs {
+        CircleInitArgs {
+            name: "home".to_owned(),
+            machine: Some("lap".to_owned()),
+            passphrase: true,
+        }
+    }
+
+    // frob:tests crates/goway/src/circle.rs::init_with
+    #[test]
+    fn init_passphrase_mismatch_is_refused() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = ScriptedPassphrase::new(vec![pp("first first"), pp("second second")]);
+        let err = init_with(&paths(tmp.path()), quiet(), &pass_args(), &src).unwrap_err();
+        assert!(err.to_string().contains("do not match"), "{err}");
+        assert!(!admin_key_path(&paths(tmp.path())).exists());
+    }
+
+    // frob:tests crates/goway/src/circle.rs::init_with
+    #[test]
+    fn init_passphrase_match_encrypts_the_keys() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = paths(tmp.path());
+        let src = ScriptedPassphrase::new(vec![pp("right right"), pp("right right")]);
+        if init_with(&p, quiet(), &pass_args(), &src).is_err() {
+            return; // no ssh-keygen here
+        }
+        let key = admin_key_path(&p);
+        assert!(key_is_encrypted(&key));
+        let pair = key_pair_with(&key, quiet(), None).unwrap();
+        let wrong = signer_with(&pair, &FixedPassphrase(pp("wrong wrong"))).unwrap();
+        assert!(wrong.sign(b"hi").is_err());
+        let good = signer_with(&pair, &FixedPassphrase(pp("right right"))).unwrap();
+        assert!(good.sign(b"hi").is_ok());
     }
 
     #[test]
