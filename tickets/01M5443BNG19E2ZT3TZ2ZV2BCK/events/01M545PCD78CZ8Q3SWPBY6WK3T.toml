@@ -1,0 +1,54 @@
+kind = "evidence"
+accepts = [1, 2, 3, 4]
+captured_at = "2026-10-17T05:34:57Z"
+digest = "8f86b1cd587300feb9cc1d4b0cbeee9f5f558f9dcd23e26ecdcff5f57a34b3ce"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 39b44c1f-a8a1-4259-b555-71db6655e294 with nextest profile: default
+    Starting 31 tests across 4 binaries
+        PASS [   0.010s] goway-circle::roster cert_expires
+        PASS [   0.015s] goway-circle::roster admin_cannot_revoke_itself_or_drop_to_zero_admins
+        PASS [   0.015s] goway-circle::roster forged_signature_is_ignored
+        PASS [   0.015s] goway-circle::roster concurrent_revoke_beats_admit_of_same_key
+        PASS [   0.015s] goway-circle::roster admit_by_non_admin_is_ignored
+        PASS [   0.015s] goway-circle::roster admit_by_admin_applies
+        PASS [   0.018s] goway-circle::roster helper_only_cannot_become_admin
+        PASS [   0.020s] goway-circle::roster cert_from_removed_admin_is_rejected
+        PASS [   0.006s] goway-circle::roster id_is_stable_canonical_json_hash
+        PASS [   0.009s] goway-circle::roster missing_parent_is_ignored_not_fatal
+        PASS [   0.014s] goway-circle::roster helper_only_never_gets_a_lead_cert
+        PASS [   0.006s] goway-circle::roster parse_rejects_unknown_fields_and_bad_ids
+        PASS [   0.012s] goway-circle::roster op_roundtrips_through_strict_jsonl
+        PASS [   0.019s] goway-circle::roster non_admin_cannot_issue_certs
+        PASS [   0.020s] goway-circle::roster merge_is_commutative_and_idempotent
+        PASS [   0.012s] goway-circle::roster revoke_bumps_epoch_and_kills_old_cert
+        PASS [   0.008s] goway-circle::roster rival_genesis_cannot_hijack_a_pinned_circle
+        PASS [   0.012s] goway-circle::roster revoked_key_cannot_be_readmitted
+        PASS [   0.011s] goway-circle::roster rotate_host_key_is_self_signed_only
+        PASS [   0.013s] goway-circle::roster rollback_is_refused
+        PASS [   0.011s] goway-circle::ssh only_ed25519_single_line_keys_are_valid
+        PASS [   0.023s] goway-circle::roster revoking_an_admin_needs_quorum_at_three_admins
+        PASS [   0.015s] goway-circle::roster third_admin_needs_two_signatures
+        PASS [   0.015s] goway-circle::roster unknown_roles_are_ignored
+        PASS [   0.043s] goway-circle::roster order_independence
+        PASS [   0.071s] goway-circle::roster caps_are_enforced
+        PASS [   0.062s] goway-circle::ssh ssh_keygen_signs_and_verifies_ops
+        PASS [   0.264s] goway-circle::roster folding_any_prefix_never_panics
+        PASS [   0.297s] goway-circle::props unauthorized_ops_never_change_state
+        PASS [   0.286s] goway-circle::roster random_interleavings_converge
+        PASS [   0.340s] goway-circle::props fold_converges_under_any_ordering
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.340s] 31 tests run: 31 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle"
+size = 2887
+status = "measured"
+test_count = 31
+tests_digest = "0d92c59f29aca9e29eb0db760c3e877a2ac52875bac5b7d8210700398e7422dd"
+at = "2026-10-17T05:34:57Z"
+actor = "lognd"
+rev = 1
