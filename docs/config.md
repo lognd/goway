@@ -248,7 +248,10 @@ readable only by you; the `.pub` files are public), and one directory per
 circle at `circles/<id>/` with `ops.jsonl` (the signed roster) and
 `heads.json` (the newest roster seen, so an older one is refused). Private
 keys are never printed or logged. Roster helpers join the host list and resolve through a
-`circle roster` stage (see `docs/hosts.md`). See `docs/circles.md`.
+`circle roster` stage (see `docs/hosts.md`). The helper access policy (`goway circle policy open|listed`) is kept in
+`access-<id>.policy` in the circle directory; `admin` ops, `renew` (node
+certificate, 14 day TTL, renewed after half) and `policy` are described in
+`docs/circles.md`.
 
 ## Changes goway makes
 

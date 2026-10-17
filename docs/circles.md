@@ -1,9 +1,10 @@
 # Circles: peer-to-peer trust for goway
 
-Status: phases 1 to 3 are implemented (the `goway-circle` crate,
-`goway circle init|card|admit|join|list|revoke|roles` and
-`goway circle access|cert|pin`); `goway-setup --join` is not yet. Target release: 0.2.0 (a minor bump; the
-version is raised when the work lands, not by this document). The executable model of the rules in this
+Status: phases 1 to 4 are implemented (the `goway-circle` crate,
+`goway circle init|card|admit|join|list|revoke|roles`,
+`goway circle access|cert|pin`, LAN pairing, and
+`goway circle admin|renew|policy`) and shipped in 0.2.0; `goway-setup --join`
+is not yet. The executable model of the rules in this
 document is `docs/model/circle_model.py` (run its tests with
 `python -I -m unittest discover -s docs/model`). Tickets are under the
 `circles` label (`frob ticket list --label circles`).
@@ -168,7 +169,26 @@ Implemented (phase 3, `goway-circle/src/sshcert.rs`, `goway/src/access.rs`):
 
 `goway doctor` checks local `ssh-keygen -Y` support (OpenSSH 8.0+), a sane
 local clock, and warns when a helper's clock is off by more than the 5
-minute certificate backdate. Not yet: a roster stage in host resolution.
+minute certificate backdate.
+
+- `goway circle admin card [--name N]` prints a card for this machine's admin
+  key (named `<machine>-admin`); an existing admin admits it with
+  `goway circle admit`. A new admin must first be a member with the `lead`
+  role under its admin key.
+- `goway circle admin add NAME` / `remove NAME` appends an AddAdmin /
+  RemoveAdmin op. With 1 or 2 admins one signature applies it at once. With 3
+  or more admins the op needs 2 distinct admin signers: pass
+  `--cosigner OTHER [--out FILE]` to write a half-signed proposal, then the
+  other admin runs `goway circle admin cosign FILE` to finish and append it.
+  Without a cosigner the command is refused. Removing an admin bumps the
+  roster epoch.
+- `goway circle renew [--force]` reissues the node certificate when it is
+  missing or past half of its 14 day TTL; `--force` reissues regardless.
+- `goway circle policy open` accepts every circle member;
+  `goway circle policy listed --lead NAME ...` accepts only the named leads
+  (at least one known lead; `open` takes none). `--file` overrides the
+  `authorized_keys` target and `--windows-admin` targets the Windows
+  administrators file.
 
 ### 4.4 Pairing (no listener, no TOFU)
 
@@ -239,6 +259,13 @@ prompt. The resolution order of `docs/hosts.md` gains one stage after
 leads. A hint is safe because the pinned host key is verified before use.
 Addresses are never written into the roster.
 
+A **roster** stage (`Source::Roster`, shown as `circle roster`) runs right
+after the hint stage. It applies only to roster hosts: those labelled `circle`
+with no address of their own. It resolves the roster name through the system
+resolver, then through Windows (WSL interop) when that finds nothing. The host
+key is still verified against the roster fingerprint before the address is
+used, so a wrong answer is rejected like any other stage.
+
 ### 4.6 Sync
 
 New remote verbs `circle-heads` and `circle-exchange` (in `remote.sh` and
@@ -268,8 +295,7 @@ Implemented in phase 2: the confirmation is a fingerprint a person types back
 (or passes as `--fingerprint SHA256:...`); `admit` compares the card's
 node-key fingerprint, `join` compares an admin-key fingerprint of the
 welcome. A wrong fingerprint changes nothing. `revoke` asks unless `--yes`.
-Not yet: `admin add|remove`, `renew`, `policy`, `revoke --now`, certificate
-expiry and last seen in `list`.
+Not yet: `revoke --now`, certificate expiry and last seen in `list`.
 
 ## 5. Commands
 
@@ -371,7 +397,6 @@ certificate rules of 4.3 (operations, canonical-JSON ids, signing through
 adds `fold_pinned` (only the genesis the user verified may found the circle)
 and requires distinct signers. Its tests mirror `docs/model/` and add property
 tests for convergence and for unauthorized operations never changing state.
-The status of this document stays "design" until the commands exist.
 
 
 1. Spec, model, `goway-circle` crate (operations, signing, fold, merge,
