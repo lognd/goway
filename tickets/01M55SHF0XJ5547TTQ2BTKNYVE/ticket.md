@@ -8,9 +8,9 @@ points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T20:41:03Z"
-updated = "2026-10-17T20:57:27Z"
+updated = "2026-10-17T20:58:10Z"
 idempotency_key = "audit-m7"
-scope = ["crates/goway/src/circle_admin.rs"]
+scope = ["crates/goway/src/circle_admin.rs", "crates/goway/src/cli.rs"]
 
 [[acceptance]]
 text = "Given admin cosign, when run, then the operation is shown and confirmed before signing"
