@@ -27,6 +27,56 @@ pub const IDENTIFY: &str = "uname -s; uname -n; uname -m";
 /// PowerShell and has no `uname`): the same three lines, `Windows` first.
 pub const IDENTIFY_WINDOWS: &str = "powershell -NoProfile -NonInteractive -Command \"'Windows'; $env:COMPUTERNAME; $env:PROCESSOR_ARCHITECTURE\"";
 
+/// The probe output recorded when a Windows sshd was recognised by its
+/// banner but refused goway's key, so it could not be asked who it is.
+pub const WINDOWS_KEY_REFUSED: &str = "Windows\n?\n?\n";
+
+/// Whether an ssh banner line (`SSH-2.0-OpenSSH_for_Windows_9.5`) is Windows' OpenSSH.
+pub fn is_windows_banner(banner: &str) -> bool {
+    banner.starts_with("SSH-") && banner.to_ascii_lowercase().contains("windows")
+}
+
+/// Read the first line a sshd sends (its banner); `None` if nothing answers in time.
+pub fn read_banner(address: &str, port: u16) -> Option<String> {
+    use std::io::{BufRead as _, BufReader};
+    use std::net::{TcpStream, ToSocketAddrs as _};
+    use std::time::Duration;
+    let addr = (address, port).to_socket_addrs().ok()?.next()?;
+    let stream = TcpStream::connect_timeout(&addr, Duration::from_secs(3)).ok()?;
+    stream.set_read_timeout(Some(Duration::from_secs(3))).ok()?;
+    let mut line = String::new();
+    BufReader::new(stream).read_line(&mut line).ok()?;
+    let line = line.trim().to_owned();
+    tracing::debug!(address, port, banner = %line, "ssh banner read");
+    Some(line)
+}
+
+/// The commands that make a Windows machine a goway helper over OpenSSH,
+/// run in PowerShell as Administrator; `key` is goway's public key line.
+/// (Printed text lives in `winsetup.txt`: goway runs none of it itself.)
+pub fn windows_setup_commands(key: &str) -> String {
+    include_str!("winsetup.txt")
+        .trim_end()
+        .replace("{KEY}", key)
+}
+
+/// What to do about a Windows OpenSSH server that refused goway's key.
+pub fn windows_refused_advice(name: &str, key: &str) -> String {
+    format!(
+        "{name} runs the Windows OpenSSH server and does not accept goway's key yet. (Linux password and lockout advice does not apply to it.) On {name}, in PowerShell as Administrator:\n{}\n    then check with `goway doctor {name}` (or run `goway-setup install --host --native --authorized-key \"{key}\"` there)",
+        windows_setup_commands(key)
+    )
+}
+
+/// goway's public key line from its config dir, or a placeholder to fill in.
+fn public_key_line(paths: &Paths) -> String {
+    std::fs::read_to_string(paths.config_dir.join("id_ed25519.pub"))
+        .map(|t| t.trim().to_owned())
+        .ok()
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| "ssh-ed25519 AAAA... goway@laptop".to_owned())
+}
+
 /// What a probed machine says about itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Identity {
@@ -75,9 +125,52 @@ struct AddProber<'a> {
     accept_windows: bool,
     /// A Windows server answered as the intended machine and was passed over.
     windows_seen: std::cell::Cell<bool>,
+    /// Reads a sshd's banner (faked in tests).
+    banner: &'a dyn Fn(&str, u16) -> Option<String>,
+    /// The user vouches for the machine (an IP, or a fingerprint to check),
+    /// which a machine that refuses the key cannot confirm by hostname.
+    vouched: bool,
 }
 
 impl AddProber<'_> {
+    /// A sshd refused the key: if its banner says Windows, keep its host key
+    /// (pass 1 only, and only when vouched for) so it can be recorded.
+    fn refused(&self, target: &Target, stderr: &str) -> Option<ProbeResult> {
+        let banner = (self.banner)(&target.address, target.port)?;
+        if !is_windows_banner(&banner) {
+            return None;
+        }
+        tracing::info!(address = %target.address, port = target.port, %banner, "Windows sshd refused the key");
+        let drop_key = || {
+            forget_scratch_key(
+                &self.inner.settings.known_hosts,
+                &config::key_alias(self.name),
+            );
+        };
+        if !self.vouched {
+            drop_key();
+            return Some(Err((
+                Failure::AuthRefused,
+                format!(
+                    "{} is a Windows OpenSSH server that refused the key, so goway cannot check its hostname: pass --address with its IP or --fingerprint to vouch for it ({stderr})",
+                    target.address
+                ),
+            )));
+        }
+        if !self.accept_windows {
+            self.windows_seen.set(true);
+            drop_key();
+            return Some(Err((
+                Failure::AuthRefused,
+                format!(
+                    "{} is Windows, not Linux; kept as a fallback",
+                    target.address
+                ),
+            )));
+        }
+        Some(Ok(WINDOWS_KEY_REFUSED.to_owned()))
+    }
+
     /// Identify a Windows sshd with PowerShell; accept it only on the
     /// second pass and only if it is the intended machine, so the Windows
     /// side of a machine is never taken for its WSL host (or the reverse).
@@ -144,6 +237,16 @@ impl Prober for AddProber<'_> {
                 Some(_) => Ok(text),
                 None => reject(format!("{} gave no identity", target.address)),
             },
+            Err((Failure::AuthRefused, stderr)) => {
+                if let Some(result) = self.refused(target, &stderr) {
+                    return result;
+                }
+                forget_scratch_key(
+                    &self.inner.settings.known_hosts,
+                    &config::key_alias(self.name),
+                );
+                Err((Failure::AuthRefused, stderr))
+            }
             Err((failure, stderr)) => {
                 forget_scratch_key(
                     &self.inner.settings.known_hosts,
@@ -372,13 +475,30 @@ fn adopt_key(scratch: &Path, known_hosts: &Path, alias: &str) -> Result<()> {
 }
 
 /// `goway host add`.
-#[allow(clippy::too_many_lines)] // one sequence: probe each port, confirm the key, register
 pub fn add(
     paths: &Paths,
     renderer: Renderer,
     args: &HostAddArgs,
     lookup: &dyn Lookup,
 ) -> Result<u8> {
+    add_with(paths, renderer, args, lookup, &read_banner)
+}
+
+/// [`add`] with the banner reader injected, so tests need no network.
+#[allow(clippy::too_many_lines)] // one sequence: probe each port, confirm the key, register
+fn add_with(
+    paths: &Paths,
+    renderer: Renderer,
+    args: &HostAddArgs,
+    lookup: &dyn Lookup,
+    banner: &dyn Fn(&str, u16) -> Option<String>,
+) -> Result<u8> {
+    if args.windows {
+        // Print-only: nothing is probed, pinned or written.
+        renderer.line(windows_refused_advice(&args.name, &public_key_line(paths)));
+        tracing::info!(host = %args.name, "printed the Windows setup commands");
+        return Ok(0);
+    }
     crate::ssh::attempts::init(&paths.state_dir);
     let config_file = paths.config_file();
     let config = Config::load(&config_file)?;
@@ -433,6 +553,8 @@ pub fn add(
                 trust_address,
                 accept_windows,
                 windows_seen: std::cell::Cell::new(false),
+                banner,
+                vouched: trust_address || args.fingerprint.is_some(),
             };
             renderer.note(format_args!("looking for {} on port {port}", args.name));
             let mut scratch_state = State::default();
@@ -455,6 +577,7 @@ pub fn add(
                     if id.os == "Windows" {
                         candidate.os = config::Os::Windows;
                     }
+                    let key_refused = found.output == WINDOWS_KEY_REFUSED;
                     for finding in sshenv::check(&found.target.address, port) {
                         renderer.warn(finding);
                     }
@@ -474,6 +597,9 @@ pub fn add(
                         "added {} ({} {}, hostname {}) at {}:{port} via {}; key pinned as {alias}",
                         args.name, id.os, id.arch, id.hostname, found.target.address, found.source
                     ));
+                    if key_refused {
+                        renderer.warn(windows_refused_advice(&args.name, &public_key_line(paths)));
+                    }
                     return Ok(0);
                 }
                 Err(e) => {
@@ -490,7 +616,8 @@ pub fn add(
     Err(Error::HostAdd {
         name: args.name.clone(),
         reason: format!(
-            "no Linux sshd answered as this host\n{}",
+            "no Linux sshd answered as this host (a Windows OpenSSH server is accepted too: `goway host add {} --windows` prints its setup commands)\n{}",
+            args.name,
             problems.join("\n")
         ),
     })
@@ -574,5 +701,170 @@ mod tests {
         assert!(text.contains("goway-other"));
         assert!(fingerprints(&kh)[0].starts_with("SHA256:"));
         assert_eq!(normalize_fingerprint("abc"), "SHA256:abc");
+    }
+
+    fn fake_prober<'a>(
+        dir: &Path,
+        banner: &'a dyn Fn(&str, u16) -> Option<String>,
+        accept_windows: bool,
+        vouched: bool,
+    ) -> AddProber<'a> {
+        AddProber {
+            inner: SshProber {
+                settings: ssh::Settings {
+                    known_hosts: dir.join("scratch"),
+                    control_dir: None,
+                    connect_timeout_secs: 1,
+                },
+            },
+            name: "nova",
+            address: None,
+            trust_address: vouched,
+            accept_windows,
+            windows_seen: std::cell::Cell::new(false),
+            banner,
+            vouched,
+        }
+    }
+
+    fn target() -> Target {
+        Target {
+            name: "nova".to_owned(),
+            address: "192.0.2.9".to_owned(),
+            port: 22,
+            user: None,
+            identity: None,
+        }
+    }
+
+    // frob:tests crates/goway/src/hosts.rs::is_windows_banner
+    #[test]
+    fn windows_banner_is_recognised() {
+        assert!(is_windows_banner("SSH-2.0-OpenSSH_for_Windows_9.5"));
+        assert!(!is_windows_banner("SSH-2.0-OpenSSH_9.6p1 Ubuntu-3"));
+        assert!(!is_windows_banner("HTTP/1.1 windows"));
+    }
+
+    // frob:tests crates/goway/src/hosts.rs::windows_refused_advice
+    #[test]
+    fn windows_advice_is_windows_specific() {
+        let text = windows_refused_advice("nova", "ssh-ed25519 AAAA k");
+        for needle in [
+            "OpenSSH.Server",
+            "administrators_authorized_keys",
+            "icacls.exe",
+            "DefaultShell",
+            "powershell.exe",
+            "ssh-ed25519 AAAA k",
+        ] {
+            assert!(text.contains(needle), "missing {needle}: {text}");
+        }
+        assert!(
+            !text.contains("passwd -S") && !text.contains("faillock"),
+            "{text}"
+        );
+    }
+
+    // frob:tests crates/goway/src/hosts.rs::AddProber
+    #[test]
+    fn a_windows_sshd_that_refuses_the_key_is_taken_only_as_the_fallback() {
+        let dir = tempfile::tempdir().unwrap();
+        let win = |_: &str, _: u16| Some("SSH-2.0-OpenSSH_for_Windows_9.5".to_owned());
+        let linux = |_: &str, _: u16| Some("SSH-2.0-OpenSSH_9.6".to_owned());
+        let none = |_: &str, _: u16| None;
+        // Pass 0: remembered for pass 1, not accepted.
+        let p = fake_prober(dir.path(), &win, false, true);
+        assert!(p.refused(&target(), "denied").unwrap().is_err());
+        assert!(p.windows_seen.get());
+        // Pass 1: accepted with the marker.
+        let p = fake_prober(dir.path(), &win, true, true);
+        assert_eq!(
+            p.refused(&target(), "denied").unwrap(),
+            Ok(WINDOWS_KEY_REFUSED.to_owned())
+        );
+        // Not vouched for: refused with the reason.
+        let p = fake_prober(dir.path(), &win, true, false);
+        let Err((_, why)) = p.refused(&target(), "denied").unwrap() else {
+            panic!("must refuse an unvouched machine");
+        };
+        assert!(why.contains("--fingerprint"), "{why}");
+        // A Linux banner or silence is not Windows.
+        assert!(
+            fake_prober(dir.path(), &linux, true, true)
+                .refused(&target(), "d")
+                .is_none()
+        );
+        assert!(
+            fake_prober(dir.path(), &none, true, true)
+                .refused(&target(), "d")
+                .is_none()
+        );
+        assert_eq!(
+            parse_identity(WINDOWS_KEY_REFUSED).map(|i| i.os),
+            Some("Windows".to_owned())
+        );
+    }
+
+    // frob:tests crates/goway/src/hosts.rs::add
+    #[test]
+    fn host_add_windows_only_prints() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths {
+            config_dir: dir.path().join("c"),
+            state_dir: dir.path().join("s"),
+            runtime_dir: None,
+        };
+        std::fs::create_dir_all(&paths.config_dir).unwrap();
+        std::fs::write(
+            paths.config_dir.join("id_ed25519.pub"),
+            "ssh-ed25519 KEY goway@x\n",
+        )
+        .unwrap();
+        assert_eq!(public_key_line(&paths), "ssh-ed25519 KEY goway@x");
+        let args = HostAddArgs {
+            name: "nova".to_owned(),
+            address: None,
+            port: None,
+            user: None,
+            max_jobs: None,
+            fingerprint: None,
+            windows: true,
+        };
+        let renderer = Renderer::new(crate::render::ColorWhen::Never);
+        let banner = |_: &str, _: u16| -> Option<String> { panic!("no network in --windows") };
+        assert_eq!(
+            add_with(&paths, renderer, &args, &resolve::SystemLookup, &banner).unwrap(),
+            0
+        );
+        assert!(
+            !paths.config_file().exists(),
+            "print-only must not write the config"
+        );
+    }
+
+    // frob:tests crates/goway/src/hosts.rs::register
+    #[test]
+    fn a_windows_ssh_helper_is_recorded_and_listed() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths {
+            config_dir: dir.path().join("c"),
+            state_dir: dir.path().join("s"),
+            runtime_dir: None,
+        };
+        std::fs::create_dir_all(&paths.config_dir).unwrap();
+        std::fs::create_dir_all(&paths.state_dir).unwrap();
+        let key = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";
+        let scratch = dir.path().join("scratch");
+        std::fs::write(&scratch, format!("goway-nova ssh-ed25519 {key}\n")).unwrap();
+        let host = HostConfig {
+            name: "nova".to_owned(),
+            os: config::Os::Windows,
+            ..HostConfig::default()
+        };
+        register(&paths, &host, "192.0.2.9", 22, &scratch).unwrap();
+        let config = Config::load(&paths.config_file()).unwrap();
+        let got = config.host("nova").unwrap();
+        assert_eq!(got.os, config::Os::Windows);
+        assert!(fingerprints(&paths.known_hosts())[0].starts_with("SHA256:"));
     }
 }

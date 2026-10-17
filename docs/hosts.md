@@ -97,6 +97,18 @@ machine it trusts:
   key contents: no agent keys and no identity file, an identity file
   readable by others, or no ssh client.
 
+- A Windows OpenSSH server that does not yet accept goway's key (the
+  usual state of a new Windows helper) is recognised by its ssh banner
+  (`OpenSSH_for_Windows`). With `--address` as an IP or `--fingerprint`
+  (so you vouch for the machine, as its hostname cannot be read without
+  a login) it is pinned and recorded as `os = "windows"`, appears in
+  `goway host list`, and goway prints the Windows fixes instead of the
+  Linux password advice.
+- `goway host add NAME --windows` only prints those commands (install
+  `OpenSSH.Server`, authorize goway's key in
+  `C:\ProgramData\ssh\administrators_authorized_keys` with `icacls`, set
+  the `DefaultShell` to PowerShell) and changes nothing.
+
 `goway host list` shows the pool with cached addresses.
 `goway host remove NAME` deletes the host from the config, the state
 and the pinned keys.
