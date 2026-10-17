@@ -2,7 +2,8 @@
 id = "01M44RCJMHYZCZJDE3B2F9Q3NC"
 title = "Tests that run goway inside a goway run leave real systemd scopes behind on the helper"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
