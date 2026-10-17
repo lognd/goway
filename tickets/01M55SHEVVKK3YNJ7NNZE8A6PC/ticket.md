@@ -8,9 +8,9 @@ points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T20:41:03Z"
-updated = "2026-10-17T20:52:43Z"
+updated = "2026-10-17T20:53:34Z"
 idempotency_key = "audit-m1"
-scope = ["crates/goway-circle/src/state.rs,crates/goway-circle/src/store.rs,crates/goway/src/circle.rs"]
+scope = ["crates/goway-circle/src/state.rs,crates/goway-circle/src/store.rs,crates/goway/src/circle.rs", "crates/goway-circle/src/store.rs"]
 
 [[acceptance]]
 text = "Given a crafted welcome that drops a revoke, when join runs on a stored roster, then it is refused"
