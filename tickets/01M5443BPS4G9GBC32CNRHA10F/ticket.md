@@ -11,7 +11,7 @@ created = "2026-10-17T05:07:06Z"
 updated = "2026-10-17T05:56:09Z"
 idempotency_key = "c2"
 labels = ["circles"]
-scope = ["Cargo.toml", "Cargo.lock"]
+scope = ["Cargo.toml", "Cargo.lock", "crates/goway-circle/**"]
 
 [[acceptance]]
 text = "A helper and a lead join with no network pairing"
