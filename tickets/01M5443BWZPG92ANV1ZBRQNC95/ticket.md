@@ -2,13 +2,13 @@
 id = "01M5443BWZPG92ANV1ZBRQNC95"
 title = "Release 0.2.0: version bump, CHANGELOG, README and docs updates"
 type = "chore"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:07:06Z"
-updated = "2026-10-17T06:41:49Z"
+updated = "2026-10-17T06:41:51Z"
 idempotency_key = "c7"
 labels = ["circles"]
 +++
