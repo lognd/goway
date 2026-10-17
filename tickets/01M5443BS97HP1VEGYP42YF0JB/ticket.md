@@ -2,13 +2,13 @@
 id = "01M5443BS97HP1VEGYP42YF0JB"
 title = "Phase 4: LAN pairing (CPace + SAS), QR, peer address hints"
 type = "story"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:07:06Z"
-updated = "2026-10-17T05:58:43Z"
+updated = "2026-10-17T05:58:46Z"
 idempotency_key = "c4"
 labels = ["circles"]
 +++
