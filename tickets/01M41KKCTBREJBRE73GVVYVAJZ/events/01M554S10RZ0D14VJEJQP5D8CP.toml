@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["Given the v0.1.0 tag, when the release workflow has run, then the release has Linux x86_64 and aarch64 binaries, goway-setup.exe for x64 and arm64, SHA256SUMS and install.sh, and the documented one-line installer installs goway on a fresh Linux machine"]
+new = ["Given the v0.2.0 tag, when the release workflow has run, then the release has Linux x86_64 and aarch64 binaries, goway-setup.exe for x64 and arm64, SHA256SUMS and install.sh, and the documented one-line installer installs goway on a fresh Linux machine"]
+moved = [0]
+at = "2026-10-17T14:38:10Z"
+actor = "lognd"
+rev = 1
