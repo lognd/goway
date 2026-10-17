@@ -24,6 +24,10 @@ bound = false
 [[acceptance]]
 text = "Oversized ops file is refused unread"
 bound = false
+
+[[acceptance]]
+text = "Public-only (agent / FIDO2) keys can sign and mint; docs/circles.md records per-row threat enforcement"
+bound = false
 +++
 
 Walk the 16-row table in docs/circles.md against the code; agent/keystore support for the node key (config.md notes the unencrypted key); FIDO2 admin key path; add frob rules for the invariants.
