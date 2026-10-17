@@ -4,9 +4,10 @@ title = "install --host --distro defaults to 'Ubuntu' instead of the installed o
 type = "bug"
 category = "todo"
 priority = "medium"
+points = 2
 reporter = "lognd"
 created = "2026-10-14T04:38:37Z"
-updated = "2026-10-14T04:38:37Z"
+updated = "2026-10-17T10:11:03Z"
 scope = ["crates/goway-setup/src/host.rs", "crates/goway-setup/src/cli.rs"]
 
 [[acceptance]]
