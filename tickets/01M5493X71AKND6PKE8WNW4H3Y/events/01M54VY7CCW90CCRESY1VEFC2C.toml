@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["A saved keystore passphrase is returned without prompting", "A prompted passphrase is remembered in the keystore", "A failing keystore falls back to the prompt"]
+moved = []
+at = "2026-10-17T12:03:44Z"
+actor = "lognd"
+rev = 1

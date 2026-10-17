@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-17T12:03:54Z"
+digest = "0f9a6e6c708e5c7815e003ece0392b9055063c631c2eb3f1b2cfba2d459f157e"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID afe9d359-269a-45da-ab2b-4497b63ce9ab with nextest profile: default
+    Starting 5 tests across 4 binaries (83 tests skipped)
+        PASS [   0.004s] goway-circle keystore::tests::broken_keystore_falls_back_to_the_prompt
+        PASS [   0.004s] goway-circle keystore::tests::accounts_are_isolated
+        PASS [   0.004s] goway-circle keystore::tests::prompted_passphrase_is_remembered
+        PASS [   0.005s] goway-circle keystore::tests::saved_passphrase_skips_the_prompt
+        PASS [   0.005s] goway-circle keystore::tests::keystore_round_trips_and_deletes
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.005s] 5 tests run: 5 passed, 83 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E test(keystore)"
+size = 906
+status = "measured"
+test_count = 5
+tests_digest = "f7a86fa5b98087f5c7283568c49b9a2e37b7787b22709a0267612f77b5778422"
+at = "2026-10-17T12:03:54Z"
+actor = "lognd"
+rev = 1
