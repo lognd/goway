@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T05:54:44Z"
+digest = "8b7b86cbfc3264265d2ed9fc72e48e3bf31e957b39d89d95aa79bfd3971fbf99"
+exit_code = 0
+inline = '''
+   Compiling goway v0.1.2 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.98s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b9467dec-d221-4431-bc39-b8e204aef76b with nextest profile: default
+    Starting 2 tests across 63 binaries (796 tests skipped)
+        PASS [   0.011s] goway hosts::tests::a_windows_sshd_that_refuses_the_key_is_taken_only_as_the_fallback
+        PASS [   0.026s] goway hosts::tests::a_windows_ssh_helper_is_recorded_and_listed
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.028s] 2 tests run: 2 passed, 796 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E test(hosts::tests::a_windows_sshd_that_refuses_the_key_is_taken_only_as_the_fallback)|test(hosts::tests::a_windows_ssh_helper_is_recorded_and_listed)"
+size = 723
+status = "measured"
+test_count = 2
+tests_digest = "bdd7d9a7fa51e06d8aa12b4c56576706409b0213b3a2b50b5da4055d5bcd575c"
+at = "2026-10-17T05:54:44Z"
+actor = "lognd"
+rev = 1

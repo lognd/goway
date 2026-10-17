@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["A Windows sshd that refuses the key is detected by banner and recorded as os=windows when vouched for", "host add --windows prints Windows setup commands and writes nothing", "the Windows advice names OpenSSH.Server, administrators_authorized_keys, icacls and DefaultShell, not passwd/faillock"]
+moved = []
+at = "2026-10-17T05:54:38Z"
+actor = "lognd"
+rev = 1
