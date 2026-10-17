@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/src/uninstall.rs"]
+new = ["crates/goway/src/uninstall.rs", "changelog.d/01M45D6N0V2XF3CZFD1MM4GRP6.fixed.md"]
+at = "2026-10-17T09:42:05Z"
+actor = "lognd"
+rev = 1
