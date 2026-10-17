@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["revoke --now sends the roster to helpers, which merge it without rollback before refreshing access lines"]
+moved = []
+at = "2026-10-17T07:47:25Z"
+actor = "lognd"
+rev = 1
