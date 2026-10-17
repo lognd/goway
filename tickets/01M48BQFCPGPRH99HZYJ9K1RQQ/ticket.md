@@ -4,9 +4,10 @@ title = "With no memory record, a cargo run starts at full parallelism and can O
 type = "bug"
 category = "todo"
 priority = "medium"
+points = 2
 reporter = "lognd"
 created = "2026-10-06T10:21:41Z"
-updated = "2026-10-06T10:21:41Z"
+updated = "2026-10-17T10:52:43Z"
 scope = ["crates/goway/src/fit.rs", "crates/goway/tests/**"]
 
 [[acceptance]]
