@@ -11,7 +11,7 @@ created = "2026-10-17T14:45:37Z"
 updated = "2026-10-17T20:16:49Z"
 idempotency_key = "gap-qrlan"
 labels = ["circles"]
-scope = ["crates/goway/src/cli.rs"]
+scope = ["crates/goway/src/cli.rs", "crates/goway/src/lanpair.rs"]
 
 [[acceptance]]
 text = "Given pair-host --qr, when no address is passed, then the LAN address is detected and encoded"
