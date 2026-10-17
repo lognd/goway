@@ -2,7 +2,8 @@
 id = "01M55X73AV6A85Q1N1MS2V4C26"
 title = "Audit L7: circle marker in authorized_keys needs genesis id"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
