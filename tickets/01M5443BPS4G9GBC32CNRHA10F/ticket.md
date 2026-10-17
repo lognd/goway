@@ -2,7 +2,8 @@
 id = "01M5443BPS4G9GBC32CNRHA10F"
 title = "Phase 2: goway circle card/admit/join/list/revoke and goway-setup --join"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
