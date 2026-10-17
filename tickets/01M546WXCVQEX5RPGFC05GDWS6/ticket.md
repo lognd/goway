@@ -2,7 +2,8 @@
 id = "01M546WXCVQEX5RPGFC05GDWS6"
 title = "goway-setup install --host --join <welcome>: join a circle from the helper installer"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
