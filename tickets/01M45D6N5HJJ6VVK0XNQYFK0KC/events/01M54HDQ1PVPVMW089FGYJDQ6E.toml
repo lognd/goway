@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T08:59:51Z"
+digest = "d70f98bba268821e17c40fdead6569b53bd37508b30dab987e5cab1e87459a30"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID a92bc0ce-6f4c-4c28-9dae-073b1af96d09 with nextest profile: default
+    Starting 2 tests across 1 binary (14 tests skipped)
+        PASS [   0.896s] goway::install_scripts a_changed_binary_is_kept_and_an_upgrade_over_it_is_refused
+        PASS [   5.190s] goway::install_scripts a_newer_build_upgrades_in_place_and_uninstall_stays_exact
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   5.190s] 2 tests run: 2 passed, 14 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --test install_scripts -E test(upgrades_in_place)|test(changed_binary_is_kept)"
+size = 678
+status = "measured"
+test_count = 2
+tests_digest = "12ece41d59f3f6d5a182cfc13afc49e86770ebb29263620fcc7d66aec279844f"
+at = "2026-10-17T08:59:51Z"
+actor = "lognd"
+rev = 1
