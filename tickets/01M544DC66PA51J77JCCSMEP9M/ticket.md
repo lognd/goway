@@ -10,7 +10,7 @@ created = "2026-10-17T05:12:34Z"
 updated = "2026-10-17T05:29:57Z"
 idempotency_key = "nova-port-fallback"
 labels = ["windows", "onboarding"]
-scope = ["crates/goway/src/error.rs", "crates/goway/src/resolve.rs", "docs/hosts.md"]
+scope = ["crates/goway/src/error.rs", "crates/goway/src/resolve.rs", "docs/hosts.md", "docs/troubleshooting.md"]
 +++
 
 Report from another session (host nova, Windows native sshd on 22, stale port 2222 recorded from an old WSL setup). status/run only probed 2222 and said 'looks like client isolation'. Ask: when the recorded port is closed, probe 22 (and 2222), and name the port tried in the error. Unverified here; reproduce first.
