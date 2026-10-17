@@ -11,7 +11,7 @@ created = "2026-10-17T05:07:06Z"
 updated = "2026-10-17T05:56:14Z"
 idempotency_key = "c2"
 labels = ["circles"]
-scope = ["Cargo.toml", "Cargo.lock", "crates/goway-circle/**", "crates/goway/Cargo.toml", "crates/goway/tests/journal_invariant.rs", "crates/goway/src/circle.rs", "crates/goway/src/error.rs", "crates/goway/src/lib.rs", "crates/goway/src/changelog.rs", "crates/goway/src/sshsetup.rs", "docs/circles.md", "docs/config.md", "docs/glossary.md"]
+scope = ["Cargo.toml", "Cargo.lock", "crates/goway-circle/**", "crates/goway/Cargo.toml", "crates/goway/tests/journal_invariant.rs", "crates/goway/src/circle.rs", "crates/goway/src/error.rs", "crates/goway/src/lib.rs", "crates/goway/src/changelog.rs", "crates/goway/src/sshsetup.rs", "docs/circles.md", "docs/config.md", "docs/glossary.md", "changelog.d/01M5443BPS4G9GBC32CNRHA10F.added.md"]
 
 [[acceptance]]
 text = "A helper and a lead join with no network pairing"
