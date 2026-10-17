@@ -8,7 +8,7 @@ points = 3
 reporter = "lognd"
 created = "2026-10-17T06:34:47Z"
 updated = "2026-10-17T12:03:53Z"
-scope = ["crates/goway-circle/**", "docs/circles.md"]
+scope = ["crates/goway-circle/**", "docs/circles.md", "changelog.d/01M5493X71AKND6PKE8WNW4H3Y.added.md"]
 
 [[acceptance]]
 text = "A saved keystore passphrase is returned without prompting"
