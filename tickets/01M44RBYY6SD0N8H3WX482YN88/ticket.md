@@ -2,7 +2,8 @@
 id = "01M44RBYY6SD0N8H3WX482YN88"
 title = "goway changes prints whole fix scripts and unix times, and says undo no for a journaled pinned-tool install"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
