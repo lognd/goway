@@ -2,7 +2,8 @@
 id = "01M55X0T59HYD7QZWBHN5H9JF3"
 title = "Audit L4: mint lead certs with documented forwarding bans"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 2
 reporter = "lognd"
