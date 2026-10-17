@@ -1,0 +1,13 @@
++++
+id = "01M5493X89KGCWGBCRB7JMKV3B"
+title = "Built-in passphrase prompt and encrypted node key (ssh-keygen prompt works today)"
+type = "task"
+category = "todo"
+priority = "medium"
+reporter = "lognd"
+created = "2026-10-17T06:34:47Z"
+updated = "2026-10-17T06:34:47Z"
+scope = ["crates/goway-circle/**"]
++++
+
+found while working ~MV967CF; deferred hardening, see docs/circles.md section 6
