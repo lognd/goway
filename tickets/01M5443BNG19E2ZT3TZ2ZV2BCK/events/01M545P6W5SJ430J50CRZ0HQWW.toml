@@ -1,0 +1,26 @@
+kind = "evidence"
+captured_at = "2026-10-17T05:34:52Z"
+digest = "57b367a090b263f5a1fc60828bd10e39dda9163f04446031e38c2e9131c974db"
+exit_code = 0
+inline = """
+============================= test session starts ==============================
+platform linux -- Python 3.14.4, pytest-8.4.2, pluggy-1.6.0
+rootdir: <worktree>
+configfile: pyproject.toml
+collected 21 items
+
+docs/model/test_circle_model.py .....................                    [100%]
+
+-------------- generated xml file: /tmp/frob-pytest-3881451-0.xml --------------
+============================== 21 passed in 0.07s ==============================
+"""
+passed = true
+provider = "pytest"
+ref = "docs/model/test_circle_model.py"
+size = 451
+status = "measured"
+test_count = 21
+tests_digest = "46ff301805c391631186a995749cac43e9216c3db4a21314cd596241bc5645c9"
+at = "2026-10-17T05:34:52Z"
+actor = "lognd"
+rev = 1
