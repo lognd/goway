@@ -662,6 +662,19 @@ fn windows_undo(found: &resolve::Found, settings: &ssh::Settings, command: &str)
     }
 }
 
+/// Refuse to drop a helper's install record while any of its undo steps failed, so a rerun can
+/// still undo what is left.
+fn keep_record_unless_undone(host: &str, failures: &[String]) -> Result<()> {
+    if failures.is_empty() {
+        return Ok(());
+    }
+    tracing::warn!(%host, ?failures, "undo steps failed; keeping the install record");
+    Err(Error::Usage(format!(
+        "could not undo {}; the record of those changes is kept, rerun `goway uninstall --everywhere` when the helper allows it",
+        failures.join(", ")
+    )))
+}
+
 /// Clean one helper. Errors leave the local record intact so a rerun can
 /// finish the job.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // the verb's environment, as for doctor
@@ -717,6 +730,7 @@ fn clean_host(
     }
     let items = doctor::load_installed(paths, &host.name);
     let mut root_undos = Vec::new();
+    let mut failures: Vec<String> = Vec::new();
     for item in &items {
         match item.undo() {
             Undo::Run {
@@ -730,6 +744,7 @@ fn clean_host(
                         "{}: could not remove {}",
                         host.name, item.check
                     ));
+                    failures.push(item.check.clone());
                 }
             }
             Undo::Run {
@@ -751,6 +766,7 @@ fn clean_host(
                         "{}: could not remove {}",
                         host.name, item.check
                     ));
+                    failures.push(item.check.clone());
                 }
             }
             Undo::Windows {
@@ -789,6 +805,7 @@ fn clean_host(
             );
             if !runner.run(&script, true) {
                 renderer.warn(format_args!("{}: the administrator undo failed", host.name));
+                failures.push("the administrator undo".to_owned());
             }
         } else {
             for f in &root_undos {
@@ -801,6 +818,7 @@ fn clean_host(
             }
         }
     }
+    keep_record_unless_undone(&host.name, &failures)?;
     let _ = std::fs::remove_file(doctor::installed_path(paths, &host.name));
     if sshsetup::record_path(paths, &host.name).exists() {
         sshsetup::undo(paths, renderer, &host.name)?;
@@ -926,6 +944,13 @@ mod tests {
         let path = dir.join("install-journal");
         std::fs::write(&path, lines.join("\n") + "\n").unwrap();
         path
+    }
+
+    #[test]
+    fn a_failed_undo_keeps_the_install_record() {
+        assert!(keep_record_unless_undone("h", &[]).is_ok());
+        let e = keep_record_unless_undone("h", &["rustup target".to_owned()]).unwrap_err();
+        assert!(e.to_string().contains("rustup target"), "{e}");
     }
 
     #[test]
