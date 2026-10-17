@@ -2,7 +2,8 @@
 id = "01M547FDSMN6H0CJMRF3C79VYG"
 title = "QR output for circle cards and pair-host address"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
