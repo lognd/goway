@@ -502,7 +502,7 @@ fn two_admins() -> (Vec<Op>, String) {
     (vec![g, b, add], id)
 }
 
-// frob:ticket ~Y1EKY38
+// frob:ticket 01M55SHERW6M3D3ZXM6Y1EKY38
 // frob:tests crates/goway-circle/src/state.rs::fold
 #[test]
 fn backdated_revoke_of_honest_admin_cannot_undo_a_revoke() {
@@ -519,7 +519,7 @@ fn backdated_revoke_of_honest_admin_cannot_undo_a_revoke() {
     assert_eq!(run(&ops), s);
 }
 
-// frob:ticket ~Y1EKY38
+// frob:ticket 01M55SHERW6M3D3ZXM6Y1EKY38
 // frob:tests crates/goway-circle/src/state.rs::fold
 #[test]
 fn backdated_admin_additions_cannot_break_the_revoke_quorum() {
@@ -535,7 +535,7 @@ fn backdated_admin_additions_cannot_break_the_revoke_quorum() {
     assert_eq!(run(&ops), s);
 }
 
-// frob:ticket ~Y1EKY38
+// frob:ticket 01M55SHERW6M3D3ZXM6Y1EKY38
 // frob:tests crates/goway-circle/src/state.rs::fold
 #[test]
 fn ops_signed_before_the_removal_still_count() {
