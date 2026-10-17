@@ -228,11 +228,41 @@ fn advertised(args: &CirclePairHostArgs, port: u16) -> Option<String> {
             _ => return None,
         },
     };
-    Some(if host.contains(':') && !host.starts_with('[') {
+    Some(join_host_port(&host, port))
+}
+
+/// Ask the OS which local address routes outward (UDP connect sends no packets).
+fn probe_lan_ip() -> std::io::Result<IpAddr> {
+    let sock = std::net::UdpSocket::bind("0.0.0.0:0")?;
+    sock.connect("192.0.2.1:9")?;
+    Ok(sock.local_addr()?.ip())
+}
+
+/// Detect the LAN address through `probe`, rejecting loopback and unspecified results.
+fn detect_lan_ip(probe: impl FnOnce() -> std::io::Result<IpAddr>) -> Option<IpAddr> {
+    match probe() {
+        Ok(ip) if !ip.is_loopback() && !ip.is_unspecified() => {
+            tracing::info!(%ip, "detected LAN address");
+            Some(ip)
+        }
+        Ok(ip) => {
+            tracing::warn!(%ip, "ignoring unusable detected address");
+            None
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "LAN address detection failed");
+            None
+        }
+    }
+}
+
+/// Format `host` and `port` as a dialable `host:port`, bracketing bare IPv6.
+fn join_host_port(host: &str, port: u16) -> String {
+    if host.contains(':') && !host.starts_with('[') {
         format!("[{host}]:{port}")
     } else {
         format!("{host}:{port}")
-    })
+    }
 }
 
 /// Render `text` as an ASCII QR code ('#' dark, ' ' light) with a quiet zone.
@@ -263,7 +293,14 @@ pub fn pair_host_cli(paths: &Paths, renderer: Renderer, args: &CirclePairHostArg
         .local_addr()
         .map_err(|e| Error::Usage(e.to_string()))?;
     renderer.headline(format!("waiting {} min for a new machine", args.wait));
-    match advertised(args, local.port()) {
+    let addr = advertised(args, local.port()).or_else(|| {
+        if args.qr {
+            detect_lan_ip(probe_lan_ip).map(|ip| join_host_port(&ip.to_string(), local.port()))
+        } else {
+            None
+        }
+    });
+    match addr {
         Some(addr) => {
             renderer.next(format!(
                 "on the new machine run `goway circle pair-join {addr}`"
@@ -274,7 +311,7 @@ pub fn pair_host_cli(paths: &Paths, renderer: Renderer, args: &CirclePairHostArg
         }
         None if args.qr => {
             return Err(Error::Usage(
-                "--qr needs --advertise ADDRESS or a specific --bind address".to_owned(),
+                "--qr could not detect the LAN address; pass --advertise ADDRESS".to_owned(),
             ));
         }
         None => renderer.next(format!(
@@ -346,6 +383,18 @@ mod tests {
     #[test]
     fn qr_ascii_encodes_a_full_card_length_text() {
         assert!(qr_ascii(&"gwc1.".repeat(40)).is_ok());
+    }
+
+    // frob:tests crates/goway/src/lanpair.rs::detect_lan_ip
+    #[test]
+    fn detect_lan_ip_accepts_lan_and_rejects_loopback_or_failure() {
+        let lan: IpAddr = "192.168.1.7".parse().unwrap();
+        assert_eq!(detect_lan_ip(|| Ok(lan)), Some(lan));
+        assert_eq!(detect_lan_ip(|| Ok("127.0.0.1".parse().unwrap())), None);
+        assert_eq!(detect_lan_ip(|| Ok("0.0.0.0".parse().unwrap())), None);
+        let err = std::io::Error::other("no route");
+        assert_eq!(detect_lan_ip(|| Err(err)), None);
+        assert_eq!(join_host_port(&lan.to_string(), 5), "192.168.1.7:5");
     }
 
     #[test]

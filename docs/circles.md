@@ -255,8 +255,10 @@ the person gives the new machine the admin's LAN address.
 On success the admin remembers the new machine's address, and
 `pair-join --peer NAME` remembers the admin's, as peer address hints (4.5).
 `pair-host --qr` prints the address the new machine should dial as an ASCII QR
-code, using `--advertise ADDRESS` or a specific `--bind` address (a wildcard
-bind has no address worth encoding). `goway circle card --qr` prints the card
+code, using `--advertise ADDRESS` or a specific `--bind` address; with a
+wildcard bind it detects the LAN address (the interface the OS would route
+outward from; no packets are sent) and fails with a hint to pass `--advertise`
+when none is found. `goway circle card --qr` prints the card
 the same way. QR output uses the `qrcode` crate with default features off.
 
 ### 4.5 Discovery and resolution
