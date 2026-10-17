@@ -12,7 +12,7 @@ fn a_run_waiting_for_a_busy_slot_gives_up_after_wait_with_what_it_saw() {
     // The test wants the helper-side slot wait: a small runner's free memory must not make
     // the client's per-job memory admission refuse the local host first (`0` turns it off).
     let config = format!(
-        "[defaults]\nremote_root = \"{}\"\ntarget_slots = 2\njob_mem = \"0\"\n\n[[host]]\nname = \"local\"\naddress = \"127.0.0.1\"\nmax_jobs = 64\n",
+        "[defaults]\nremote_root = \"{}\"\ntarget_slots = 2\nmin_free = \"0\"\njob_mem = \"0\"\n\n[[host]]\nname = \"local\"\naddress = \"127.0.0.1\"\nmax_jobs = 64\n",
         w.remote.display()
     );
     std::fs::write(w.config.join("config.toml"), config).unwrap();
