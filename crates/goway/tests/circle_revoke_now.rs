@@ -3,11 +3,12 @@
 use std::cell::RefCell;
 use std::path::Path;
 
-use goway::circle::{admit, init, join, list_rows, make_card, revoke_with, sync_roster};
-use goway::circle_push::{Pusher, RosterOffer, ago};
+use goway::access::run_cert;
+use goway::circle::{admit, init, join, list_rows, make_card, revoke_with, set_roles, sync_roster};
+use goway::circle_push::{Pusher, RosterOffer, ago, issued_expiry, record_expiry};
 use goway::cli::{
-    CircleAdmitArgs, CircleCardArgs, CircleInitArgs, CircleJoinArgs, CircleRevokeArgs,
-    CircleSelect, CircleSyncArgs,
+    CircleAdmitArgs, CircleCardArgs, CircleCertArgs, CircleInitArgs, CircleJoinArgs,
+    CircleRevokeArgs, CircleRolesArgs, CircleSelect, CircleSyncArgs,
 };
 use goway::paths::Paths;
 use goway::render::{ColorWhen, Renderer};
@@ -203,17 +204,58 @@ fn an_old_roster_cannot_roll_a_helper_back() {
 
 // frob:tests crates/goway/src/circle_push.rs::RosterOffer
 #[test]
-fn offer_command_carries_the_roster_and_is_size_capped() {
-    let offer = RosterOffer::new("abc", "line\n");
-    let cmd = offer.remote_command().unwrap();
-    assert!(cmd.starts_with("goway circle sync --circle abc "), "{cmd}");
-    assert!(
-        cmd.ends_with("&& goway circle access --circle abc"),
-        "{cmd}"
+fn offer_command_reads_the_roster_from_stdin_at_any_size() {
+    let offer = RosterOffer::new("abc", &"x".repeat(200_000));
+    let cmd = offer.remote_command();
+    assert_eq!(
+        cmd,
+        "goway circle sync --circle abc - && goway circle access --circle abc"
     );
     assert!(
-        RosterOffer::new("abc", &"x".repeat(200_000))
-            .remote_command()
-            .is_err()
+        offer.ops_b64.len() > 100_000,
+        "the roster no longer rides the command line"
     );
+}
+
+// frob:tests crates/goway/src/circle_push.rs::record_expiry
+#[test]
+fn issued_expiry_is_remembered_per_member() {
+    let tmp = tempfile::tempdir().unwrap();
+    let p = paths(tmp.path());
+    assert!(issued_expiry(&p, "c1").is_empty());
+    record_expiry(&p, "c1", "a", 1000).unwrap();
+    record_expiry(&p, "c1", "b", 2000).unwrap();
+    record_expiry(&p, "c1", "a", 3000).unwrap();
+    let got = issued_expiry(&p, "c1");
+    assert_eq!(got.get("a"), Some(&3000));
+    assert_eq!(got.get("b"), Some(&2000));
+}
+
+// frob:tests crates/goway/src/access.rs::run_cert
+#[test]
+fn list_shows_the_expiry_of_a_cert_issued_for_another_member() {
+    let tmp = tempfile::tempdir().unwrap();
+    let founder = circle(tmp.path(), &["a"]);
+    set_roles(
+        &founder,
+        quiet(),
+        &CircleRolesArgs {
+            name: "a".to_owned(),
+            roles: "lead,helper".to_owned(),
+            circle: None,
+        },
+    )
+    .unwrap();
+    run_cert(
+        &founder,
+        quiet(),
+        &CircleCertArgs {
+            name: Some("a".to_owned()),
+            circle: None,
+        },
+    )
+    .unwrap();
+    let rows = list_rows(&founder, quiet(), &CircleSelect { circle: None }).unwrap();
+    let row = rows.iter().find(|r| r[0] == "a").unwrap();
+    assert!(row[4].starts_with("unix "), "{}", row[4]);
 }

@@ -13,8 +13,8 @@ use goway_circle::{Role, State};
 use crate::error::{Error, Result};
 use crate::paths::Paths;
 
-/// Largest roster (base64 text) sent on a remote command line; bigger rosters wait for stdin transport.
-const MAX_OFFER_B64: usize = 100_000;
+/// The `ops` argument of `goway circle sync` that means "read the roster from stdin".
+pub const STDIN_MARK: &str = "-";
 
 /// The roster this machine offers a helper: its operations, merged on the helper before it refreshes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,19 +34,13 @@ impl RosterOffer {
         }
     }
 
-    /// The command a helper runs: adopt the offered roster, then refresh its access lines.
-    pub fn remote_command(&self) -> std::result::Result<String, String> {
-        if self.ops_b64.len() > MAX_OFFER_B64 {
-            return Err(format!(
-                "roster is too large to push ({} bytes of text)",
-                self.ops_b64.len()
-            ));
-        }
-        Ok(format!(
-            "goway circle sync --circle {c} {o} && goway circle access --circle {c}",
+    /// The command a helper runs: adopt the roster read from stdin, then refresh its access lines.
+    pub fn remote_command(&self) -> String {
+        format!(
+            "goway circle sync --circle {c} {m} && goway circle access --circle {c}",
             c = self.circle,
-            o = self.ops_b64
-        ))
+            m = STDIN_MARK
+        )
     }
 }
 
@@ -101,7 +95,7 @@ pub struct SshPusher {
 
 impl Pusher for SshPusher {
     fn push(&self, host: &str, offer: &RosterOffer) -> std::result::Result<(), String> {
-        let remote = offer.remote_command()?;
+        let remote = offer.remote_command();
         let config =
             crate::config::Config::load(&self.paths.config_file()).map_err(|e| e.to_string())?;
         let host = config.host(host).map_err(|e| e.to_string())?;
@@ -121,14 +115,30 @@ impl Pusher for SshPusher {
             &crate::remote::Call::new("ping", &[] as &[&str]),
         )
         .map_err(|e| e.to_string())?;
-        crate::resolve::Prober::probe(
-            &prober,
+        use crate::spawn::CommandExt as _;
+        use std::io::Write as _;
+        use std::process::Stdio;
+        let mut cmd = crate::ssh::command(
             &found.target,
+            &settings,
             crate::ssh::KeyPolicy::Strict,
             &remote,
-        )
-        .map(|_| ())
-        .map_err(|(_, e)| e)
+        );
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = cmd.spawn_locked().map_err(|e| e.to_string())?;
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin
+                .write_all(offer.ops_b64.as_bytes())
+                .map_err(|e| format!("could not send the roster: {e}"))?;
+        }
+        let out = child.wait_with_output().map_err(|e| e.to_string())?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).trim().to_owned())
+        }
     }
 }
 
@@ -139,14 +149,7 @@ fn seen_path(paths: &Paths, id: &str) -> PathBuf {
 
 /// Last-seen unix times by member name (empty when none were recorded).
 pub fn last_seen(paths: &Paths, id: &str) -> BTreeMap<String, u64> {
-    std::fs::read_to_string(seen_path(paths, id))
-        .unwrap_or_default()
-        .lines()
-        .filter_map(|l| {
-            let (t, name) = l.split_once(' ')?;
-            Some((name.to_owned(), t.parse().ok()?))
-        })
-        .collect()
+    read_pairs(&seen_path(paths, id))
 }
 
 /// Record that `names` answered at unix time `now`.
@@ -155,14 +158,7 @@ pub fn record_seen(paths: &Paths, id: &str, names: &[String], now: u64) -> Resul
     for n in names {
         seen.insert(n.clone(), now);
     }
-    let mut text = String::new();
-    for (n, t) in &seen {
-        let _ = writeln!(text, "{t} {n}");
-    }
-    let file = seen_path(paths, id);
-    std::fs::create_dir_all(&paths.state_dir)
-        .map_err(|e| Error::io("create", &paths.state_dir, e))?;
-    std::fs::write(&file, text).map_err(|e| Error::io("write", &file, e))?;
+    write_pairs(&paths.state_dir, &seen_path(paths, id), &seen)?;
     tracing::debug!(circle = id, count = names.len(), "recorded last seen");
     Ok(())
 }
@@ -179,4 +175,54 @@ pub fn ago(then: Option<u64>, now: u64) -> String {
         3600..=86399 => format!("{}h ago", d / 3600),
         _ => format!("{}d ago", d / 86400),
     }
+}
+
+/// Where issued certificate expiries of circle `id` are kept.
+fn expiry_path(paths: &Paths, id: &str) -> PathBuf {
+    paths.state_dir.join(format!("circle-expiry-{id}.txt"))
+}
+
+/// Certificate expiry (unix seconds) this machine issued, by member name (empty when none).
+pub fn issued_expiry(paths: &Paths, id: &str) -> BTreeMap<String, u64> {
+    read_pairs(&expiry_path(paths, id))
+}
+
+/// Remember that the certificate issued to `name` is valid until unix time `valid_before`.
+pub fn record_expiry(paths: &Paths, id: &str, name: &str, valid_before: u64) -> Result<()> {
+    let mut all = issued_expiry(paths, id);
+    all.insert(name.to_owned(), valid_before);
+    write_pairs(&paths.state_dir, &expiry_path(paths, id), &all)?;
+    tracing::debug!(
+        circle = id,
+        member = name,
+        valid_before,
+        "recorded issued cert expiry"
+    );
+    Ok(())
+}
+
+/// Parse `"<unix> <name>"` lines (empty when the file is missing).
+fn read_pairs(file: &std::path::Path) -> BTreeMap<String, u64> {
+    std::fs::read_to_string(file)
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|l| {
+            let (t, name) = l.split_once(' ')?;
+            Some((name.to_owned(), t.parse().ok()?))
+        })
+        .collect()
+}
+
+/// Write `"<unix> <name>"` lines for `pairs` to `file`, creating `dir` first.
+fn write_pairs(
+    dir: &std::path::Path,
+    file: &std::path::Path,
+    pairs: &BTreeMap<String, u64>,
+) -> Result<()> {
+    let mut text = String::new();
+    for (n, t) in pairs {
+        let _ = writeln!(text, "{t} {n}");
+    }
+    std::fs::create_dir_all(dir).map_err(|e| Error::io("create", dir, e))?;
+    std::fs::write(file, text).map_err(|e| Error::io("write", file, e))
 }

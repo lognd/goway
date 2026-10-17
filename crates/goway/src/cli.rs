@@ -517,7 +517,7 @@ pub struct CirclePolicyArgs {
 /// Arguments of `goway circle sync`.
 #[derive(Debug, Args)]
 pub struct CircleSyncArgs {
-    /// The roster (`ops.jsonl` text) as url-safe base64 without padding.
+    /// The roster (`ops.jsonl` text) as url-safe base64 without padding, or `-` to read it from stdin.
     pub ops: String,
     /// Which circle.
     #[arg(long)]

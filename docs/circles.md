@@ -326,10 +326,12 @@ helper's own (union by operation id, then replay) and refuses any result that
 lacks a head the helper already saw, so a stale push cannot roll it back; then
 `access` moves its `cert-authority` lines to the new epoch. Helpers it could
 not reach are printed and stay exposed until they hear. Each helper that
-answers is recorded as last seen. Limits: the roster travels on the command
-line (rosters over 100 KB of base64 are not pushed; stdin transport is a
-follow-up); `list` shows certificate expiry only for this machine (other
-certs are not stored here) and last seen only from these pushes.
+answers is recorded as last seen. The roster is sent on ssh stdin (`sync` with
+`-` as its operations argument reads stdin), so its size is not limited by the
+command line. `cert`/`renew` record the expiry of every certificate this
+machine issues, so `list` shows it for those members too (marked "issued
+here"); certificates issued by another admin are not known here, and last seen
+comes only from these pushes.
 
 ## 6. Security audit
 

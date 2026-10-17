@@ -16,7 +16,9 @@ use goway_circle::{
 
 use crate::changelog;
 use crate::circle::{admin_key_path, has_key, load, member_key, node_key_path, pub_of, usage};
-use crate::cli::{CircleAccessArgs, CircleCertArgs, CirclePinArgs, CirclePolicyArgs, CircleRenewArgs};
+use crate::cli::{
+    CircleAccessArgs, CircleCertArgs, CirclePinArgs, CirclePolicyArgs, CircleRenewArgs,
+};
 use crate::config::HostConfig;
 use crate::error::{Error, Result};
 use crate::paths::Paths;
@@ -121,7 +123,9 @@ pub fn run_access(paths: &Paths, renderer: Renderer, args: &CircleAccessArgs) ->
         lines.len(),
         file.display()
     ));
-    renderer.next("run `goway circle access` again after a revoke so old certificates stop working here");
+    renderer.next(
+        "run `goway circle access` again after a revoke so old certificates stop working here",
+    );
     Ok(())
 }
 
@@ -130,10 +134,12 @@ pub fn run_access(paths: &Paths, renderer: Renderer, args: &CircleAccessArgs) ->
 /// For this machine the cert is written next to the node key, where ssh picks it up; for
 /// another lead the cert text is printed to hand over.
 pub fn run_cert(paths: &Paths, renderer: Renderer, args: &CircleCertArgs) -> Result<()> {
-    let (_, _, state) = load(paths, args.circle.as_deref())?;
+    let (store, _, state) = load(paths, args.circle.as_deref())?;
     let admin_key = admin_key_path(paths);
     if !has_key(&admin_key) {
-        return Err(usage("this machine has no admin key; run this on an admin machine"));
+        return Err(usage(
+            "this machine has no admin key; run this on an admin machine",
+        ));
     }
     let admin_pub = read_public_key(&pub_of(&admin_key))?;
     let node_pub = read_public_key(&pub_of(&node_key_path(paths)))?;
@@ -147,6 +153,9 @@ pub fn run_cert(paths: &Paths, renderer: Renderer, args: &CircleCertArgs) -> Res
     };
     let text = mint_lead_cert(&state, &admin_pub, &admin_key, &subject)?;
     let parsed = parse_cert(&text)?;
+    if let Some(member) = state.members.get(&subject) {
+        crate::circle_push::record_expiry(paths, store.id(), &member.name, parsed.valid_before)?;
+    }
     if own {
         let file = {
             let mut p = node_key_path(paths).into_os_string();
@@ -186,7 +195,8 @@ pub fn run_renew(paths: &Paths, renderer: Renderer, args: &CircleRenewArgs) -> R
             if let Ok(cert) = parse_cert(&text) {
                 if !needs_renewal(cert.valid_before, now) {
                     tracing::info!(valid_before = cert.valid_before, "certificate still fresh");
-                    renderer.ok("the certificate has more than half of its life left; nothing renewed");
+                    renderer
+                        .ok("the certificate has more than half of its life left; nothing renewed");
                     renderer.next("pass --force to renew anyway");
                     return Ok(());
                 }
@@ -317,7 +327,9 @@ fn helper_hosts(state: &State, me: &str, identity: &Path) -> Vec<HostConfig> {
 mod tests {
     use super::*;
     use crate::circle;
-    use crate::cli::{CircleAdmitArgs, CircleCardArgs, CircleInitArgs, CircleJoinArgs, CircleRevokeArgs};
+    use crate::cli::{
+        CircleAdmitArgs, CircleCardArgs, CircleInitArgs, CircleJoinArgs, CircleRevokeArgs,
+    };
     use crate::render::ColorWhen;
 
     fn quiet() -> Renderer {

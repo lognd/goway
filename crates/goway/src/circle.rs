@@ -593,13 +593,27 @@ fn push_epoch(
     Ok(())
 }
 
+/// The offered roster text: `arg` itself, or all of `stdin` when `arg` is the stdin mark.
+fn offered_text(arg: &str, stdin: &mut dyn std::io::Read) -> Result<String> {
+    if arg != crate::circle_push::STDIN_MARK {
+        return Ok(arg.to_owned());
+    }
+    let mut text = String::new();
+    stdin
+        .read_to_string(&mut text)
+        .map_err(|e| usage(format!("could not read the roster from stdin: {e}")))?;
+    tracing::debug!(bytes = text.len(), "read the offered roster from stdin");
+    Ok(text)
+}
+
 /// `goway circle sync`: merge an offered roster (url-safe base64 `ops.jsonl`) into the stored one.
 ///
 /// The merge is a union by op id, folded and verified, and the store refuses a result that
 /// lacks a head it already saw, so a stale offer can never roll this machine back.
 pub fn sync_roster(paths: &Paths, renderer: Renderer, args: &CircleSyncArgs) -> Result<()> {
+    let ops = offered_text(&args.ops, &mut std::io::stdin().lock())?;
     let bytes = URL_SAFE_NO_PAD
-        .decode(args.ops.as_bytes())
+        .decode(ops.trim().as_bytes())
         .map_err(|e| usage(format!("the offered roster is not valid base64: {e}")))?;
     let text = String::from_utf8(bytes).map_err(|_| usage("the offered roster is not text"))?;
     let offered = goway_circle::parse_ops(&text)?;
@@ -681,6 +695,7 @@ pub fn list_rows(
     let seen = crate::circle_push::last_seen(paths, store.id());
     let now = now_secs();
     let own_expiry = own_cert_expiry(paths);
+    let issued = crate::circle_push::issued_expiry(paths, store.id());
     for (key, m) in &state.members {
         let roles: Vec<&str> = m
             .roles
@@ -705,7 +720,9 @@ pub fn list_rows(
             if own.as_deref() == Some(key.as_str()) {
                 own_expiry.map_or_else(|| "none".to_owned(), |t| format!("unix {t}"))
             } else {
-                "-".to_owned()
+                issued
+                    .get(&m.name)
+                    .map_or_else(|| "-".to_owned(), |t| format!("unix {t} (issued here)"))
             },
             if own.as_deref() == Some(key.as_str()) {
                 "now".to_owned()
@@ -1056,6 +1073,14 @@ mod tests {
         let log = std::fs::read_to_string(changelog::journal_path(&p.admin.config_dir)).unwrap();
         assert!(log.contains("ops.jsonl"), "{log}");
         assert!(!log.contains("PRIVATE KEY"));
+    }
+
+    // frob:tests crates/goway/src/circle.rs::offered_text
+    #[test]
+    fn the_stdin_mark_reads_the_roster_from_stdin() {
+        let mut input: &[u8] = b"abc";
+        assert_eq!(offered_text("-", &mut input).unwrap(), "abc");
+        assert_eq!(offered_text("xyz", &mut std::io::empty()).unwrap(), "xyz");
     }
 
     #[test]
