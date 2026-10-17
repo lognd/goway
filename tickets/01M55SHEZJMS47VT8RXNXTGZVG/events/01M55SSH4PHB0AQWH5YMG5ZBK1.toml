@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T20:45:27Z"
+digest = "43efaf26e95813cb455ff6b5577acab8ca297ceeec6bb83ffd334a6782fb3ce3"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e3b8a252-dda7-46da-9378-759023b9c658 with nextest profile: default
+    Starting 1 test across 4 binaries (94 tests skipped)
+        PASS [   0.007s] goway-circle keystore::tests::mistyped_passphrase_is_not_saved
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.008s] 1 test run: 1 passed, 94 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E 'test(mistyped_passphrase_is_not_saved)'"
+size = 553
+status = "measured"
+test_count = 1
+tests_digest = "93c3dad538267c7ed22fcc0e8bb684ebf01dc559bffab318423fbfc57ea7c894"
+at = "2026-10-17T20:45:27Z"
+actor = "lognd"
+rev = 1
