@@ -2,7 +2,8 @@
 id = "01M55V8H3C64KTJ943N3WFASD5"
 title = "Audit M9: goway-setup --join passes the whole welcome on the command line"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 5
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
