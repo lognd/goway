@@ -247,7 +247,8 @@ helper, on a Windows helper or when the probe times out, the state is
 readable only by you; the `.pub` files are public), and one directory per
 circle at `circles/<id>/` with `ops.jsonl` (the signed roster) and
 `heads.json` (the newest roster seen, so an older one is refused). Private
-keys are never printed or logged. See `docs/circles.md`.
+keys are never printed or logged. Roster helpers join the host list and resolve through a
+`circle roster` stage (see `docs/hosts.md`). See `docs/circles.md`.
 
 ## Changes goway makes
 
