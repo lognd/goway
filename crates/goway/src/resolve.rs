@@ -35,6 +35,8 @@ pub enum Source {
     Cached,
     /// An unsigned last-seen address learned from a circle peer.
     Hint,
+    /// A circle roster helper: the roster supplies the name, resolved through the system resolver.
+    Roster,
     /// The `address` field of the host config.
     Configured,
     /// The host name through the system resolver.
@@ -56,6 +58,7 @@ impl std::fmt::Display for Source {
         f.write_str(match self {
             Self::Cached => "cached",
             Self::Hint => "peer hint",
+            Self::Roster => "circle roster",
             Self::Configured => "configured",
             Self::Name => "dns",
             Self::Mdns => "mdns",
@@ -256,6 +259,14 @@ fn stage(source: Source, host: &HostConfig, state: &State, lookup: &dyn Lookup) 
             .map(|s| vec![s.address.clone()])
             .unwrap_or_default(),
         Source::Hint => state.hints(&host.name).to_vec(),
+        Source::Roster if is_roster_host(host) => {
+            let mut out = addresses(lookup.system(&host.name));
+            if out.is_empty() {
+                out = addresses(lookup.windows(&host.name));
+            }
+            out
+        }
+        Source::Roster => Vec::new(),
         Source::Configured => match &host.address {
             Some(a) if a.parse::<IpAddr>().is_ok() => vec![a.clone()],
             Some(a) => {
@@ -278,9 +289,15 @@ fn stage(source: Source, host: &HostConfig, state: &State, lookup: &dyn Lookup) 
     }
 }
 
-const STAGES: [Source; 6] = [
+/// Whether `host` came from the circle roster (labelled `circle`, no address of its own).
+fn is_roster_host(host: &HostConfig) -> bool {
+    host.address.is_none() && host.labels.iter().any(|l| l == "circle")
+}
+
+const STAGES: [Source; 7] = [
     Source::Cached,
     Source::Hint,
+    Source::Roster,
     Source::Configured,
     Source::Name,
     Source::Mdns,
@@ -647,6 +664,35 @@ mod tests {
         assert_eq!(found.source, Source::Hint);
         assert_eq!(*prober.probed.borrow(), ["192.0.2.78", "192.0.2.77"], "a wrong-key hint is rejected");
         assert_eq!(state.get("helios").unwrap().address, "192.0.2.77");
+    }
+
+    #[test]
+    fn a_roster_host_resolves_by_its_name_after_hints_and_is_still_key_checked() {
+        let mut h = host();
+        h.labels = vec!["circle".to_owned()];
+        h.address = None;
+        let mut lookup = FakeLookup::default();
+        lookup.system.insert(h.name.clone(), vec![ip("10.0.0.8"), ip("10.0.0.9")]);
+        let prober = FakeProber {
+            good: "10.0.0.9".to_owned(),
+            wrong_machine: vec!["10.0.0.8".to_owned()],
+            probed: RefCell::new(Vec::new()),
+        };
+        let mut state = State::default();
+        let found = resolve(&Config::default(), &h, &mut state, &lookup, &prober, KeyPolicy::Strict, "true")
+            .unwrap();
+        assert_eq!(found.source, Source::Roster);
+        assert_eq!(*prober.probed.borrow(), ["10.0.0.8", "10.0.0.9"], "a wrong-key address is rejected");
+    }
+
+    #[test]
+    fn a_manual_host_never_uses_the_roster_stage() {
+        let h = host();
+        assert!(!is_roster_host(&h));
+        let mut labelled = host();
+        labelled.labels = vec!["circle".to_owned()];
+        labelled.address = Some("10.0.0.1".to_owned());
+        assert!(!is_roster_host(&labelled));
     }
 
     #[test]
