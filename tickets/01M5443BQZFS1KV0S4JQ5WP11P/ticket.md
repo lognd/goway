@@ -8,14 +8,14 @@ points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:07:06Z"
-updated = "2026-10-17T06:21:51Z"
+updated = "2026-10-17T06:24:02Z"
 idempotency_key = "c3"
 labels = ["circles"]
 scope = ["crates/goway/tests/journal_invariant.rs"]
 
 [[acceptance]]
 text = "New lead runs on every helper with no helper edit"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Revoke bumps epoch and old certs fail"
