@@ -270,8 +270,8 @@ requires the admin that paired with it to be an admin of the circle in the
 welcome, then verifies the genesis as in `join`.
 
 The listener is open only during pairing: it expires (`--wait`, default 5,
-at most 30 minutes), is single use (it closes after the first session that
-reaches the comparison), enforces a one second gap between connections,
+at most 30 minutes), closes after the first completed pairing (a wrong code or a
+declined session counts as a strike, so one bad guess cannot lock the admin out), gives a silent peer 15 seconds before the code is proved (180 seconds after), enforces a one second gap between connections,
 and closes after five failed sessions. It reads one JSON line per message
 with fixed size caps and unknown fields refused. mDNS announcements never
 carry circle identity: nothing is announced, the admin prints its port and
@@ -376,7 +376,7 @@ Last seen comes only from these pushes.
 |---|---|---|---|---|
 | 1 | Admin key theft | Mint a login to every helper | Separate admin key; FIDO2 recommended; 1-3 admins; two signatures to change admins at 3+, including revoking an admin | Highest risk; documented |
 | 2 | Stolen or compromised lead | RCE on trusting helpers | Short TTL; epoch bump on revoke; key file 0600 and refused if looser, or ssh-agent / FIDO2 (section 6.2) | Window until helpers hear, at most TTL |
-| 3 | Hostile-LAN pairing: MITM, spoofing | Attacker joins or impersonates | Offline blobs need no network trust; CPace PAKE with a one-time code for LAN; single use, expiring listener | User skips the comparison |
+| 3 | Hostile-LAN pairing: MITM, spoofing | Attacker joins or impersonates | Offline blobs need no network trust; CPace PAKE with a one-time code for LAN; expiring listener closed by the first completed pairing | User skips the comparison |
 | 4 | Roster rollback or replay | Removed member returns | Remove wins; tombstones permanent; heads refuse regression | Node offline since before the removal |
 | 5 | Compromised helper | Source and `--env` leak, false results | Out of scope (SECURITY.md); helper-only nodes hold no credential, so no pivot | Data already sent |
 | 6 | Principal or circle confusion | Cert reused across circle or role | Principal carries circle, role, epoch; line pins `principals=` | None expected |
