@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["the_probe_reports_running_jobs_per_repository passes"]
+new = ["the_probe_reports_running_jobs_per_repository passes", "a_repository_with_no_peak_is_held_only_behind_its_own_runs passes"]
+moved = [1]
+at = "2026-10-17T11:12:11Z"
+actor = "lognd"
+rev = 1

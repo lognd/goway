@@ -1,0 +1,1 @@
+A repository with no recorded memory peak is now held only behind the goway runs of that same repository: the probe reports running jobs per repository (`jobs.ID=N`), so unrelated runs on a host no longer block its admission.
