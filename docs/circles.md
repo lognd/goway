@@ -205,9 +205,6 @@ minute certificate backdate.
   (at least one known lead; `open` takes none). `--file` overrides the
   `authorized_keys` target and `--windows-admin` targets the Windows
   administrators file.
-  If a lead named in the saved `listed` policy is later revoked, the next
-  `goway circle access` drops it with a warning and still writes the
-  new-epoch lines; only a name passed explicitly with `--lead` is an error.
 
 ### 4.4 Pairing (no listener, no TOFU)
 
