@@ -15,7 +15,7 @@ use goway_circle::{
 };
 
 use crate::changelog;
-use crate::circle::{admin_key_path, load, member_key, node_key_path, pub_of, usage};
+use crate::circle::{admin_key_path, has_key, load, member_key, node_key_path, pub_of, usage};
 use crate::cli::{CircleAccessArgs, CircleCertArgs, CirclePinArgs};
 use crate::config::HostConfig;
 use crate::error::{Error, Result};
@@ -132,7 +132,7 @@ pub fn run_access(paths: &Paths, renderer: Renderer, args: &CircleAccessArgs) ->
 pub fn run_cert(paths: &Paths, renderer: Renderer, args: &CircleCertArgs) -> Result<()> {
     let (_, _, state) = load(paths, args.circle.as_deref())?;
     let admin_key = admin_key_path(paths);
-    if !admin_key.exists() {
+    if !has_key(&admin_key) {
         return Err(usage("this machine has no admin key; run this on an admin machine"));
     }
     let admin_pub = read_public_key(&pub_of(&admin_key))?;

@@ -9,7 +9,7 @@ goway keeps three local files:
 | state | `~/.local/state/goway/hosts.json` | `%LOCALAPPDATA%\goway\hosts.json` | last working address per host (a cache that is safe to delete) |
 
 On Windows everything lives in the local profile (`%LOCALAPPDATA%`), never the roaming one
-(`%APPDATA%`), because goway's unencrypted private key is kept there and the roaming profile is
+(`%APPDATA%`), because goway's private key (mode 0600, refused if looser; see circles.md 6.2) is kept there and the roaming profile is
 copied to domain servers. An older `%APPDATA%\goway` directory is moved over on first run.
 
 `GOWAY_CONFIG_DIR` and `GOWAY_STATE_DIR` override these directories.

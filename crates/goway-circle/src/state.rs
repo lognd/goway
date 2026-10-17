@@ -7,6 +7,21 @@ use tracing::{debug, info, warn};
 use crate::crypto::Verifier;
 use crate::error::CircleError;
 use crate::op::{Kind, MAX_OP_BYTES, MAX_OPS, Op};
+use crate::pairing::valid_name;
+
+/// Longest host fingerprint a roster op may carry.
+const MAX_FP: usize = 128;
+
+/// True for an empty fingerprint or a short token with no space, quote, comma or control byte.
+///
+/// Fingerprints reach `authorized_keys` and known_hosts text, so anything that could break out
+/// of a quoted option or add a line is refused when the op is applied.
+fn safe_fp(fp: &str) -> bool {
+    fp.len() <= MAX_FP
+        && fp
+            .bytes()
+            .all(|b| b.is_ascii_graphic() && !matches!(b, b'"' | b',' | b'\\'))
+}
 
 /// What a member may do: be used as a login source, or be sent work.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -87,7 +102,7 @@ impl State {
         else {
             return false;
         };
-        if !self.circle.is_empty() || circle.is_empty() || admin != signer {
+        if !self.circle.is_empty() || !valid_name(circle) || !valid_name(name) || admin != signer {
             return false;
         }
         circle.clone_into(&mut self.circle);
@@ -155,6 +170,10 @@ impl State {
                 if !is_admin || self.tombstones.contains(key) {
                     return false;
                 }
+                if !valid_name(name) || !safe_fp(host_fp) {
+                    warn!(op = &op.id()[..8], "admit refused: unsafe name or fingerprint");
+                    return false;
+                }
                 self.members.insert(
                     key.to_owned(),
                     Member {
@@ -202,6 +221,10 @@ impl State {
                 else {
                     return false;
                 };
+                if !safe_fp(host_fp) {
+                    warn!(op = &op.id()[..8], "rotate refused: unsafe fingerprint");
+                    return false;
+                }
                 host_fp.clone_into(&mut member.host_fp);
                 true
             }

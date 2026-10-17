@@ -5,10 +5,10 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::error::StoreError;
-use crate::op::{Kind, Op, parse_ops};
+use crate::op::{Kind, MAX_OP_BYTES, MAX_OPS, Op, parse_ops};
 use crate::state::{accept_roster, heads};
 
 /// Where file writes go; a host program journals them, tests write plainly.
@@ -114,6 +114,17 @@ impl Store {
     /// Read and strictly parse the stored operations (empty when none are stored yet).
     pub fn ops(&self) -> Result<Vec<Op>, StoreError> {
         let path = self.ops_path();
+        let max = (MAX_OPS * MAX_OP_BYTES) as u64;
+        if let Ok(meta) = std::fs::metadata(&path) {
+            if meta.len() > max {
+                warn!(path = %path.display(), len = meta.len(), "operations file over the cap");
+                return Err(StoreError::OpsTooLarge {
+                    path,
+                    len: meta.len(),
+                    max,
+                });
+            }
+        }
         match std::fs::read_to_string(&path) {
             Ok(text) => Ok(parse_ops(&text)?),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
@@ -208,6 +219,20 @@ mod tests {
         assert_eq!(store.seen_heads().unwrap(), BTreeSet::from([g.id()]));
         let found = Store::find(dir.path(), None).unwrap();
         assert_eq!(found.id(), store.id());
+    }
+
+    // frob:tests crates/goway-circle/src/store.rs::Store
+    #[test]
+    fn an_oversized_ops_file_is_refused_unread() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::for_genesis(dir.path(), "abcdef0123456789");
+        std::fs::create_dir_all(store.ops_path().parent().unwrap()).unwrap();
+        let f = std::fs::File::create(store.ops_path()).unwrap();
+        f.set_len((MAX_OPS * MAX_OP_BYTES) as u64 + 1).unwrap();
+        assert!(matches!(
+            store.ops(),
+            Err(StoreError::OpsTooLarge { .. })
+        ));
     }
 
     #[test]

@@ -17,8 +17,10 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use tracing::{debug, info, warn};
 
+use crate::crypto::valid_public_key;
 use crate::cert::{CERT_TTL_DAYS, issue_cert, principal};
 use crate::error::{CertError, CryptoError, SshCertError};
+use crate::pairing::valid_name;
 use crate::state::State;
 
 /// The certificate key type written by `ssh-keygen -s` for an ed25519 key.
@@ -49,7 +51,11 @@ impl Policy {
     pub fn principals(&self, state: &State) -> Vec<String> {
         match self {
             Self::Open => vec![principal(state)],
-            Self::Listed(names) => names.iter().map(|n| lead_principal(state, n)).collect(),
+            Self::Listed(names) => names
+                .iter()
+                .filter(|n| valid_name(n))
+                .map(|n| lead_principal(state, n))
+                .collect(),
         }
     }
 }
@@ -181,10 +187,13 @@ pub fn parse_cert(text: &str) -> Result<ParsedCert, SshCertError> {
     r.string()?; // reserved
     let signer_blob = r.string()?;
     let mut s = Reader(signer_blob);
-    if s.string()? != b"ssh-ed25519" {
-        return Err(SshCertError::Malformed("signer is not ed25519"));
-    }
-    let signer = bare_key(signer_blob);
+    // A FIDO2 admin key (ed25519-sk) signs certificates with its own key type.
+    let signer_kind = match s.string()? {
+        b"ssh-ed25519" => "ssh-ed25519",
+        b"sk-ssh-ed25519@openssh.com" => "sk-ssh-ed25519@openssh.com",
+        _ => return Err(SshCertError::Malformed("signer is not ed25519")),
+    };
+    let signer = format!("{signer_kind} {}", STANDARD.encode(signer_blob));
     Ok(ParsedCert {
         subject,
         signer,
@@ -243,9 +252,20 @@ pub fn mint_lead_cert(
     let dir = tempfile::tempdir().map_err(CryptoError::from)?;
     let pub_file = dir.path().join("subject.pub");
     std::fs::write(&pub_file, format!("{subject}\n")).map_err(CryptoError::from)?;
-    let out = Command::new("ssh-keygen")
-        .args(["-q", "-s"])
-        .arg(admin_key)
+    // With no private file the admin key lives in ssh-agent or on a FIDO token: hand
+    // ssh-keygen the public half and `-U` so it asks the agent to sign.
+    let agent = !admin_key.exists();
+    let ca_file = dir.path().join("ca.pub");
+    if agent {
+        std::fs::write(&ca_file, format!("{admin_pub}\n")).map_err(CryptoError::from)?;
+        info!("admin key has no private file; signing through ssh-agent");
+    }
+    let mut cmd = Command::new("ssh-keygen");
+    cmd.args(["-q", "-s"]).arg(if agent { &ca_file } else { admin_key });
+    if agent {
+        cmd.arg("-U");
+    }
+    let out = cmd
         .args(["-I", &key_id, "-n", &principals, "-V"])
         .arg(format!("{BACKDATE}:+{CERT_TTL_DAYS}d"))
         .arg(&pub_file)
@@ -279,6 +299,7 @@ pub fn authority_lines(state: &State, policy: &Policy) -> Vec<String> {
     state
         .admins
         .iter()
+        .filter(|admin| valid_public_key(admin))
         .map(|admin| {
             format!(
                 "cert-authority,principals=\"{}\",{LINE_OPTIONS} {admin} {marker}",
@@ -334,6 +355,7 @@ pub fn pin_line(alias: &str, scanned: &str, expected: &str) -> Result<String, Ss
         }
         seen.push(fp);
     }
+    // frob:invariant INV-CIRCLE-003
     warn!(alias, expected, ?seen, "host key does not match the roster");
     Err(SshCertError::PinMismatch {
         expected: expected.to_owned(),
@@ -346,8 +368,6 @@ mod tests {
     use super::*;
     use crate::keys::ensure_keypair;
     use crate::state::{Member, Role};
-
-    const NOW: u64 = 1_800_000_000;
 
     struct Rig {
         _dir: tempfile::TempDir,
@@ -539,6 +559,58 @@ mod tests {
             Err(Rejection::Principal)
         );
         assert!(authority_lines(&r.state, &Policy::Listed(BTreeSet::new())).is_empty());
+    }
+
+    // frob:tests crates/goway-circle/src/sshcert.rs::Policy
+    #[test]
+    fn listed_names_that_could_inject_options_are_dropped() {
+        let r = rig();
+        let evil: BTreeSet<String> = ["x\",command=\"id".to_owned(), "a b".to_owned()].into();
+        assert!(Policy::Listed(evil).principals(&r.state).is_empty());
+    }
+
+    fn put(out: &mut Vec<u8>, bytes: &[u8]) {
+        out.extend_from_slice(&(bytes.len() as u32).to_be_bytes());
+        out.extend_from_slice(bytes);
+    }
+
+    // frob:tests crates/goway-circle/src/sshcert.rs::parse_cert
+    #[test]
+    fn a_fido_signed_cert_names_its_sk_signer() {
+        let mut signer = Vec::new();
+        put(&mut signer, b"sk-ssh-ed25519@openssh.com");
+        put(&mut signer, &[7u8; 32]);
+        put(&mut signer, b"ssh:");
+        let mut blob = Vec::new();
+        put(&mut blob, CERT_KIND.as_bytes());
+        put(&mut blob, &[0u8; 32]);
+        put(&mut blob, &[1u8; 32]);
+        blob.extend_from_slice(&0u64.to_be_bytes());
+        blob.extend_from_slice(&1u32.to_be_bytes());
+        put(&mut blob, b"id");
+        let mut names = Vec::new();
+        put(&mut names, b"p1");
+        put(&mut blob, &names);
+        blob.extend_from_slice(&0u64.to_be_bytes());
+        blob.extend_from_slice(&10u64.to_be_bytes());
+        for _ in 0..3 {
+            put(&mut blob, b"");
+        }
+        put(&mut blob, &signer);
+        put(&mut blob, b"sig");
+        let text = format!("{CERT_KIND} {}", STANDARD.encode(&blob));
+        let cert = parse_cert(&text).unwrap();
+        assert!(cert.signer.starts_with("sk-ssh-ed25519@openssh.com "));
+        assert!(crate::crypto::valid_public_key(&cert.signer));
+    }
+
+    // frob:tests crates/goway-circle/src/sshcert.rs::authority_lines
+    #[test]
+    fn an_admin_key_with_a_newline_never_reaches_authorized_keys() {
+        let mut r = rig();
+        r.state.admins.insert("ssh-ed25519 AAAA\nssh-rsa EVIL".to_owned());
+        let lines = authority_lines(&r.state, &Policy::Open);
+        assert!(lines.iter().all(|l| !l.contains('\n') && !l.contains("EVIL")));
     }
 
     #[test]

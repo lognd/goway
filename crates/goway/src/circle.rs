@@ -39,6 +39,11 @@ pub(crate) fn node_key_path(paths: &Paths) -> PathBuf {
     circle_dir(paths).join("node_ed25519")
 }
 
+/// True when a key is set up at `path`: a private file, or just a `.pub` for an agent or FIDO key.
+pub(crate) fn has_key(path: &Path) -> bool {
+    path.is_file() || pub_of(path).is_file()
+}
+
 pub(crate) fn admin_key_path(paths: &Paths) -> PathBuf {
     circle_dir(paths).join("admin_ed25519")
 }
@@ -301,7 +306,7 @@ pub fn admit(paths: &Paths, renderer: Renderer, args: &CircleAdmitArgs) -> Resul
     }
     let (store, ops, state) = load(paths, args.circle.as_deref())?;
     let admin_path = admin_key_path(paths);
-    if !admin_path.is_file() {
+    if !has_key(&admin_path) {
         return Err(usage(
             "this machine has no admin key; run `goway circle admit` on an admin machine",
         ));
@@ -427,7 +432,7 @@ pub(crate) fn join_welcome(
 pub(crate) fn admin_ident(paths: &Paths, renderer: Renderer, circle: Option<&str>) -> Result<String> {
     let (_, _, state) = load(paths, circle)?;
     let admin_path = admin_key_path(paths);
-    if !admin_path.is_file() {
+    if !has_key(&admin_path) {
         return Err(usage("this machine has no admin key; pair from an admin machine"));
     }
     let admin = key_pair(&admin_path, renderer)?;
@@ -469,7 +474,7 @@ fn admin_op(
 ) -> Result<()> {
     let (store, ops, state) = load(paths, select)?;
     let admin_path = admin_key_path(paths);
-    if !admin_path.is_file() {
+    if !has_key(&admin_path) {
         return Err(usage(
             "this machine has no admin key; run this on an admin machine",
         ));
@@ -641,6 +646,16 @@ pub fn run(paths: &Paths, renderer: Renderer, command: &CircleCommand) -> Result
 mod tests {
     use super::*;
     use crate::render::ColorWhen;
+
+    // frob:tests crates/goway/src/circle.rs::has_key
+    #[test]
+    fn a_public_only_key_counts_as_set_up() {
+        let dir = tempfile::tempdir().unwrap();
+        let key = dir.path().join("admin");
+        assert!(!has_key(&key));
+        std::fs::write(pub_of(&key), "ssh-ed25519 AAAA\n").unwrap();
+        assert!(has_key(&key));
+    }
 
     fn paths(dir: &Path) -> Paths {
         Paths {

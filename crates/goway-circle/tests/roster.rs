@@ -50,6 +50,57 @@ fn unknown_roles_are_ignored() {
     assert!(!run(&[g, bad]).members.contains_key("X"));
 }
 
+// frob:tests crates/goway-circle/src/state.rs::fold
+#[test]
+fn unsafe_names_and_fingerprints_never_enter_the_roster() {
+    let g = genesis("A");
+    let bad_name = sign(
+        Kind::Admit,
+        &[
+            ("key", "X"),
+            ("name", "x\",command=\"id"),
+            ("roles", "lead"),
+            ("host_fp", "fp-X"),
+        ],
+        &[g.id()],
+        &["A"],
+    );
+    let bad_fp = sign(
+        Kind::Admit,
+        &[
+            ("key", "Y"),
+            ("name", "y"),
+            ("roles", "lead"),
+            ("host_fp", "SHA256:abc\nssh-rsa AAAA"),
+        ],
+        &[g.id()],
+        &["A"],
+    );
+    let s = run(&[g.clone(), bad_name, bad_fp]);
+    assert!(!s.members.contains_key("X") && !s.members.contains_key("Y"));
+    let evil_circle = sign(
+        Kind::Genesis,
+        &[("circle", "a b\""), ("admin", "A"), ("name", "a")],
+        &[],
+        &["A"],
+    );
+    assert!(fold(&[evil_circle], &fake("v")).unwrap().circle.is_empty());
+}
+
+// frob:tests crates/goway-circle/src/state.rs::fold
+#[test]
+fn rotate_host_key_with_unsafe_fingerprint_is_ignored() {
+    let (g, l, h) = chain();
+    let rot = sign(
+        Kind::RotateHostKey,
+        &[("host_fp", "a\"b")],
+        &[h.id()],
+        &["H"],
+    );
+    let s = run(&[g, l, h, rot]);
+    assert_eq!(s.members["H"].host_fp, "fp-H");
+}
+
 #[test]
 fn order_independence() {
     let (g, l, h) = chain();

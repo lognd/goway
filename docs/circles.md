@@ -294,7 +294,7 @@ helpers it could not reach, which stay exposed until they hear.
 | # | Threat | Impact | Mitigation | Residual |
 |---|---|---|---|---|
 | 1 | Admin key theft | Mint a login to every helper | Separate admin key; FIDO2 recommended; 1-3 admins; two signatures to change admins at 3+, including revoking an admin | Highest risk; documented |
-| 2 | Stolen or compromised lead | RCE on trusting helpers | Short TTL; epoch bump on revoke; key via agent or OS keystore (today's unencrypted key file is a known weakness, see config.md) | Window until helpers hear, at most TTL |
+| 2 | Stolen or compromised lead | RCE on trusting helpers | Short TTL; epoch bump on revoke; key file 0600 and refused if looser, or ssh-agent / FIDO2 (section 6.2) | Window until helpers hear, at most TTL |
 | 3 | Hostile-LAN pairing: MITM, spoofing | Attacker joins or impersonates | Offline blobs need no network trust; PAKE plus SAS for LAN; single use, expiring listener | User skips the comparison |
 | 4 | Roster rollback or replay | Removed member returns | Remove wins; tombstones permanent; heads refuse regression | Node offline since before the removal |
 | 5 | Compromised helper | Source and `--env` leak, false results | Out of scope (SECURITY.md); helper-only nodes hold no credential, so no pivot | Data already sent |
@@ -309,6 +309,46 @@ helpers it could not reach, which stay exposed until they hear.
 | 14 | Supply chain | Malicious installer | Unchanged: checksums, provenance | Existing |
 | 15 | Lead that is also a helper | Lateral movement | Lead-only and helper-only roles; `listed` policy | One theft reaches all both-role machines |
 | 16 | Name squatting | Impersonation | Identity is the key; names are labels; fingerprints always shown | User ignores fingerprint |
+
+### 6.1 Enforcement per threat (audited ~MV967CF)
+
+| # | Verdict | Enforced by |
+|---|---|---|
+| 1 | Mitigated | Quorum rules in `state.rs`; admin key may be agent or FIDO2 only (6.2) |
+| 2 | Fixed | `keys.rs::ensure_keypair` refuses loose modes, symlinks, writable key dirs (INV-CIRCLE-001); tests `loose_key_mode_is_refused`, `symlinked_key_is_refused`, `writable_key_dir_is_refused` |
+| 3 | Enforced | `lan.rs` size and count caps, commit-reveal SAS, single-use `ListenGuard`, timeouts |
+| 4 | Enforced | `Store::commit` and `accept_roster`; tests `rollback_is_refused_and_nothing_is_written`, `rollback_is_refused` |
+| 5 | Out of scope | SECURITY.md |
+| 6 | Enforced | Principal `goway-lead:<circle>:e<epoch>` plus `principals=` pin; `sshcert.rs` `accepts` tests; pin mismatch refused (INV-CIRCLE-003) |
+| 7 | Mitigated | 5 minute backdate in `sshcert.rs`; doctor skew check |
+| 8 | Enforced | No listener by default; roster served to members only |
+| 9 | Policy | `Policy::Listed` now drops any principal that is not a valid name; test `listed_names_that_could_inject_options_are_dropped` |
+| 10 | Fixed | Same as row 2; signatures re-verified on load |
+| 11 | Swept | No key, card, welcome or token reaches a log call |
+| 12 | Enforced | Nothing listens by default |
+| 13 | Fixed | Per-op and op-count caps; the whole ops file is now size-checked before it is read (`OpsTooLarge`, test `an_oversized_ops_file_is_refused_unread`) |
+| 14 | Existing | Installer checksums |
+| 15 | Policy | Role split and `listed` policy |
+| 16 | Fixed | `state.rs` rejects invalid circle and member names and any host fingerprint with quote, comma, backslash or non-graphic bytes (tests `unsafe_names_and_fingerprints_never_enter_the_roster`, `rotate_host_key_with_unsafe_fingerprint_is_ignored`); `authority_lines` drops admin keys with embedded newlines |
+
+Signatures use the fixed namespace `goway-circle-v1` (INV-CIRCLE-002), so a roster
+signature cannot be replayed as any other ssh signature.
+
+### 6.2 Keys at rest, ssh-agent and FIDO2
+
+- A private key file must be a regular file (not a symlink), mode with no group or
+  other bits, in a directory not group or world writable. Anything else is refused with
+  `KeyUnsafe`; a private file without its `.pub` is `KeyIncomplete` and is never
+  regenerated, so a key is never destroyed.
+- A public key with no private file is a public-only identity: signing and minting use
+  `ssh-keygen -Y sign` / `-s ... -U`, so the ssh-agent (or a hardware token) holds the
+  secret.
+- FIDO2: generate with `ssh-keygen -t ed25519-sk -f <admin key>`, keep only the handle file
+  or load into the agent. Certificates signed by an `sk-ssh-ed25519@openssh.com` key are
+  parsed and accepted as admin signatures. Generation is manual (~SKGF7C1).
+- Passphrase-protected keys work through the ssh-keygen prompt.
+- Deferred: OS keystore (~WNW4H3Y), built-in passphrase prompt and encrypted node key
+  (~7JMKV3B).
 
 ## 7. Alternatives rejected
 

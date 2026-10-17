@@ -172,4 +172,28 @@ pub enum StoreError {
     /// `ssh-keygen` failed to make or read a key.
     #[error(transparent)]
     Crypto(#[from] CryptoError),
+    /// A private key file exists without its `.pub`; it is never overwritten.
+    #[error("private key {path} has no .pub next to it; restore it or move the key aside")]
+    KeyIncomplete {
+        /// The private key file.
+        path: std::path::PathBuf,
+    },
+    /// A key file or its directory is too open, a symlink, or not a plain file.
+    #[error("refusing key {path}: {reason}")]
+    KeyUnsafe {
+        /// The offending file or directory.
+        path: std::path::PathBuf,
+        /// Why it was refused.
+        reason: String,
+    },
+    /// The stored operations file is larger than the cap.
+    #[error("operations file {path} is {len} bytes, over the cap of {max}")]
+    OpsTooLarge {
+        /// The file.
+        path: std::path::PathBuf,
+        /// Its size.
+        len: u64,
+        /// The cap.
+        max: u64,
+    },
 }

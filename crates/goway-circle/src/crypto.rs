@@ -10,6 +10,7 @@ use tracing::{debug, warn};
 use crate::error::CryptoError;
 
 /// The `ssh-keygen -Y` namespace that binds signatures to roster operations.
+// frob:invariant INV-CIRCLE-002
 pub const NAMESPACE: &str = "goway-circle-v1";
 
 /// Something that can sign a message as one public key.
@@ -59,6 +60,24 @@ impl SshKeygenSigner {
     }
 }
 
+impl SshKeygenSigner {
+    /// The file handed to `ssh-keygen -f`: the private key, or its `.pub` when the key lives in
+    /// ssh-agent or on a FIDO token (ssh-keygen then asks the agent to sign).
+    fn signing_target(&self) -> PathBuf {
+        if self.key_file.exists() {
+            return self.key_file.clone();
+        }
+        let mut pubfile = self.key_file.as_os_str().to_owned();
+        pubfile.push(".pub");
+        let pubfile = PathBuf::from(pubfile);
+        if pubfile.exists() {
+            debug!(key = %pubfile.display(), "no private key file; signing through ssh-agent");
+            return pubfile;
+        }
+        self.key_file.clone()
+    }
+}
+
 impl Signer for SshKeygenSigner {
     fn public_key(&self) -> &str {
         &self.public_key
@@ -67,7 +86,7 @@ impl Signer for SshKeygenSigner {
     fn sign(&self, message: &[u8]) -> Result<String, CryptoError> {
         let mut cmd = Command::new("ssh-keygen");
         cmd.args(["-Y", "sign", "-n", NAMESPACE, "-f"])
-            .arg(&self.key_file);
+            .arg(self.signing_target());
         let out = run(cmd, message)?;
         if !out.status.success() {
             warn!(status = ?out.status, "ssh-keygen sign failed");
@@ -156,5 +175,22 @@ impl Signer for FakeCrypto {
 impl Verifier for FakeCrypto {
     fn verify(&self, public_key: &str, message: &[u8], signature: &str) -> bool {
         fake_sig(message, public_key) == signature
+    }
+}
+
+#[cfg(test)]
+mod signer_tests {
+    use super::*;
+
+    // frob:tests crates/goway-circle/src/crypto.rs::SshKeygenSigner
+    #[test]
+    fn a_missing_private_file_falls_back_to_the_pub_for_the_agent() {
+        let dir = tempfile::tempdir().unwrap();
+        let key = dir.path().join("k");
+        std::fs::write(dir.path().join("k.pub"), "ssh-ed25519 AAAA\n").unwrap();
+        let s = SshKeygenSigner::new(key.clone(), "ssh-ed25519 AAAA".into()).unwrap();
+        assert_eq!(s.signing_target(), dir.path().join("k.pub"));
+        std::fs::write(&key, "x").unwrap();
+        assert_eq!(s.signing_target(), key);
     }
 }

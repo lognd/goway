@@ -59,24 +59,96 @@ pub fn key_fingerprint(key: &str) -> Option<String> {
     ))
 }
 
+/// Refuse a key file that is a symlink, not a regular file, or readable by group/other (Unix).
+///
+/// Uses `symlink_metadata` so a swapped-in link is seen, not followed.
+#[cfg(unix)]
+// frob:invariant INV-CIRCLE-001
+fn check_private_file(path: &Path) -> Result<(), StoreError> {
+    use std::os::unix::fs::PermissionsExt as _;
+    let unsafe_key = |reason: &str| StoreError::KeyUnsafe {
+        path: path.to_owned(),
+        reason: reason.to_owned(),
+    };
+    let meta = std::fs::symlink_metadata(path).map_err(|e| io_err("stat", path, e))?;
+    if meta.file_type().is_symlink() {
+        return Err(unsafe_key("it is a symlink"));
+    }
+    if !meta.is_file() {
+        return Err(unsafe_key("it is not a regular file"));
+    }
+    let mode = meta.permissions().mode() & 0o777;
+    if mode & 0o077 != 0 {
+        warn!(key = %path.display(), mode = format!("{mode:o}"), "key file is too open");
+        return Err(unsafe_key(&format!(
+            "mode {mode:o} lets others read it; run chmod 600"
+        )));
+    }
+    Ok(())
+}
+
+/// Refuse a key directory that group or other can write into (Unix).
+#[cfg(unix)]
+fn check_key_dir(dir: &Path) -> Result<(), StoreError> {
+    use std::os::unix::fs::PermissionsExt as _;
+    let meta = std::fs::symlink_metadata(dir).map_err(|e| io_err("stat", dir, e))?;
+    if meta.permissions().mode() & 0o022 != 0 && !meta.file_type().is_symlink() {
+        return Err(StoreError::KeyUnsafe {
+            path: dir.to_owned(),
+            reason: "the key directory is group or world writable".to_owned(),
+        });
+    }
+    Ok(())
+}
+
 /// Load the ed25519 key pair at `private`, making it (mode 0600, no passphrase) when absent.
 ///
-/// `restrict` is called on a freshly made private key so a platform can tighten its ACL.
+/// An existing private key must be a plain 0600 file or it is refused (Unix). A `.pub` with no
+/// private file is an agent or hardware identity and is used as is; a private file with no
+/// `.pub` is an error and is never regenerated. `restrict` tightens a fresh key's ACL.
 /// Returns the pair and whether it was just created.
 pub fn ensure_keypair(
     private: &Path,
     restrict: &dyn Fn(&Path),
 ) -> Result<(KeyPair, bool), StoreError> {
     let public_file = pub_path(private);
-    if private.exists() && public_file.exists() {
-        let public = read_public_key(&public_file)?;
-        return Ok((
-            KeyPair {
-                private: private.to_owned(),
-                public,
-            },
-            false,
-        ));
+    let has_private = std::fs::symlink_metadata(private).is_ok();
+    let has_public = public_file.exists();
+    #[cfg(unix)]
+    if let Some(dir) = private.parent().filter(|d| d.exists()) {
+        check_key_dir(dir)?;
+    }
+    match (has_private, has_public) {
+        (true, true) => {
+            #[cfg(unix)]
+            check_private_file(private)?;
+            let public = read_public_key(&public_file)?;
+            return Ok((
+                KeyPair {
+                    private: private.to_owned(),
+                    public,
+                },
+                false,
+            ));
+        }
+        (false, true) => {
+            let public = read_public_key(&public_file)?;
+            info!(key = %public_file.display(), "using a public-only (agent or hardware) key");
+            return Ok((
+                KeyPair {
+                    private: private.to_owned(),
+                    public,
+                },
+                false,
+            ));
+        }
+        (true, false) => {
+            warn!(key = %private.display(), "private key has no .pub; refusing to regenerate");
+            return Err(StoreError::KeyIncomplete {
+                path: private.to_owned(),
+            });
+        }
+        (false, false) => {}
     }
     if let Some(dir) = private.parent() {
         std::fs::create_dir_all(dir).map_err(|e| io_err("create", dir, e))?;
@@ -85,10 +157,6 @@ pub fn ensure_keypair(
             use std::os::unix::fs::PermissionsExt as _;
             let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
         }
-    }
-    // A private key without its public half is regenerated from scratch.
-    for stale in [private, public_file.as_path()] {
-        let _ = std::fs::remove_file(stale);
     }
     let out = Command::new("ssh-keygen")
         .args(["-q", "-t", "ed25519", "-N", "", "-C", "", "-f"])
@@ -148,5 +216,73 @@ mod tests {
                 "private key must not be group/world readable"
             );
         }
+    }
+
+    fn make_key(dir: &Path) -> PathBuf {
+        let file = dir.join("k");
+        ensure_keypair(&file, &|_| {}).unwrap();
+        file
+    }
+
+    // frob:tests crates/goway-circle/src/keys.rs::ensure_keypair
+    #[cfg(unix)]
+    #[test]
+    fn loose_key_mode_is_refused() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = tempfile::tempdir().unwrap();
+        let file = make_key(dir.path());
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let err = ensure_keypair(&file, &|_| {}).unwrap_err();
+        assert!(matches!(err, StoreError::KeyUnsafe { .. }), "{err}");
+    }
+
+    // frob:tests crates/goway-circle/src/keys.rs::ensure_keypair
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_key_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = make_key(dir.path());
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        std::os::unix::fs::symlink(pub_path(&real), pub_path(&link)).unwrap();
+        let err = ensure_keypair(&link, &|_| {}).unwrap_err();
+        assert!(matches!(err, StoreError::KeyUnsafe { .. }), "{err}");
+    }
+
+    // frob:tests crates/goway-circle/src/keys.rs::ensure_keypair
+    #[cfg(unix)]
+    #[test]
+    fn writable_key_dir_is_refused() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = tempfile::tempdir().unwrap();
+        let file = make_key(dir.path());
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o777)).unwrap();
+        let err = ensure_keypair(&file, &|_| {}).unwrap_err();
+        assert!(matches!(err, StoreError::KeyUnsafe { .. }), "{err}");
+    }
+
+    // frob:tests crates/goway-circle/src/keys.rs::ensure_keypair
+    #[test]
+    fn private_without_pub_is_never_regenerated() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = make_key(dir.path());
+        let before = std::fs::read(&file).unwrap();
+        std::fs::remove_file(pub_path(&file)).unwrap();
+        let err = ensure_keypair(&file, &|_| {}).unwrap_err();
+        assert!(matches!(err, StoreError::KeyIncomplete { .. }), "{err}");
+        assert_eq!(std::fs::read(&file).unwrap(), before);
+    }
+
+    // frob:tests crates/goway-circle/src/keys.rs::ensure_keypair
+    #[test]
+    fn public_only_identity_is_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = make_key(dir.path());
+        let (kept, _) = ensure_keypair(&file, &|_| {}).unwrap();
+        std::fs::remove_file(&file).unwrap();
+        let (again, made) = ensure_keypair(&file, &|_| {}).unwrap();
+        assert!(!made);
+        assert_eq!(kept.public, again.public);
+        assert!(!file.exists(), "no private key may be invented");
     }
 }
