@@ -2,12 +2,12 @@
 id = "01M4WB98GJNV6VG7GHZYPB8VS9"
 title = "doctor warns 'no ssh key found' when the host config names goway's own identity key"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-14T04:38:44Z"
-updated = "2026-10-17T09:40:55Z"
+updated = "2026-10-17T09:40:56Z"
 scope = ["crates/goway/src/sshenv.rs"]
 
 [[acceptance]]
