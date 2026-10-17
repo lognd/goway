@@ -7,8 +7,8 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:34:47Z"
-updated = "2026-10-17T12:00:13Z"
-scope = ["crates/goway-circle/**"]
+updated = "2026-10-17T12:00:22Z"
+scope = ["crates/goway-circle/**", "docs/circles.md"]
 
 [[acceptance]]
 text = "A node key can be created encrypted and signing works only with the right passphrase"
