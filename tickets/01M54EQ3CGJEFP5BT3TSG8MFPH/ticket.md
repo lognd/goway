@@ -8,7 +8,7 @@ points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T08:12:39Z"
-updated = "2026-10-17T09:45:31Z"
+updated = "2026-10-17T09:45:33Z"
 scope = ["crates/goway-setup/**", "docs/install-windows.md", "changelog.d/01M54EQ3CGJEFP5BT3TSG8MFPH.added.md"]
 
 [[acceptance]]
