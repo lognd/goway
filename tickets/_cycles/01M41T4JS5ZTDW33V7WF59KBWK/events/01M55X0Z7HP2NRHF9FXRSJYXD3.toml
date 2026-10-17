@@ -1,0 +1,9 @@
+kind = "cycle"
+op = "over-commit"
+ticket = "01M55X0T2DQZQR9HBJWVCYTVZD"
+committed = 158
+text = "audit LOW findings"
+capacity = 17
+at = "2026-10-17T21:41:56Z"
+actor = "lognd"
+rev = 1
