@@ -2,7 +2,8 @@
 id = "01M4WCD71X8MECXX1QFVGZJ67Q"
 title = "A failed or undone host install leaves openssh-server in rc state, which the next install refuses"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 reporter = "lognd"
