@@ -379,7 +379,7 @@ mod tests {
         circle::init(
             &admin,
             quiet(),
-            &CircleInitArgs { name: "home".into(), machine: Some("lap".into()) },
+            &CircleInitArgs { name: "home".into(), machine: Some("lap".into()), passphrase: false },
         )
         .unwrap();
         Rig { _tmp: tmp, admin, joiner, listener: bind_listener("127.0.0.1", 0).unwrap() }

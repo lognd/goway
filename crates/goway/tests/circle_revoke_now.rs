@@ -57,6 +57,7 @@ fn circle(root: &Path, names: &[&str]) -> Paths {
         &CircleInitArgs {
             name: "home".to_owned(),
             machine: Some("lap".to_owned()),
+            passphrase: false,
         },
     )
     .unwrap();

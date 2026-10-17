@@ -60,6 +60,7 @@ fn world() -> World {
         &CircleInitArgs {
             name: "home".to_owned(),
             machine: Some("lap".to_owned()),
+            passphrase: false,
         },
     )
     .unwrap();

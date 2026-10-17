@@ -589,6 +589,9 @@ pub struct CircleInitArgs {
     /// This machine's name in the circle (default: its host name).
     #[arg(long, value_parser = circle_label)]
     pub machine: Option<String>,
+    /// Encrypt the new admin and node keys with a passphrase asked for on the terminal.
+    #[arg(long)]
+    pub passphrase: bool,
 }
 
 /// Arguments of `goway circle card`.

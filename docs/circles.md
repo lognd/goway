@@ -410,7 +410,11 @@ signature cannot be replayed as any other ssh signature.
   freedesktop Secret Service via `secret-tool` (secret on stdin, never argv); other platforms
   report `Unavailable` until a backend exists. `FakeKeystore` is the in-memory test double;
   tests never touch a real keystore.
-- Deferred: wiring the prompt and keystore into the `goway circle` commands.
+- In the CLI: `goway circle init --passphrase` asks once on the terminal and encrypts the new
+  admin and node keys with it. Any command that signs with an encrypted key (`init`, `admit`,
+  `revoke`, `roles`, admin changes) finds it with `key_is_encrypted`, then asks the OS keystore
+  and falls back to the prompt (`KeystorePassphrase` over `SecretToolKeystore` and `TtyPrompt`).
+  `join` and `card` only read public keys, so they never prompt.
 
 ## 7. Alternatives rejected
 

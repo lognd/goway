@@ -12,8 +12,10 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use std::path::{Path, PathBuf};
 
 use goway_circle::{
-    Card, Kind, Op, Role, Signer, SshKeygenSigner, SshKeygenVerifier, State, Store, Welcome,
-    ensure_keypair, fold, fold_pinned, key_fingerprint, read_public_key, valid_roles,
+    Card, FixedPassphrase, Kind, Op, Passphrase, PassphraseSource, Role, SecretToolKeystore,
+    Signer, SshKeygenSigner, SshKeygenVerifier, State, Store, TtyPrompt, Welcome,
+    KeystorePassphrase, ensure_keypair_with, fold, fold_pinned, key_fingerprint, key_is_encrypted,
+    read_public_key, valid_roles,
 };
 
 use crate::changelog;
@@ -70,9 +72,22 @@ fn sink(paths: &Paths) -> JournalSink {
 
 /// Load or create a key pair under the circle dir; tightens the ACL of a new key on Windows.
 pub(crate) fn key_pair(path: &Path, renderer: Renderer) -> Result<goway_circle::KeyPair> {
-    let (pair, created) = ensure_keypair(path, &|p| {
-        crate::sshsetup::restrict_key_acl(p, renderer);
-    })?;
+    key_pair_with(path, renderer, None)
+}
+
+/// Like [`key_pair`], but a key made now is encrypted with `pass` when one is given.
+pub(crate) fn key_pair_with(
+    path: &Path,
+    renderer: Renderer,
+    pass: Option<&Passphrase>,
+) -> Result<goway_circle::KeyPair> {
+    let (pair, created) = ensure_keypair_with(
+        path,
+        &|p| {
+            crate::sshsetup::restrict_key_acl(p, renderer);
+        },
+        pass,
+    )?;
     if created {
         tracing::info!(key = %path.display(), "circle key created");
         renderer.note(format!("made a new key at {}", path.display()));
@@ -80,11 +95,24 @@ pub(crate) fn key_pair(path: &Path, renderer: Renderer) -> Result<goway_circle::
     Ok(pair)
 }
 
+/// A signer for `pair`; an encrypted key gets its passphrase from the OS keystore, else a prompt.
 pub(crate) fn signer_for(pair: &goway_circle::KeyPair) -> Result<SshKeygenSigner> {
-    Ok(SshKeygenSigner::new(
-        pair.private.clone(),
-        pair.public.clone(),
-    )?)
+    let account = pair.private.display().to_string();
+    signer_with(pair, &KeystorePassphrase::new(&SecretToolKeystore, TtyPrompt, account))
+}
+
+/// A signer for `pair` that asks `source` for the passphrase only when the key is encrypted.
+pub(crate) fn signer_with(
+    pair: &goway_circle::KeyPair,
+    source: &dyn PassphraseSource,
+) -> Result<SshKeygenSigner> {
+    let signer = SshKeygenSigner::new(pair.private.clone(), pair.public.clone())?;
+    if !key_is_encrypted(&pair.private) {
+        return Ok(signer);
+    }
+    let prompt = format!("Passphrase for {}: ", pair.private.display());
+    tracing::info!(key = %pair.private.display(), "key is encrypted; asking for its passphrase");
+    Ok(signer.with_passphrase(source.passphrase(&prompt)?))
 }
 
 /// This machine's name as a valid circle label.
@@ -234,14 +262,22 @@ pub struct InitOut {
 
 /// Found a circle: genesis signed by this machine's admin key, then this machine's node key.
 pub fn init(paths: &Paths, renderer: Renderer, args: &CircleInitArgs) -> Result<InitOut> {
-    let admin = key_pair(&admin_key_path(paths), renderer)?;
-    let node = key_pair(&node_key_path(paths), renderer)?;
+    let pass = if args.passphrase {
+        Some(TtyPrompt.passphrase("New passphrase for the circle keys: ")?)
+    } else {
+        None
+    };
+    let admin = key_pair_with(&admin_key_path(paths), renderer, pass.as_ref())?;
+    let node = key_pair_with(&node_key_path(paths), renderer, pass.as_ref())?;
     let machine = args.machine.clone().unwrap_or_else(machine_name);
     let admin_name = format!("{machine}-admin");
     if !goway_circle::valid_name(&admin_name) {
         return Err(usage(format!("`{machine}` is too long for a machine name")));
     }
-    let admin_signer = signer_for(&admin)?;
+    let admin_signer = match &pass {
+        Some(p) => signer_with(&admin, &FixedPassphrase(p.clone()))?,
+        None => signer_for(&admin)?,
+    };
     let genesis = Op::signed(
         Kind::Genesis,
         &[
@@ -861,6 +897,7 @@ mod tests {
             &CircleInitArgs {
                 name: "home".to_owned(),
                 machine: Some("lap".to_owned()),
+                passphrase: false,
             },
         )
         .unwrap();
@@ -1063,6 +1100,7 @@ mod tests {
             &CircleInitArgs {
                 name: "home".to_owned(),
                 machine: Some("lap".to_owned()),
+                passphrase: false,
             },
         )
         .unwrap_err();
@@ -1091,6 +1129,38 @@ mod tests {
         let mut input: &[u8] = b"abc";
         assert_eq!(offered_text("-", &mut input).unwrap(), "abc");
         assert_eq!(offered_text("xyz", &mut std::io::empty()).unwrap(), "xyz");
+    }
+
+    // frob:tests crates/goway/src/circle.rs::signer_with
+    #[test]
+    fn an_encrypted_key_signs_only_with_its_passphrase() {
+        let dir = tempfile::tempdir().unwrap();
+        let pass = Passphrase::new("correct horse battery".into()).unwrap();
+        let key = dir.path().join("k");
+        let Ok((pair, _)) = ensure_keypair_with(&key, &|_| {}, Some(&pass)) else {
+            return; // no ssh-keygen here
+        };
+        let signer = signer_with(&pair, &FixedPassphrase(pass)).unwrap();
+        assert!(signer.sign(b"hello").is_ok());
+        let wrong = Passphrase::new("not the one".into()).unwrap();
+        let bad = signer_with(&pair, &FixedPassphrase(wrong)).unwrap();
+        assert!(bad.sign(b"hello").is_err());
+    }
+
+    // frob:tests crates/goway/src/circle.rs::signer_with
+    #[test]
+    fn a_plain_key_never_asks_for_a_passphrase() {
+        struct Never;
+        impl PassphraseSource for Never {
+            fn passphrase(&self, _p: &str) -> std::result::Result<Passphrase, goway_circle::CryptoError> {
+                panic!("a plain key must not prompt");
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let Ok((pair, _)) = ensure_keypair_with(&dir.path().join("k"), &|_| {}, None) else {
+            return;
+        };
+        assert!(signer_with(&pair, &Never).is_ok());
     }
 
     #[test]
