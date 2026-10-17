@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T21:17:08Z"
+digest = "a94846ec3c450b984f705c600907388dc65d0e846133be70f56c82f41682a18d"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+   Compiling goway v0.2.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 32.44s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e0e09d60-2dde-4efc-9ea2-1404ec49d3de with nextest profile: default
+    Starting 1 test across 65 binaries (862 tests skipped)
+        PASS [   0.005s] goway access::tests::admin_keys_acl_command_applies_the_protected_sddl_to_the_file
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.007s] 1 test run: 1 passed, 862 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(admin_keys_acl)'"
+size = 683
+status = "measured"
+test_count = 1
+tests_digest = "2c8ff47f5696f890a5a82c67e05443f6a292bbeeb3d6ee66da101733490ebc4e"
+at = "2026-10-17T21:17:08Z"
+actor = "lognd"
+rev = 1

@@ -17,7 +17,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use tracing::{debug, info, warn};
 
-use crate::cert::{CERT_TTL_DAYS, issue_cert, principal};
+use crate::cert::{CERT_TTL_DAYS, CERT_TTL_SECS, issue_cert, principal};
 use crate::crypto::valid_public_key;
 use crate::error::{CertError, CryptoError, SshCertError};
 use crate::pairing::valid_name;
@@ -293,20 +293,53 @@ pub fn line_marker(state: &State) -> String {
     format!("{MARKER_PREFIX}{}:e{}", state.circle, state.epoch)
 }
 
-/// The `cert-authority` lines a helper needs for `state` under `policy`: one per admin key.
+/// `YYYYMMDDHHMMZ` (UTC, the `expiry-time` form sshd reads) for Unix time `secs`.
+pub fn expiry_stamp(secs: u64) -> String {
+    let days = i64::try_from(secs / 86_400).unwrap_or(i64::MAX / 2);
+    let rem = secs % 86_400;
+    // Civil-from-days (Howard Hinnant), proleptic Gregorian.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}{month:02}{day:02}{:02}{:02}Z",
+        rem / 3_600,
+        rem % 3_600 / 60
+    )
+}
+
+/// The `cert-authority` lines for `state` under `policy`, expiring relative to the system clock.
 pub fn authority_lines(state: &State, policy: &Policy) -> Vec<String> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    authority_lines_at(state, policy, now)
+}
+
+/// The `cert-authority` lines a helper needs for `state` under `policy`: one per admin key.
+///
+/// Each line expires at `now + 2 * CERT_TTL_SECS` (UTC), so a helper that is never refreshed
+/// fails closed and must re-run `access`.
+pub fn authority_lines_at(state: &State, policy: &Policy, now: u64) -> Vec<String> {
     let principals = policy.principals(state);
     if principals.is_empty() {
         return Vec::new();
     }
     let marker = line_marker(state);
+    let expiry = expiry_stamp(now.saturating_add(2 * CERT_TTL_SECS));
     state
         .admins
         .iter()
         .filter(|admin| valid_public_key(admin))
         .map(|admin| {
             format!(
-                "cert-authority,principals=\"{}\",{LINE_OPTIONS} {admin} {marker}",
+                "cert-authority,principals=\"{}\",expiry-time=\"{expiry}\",{LINE_OPTIONS} {admin} {marker}",
                 principals.join(",")
             )
         })
@@ -431,6 +464,32 @@ mod tests {
         assert_eq!(accepts(&r.state, &Policy::Open, &cert, NOW_REAL()), Ok(()));
     }
 
+    /// A fixed clock for the line tests: 2025-11-07 12:00:00 UTC.
+    const T0: u64 = 1_762_516_800;
+
+    // frob:tests crates/goway-circle/src/sshcert.rs::expiry_stamp
+    #[test]
+    fn expiry_stamps_are_utc_minutes() {
+        assert_eq!(expiry_stamp(0), "197001010000Z");
+        assert_eq!(expiry_stamp(T0), "202511071200Z");
+        assert_eq!(expiry_stamp(951_782_400 + 86_399), "200002292359Z");
+        assert_eq!(expiry_stamp(951_782_400 + 86_400), "200003010000Z");
+    }
+
+    // frob:tests crates/goway-circle/src/sshcert.rs::authority_lines_at
+    #[test]
+    fn every_line_expires_at_twice_the_cert_ttl() {
+        let r = rig();
+        let lines = authority_lines_at(&r.state, &Policy::Open, T0);
+        assert!(!lines.is_empty());
+        // T0 + 28 days = 2025-12-05 12:00 UTC.
+        assert!(
+            lines
+                .iter()
+                .all(|l| l.contains(",expiry-time=\"202512051200Z\","))
+        );
+    }
+
     #[allow(non_snake_case)]
     fn NOW_REAL() -> u64 {
         std::time::SystemTime::now()
@@ -443,7 +502,7 @@ mod tests {
     #[test]
     fn a_new_lead_needs_no_helper_edit() {
         let mut r = rig();
-        let before = authority_lines(&r.state, &Policy::Open);
+        let before = authority_lines_at(&r.state, &Policy::Open, T0);
         let newcomer = ensure_keypair(&r.dir_guard.path().join("new"), &|_| {})
             .unwrap()
             .0;
@@ -463,7 +522,7 @@ mod tests {
         )
         .unwrap();
         let cert = parse_cert(&text).unwrap();
-        assert_eq!(authority_lines(&r.state, &Policy::Open), before);
+        assert_eq!(authority_lines_at(&r.state, &Policy::Open, T0), before);
         assert_eq!(accepts(&r.state, &Policy::Open, &cert, NOW_REAL()), Ok(()));
     }
 
@@ -477,9 +536,9 @@ mod tests {
             accepts(&r.state, &Policy::Open, &cert, NOW_REAL()),
             Err(Rejection::Principal)
         );
-        assert_ne!(authority_lines(&r.state, &Policy::Open), {
+        assert_ne!(authority_lines_at(&r.state, &Policy::Open, T0), {
             r.state.epoch = 0;
-            authority_lines(&r.state, &Policy::Open)
+            authority_lines_at(&r.state, &Policy::Open, T0)
         });
     }
 
@@ -563,7 +622,7 @@ mod tests {
             accepts(&r.state, &only("bob"), &cert, NOW_REAL()),
             Err(Rejection::Principal)
         );
-        assert!(authority_lines(&r.state, &Policy::Listed(BTreeSet::new())).is_empty());
+        assert!(authority_lines_at(&r.state, &Policy::Listed(BTreeSet::new()), T0).is_empty());
     }
 
     // frob:tests crates/goway-circle/src/sshcert.rs::Policy
@@ -616,7 +675,7 @@ mod tests {
         r.state
             .admins
             .insert("ssh-ed25519 AAAA\nssh-rsa EVIL".to_owned());
-        let lines = authority_lines(&r.state, &Policy::Open);
+        let lines = authority_lines_at(&r.state, &Policy::Open, T0);
         assert!(
             lines
                 .iter()
@@ -636,15 +695,15 @@ mod tests {
     #[test]
     fn lines_are_restricted_and_replace_the_old_epoch() {
         let mut r = rig();
-        let lines = authority_lines(&r.state, &Policy::Open);
+        let lines = authority_lines_at(&r.state, &Policy::Open, T0);
         assert_eq!(lines.len(), 1);
         assert!(lines[0].starts_with(
-            "cert-authority,principals=\"goway-lead:home:e0\",no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 "
+            "cert-authority,principals=\"goway-lead:home:e0\",expiry-time=\"202512051200Z\",no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 "
         ));
         assert!(lines[0].ends_with(" goway-circle:home:e0"));
         let file = merge_authorized_keys("ssh-ed25519 KEEP me@x\n", &r.state, &lines);
         r.state.epoch = 1;
-        let next = authority_lines(&r.state, &Policy::Open);
+        let next = authority_lines_at(&r.state, &Policy::Open, T0);
         let file = merge_authorized_keys(&file, &r.state, &next);
         assert!(file.contains("ssh-ed25519 KEEP me@x\n"));
         assert!(file.contains("goway-lead:home:e1"));
