@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["no_production_code_spawns_a_child_outside_the_lock passes", "no_machine_change_appears_outside_the_journal_backed_modules passes", "a_failure_on_a_nearly_full_disk_is_explained_in_plain_words passes"]
+new = ["no_production_code_spawns_a_child_outside_the_lock passes", "no_machine_change_appears_outside_the_journal_backed_modules passes", "a_failure_on_a_nearly_full_disk_is_explained_in_plain_words passes", "a_wave_over_a_tiny_budget_never_loses_a_live_runs_work_dir passes"]
+moved = [1, 2, 3]
+at = "2026-10-17T10:50:44Z"
+actor = "lognd"
+rev = 1

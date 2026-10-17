@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["Given the condition in the title, when a fix lands, then a test reproduces it and the condition no longer occurs"]
+new = ["Given the condition in the title, when a fix lands, then a test reproduces it and the condition no longer occurs", "A light command's memory peak is recorded and judged under its own repository-and-command key, never by a heavier command's peak in the same repository"]
+moved = [1]
+at = "2026-10-17T10:41:21Z"
+actor = "lognd"
+rev = 1

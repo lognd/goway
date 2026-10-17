@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/src/doctor.rs", "crates/goway/tests/evict_live.rs", "crates/goway/tests/footprint.rs"]
+new = ["crates/goway/src/doctor.rs", "crates/goway/tests/evict_live.rs", "crates/goway/tests/footprint.rs", "crates/goway/tests/journal_invariant.rs"]
+at = "2026-10-17T10:51:12Z"
+actor = "lognd"
+rev = 1

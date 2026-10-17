@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T10:50:39Z"
+digest = "c673a48f400727b455a63e1775b0195638df600f64f251482292a3941cd0e948"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID f29fcc80-fee5-49f0-b9cb-b1bac4a1e7fe with nextest profile: default
+    Starting 1 test across 65 binaries (850 tests skipped)
+        PASS [   4.787s] goway::footprint a_failure_on_a_nearly_full_disk_is_explained_in_plain_words
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   4.789s] 1 test run: 1 passed, 850 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E test(a_failure_on_a_nearly_full_disk_is_explained_in_plain_words)"
+size = 570
+status = "measured"
+test_count = 1
+tests_digest = "e4b9e4005e0cc704e8026472e445b5749fce61da7be150ee621f133deb46a1e3"
+at = "2026-10-17T10:50:39Z"
+actor = "lognd"
+rev = 1
