@@ -14,7 +14,7 @@ scope = ["crates/goway-circle/src/keystore.rs,crates/goway-circle/src/passphrase
 
 [[acceptance]]
 text = "Given a mistyped passphrase, when it is entered, then it is not stored until verified"
-bound = false
+bound = true
 +++
 
 Verify against the key before saving.
