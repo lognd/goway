@@ -135,7 +135,7 @@ An admin signs a certificate for a lead's node key:
 
 A helper has, once, one line per admin in `authorized_keys`:
 
-    cert-authority,principals="goway-lead:<circle>:e<epoch>",no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 <admin pub> goway:<id>
+    cert-authority,principals="goway-lead:<circle>:e<epoch>",expiry-time="<now+28d, YYYYMMDDHHMMZ>",no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 <admin pub> goway:<id>
 
 - A new lead works on every helper at once, with no helper edit.
 - No root is needed; `cert-authority` works in a user's `authorized_keys`.
@@ -144,9 +144,13 @@ A helper has, once, one line per admin in `authorized_keys`:
   the existing elevated `goway-setup` path.
 - **Epoch**: bumping the epoch (on `revoke`, `remove_admin`, and `roles` removing the `lead` role) invalidates every
   outstanding certificate; admins reissue to the remaining leads. A helper
-  learns the new epoch the next time any trusted member contacts it. The
-  revocation window for an offline helper is therefore at most the
-  certificate TTL (default 14 days).
+  learns the new epoch when `access` is next run on it (or `revoke --now`
+  pushes it). Every `cert-authority` line carries an
+  `expiry-time` of twice the certificate TTL (default 28 days) from the moment
+  `access` wrote it, so a helper that is never refreshed fails closed: its
+  lines lapse and it accepts no lead until `access` renews them. The
+  revocation window for an unreached helper is therefore bounded by that
+  expiry, not by the certificate TTL alone.
 - **Backdating** `-V -5m`: WSL2 clocks drift after suspend. `goway doctor`
   reports skew against the helper.
 - **Renewal**: a lead asks for a new certificate when half the TTL has
@@ -291,10 +295,11 @@ used, so a wrong answer is rejected like any other stage.
 
 ### 4.6 Sync
 
-New remote verbs `circle-heads` and `circle-exchange` (in `remote.sh` and
-`remote.ps1`) ship operations both ways on every ssh call goway already makes,
-so rosters spread by use. Every received operation is verified before it is
-applied.
+Rosters spread through explicit `sync`, and a new epoch reaches a helper
+through `access` or `revoke --now`. There are no remote sync verbs (the
+earlier `circle-heads` / `circle-exchange` idea is not shipped), so rosters do
+not spread on ordinary ssh calls. Every received operation is verified before
+it is applied.
 
 ### 4.7 Config and files
 

@@ -101,7 +101,10 @@ pub fn run_access(paths: &Paths, renderer: Renderer, args: &CircleAccessArgs) ->
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(e) => return Err(Error::io("read", &file, e)),
     };
-    let lines = authority_lines(&state, &policy);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let lines = authority_lines(&state, &policy, now);
     let merged = merge_authorized_keys(&existing, &state, &lines);
     changelog::write_file_in(&paths.config_dir, &file, merged.as_bytes())?;
     changelog::write_file_in(
