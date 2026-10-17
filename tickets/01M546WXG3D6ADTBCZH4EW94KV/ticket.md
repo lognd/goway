@@ -2,7 +2,7 @@
 id = "01M546WXG3D6ADTBCZH4EW94KV"
 title = "goway circle revoke --now (epoch push), certificate expiry and last seen in list"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
