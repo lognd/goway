@@ -10,6 +10,10 @@ reporter = "lognd"
 created = "2026-10-17T07:46:47Z"
 updated = "2026-10-17T08:12:29Z"
 scope = ["crates/goway-setup/**", "docs/**"]
+
+[[acceptance]]
+text = "goway-setup install --host --join works for native helpers and creates the node key and prints the circle card before joining"
+bound = false
 +++
 
 leftover from ~05GDWS6: --join supports WSL helpers with an existing node key only; native helpers and creating the card in the installer are not done
