@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use goway_circle::{Card, Kind, Op, Signer, State, parse_ops};
+use goway_circle::{Card, Kind, Op, Signer, State, generate_sk_keypair, parse_ops};
 
 use crate::changelog;
 use crate::circle::{
@@ -34,18 +34,26 @@ fn own_admin(
 ) -> Result<(goway_circle::KeyPair, goway_circle::SshKeygenSigner)> {
     let path = admin_key_path(paths);
     if !has_key(&path) {
-        return Err(usage("this machine has no admin key; run this on an admin machine"));
+        return Err(usage(
+            "this machine has no admin key; run this on an admin machine",
+        ));
     }
     let pair = key_pair(&path, renderer)?;
     if !state.admins.contains(&pair.public) {
-        return Err(usage("this machine's admin key is not an admin of that circle"));
+        return Err(usage(
+            "this machine's admin key is not an admin of that circle",
+        ));
     }
     let signer = signer_for(&pair)?;
     Ok((pair, signer))
 }
 
 /// A card for this machine's admin key, named `<machine>-admin`, to be admitted as a lead.
-pub fn admin_card(paths: &Paths, renderer: Renderer, args: &CircleAdminCardArgs) -> Result<(Card, String)> {
+pub fn admin_card(
+    paths: &Paths,
+    renderer: Renderer,
+    args: &CircleAdminCardArgs,
+) -> Result<(Card, String)> {
     let admin = key_pair(&admin_key_path(paths), renderer)?;
     let name = format!("{}-admin", args.name.clone().unwrap_or_else(machine_name));
     let card = Card {
@@ -59,6 +67,22 @@ pub fn admin_card(paths: &Paths, renderer: Renderer, args: &CircleAdminCardArgs)
     tracing::info!(name = %card.name, "admin card made");
     let fp = fingerprint_of(&card.key);
     Ok((card, fp))
+}
+
+/// Make this machine's `ed25519-sk` admin key by running `program` (`ssh-keygen`); never overwrites.
+// frob:ticket 01M54VV1JY0C7FDCHM9A8Q2EJJ
+pub fn keygen(
+    paths: &Paths,
+    renderer: Renderer,
+    program: &Path,
+) -> Result<(goway_circle::KeyPair, String)> {
+    let path = admin_key_path(paths);
+    let pair = generate_sk_keypair(program, &path, &|p| {
+        crate::sshsetup::restrict_key_acl(p, renderer);
+    })?;
+    tracing::info!(key = %path.display(), "hardware admin key made");
+    let fp = fingerprint_of(&pair.public);
+    Ok((pair, fp))
 }
 
 /// What a proposal did: applied to the roster, or written half-signed to a file.
@@ -156,6 +180,12 @@ pub fn run_admin(paths: &Paths, renderer: Renderer, command: &CircleAdminCommand
             renderer.note(format!("admin key fingerprint: {fp}"));
             renderer.next("paste it into `goway circle admit` on an admin, then `goway circle admin add NAME`");
         }
+        CircleAdminCommand::Keygen => {
+            let (pair, fp) = keygen(paths, renderer, Path::new("ssh-keygen"))?;
+            renderer.ok(format!("admin key made at {}", pair.private.display()));
+            renderer.note(format!("admin key fingerprint: {fp}"));
+            renderer.next("run `goway circle admin card` to get its card");
+        }
         CircleAdminCommand::Add(args) => report(paths, renderer, Kind::AddAdmin, args)?,
         CircleAdminCommand::Remove(args) => report(paths, renderer, Kind::RemoveAdmin, args)?,
         CircleAdminCommand::Cosign(args) => cosign(paths, renderer, args)?,
@@ -164,7 +194,12 @@ pub fn run_admin(paths: &Paths, renderer: Renderer, command: &CircleAdminCommand
 }
 
 /// Propose and tell the user what happened.
-fn report(paths: &Paths, renderer: Renderer, kind: Kind, args: &CircleAdminChangeArgs) -> Result<()> {
+fn report(
+    paths: &Paths,
+    renderer: Renderer,
+    kind: Kind,
+    args: &CircleAdminChangeArgs,
+) -> Result<()> {
     match propose(paths, renderer, kind, args)? {
         Proposed::Applied => renderer.ok(format!("admin change for `{}` applied", args.name)),
         Proposed::NeedsCosign(line) => {

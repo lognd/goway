@@ -658,11 +658,21 @@ mod tests {
             probed: RefCell::new(Vec::new()),
         };
         let found = resolve(
-            &config, &host(), &mut state, &FakeLookup::default(), &prober, KeyPolicy::Strict, "true",
+            &config,
+            &host(),
+            &mut state,
+            &FakeLookup::default(),
+            &prober,
+            KeyPolicy::Strict,
+            "true",
         )
         .unwrap();
         assert_eq!(found.source, Source::Hint);
-        assert_eq!(*prober.probed.borrow(), ["192.0.2.78", "192.0.2.77"], "a wrong-key hint is rejected");
+        assert_eq!(
+            *prober.probed.borrow(),
+            ["192.0.2.78", "192.0.2.77"],
+            "a wrong-key hint is rejected"
+        );
         assert_eq!(state.get("helios").unwrap().address, "192.0.2.77");
     }
 
@@ -672,17 +682,31 @@ mod tests {
         h.labels = vec!["circle".to_owned()];
         h.address = None;
         let mut lookup = FakeLookup::default();
-        lookup.system.insert(h.name.clone(), vec![ip("10.0.0.8"), ip("10.0.0.9")]);
+        lookup
+            .system
+            .insert(h.name.clone(), vec![ip("10.0.0.8"), ip("10.0.0.9")]);
         let prober = FakeProber {
             good: "10.0.0.9".to_owned(),
             wrong_machine: vec!["10.0.0.8".to_owned()],
             probed: RefCell::new(Vec::new()),
         };
         let mut state = State::default();
-        let found = resolve(&Config::default(), &h, &mut state, &lookup, &prober, KeyPolicy::Strict, "true")
-            .unwrap();
+        let found = resolve(
+            &Config::default(),
+            &h,
+            &mut state,
+            &lookup,
+            &prober,
+            KeyPolicy::Strict,
+            "true",
+        )
+        .unwrap();
         assert_eq!(found.source, Source::Roster);
-        assert_eq!(*prober.probed.borrow(), ["10.0.0.8", "10.0.0.9"], "a wrong-key address is rejected");
+        assert_eq!(
+            *prober.probed.borrow(),
+            ["10.0.0.8", "10.0.0.9"],
+            "a wrong-key address is rejected"
+        );
     }
 
     #[test]

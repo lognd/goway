@@ -71,7 +71,9 @@ An admin is always a lead; a helper-only machine can never be admin.
   recommended; goway shells out to `ssh-keygen`, so a hardware key works
   with any existing key file. `goway_circle::generate_sk_keypair` automates
   creating one (`ssh-keygen -t ed25519-sk`, token touch and PIN on the
-  terminal; it never overwrites an existing key).
+  terminal; it never overwrites an existing key). On the command line, run
+  `goway circle admin keygen` to make this machine's hardware admin key,
+  then `goway circle admin card`.
 - **Host key**: the machine's sshd host key. The roster carries its
   fingerprint, so leads pin it without a TOFU prompt.
 - Only ed25519 is accepted anywhere. There is no negotiation.
