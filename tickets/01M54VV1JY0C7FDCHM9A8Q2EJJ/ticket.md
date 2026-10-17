@@ -8,5 +8,6 @@ points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T12:01:59Z"
-updated = "2026-10-17T12:04:16Z"
+updated = "2026-10-17T12:06:03Z"
+scope = ["crates/goway/src/circle_admin.rs"]
 +++
