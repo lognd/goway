@@ -1,0 +1,7 @@
+kind = "field"
+field = "title"
+old = "Audit L4+L7: cert options and circle-name marker collision"
+new = "Audit L4: mint lead certs with documented forwarding bans"
+at = "2026-10-17T21:45:36Z"
+actor = "lognd"
+rev = 1
