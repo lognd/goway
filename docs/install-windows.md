@@ -27,7 +27,7 @@ If an older build prompts just to start, see "Installation problems" in docs/tro
     goway-setup.exe install --host
 
 To make this helper join a circle in the same step (see `docs/circles.md`), add
-`--join <welcome> --join-fingerprint <fp>`; after the install it runs `goway circle join` and
+`--join <welcome> --join-fingerprint <fp>`; after the install it runs `goway circle join -` (the welcome goes on stdin, never the command line) and
 `goway circle access` inside the distro (with `--native`: on this laptop, using the installed
 `goway.exe`, as the user who ran the installer). It first makes this helper's node key if missing and
 prints the circle card (`goway circle card`). When the distro has no `goway` on its PATH, the install

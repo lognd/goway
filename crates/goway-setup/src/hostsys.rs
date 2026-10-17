@@ -203,26 +203,21 @@ impl HostSystem<ProcessRunner> {
 }
 
 /// The two circle commands that join a helper, run through `run` (which gets the full argv,
-/// starting with `goway`); stops at the first failure and returns the access step's output.
+/// starting with `goway`, and optional stdin); the welcome travels on stdin (`join -`) so a
+/// large circle never hits the OS command-line limit. Stops at the first failure and returns
+/// the access step's output.
 fn circle_join_steps(
     welcome: &str,
     fingerprint: &str,
-    run: impl Fn(&[&str]) -> SysResult<Output>,
+    run: impl Fn(&[&str], Option<&[u8]>) -> SysResult<Output>,
 ) -> SysResult<String> {
-    let join = [
-        "goway",
-        "circle",
-        "join",
-        welcome,
-        "--fingerprint",
-        fingerprint,
-    ];
-    let out = run(&join)?;
+    let join = ["goway", "circle", "join", "-", "--fingerprint", fingerprint];
+    let out = run(&join, Some(welcome.as_bytes()))?;
     if !out.success() {
         return Err(cmd_error("goway circle join", &out));
     }
     tracing::info!(step = "join", "circle step done");
-    let out = run(&["goway", "circle", "access"])?;
+    let out = run(&["goway", "circle", "access"], None)?;
     if !out.success() {
         return Err(cmd_error("goway circle access", &out));
     }
@@ -376,10 +371,15 @@ impl<R: Runner> HostSystem<R> {
 
     /// Run `argv` inside the distro as the distro's default user (no `-u root`).
     fn wsl_user(&self, argv: &[&str]) -> SysResult<Output> {
+        self.wsl_user_stdin(argv, None)
+    }
+
+    /// [`HostSystem::wsl_user`] feeding `stdin` to the command.
+    fn wsl_user_stdin(&self, argv: &[&str], stdin: Option<&[u8]>) -> SysResult<Output> {
         self.ensure_startable()?;
         self.run(
             &format!("wsl (user) {}", argv.join(" ")),
-            &self.wsl_invocation(argv, true, None),
+            &self.wsl_invocation(argv, true, stdin),
         )
     }
 
@@ -581,7 +581,9 @@ impl<R: Runner> HostSystem<R> {
     /// by `fingerprint`), then install its access lines (`goway circle access`); returns the
     /// last command's output.
     pub fn join_circle(&self, welcome: &str, fingerprint: &str) -> SysResult<String> {
-        circle_join_steps(welcome, fingerprint, |argv| self.wsl_user(argv))
+        circle_join_steps(welcome, fingerprint, |argv, stdin| {
+            self.wsl_user_stdin(argv, stdin)
+        })
     }
 
     /// The journaled changes that make `goway` resolvable in the distro: empty when
@@ -630,22 +632,27 @@ impl<R: Runner> HostSystem<R> {
         welcome: &str,
         fingerprint: &str,
     ) -> SysResult<String> {
-        circle_join_steps(welcome, fingerprint, |argv| {
-            self.native_goway(goway_exe, argv)
+        circle_join_steps(welcome, fingerprint, |argv, stdin| {
+            self.native_goway(goway_exe, argv, stdin)
         })
     }
 
     /// [`HostSystem::circle_card`] for a native helper.
     pub fn native_circle_card(&self, goway_exe: &Path) -> SysResult<String> {
-        circle_card_step(|argv| self.native_goway(goway_exe, argv))
+        circle_card_step(|argv| self.native_goway(goway_exe, argv, None))
     }
 
-    /// Run `goway_exe` with `argv` (without the program name) as the current user.
-    fn native_goway(&self, goway_exe: &Path, argv: &[&str]) -> SysResult<Output> {
+    /// Run `goway_exe` with `argv` (without the program name) as the current user, feeding `stdin`.
+    fn native_goway(
+        &self,
+        goway_exe: &Path,
+        argv: &[&str],
+        stdin: Option<&[u8]>,
+    ) -> SysResult<Output> {
         let inv = Invocation {
             program: goway_exe.display().to_string(),
             args: argv.iter().skip(1).map(|a| (*a).to_owned()).collect(),
-            stdin: None,
+            stdin: stdin.map(<[u8]>::to_vec),
         };
         self.run(&format!("goway {}", argv[1..].join(" ")), &inv)
     }
