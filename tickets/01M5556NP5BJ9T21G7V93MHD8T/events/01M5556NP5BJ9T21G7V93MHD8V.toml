@@ -1,0 +1,13 @@
+kind = "create"
+title = "pair-host --qr does not detect the LAN address"
+type = "task"
+category = "todo"
+priority = "low"
+points = 2
+parent = "01M54433AG8J1V0GYT3ZWY9C9A"
+idempotency_key = "gap-qrlan"
+labels = ["circles"]
+acceptance = ["Given pair-host --qr, when no address is passed, then the LAN address is detected and encoded"]
+at = "2026-10-17T14:45:37Z"
+actor = "lognd"
+rev = 1
