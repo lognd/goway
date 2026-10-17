@@ -2,7 +2,7 @@
 id = "01M547FDWEGTPFNBW8XTJDXE1S"
 title = "Upgrade LAN pairing to real CPace"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 reporter = "lognd"
