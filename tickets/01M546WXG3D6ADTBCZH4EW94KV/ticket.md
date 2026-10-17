@@ -10,7 +10,7 @@ reporter = "lognd"
 created = "2026-10-17T05:56:01Z"
 updated = "2026-10-17T07:22:03Z"
 labels = ["circles"]
-scope = ["crates/goway/src/circle_push.rs", "crates/goway/src/circle.rs", "crates/goway/src/access.rs", "crates/goway/src/cli.rs", "crates/goway/src/lib.rs", "docs/circles.md", "crates/goway/tests/circle_revoke_now.rs", "changelog.d/01M4EW94KV*.md"]
+scope = ["crates/goway/src/circle_push.rs", "crates/goway/src/circle.rs", "crates/goway/src/access.rs", "crates/goway/src/cli.rs", "crates/goway/src/lib.rs", "docs/circles.md", "crates/goway/tests/circle_revoke_now.rs", "changelog.d/01M4EW94KV*.md", "changelog.d/*4EW94KV*"]
 +++
 
 deferred from ~NRHA10F (circles phase 2)
