@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Failed ssh pushes classify host key and authentication errors"
-bound = false
+bound = true
 +++
 
 Left over from ~NA776V1: list shows cert expiry only for this machine and certs this machine issued. Certs minted by another admin are unknown here; carry expiry in the roster or have members report it. Also: push error classification (host key / auth) on the stdin ssh path is plain stderr text.
