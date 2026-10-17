@@ -669,7 +669,7 @@ mod tests {
         }
     }
 
-    // frob:tests circle::run
+    // frob:tests crates/goway/src/circle.rs::run
     #[test]
     fn two_paste_pairing_joins_a_machine() {
         let p = pair();
