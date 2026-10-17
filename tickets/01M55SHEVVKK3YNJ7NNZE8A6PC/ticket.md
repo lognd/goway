@@ -2,7 +2,8 @@
 id = "01M55SHEVVKK3YNJ7NNZE8A6PC"
 title = "Audit M1: anti-rollback checks head ids only and join replaces the roster"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
