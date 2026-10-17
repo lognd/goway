@@ -7,7 +7,8 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:24:05Z"
-updated = "2026-10-17T08:17:18Z"
+updated = "2026-10-17T08:20:16Z"
+scope = ["crates/goway/tests/common/mod.rs", "crates/goway/tests/local_host.rs", "crates/goway/tests/slot_wait.rs", "crates/goway/tests/weighted_shards.rs"]
 
 [[acceptance]]
 text = "Formerly failing run_local, slot_trees, clock, copy_integrity, cmake_api, weighted_shards, local_host, slot_wait test binaries pass on a host with little free disk"
