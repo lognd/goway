@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T05:31:03Z"
+digest = "4c876d5351c102d595994b1b3f1e18288586e313adeba9f81ff71054b6a17cb8"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2b6c8eb2-c3ff-43f5-bd4f-3c20000079b1 with nextest profile: default
+    Starting 4 tests across 63 binaries (789 tests skipped)
+        PASS [   0.005s] goway error::tests::unreachable_names_every_port_and_isolation_needs_all_of_them_closed
+        PASS [   0.006s] goway resolve::tests::a_closed_recorded_port_falls_back_to_22_and_is_remembered
+        PASS [   0.006s] goway error::tests::hidden_helpers_and_duplicate_names_get_their_own_hint
+        PASS [   0.006s] goway resolve::tests::nothing_answering_names_every_port_tried
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.008s] 4 tests run: 4 passed, 789 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(/falls_back_to_22|names_every_port|unreachable_names_every_port|hidden_helpers/)'"
+size = 875
+status = "measured"
+test_count = 4
+tests_digest = "503c4212da95e0a858e6651bf1b01ef6b45060018efd3129e99567d36627343e"
+at = "2026-10-17T05:31:03Z"
+actor = "lognd"
+rev = 1
