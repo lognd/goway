@@ -144,7 +144,11 @@ fn ed25519_blob(raw: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(51);
     out.extend_from_slice(&11u32.to_be_bytes());
     out.extend_from_slice(b"ssh-ed25519");
-    out.extend_from_slice(&(raw.len() as u32).to_be_bytes());
+    out.extend_from_slice(
+        &u32::try_from(raw.len())
+            .expect("a key blob is far below 4 GiB")
+            .to_be_bytes(),
+    );
     out.extend_from_slice(raw);
     out
 }
@@ -314,15 +318,15 @@ pub fn merge_authorized_keys(existing: &str, state: &State, lines: &[String]) ->
     let mine = format!("{MARKER_PREFIX}{}:", state.circle);
     let mut out: String = existing
         .split_inclusive('\n')
-        .filter(|l| {
-            let stale = l
+        .filter(|line| {
+            let drop_it = line
                 .split_whitespace()
                 .last()
                 .is_some_and(|last| last.starts_with(&mine));
-            if stale {
+            if drop_it {
                 debug!("dropping a stale circle line");
             }
-            !stale
+            !drop_it
         })
         .collect();
     if !out.is_empty() && !out.ends_with('\n') {
@@ -370,7 +374,7 @@ mod tests {
     use crate::state::{Member, Role};
 
     struct Rig {
-        _dir: tempfile::TempDir,
+        dir_guard: tempfile::TempDir,
         admin: crate::keys::KeyPair,
         lead: crate::keys::KeyPair,
         other: crate::keys::KeyPair,
@@ -401,7 +405,7 @@ mod tests {
             .members
             .insert(other.public.clone(), member("box", Role::Helper));
         Rig {
-            _dir: dir,
+            dir_guard: dir,
             admin,
             lead,
             other,
@@ -440,7 +444,7 @@ mod tests {
     fn a_new_lead_needs_no_helper_edit() {
         let mut r = rig();
         let before = authority_lines(&r.state, &Policy::Open);
-        let newcomer = ensure_keypair(&r._dir.path().join("new"), &|_| {})
+        let newcomer = ensure_keypair(&r.dir_guard.path().join("new"), &|_| {})
             .unwrap()
             .0;
         r.state.members.insert(
@@ -510,7 +514,7 @@ mod tests {
             .arg(&r.other.private)
             .args(["-I", "x", "-n", "goway-lead:home:e0", "-V", "-5m:+14d"])
             .arg({
-                let p = r._dir.path().join("subj.pub");
+                let p = r.dir_guard.path().join("subj.pub");
                 std::fs::write(&p, format!("{}\n", r.lead.public)).unwrap();
                 p
             })
@@ -518,7 +522,7 @@ mod tests {
             .unwrap();
         assert!(text.status.success());
         let cert =
-            parse_cert(&std::fs::read_to_string(r._dir.path().join("subj-cert.pub")).unwrap())
+            parse_cert(&std::fs::read_to_string(r.dir_guard.path().join("subj-cert.pub")).unwrap())
                 .unwrap();
         assert_eq!(cert.signer, r.other.public);
         assert_eq!(
@@ -571,7 +575,7 @@ mod tests {
     }
 
     fn put(out: &mut Vec<u8>, bytes: &[u8]) {
-        out.extend_from_slice(&(bytes.len() as u32).to_be_bytes());
+        out.extend_from_slice(&(u32::try_from(bytes.len()).unwrap()).to_be_bytes());
         out.extend_from_slice(bytes);
     }
 

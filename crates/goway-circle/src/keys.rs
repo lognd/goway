@@ -255,18 +255,18 @@ mod tests {
     fn keypair_is_made_once_and_private() {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("circle").join("node_ed25519");
-        let (a, made) = ensure_keypair(&file, &|_| {}).unwrap();
+        let (before, made) = ensure_keypair(&file, &|_| {}).unwrap();
         assert!(made);
-        assert!(valid_public_key(&a.public));
-        let (b, made) = ensure_keypair(&file, &|_| {}).unwrap();
+        assert!(valid_public_key(&before.public));
+        let (after, made) = ensure_keypair(&file, &|_| {}).unwrap();
         assert!(!made);
-        assert_eq!(a.public, b.public);
+        assert_eq!(before.public, after.public);
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt as _;
-            let mode = std::fs::metadata(&file).unwrap().permissions().mode();
+            let perms = std::fs::metadata(&file).unwrap().permissions().mode();
             assert_eq!(
-                mode & 0o077,
+                perms & 0o077,
                 0,
                 "private key must not be group/world readable"
             );

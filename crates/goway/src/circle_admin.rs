@@ -94,7 +94,7 @@ pub enum Proposed {
     NeedsCosign(String),
 }
 
-/// Promote (`kind` AddAdmin) or demote (RemoveAdmin) member `args.name`.
+/// Promote (`kind` `AddAdmin`) or demote (`RemoveAdmin`) member `args.name`.
 pub fn propose(
     paths: &Paths,
     renderer: Renderer,

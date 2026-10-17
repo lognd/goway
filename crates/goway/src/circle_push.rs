@@ -124,6 +124,9 @@ pub struct SshPusher {
 
 impl Pusher for SshPusher {
     fn push(&self, host: &str, offer: &RosterOffer) -> std::result::Result<Option<u64>, String> {
+        use crate::spawn::CommandExt as _;
+        use std::io::Write as _;
+        use std::process::Stdio;
         let remote = offer.remote_command();
         let config =
             crate::config::Config::load(&self.paths.config_file()).map_err(|e| e.to_string())?;
@@ -144,9 +147,6 @@ impl Pusher for SshPusher {
             &crate::remote::Call::new("ping", &[] as &[&str]),
         )
         .map_err(|e| e.to_string())?;
-        use crate::spawn::CommandExt as _;
-        use std::io::Write as _;
-        use std::process::Stdio;
         let mut cmd = crate::ssh::command(
             &found.target,
             &settings,

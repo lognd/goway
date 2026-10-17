@@ -52,6 +52,16 @@ const ALLOW: &[Allow] = &[
         why: "creates a new private key once and never overwrites one; undo would destroy the only copy, so it is not journaled",
     },
     Allow {
+        file: "crates/goway-circle/src/passphrase.rs",
+        labels: &["fs", "ssh-keygen"],
+        why: "writes a throwaway askpass script and re-encrypts a key with ssh-keygen in a private temp dir; changes no machine state",
+    },
+    Allow {
+        file: "crates/goway/src/circle_admin.rs",
+        labels: &["ssh-keygen"],
+        why: "makes a new admin key once and never overwrites one; undo would destroy the only copy, so it is not journaled",
+    },
+    Allow {
         file: "crates/goway-circle/src/sshcert.rs",
         labels: &["fs", "ssh-keygen"],
         why: "mints a certificate with ssh-keygen over files in a private temp dir that is deleted at once; changes no machine state",
