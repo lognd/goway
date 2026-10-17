@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["Formerly failing run_local, slot_trees, clock, copy_integrity, cmake_api, weighted_shards, local_host, slot_wait test binaries pass on a host with little free disk"]
+moved = []
+at = "2026-10-17T08:17:18Z"
+actor = "lognd"
+rev = 1

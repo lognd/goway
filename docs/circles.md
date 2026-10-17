@@ -209,9 +209,10 @@ human to confirm at both ends.
    the same for a WSL helper: after the host install it runs `goway circle
    join <welcome> --fingerprint <fp>` and then `goway circle access` inside
    the distro, so the access lines are installed. A bad paste is rejected
-   before anything changes; a failed join prints the commands to retry. The
-   helper must already have a node key and goway on its PATH inside the
-   distro (native helpers: run `goway circle join` yourself).
+   before anything changes; a failed join prints the commands to retry. With
+   `--native` the same runs the installed `goway.exe` on the laptop itself.
+   Both first run `goway circle card`, which creates the node key when none
+   exists, and print the card. For WSL, goway must be on the distro's PATH.
 
 #### LAN pairing (`pair-host`, `pair-join`)
 

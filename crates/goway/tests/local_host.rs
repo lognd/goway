@@ -16,7 +16,7 @@ fn offline_world(extra: &str) -> common::World {
 
 fn configure(w: common::World, extra: &str) -> common::World {
     let config = format!(
-        "[defaults]\nremote_root = \"{}\"\ntarget_slots = 2\n\n[[host]]\nname = \"alpha\"\naddress = \"127.0.0.1\"\n\n{extra}\n",
+        "[defaults]\nremote_root = \"{}\"\ntarget_slots = 2\nmin_free = \"0\"\n\n[[host]]\nname = \"alpha\"\naddress = \"127.0.0.1\"\n\n{extra}\n",
         w.remote.display()
     );
     std::fs::write(w.config.join("config.toml"), config).unwrap();

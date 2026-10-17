@@ -1155,3 +1155,52 @@ fn a_failed_join_stops_before_access() {
     assert!(sys(&fake).join_circle("gww1.ABC", "SHA256:x").is_err());
     assert_eq!(fake.log.borrow().len(), 1);
 }
+
+// frob:tests crates/goway-setup/src/hostsys.rs::circle_card
+#[test]
+fn the_card_comes_from_goway_circle_card_as_the_user() {
+    let fake = Fake::new(vec![("circle card", 0, "gwc1.ABC\n")]);
+    assert_eq!(sys(&fake).circle_card().unwrap(), "gwc1.ABC");
+    let log = fake.log.borrow();
+    assert!(log[0].args.join(" ").contains("--exec goway circle card"));
+    assert!(!log[0].args.contains(&"root".to_owned()));
+}
+
+// frob:tests crates/goway-setup/src/hostsys.rs::native_circle_card
+#[test]
+fn a_native_card_runs_the_installed_goway_directly() {
+    let fake = Fake::new(vec![("circle card", 0, "gwc1.XYZ\n")]);
+    let exe = Path::new("/bin/goway.exe");
+    assert_eq!(sys(&fake).native_circle_card(exe).unwrap(), "gwc1.XYZ");
+    let log = fake.log.borrow();
+    assert_eq!(log[0].program, exe.display().to_string());
+    assert_eq!(log[0].args, ["circle", "card"]);
+}
+
+// frob:tests crates/goway-setup/src/hostsys.rs::native_join_circle
+#[test]
+fn a_native_join_runs_join_then_access_and_stops_on_failure() {
+    let exe = Path::new("/bin/goway.exe");
+    let fake = Fake::new(vec![
+        ("circle join", 0, "ok\n"),
+        ("circle access", 0, "2 lines\n"),
+    ]);
+    let out = sys(&fake)
+        .native_join_circle(exe, "gww1.ABC", "SHA256:x")
+        .unwrap();
+    assert_eq!(out, "2 lines");
+    let log = fake.log.borrow();
+    assert_eq!(
+        log[0].args,
+        ["circle", "join", "gww1.ABC", "--fingerprint", "SHA256:x"]
+    );
+    assert_eq!(log[1].args, ["circle", "access"]);
+    drop(log);
+    let bad = Fake::new(vec![("circle join", 1, "no\n")]);
+    assert!(
+        sys(&bad)
+            .native_join_circle(exe, "gww1.ABC", "SHA256:x")
+            .is_err()
+    );
+    assert_eq!(bad.log.borrow().len(), 1);
+}

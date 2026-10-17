@@ -1,0 +1,1 @@
+`goway-setup install --host --native --join` now joins a circle on native helpers too, and the installer makes the node key and prints the circle card (`goway circle card`) before joining, for WSL and native helpers.

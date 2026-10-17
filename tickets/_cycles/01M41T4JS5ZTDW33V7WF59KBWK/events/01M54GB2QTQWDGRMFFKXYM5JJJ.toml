@@ -1,0 +1,9 @@
+kind = "cycle"
+op = "over-commit"
+ticket = "01M4GPJFQAPBRSEJJT4F2WWHE0"
+committed = 76
+text = "User approved over-committing the cycle"
+capacity = 17
+at = "2026-10-17T08:41:02Z"
+actor = "lognd"
+rev = 1

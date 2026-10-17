@@ -1,0 +1,29 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T08:42:01Z"
+digest = "0521b6d16d57f4f1808c819fbd55a4268439b52b8102ac3fb2ca961833cc7b3d"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+   Compiling goway-setup v0.2.0 (<worktree>/crates/goway-setup)
+   Compiling goway-circle v0.2.0 (<worktree>/crates/goway-circle)
+   Compiling goway-journal v0.2.0 (<worktree>/crates/goway-journal)
+   Compiling goway v0.2.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 57.16s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d987c0dd-6432-43bd-be3f-96023c4f4134 with nextest profile: default
+    Starting 1 test across 90 binaries (1130 tests skipped)
+        PASS [   0.012s] goway::install_scripts piped_into_dash_it_names_bash_instead_of_a_syntax_error
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.015s] 1 test run: 1 passed, 1130 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "piped_into_dash"
+size = 879
+status = "measured"
+test_count = 1
+tests_digest = "5bf11ea13f1edb3ea57d56b05890a021525d7b1a9ab91da7605913ee922b39dd"
+at = "2026-10-17T08:42:01Z"
+actor = "lognd"
+rev = 1

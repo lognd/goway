@@ -35,7 +35,7 @@ fn shim(w: &common::World, name: &str, body: &str) {
 fn world() -> common::World {
     let w = common::world_with_ssh(FAKE_SSH_PER_HOST);
     let config = format!(
-        "[defaults]\nremote_root = \"{}\"\ntarget_slots = 2\n\n[[host]]\nname = \"big\"\naddress = \"127.0.0.1\"\n\n[[host]]\nname = \"small\"\naddress = \"127.0.0.2\"\n",
+        "[defaults]\nremote_root = \"{}\"\ntarget_slots = 2\nmin_free = \"0\"\n\n[[host]]\nname = \"big\"\naddress = \"127.0.0.1\"\n\n[[host]]\nname = \"small\"\naddress = \"127.0.0.2\"\n",
         w.remote.display()
     );
     std::fs::write(w.config.join("config.toml"), config).unwrap();

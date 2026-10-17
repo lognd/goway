@@ -1,0 +1,43 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T08:46:27Z"
+digest = "6e365d5f5bcd520111eed87dc28a340eda98d58fc5ca841d87e413d4b4ad5043"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 37f459a2-0e65-4b25-906d-b40416ec16e5 with nextest profile: default
+    Starting 20 tests across 65 binaries (824 tests skipped)
+        PASS [   0.019s] goway circle::tests::a_public_only_key_counts_as_set_up
+        PASS [   0.019s] goway circle::tests::machine_name_is_a_valid_label
+        PASS [   0.019s] goway cli::tests::circle_verbs_parse
+        PASS [   0.019s] goway circle::tests::the_stdin_mark_reads_the_roster_from_stdin
+        PASS [   0.006s] goway::circle_revoke_now ago_words
+        PASS [   0.007s] goway::circle_revoke_now issued_expiry_is_remembered_per_member
+        PASS [   0.010s] goway::circle_revoke_now offer_command_reads_the_roster_from_stdin_at_any_size
+        PASS [   0.051s] goway circle::tests::keys_are_private_and_changes_are_journaled
+        PASS [   0.054s] goway circle::tests::init_twice_is_refused
+        PASS [   0.091s] goway circle::tests::admit_with_a_wrong_fingerprint_changes_nothing
+        PASS [   0.137s] goway circle::tests::join_with_a_wrong_admin_fingerprint_stores_nothing
+        PASS [   0.140s] goway circle::tests::a_welcome_for_another_machine_is_refused
+        PASS [   0.159s] goway circle::tests::two_paste_pairing_joins_a_machine
+        PASS [   0.163s] goway circle::tests::admit_refuses_a_machine_that_is_not_an_admin
+        PASS [   0.175s] goway::circle_revoke_now revoke_without_now_contacts_nobody
+        PASS [   0.238s] goway::circle_revoke_now list_shows_the_expiry_of_a_cert_issued_for_another_member
+        PASS [   0.347s] goway circle::tests::revoke_and_roles_change_the_roster
+        PASS [   0.386s] goway::circle_revoke_now an_old_roster_cannot_roll_a_helper_back
+        PASS [   0.429s] goway::circle_revoke_now revoke_now_pushes_to_reachable_helpers_and_records_last_seen
+        PASS [   0.447s] goway::circle_revoke_now pushed_roster_makes_a_stale_helper_adopt_the_revoke
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.475s] 20 tests run: 20 passed, 824 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(circle) | binary(circle_revoke_now)'"
+size = 2216
+status = "measured"
+test_count = 20
+tests_digest = "b37df67af88934a8b733af151f28f7c93c3603510765026e26c4767aea4215a1"
+at = "2026-10-17T08:46:27Z"
+actor = "lognd"
+rev = 1
