@@ -7,12 +7,12 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T00:37:02Z"
-updated = "2026-10-17T10:52:45Z"
+updated = "2026-10-17T10:54:17Z"
 scope = ["crates/goway-setup/src/tune.rs", "crates/goway-setup/tests/cli.rs", "crates/goway/src/doctor/windows.rs"]
 
 [[acceptance]]
 text = "Given a requested WSL memory that leaves Windows less than a documented headroom (at least 3 GB, more on large machines), When goway-setup tune runs, Then it refuses with the machine's RAM, the requested size and the largest safe size, unless --force is given"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given tune with no explicit size and a request to give WSL more memory, When it computes a size, Then the result leaves the documented headroom"
