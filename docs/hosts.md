@@ -28,13 +28,17 @@ stage only runs if every earlier one failed:
 2. **peer hint**: an unsigned address learned when this machine paired over the
    LAN (`goway circle pair-host` / `pair-join`; at most 4 per host in the state
    file). It is only a candidate: the pinned host key is verified like any other.
-3. **configured**: the host's `address`, through the system resolver,
+3. **circle roster**: only for hosts the circle roster supplies (label
+   `circle`, no `address`): the roster's name through the system resolver, then
+   Windows. The host key is still verified against the pinned roster fingerprint.
+   A manual `[[host]]` of the same name never uses this stage.
+4. **configured**: the host's `address`, through the system resolver,
    then Windows. If neither resolves it, ssh is given the name as is.
-4. **dns**: the host name through the system resolver.
-5. **mdns**: `<name>.local` through the system resolver (works where
+5. **dns**: the host name through the system resolver.
+6. **mdns**: `<name>.local` through the system resolver (works where
    the OS resolves mDNS, such as Windows, macOS, or Linux with
    nss-mdns).
-6. **windows-mdns**: `<name>.local` asked of Windows through WSL interop
+7. **windows-mdns**: `<name>.local` asked of Windows through WSL interop
    (`powershell.exe Resolve-DnsName`). A WSL client in NAT mode cannot
    do mDNS itself. This takes about 1 to 4 seconds, which is why it is
    last and why the result is cached. `GOWAY_WINDOWS_LOOKUP=0` turns
