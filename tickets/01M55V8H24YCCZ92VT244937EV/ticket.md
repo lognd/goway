@@ -10,7 +10,7 @@ reporter = "lognd"
 created = "2026-10-17T21:11:07Z"
 updated = "2026-10-17T21:15:22Z"
 idempotency_key = "audit-m5"
-scope = ["crates/goway-circle/src/sshcert.rs", "docs/circles.md"]
+scope = ["crates/goway-circle/src/sshcert.rs", "docs/circles.md", "changelog.d/01M55V8H24YCCZ92VT244937EV.changed.md"]
 
 [[acceptance]]
 text = "Given authority_lines, when written, then each line carries an expiry-time of now plus twice the TTL and docs no longer claim circle-heads or circle-exchange exist"
