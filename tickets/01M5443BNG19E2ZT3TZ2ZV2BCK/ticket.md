@@ -15,11 +15,11 @@ scope = ["crates/goway-circle/**", "docs/circles.md", "docs/model/**", "Cargo.lo
 
 [[acceptance]]
 text = "Every model test has a Rust equivalent"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Convergence and no-unauthorized-op property tests pass"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given the roster rules in docs/model, when the Rust crate folds the same ops, then every model test has a passing Rust equivalent"
