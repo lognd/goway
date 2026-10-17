@@ -19,7 +19,7 @@ bound = true
 
 [[acceptance]]
 text = "Unsafe names and fingerprints cannot enter the roster or authorized_keys"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Oversized ops file is refused unread"
