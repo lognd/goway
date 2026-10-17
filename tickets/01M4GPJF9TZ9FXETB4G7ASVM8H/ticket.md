@@ -2,7 +2,8 @@
 id = "01M4GPJF9TZ9FXETB4G7ASVM8H"
 title = "Peaks are keyed per repository, not per command: a light nextest run on a small helper is judged by heavier cargo dev ci levels until it has its own"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
