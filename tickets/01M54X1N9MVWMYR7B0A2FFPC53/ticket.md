@@ -13,7 +13,7 @@ scope = ["crates/goway/src/circle.rs", "crates/goway-circle/src/**", "docs/circl
 
 [[acceptance]]
 text = "init --passphrase asks twice and refuses a mismatched confirmation, making no keys"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "a matching pair yields encrypted keys that sign only with the passphrase"

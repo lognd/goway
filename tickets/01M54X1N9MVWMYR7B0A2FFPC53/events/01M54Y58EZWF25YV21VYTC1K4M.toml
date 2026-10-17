@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T12:42:31Z"
+digest = "7ac32e827091325cf99b2f4202fc91dd1e19424196528d3867f44597eb8a04ee"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 08bbb887-de83-4112-9e86-a039380e3ad0 with nextest profile: default
+    Starting 1 test across 65 binaries (855 tests skipped)
+        PASS [   0.004s] goway circle::tests::init_passphrase_mismatch_is_refused
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.005s] 1 test run: 1 passed, 855 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E test(init_passphrase_mismatch_is_refused)"
+size = 550
+status = "measured"
+test_count = 1
+tests_digest = "6f00c6ba8a395866ca8829320d2315b32d61d4596bf4355271db27dee784b377"
+at = "2026-10-17T12:42:31Z"
+actor = "lognd"
+rev = 1
