@@ -1,0 +1,49 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T08:20:16Z"
+digest = "e855070394240d7048421b64a6e775daf90c7cf85ccbe3cb9988ce47215143af"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 196fc1ec-3144-444f-bdf6-4ccb9a711894 with nextest profile: default
+    Starting 26 tests across 1 binary (64 binaries skipped)
+        PASS [   1.776s] goway::run_local doctor_reports_every_check_with_status
+        PASS [   3.573s] goway::run_local in_place_writes_by_a_job_never_reach_the_seed
+        PASS [   3.794s] goway::run_local env_values_never_appear_in_ssh_arguments_or_logs
+        PASS [   0.044s] goway::run_local outside_a_git_project_the_error_says_what_to_do
+        PASS [   3.842s] goway::run_local env_files_never_reach_the_remote
+        PASS [   4.225s] goway::run_local a_run_leaves_no_files_outside_its_root_and_no_processes
+        PASS [   4.383s] goway::run_local a_failing_command_is_labelled_failed_in_words
+        PASS [   4.706s] goway::run_local gc_dry_run_filters_by_repo_and_age_and_removes_nothing
+        PASS [   3.348s] goway::run_local local_environment_never_travels_to_the_host
+        PASS [   6.283s] goway::run_local gc_never_removes_unlabelled_entries_or_anything_under_an_unmarked_root
+        PASS [   6.359s] goway::run_local every_run_triggers_automatic_gc_of_expired_entries
+        PASS [   6.485s] goway::run_local exit_code_passes_through_and_work_dir_is_removed
+        PASS [   6.681s] goway::run_local gc_removes_expired_unlocked_entries_and_keeps_locked_or_fresh_ones
+        PASS [   3.223s] goway::run_local plain_status_reads_as_labelled_lines
+        PASS [   3.069s] goway::run_local report_names_host_arch_address_and_exit_code
+        PASS [   3.013s] goway::run_local sccache_listens_on_an_owner_only_socket_not_a_tcp_port
+        PASS [   8.257s] goway::run_local cargo_target_dir_is_a_free_per_repo_slot
+        PASS [   5.627s] goway::run_local piped_output_is_byte_identical_even_with_escape_sequences
+        PASS [   2.914s] goway::run_local status_shows_load_jobs_and_disk_and_marks_unreachable
+        PASS [   3.356s] goway::run_local sccache_socket_path_fits_a_unix_address_under_a_deep_remote_root
+        PASS [   6.074s] goway::run_local low_priority_jobs_run_niced_with_idle_io
+        PASS [   3.197s] goway::run_local signals_map_to_128_plus_n
+        PASS [   5.556s] goway::run_local sccache_server_survives_the_removal_of_the_run_that_started_it
+        PASS [   7.871s] goway::run_local paths_baked_by_a_build_stay_valid_for_later_runs_in_the_slot
+        PASS [   4.969s] goway::run_local user_settings_win_over_goway_defaults
+        PASS [   6.124s] goway::run_local shards_run_on_n_hosts_and_any_failure_fails_the_run
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  12.484s] 26 tests run: 26 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E binary(run_local)"
+size = 2852
+status = "measured"
+test_count = 26
+tests_digest = "06a632dd63e615fbe1ef015f5958b8dcb44e7feeb54ba1417565f2e978ff94f5"
+at = "2026-10-17T08:20:16Z"
+actor = "lognd"
+rev = 1
