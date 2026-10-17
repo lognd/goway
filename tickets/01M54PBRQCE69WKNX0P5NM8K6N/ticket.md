@@ -9,7 +9,7 @@ parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T10:26:16Z"
 updated = "2026-10-17T10:51:12Z"
-scope = ["crates/goway/src/doctor.rs", "crates/goway/tests/evict_live.rs", "crates/goway/tests/footprint.rs"]
+scope = ["crates/goway/src/doctor.rs", "crates/goway/tests/evict_live.rs", "crates/goway/tests/footprint.rs", "crates/goway/tests/journal_invariant.rs"]
 
 [[acceptance]]
 text = "no_production_code_spawns_a_child_outside_the_lock passes"
