@@ -1,0 +1,43 @@
+kind = "evidence"
+captured_at = "2026-10-17T09:15:14Z"
+digest = "33557d10e038f6bdbd4c29414c804a8111e6abe0016480b7e005cea84157226a"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.58s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 52bdf1a2-deed-4235-91c0-c6071eb08743 with nextest profile: default
+    Starting 20 tests across 90 binaries (1117 tests skipped)
+        PASS [   0.008s] goway doctor::windows::tests::a_recorded_nextest_is_undone_by_deleting_the_file_never_cargo_uninstall
+        PASS [   0.008s] goway doctor::windows::tests::a_windows_host_with_everything_is_all_ok
+        PASS [   0.008s] goway doctor::windows::tests::a_wslconfig_memory_that_starves_windows_warns_with_the_safe_size_and_tune_command
+        PASS [   0.009s] goway doctor::windows::tests::a_low_system_drive_is_a_warning
+        PASS [   0.009s] goway doctor::windows::tests::an_unknown_arch_never_reaches_a_command
+        PASS [   0.009s] goway doctor::windows::tests::a_killed_external_probe_is_reported
+        PASS [   0.009s] goway doctor::windows::tests::a_bare_host_gets_every_fix_as_an_exact_powershell_command
+        PASS [   0.009s] goway doctor::windows::tests::no_route_to_administrator_rights_leaves_the_exact_command
+        PASS [   0.011s] goway doctor::windows::tests::a_bare_nextest_file_in_the_cargo_bin_counts_as_present
+        PASS [   0.010s] goway doctor::windows::tests::large_machines_keep_a_quarter_of_their_ram_for_windows
+        PASS [   0.011s] goway doctor::windows::tests::a_non_rust_project_is_not_asked_for_rust
+        PASS [   0.008s] goway doctor::windows::tests::nothing_runs_until_the_whole_plan_is_confirmed
+        PASS [   0.007s] goway doctor::windows::tests::this_machines_uac_prompt_maps_onto_the_elevation_outcomes
+        PASS [   0.007s] goway doctor::windows::tests::windows_undo_keeps_what_may_have_existed_and_the_system_package
+        PASS [   0.007s] goway doctor::windows::tests::the_facts_script_never_runs_rustup_or_vswhere_unbounded
+        PASS [   0.007s] goway doctor::windows::tests::the_plan_puts_the_administrator_step_first_and_lists_every_missing_tool
+        PASS [   0.007s] goway doctor::windows::tests::rustup_without_an_msvc_toolchain_gets_a_toolchain_fix
+        PASS [   0.008s] goway doctor::windows::tests::the_administrator_step_goes_through_the_elevation_and_failures_do_not_stop_the_rest
+        PASS [   0.006s] goway doctor::windows::tests::without_rsudo_the_administrator_step_is_left_for_the_owner_and_the_user_steps_run
+        PASS [   0.020s] goway doctor::windows::tests::doctor_reaches_a_windows_host_through_the_run_transport_and_merges_the_facts
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.021s] 20 tests run: 20 passed, 1117 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "doctor::windows::tests::"
+size = 2794
+status = "measured"
+test_count = 20
+tests_digest = "256807908cd8e7f2893572b9874859509f819fe57ec9ccf8d8ecb8d41222c74e"
+at = "2026-10-17T09:15:14Z"
+actor = "lognd"
+rev = 1
