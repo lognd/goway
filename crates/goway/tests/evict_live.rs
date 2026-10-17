@@ -12,6 +12,9 @@ use std::process::Stdio;
 fn tiny_budget(w: &common::World) {
     let cfg = w.config.join("config.toml");
     let text = std::fs::read_to_string(&cfg).unwrap();
+    // The world's config already sets `min_free`; replace it (a duplicate key is a TOML error).
+    let text = text.replace("min_free = \"0\"\n", "");
+    assert!(!text.contains("min_free"), "unexpected min_free in {text}");
     std::fs::write(
         &cfg,
         text.replace(

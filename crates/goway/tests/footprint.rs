@@ -85,6 +85,8 @@ fn probe(w: &common::World, extra: &[&str]) -> String {
 #[test]
 fn a_run_records_the_peak_footprint_and_the_probe_reports_it() {
     let w = common::world();
+    // Plenty of room is a fact of the test, not of the machine running it (a full /tmp is real).
+    fake_df(&w, 100 * GIB, 200 * GIB);
     let out = goway_run(
         &w,
         &[
@@ -150,6 +152,7 @@ fn a_failure_on_a_nearly_full_disk_is_explained_in_plain_words() {
     assert!(err.contains("--needs disk>="), "{err}");
     // With room, a failure is just the command's own.
     let w2 = common::world();
+    fake_df(&w2, 100 * GIB, 200 * GIB);
     let out = goway_run(&w2, &["run", "--", "sh", "-c", "exit 3"]);
     let err = String::from_utf8_lossy(&out.stderr).into_owned();
     assert!(!err.contains("ran out of disk"), "{err}");

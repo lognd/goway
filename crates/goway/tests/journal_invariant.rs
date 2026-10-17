@@ -48,7 +48,7 @@ const ALLOW: &[Allow] = &[
     },
     Allow {
         file: "crates/goway-circle/src/keys.rs",
-        labels: &["fs", "ssh-keygen"],
+        labels: &["fs", "ssh-keygen", "chmod"],
         why: "creates a new private key once and never overwrites one; undo would destroy the only copy, so it is not journaled",
     },
     Allow {
@@ -155,6 +155,11 @@ const ALLOW: &[Allow] = &[
         why: "local tool install: run only after changelog::record_action (RunFix); the remove-* and winget lines are advice printed for the person",
     },
     Allow {
+        file: "crates/goway/src/circle_push.rs",
+        labels: &["fs"],
+        why: "writes goway's own last-seen run state (a cache of when each helper answered), not machine configuration",
+    },
+    Allow {
         file: "crates/goway/src/doctor.rs",
         labels: &[
             "brew install",
@@ -166,8 +171,9 @@ const ALLOW: &[Allow] = &[
             "optimize-vhd",
             "diskpart",
             "fs",
+            "ssh-keygen",
         ],
-        why: "fix and undo command text: fixes run only through SshFixRunner/HostRunner, which record a RunFix action first (pinned tools and rustup targets run as journaled resources); the rest is advice text; the file call removes the fix journal after its replay",
+        why: "fix and undo command text: fixes run only through SshFixRunner/HostRunner, which record a RunFix action first (pinned tools and rustup targets run as journaled resources); the rest is advice text; the file call removes the fix journal after its replay; ssh-keygen is a read-only `-Y` capability probe and advice text",
     },
     Allow {
         file: "crates/goway/src/doctor/logout.rs",

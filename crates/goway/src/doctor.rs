@@ -1993,7 +1993,7 @@ pub fn clock_sanity_finding(now_secs: u64) -> Option<String> {
 /// Findings about this machine's fitness to sign and verify circle material.
 fn circle_local_findings() -> Vec<String> {
     use std::process::Command;
-    let banner = Command::new("ssh").arg("-V").output().ok().map(|o| {
+    let banner = Command::new("ssh").arg("-V").output_locked().ok().map(|o| {
         // `ssh -V` prints to stderr.
         format!(
             "{}{}",
@@ -2004,7 +2004,7 @@ fn circle_local_findings() -> Vec<String> {
     // A bare `-Y` is "unknown option" before 8.0 and a missing-argument error after.
     let knows_y = Command::new("ssh-keygen")
         .arg("-Y")
-        .output()
+        .output_locked()
         .ok()
         .map(|o| !String::from_utf8_lossy(&o.stderr).contains("unknown option"));
     let mut out: Vec<String> = signing_finding(banner.as_deref(), knows_y)
