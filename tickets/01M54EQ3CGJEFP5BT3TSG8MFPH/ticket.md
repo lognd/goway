@@ -4,10 +4,11 @@ title = "goway-setup --join leftovers: end-to-end native join test and goway.exe
 type = "task"
 category = "todo"
 priority = "medium"
+points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T08:12:39Z"
-updated = "2026-10-17T08:12:39Z"
+updated = "2026-10-17T09:40:55Z"
 scope = ["crates/goway-setup/**"]
 +++
 
