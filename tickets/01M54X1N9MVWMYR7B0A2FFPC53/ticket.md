@@ -8,6 +8,18 @@ points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T12:23:05Z"
-updated = "2026-10-17T12:41:32Z"
+updated = "2026-10-17T12:42:31Z"
 scope = ["crates/goway/src/circle.rs", "crates/goway-circle/src/**", "docs/circles.md"]
+
+[[acceptance]]
+text = "init --passphrase asks twice and refuses a mismatched confirmation, making no keys"
+bound = false
+
+[[acceptance]]
+text = "a matching pair yields encrypted keys that sign only with the passphrase"
+bound = false
+
+[[acceptance]]
+text = "the double-entry check accepts equal entries and rejects differing ones"
+bound = false
 +++
