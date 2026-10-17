@@ -7,8 +7,8 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:34:47Z"
-updated = "2026-10-17T12:03:44Z"
-scope = ["crates/goway-circle/**"]
+updated = "2026-10-17T12:03:53Z"
+scope = ["crates/goway-circle/**", "docs/circles.md"]
 
 [[acceptance]]
 text = "A saved keystore passphrase is returned without prompting"
