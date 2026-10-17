@@ -123,6 +123,9 @@ pub fn run_access(paths: &Paths, renderer: Renderer, args: &CircleAccessArgs) ->
         lines.len(),
         file.display()
     ));
+    if let Some(t) = crate::circle::own_cert_expiry(paths) {
+        renderer.line(format!("{} {t}", crate::circle_push::EXPIRY_MARK));
+    }
     renderer.next(
         "run `goway circle access` again after a revoke so old certificates stop working here",
     );

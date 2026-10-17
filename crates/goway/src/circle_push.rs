@@ -13,6 +13,30 @@ use goway_circle::{Role, State};
 use crate::error::{Error, Result};
 use crate::paths::Paths;
 
+/// Stdout line prefix with which `goway circle access` reports its lead certificate expiry.
+pub const EXPIRY_MARK: &str = "goway-cert-expiry";
+
+/// The expiry reported in a helper's stdout `text` (the last well-formed marker line wins).
+pub fn parse_reported_expiry(text: &str) -> Option<u64> {
+    text.lines()
+        .filter_map(|l| l.strip_prefix(EXPIRY_MARK)?.trim().parse().ok())
+        .next_back()
+}
+
+/// Say why a failed ssh push failed: names a changed host key or a refused login, else the raw stderr.
+pub fn classify_push_error(stderr: &str) -> String {
+    let text = stderr.trim();
+    if text.contains("Host key verification failed")
+        || text.contains("REMOTE HOST IDENTIFICATION HAS CHANGED")
+    {
+        format!("host key mismatch: {text}")
+    } else if text.contains("Permission denied") {
+        format!("authentication refused: {text}")
+    } else {
+        text.to_owned()
+    }
+}
+
 /// The `ops` argument of `goway circle sync` that means "read the roster from stdin".
 pub const STDIN_MARK: &str = "-";
 
@@ -46,8 +70,8 @@ impl RosterOffer {
 
 /// Reaches one helper, hands it the roster and makes it refresh its access lines.
 pub trait Pusher {
-    /// Update `host`; the error text says why it could not be reached or updated.
-    fn push(&self, host: &str, offer: &RosterOffer) -> std::result::Result<(), String>;
+    /// Update `host`; the answer carries the expiry its lead certificate reported (if any), the error says why it failed.
+    fn push(&self, host: &str, offer: &RosterOffer) -> std::result::Result<Option<u64>, String>;
 }
 
 /// Who answered and who did not.
@@ -55,6 +79,8 @@ pub trait Pusher {
 pub struct PushReport {
     /// Helpers that refreshed.
     pub reached: Vec<String>,
+    /// Certificate expiries (unix seconds) the reached helpers reported, by helper name.
+    pub expiries: Vec<(String, u64)>,
     /// Helpers that stay exposed until they hear, with the reason.
     pub unreachable: Vec<(String, String)>,
 }
@@ -74,9 +100,12 @@ pub fn push_all(hosts: &[String], offer: &RosterOffer, pusher: &dyn Pusher) -> P
     let mut report = PushReport::default();
     for host in hosts {
         match pusher.push(host, offer) {
-            Ok(()) => {
-                tracing::info!(host = %host, "helper refreshed its access lines");
+            Ok(expiry) => {
+                tracing::info!(host = %host, cert_expiry = ?expiry, "helper refreshed its access lines");
                 report.reached.push(host.clone());
+                if let Some(t) = expiry {
+                    report.expiries.push((host.clone(), t));
+                }
             }
             Err(why) => {
                 tracing::warn!(host = %host, reason = %why, "helper not reached");
@@ -94,7 +123,7 @@ pub struct SshPusher {
 }
 
 impl Pusher for SshPusher {
-    fn push(&self, host: &str, offer: &RosterOffer) -> std::result::Result<(), String> {
+    fn push(&self, host: &str, offer: &RosterOffer) -> std::result::Result<Option<u64>, String> {
         let remote = offer.remote_command();
         let config =
             crate::config::Config::load(&self.paths.config_file()).map_err(|e| e.to_string())?;
@@ -135,9 +164,9 @@ impl Pusher for SshPusher {
         }
         let out = child.wait_with_output().map_err(|e| e.to_string())?;
         if out.status.success() {
-            Ok(())
+            Ok(parse_reported_expiry(&String::from_utf8_lossy(&out.stdout)))
         } else {
-            Err(String::from_utf8_lossy(&out.stderr).trim().to_owned())
+            Err(classify_push_error(&String::from_utf8_lossy(&out.stderr)))
         }
     }
 }
@@ -197,6 +226,32 @@ pub fn record_expiry(paths: &Paths, id: &str, name: &str, valid_before: u64) -> 
         member = name,
         valid_before,
         "recorded issued cert expiry"
+    );
+    Ok(())
+}
+
+/// Where certificate expiries members reported (not issued here) of circle `id` are kept.
+fn reported_path(paths: &Paths, id: &str) -> PathBuf {
+    paths.state_dir.join(format!("circle-reported-{id}.txt"))
+}
+
+/// Certificate expiry (unix seconds) members reported to this machine, by member name.
+pub fn reported_expiry(paths: &Paths, id: &str) -> BTreeMap<String, u64> {
+    read_pairs(&reported_path(paths, id))
+}
+
+/// Remember the certificate expiries `found` (member, unix seconds) that helpers reported.
+pub fn record_reported(paths: &Paths, id: &str, found: &[(String, u64)]) -> Result<()> {
+    if found.is_empty() {
+        return Ok(());
+    }
+    let mut all = reported_expiry(paths, id);
+    all.extend(found.iter().cloned());
+    write_pairs(&paths.state_dir, &reported_path(paths, id), &all)?;
+    tracing::debug!(
+        circle = id,
+        count = found.len(),
+        "recorded reported cert expiry"
     );
     Ok(())
 }

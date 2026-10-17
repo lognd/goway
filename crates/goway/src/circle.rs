@@ -573,6 +573,7 @@ fn push_epoch(
     let offer = crate::circle_push::RosterOffer::new(store.id(), &text);
     let report = crate::circle_push::push_all(&hosts, &offer, pusher);
     crate::circle_push::record_seen(paths, store.id(), &report.reached, now_secs())?;
+    crate::circle_push::record_reported(paths, store.id(), &report.expiries)?;
     tracing::info!(
         circle = store.id(),
         epoch = state.epoch,
@@ -696,6 +697,7 @@ pub fn list_rows(
     let now = now_secs();
     let own_expiry = own_cert_expiry(paths);
     let issued = crate::circle_push::issued_expiry(paths, store.id());
+    let reported = crate::circle_push::reported_expiry(paths, store.id());
     for (key, m) in &state.members {
         let roles: Vec<&str> = m
             .roles
@@ -720,9 +722,12 @@ pub fn list_rows(
             if own.as_deref() == Some(key.as_str()) {
                 own_expiry.map_or_else(|| "none".to_owned(), |t| format!("unix {t}"))
             } else {
-                issued
-                    .get(&m.name)
-                    .map_or_else(|| "-".to_owned(), |t| format!("unix {t} (issued here)"))
+                match (issued.get(&m.name), reported.get(&m.name)) {
+                    (Some(i), Some(r)) if r > i => format!("unix {r} (reported)"),
+                    (Some(i), _) => format!("unix {i} (issued here)"),
+                    (None, Some(r)) => format!("unix {r} (reported)"),
+                    (None, None) => "-".to_owned(),
+                }
             },
             if own.as_deref() == Some(key.as_str()) {
                 "now".to_owned()
@@ -737,7 +742,7 @@ pub fn list_rows(
 }
 
 /// Expiry (unix seconds) of this machine's lead certificate, if one is written and readable.
-fn own_cert_expiry(paths: &Paths) -> Option<u64> {
+pub(crate) fn own_cert_expiry(paths: &Paths) -> Option<u64> {
     let mut file = node_key_path(paths).into_os_string();
     file.push("-cert.pub");
     let text = std::fs::read_to_string(PathBuf::from(file)).ok()?;

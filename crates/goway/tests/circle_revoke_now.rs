@@ -5,7 +5,10 @@ use std::path::Path;
 
 use goway::access::run_cert;
 use goway::circle::{admit, init, join, list_rows, make_card, revoke_with, set_roles, sync_roster};
-use goway::circle_push::{Pusher, RosterOffer, ago, issued_expiry, record_expiry};
+use goway::circle_push::{
+    Pusher, RosterOffer, ago, classify_push_error, issued_expiry, parse_reported_expiry,
+    record_expiry, reported_expiry,
+};
 use goway::cli::{
     CircleAdmitArgs, CircleCardArgs, CircleCertArgs, CircleInitArgs, CircleJoinArgs,
     CircleRevokeArgs, CircleRolesArgs, CircleSelect, CircleSyncArgs,
@@ -28,16 +31,17 @@ fn paths(dir: &Path) -> Paths {
 /// Answers for the hosts in `up`, refuses the rest, and remembers every call.
 struct Fake {
     up: Vec<&'static str>,
+    expiry: Option<u64>,
     calls: RefCell<Vec<String>>,
     offers: RefCell<Vec<RosterOffer>>,
 }
 
 impl Pusher for Fake {
-    fn push(&self, host: &str, offer: &RosterOffer) -> Result<(), String> {
+    fn push(&self, host: &str, offer: &RosterOffer) -> Result<Option<u64>, String> {
         self.offers.borrow_mut().push(offer.clone());
         self.calls.borrow_mut().push(host.to_owned());
         if self.up.contains(&host) {
-            Ok(())
+            Ok(self.expiry)
         } else {
             Err("no route".to_owned())
         }
@@ -107,6 +111,7 @@ fn revoke_now_pushes_to_reachable_helpers_and_records_last_seen() {
     let founder = circle(tmp.path(), &["a", "b", "c"]);
     let fake = Fake {
         up: vec!["a"],
+        expiry: None,
         calls: RefCell::new(Vec::new()),
         offers: RefCell::new(Vec::new()),
     };
@@ -129,6 +134,7 @@ fn revoke_without_now_contacts_nobody() {
     let founder = circle(tmp.path(), &["a"]);
     let fake = Fake {
         up: vec!["a"],
+        expiry: None,
         calls: RefCell::new(Vec::new()),
         offers: RefCell::new(Vec::new()),
     };
@@ -160,6 +166,7 @@ fn pushed_roster_makes_a_stale_helper_adopt_the_revoke() {
     let founder = circle(tmp.path(), &["c", "a"]);
     let fake = Fake {
         up: vec!["a"],
+        expiry: None,
         calls: RefCell::new(Vec::new()),
         offers: RefCell::new(Vec::new()),
     };
@@ -192,6 +199,7 @@ fn an_old_roster_cannot_roll_a_helper_back() {
     };
     let fake = Fake {
         up: vec!["a"],
+        expiry: None,
         calls: RefCell::new(Vec::new()),
         offers: RefCell::new(Vec::new()),
     };
@@ -258,4 +266,56 @@ fn list_shows_the_expiry_of_a_cert_issued_for_another_member() {
     let rows = list_rows(&founder, quiet(), &CircleSelect { circle: None }).unwrap();
     let row = rows.iter().find(|r| r[0] == "a").unwrap();
     assert!(row[4].starts_with("unix "), "{}", row[4]);
+}
+
+// frob:tests crates/goway/src/circle_push.rs::parse_reported_expiry
+#[test]
+fn reported_expiry_is_read_from_helper_stdout() {
+    assert_eq!(
+        parse_reported_expiry("noise\ngoway-cert-expiry 1234\n"),
+        Some(1234)
+    );
+    assert_eq!(parse_reported_expiry("goway-cert-expiry nope\n"), None);
+    assert_eq!(parse_reported_expiry(""), None);
+}
+
+// frob:tests crates/goway/src/circle_push.rs::classify_push_error
+#[test]
+fn push_errors_name_host_key_and_auth_failures() {
+    assert!(
+        classify_push_error("Host key verification failed.\n").starts_with("host key mismatch")
+    );
+    assert!(
+        classify_push_error("x: Permission denied (publickey).")
+            .starts_with("authentication refused")
+    );
+    assert_eq!(classify_push_error(" no route \n"), "no route");
+}
+
+// frob:tests crates/goway/src/circle.rs::push_epoch
+// frob:tests crates/goway/src/circle.rs::list_rows
+#[test]
+fn expiry_reported_by_a_helper_shows_in_list() {
+    let tmp = tempfile::tempdir().unwrap();
+    let founder = circle(tmp.path(), &["a", "b", "c"]);
+    let fake = Fake {
+        up: vec!["a"],
+        expiry: Some(777),
+        calls: RefCell::new(Vec::new()),
+        offers: RefCell::new(Vec::new()),
+    };
+    revoke_with(&founder, quiet(), &revoke_args("c", true), &fake).unwrap();
+    let id = std::fs::read_dir(founder.config_dir.join("circle/circles"))
+        .unwrap()
+        .flatten()
+        .next()
+        .unwrap()
+        .file_name()
+        .to_string_lossy()
+        .into_owned();
+    assert_eq!(reported_expiry(&founder, &id).get("a"), Some(&777));
+    let rows = list_rows(&founder, quiet(), &CircleSelect { circle: None }).unwrap();
+    let cell = |n: &str| rows.iter().find(|r| r[0] == n).unwrap()[4].clone();
+    assert_eq!(cell("a"), "unix 777 (reported)");
+    assert_eq!(cell("b"), "-");
 }

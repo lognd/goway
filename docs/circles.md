@@ -331,8 +331,13 @@ answers is recorded as last seen. The roster is sent on ssh stdin (`sync` with
 `-` as its operations argument reads stdin), so its size is not limited by the
 command line. `cert`/`renew` record the expiry of every certificate this
 machine issues, so `list` shows it for those members too (marked "issued
-here"); certificates issued by another admin are not known here, and last seen
-comes only from these pushes.
+here"). `goway circle access` also prints a `goway-cert-expiry UNIX` line on
+stdout when the machine has a lead certificate; `revoke --now` reads it from
+each helper's answer and keeps it, so `list` shows certificates issued by
+another admin as "(reported)" (the later of issued and reported wins). Such an
+expiry is known only after a push reached that member. A failed push says
+"host key mismatch" or "authentication refused" when ssh's stderr shows it.
+Last seen comes only from these pushes.
 
 ## 6. Security audit
 
