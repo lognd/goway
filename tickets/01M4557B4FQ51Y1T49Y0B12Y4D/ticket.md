@@ -7,12 +7,12 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T04:30:18Z"
-updated = "2026-10-17T10:52:44Z"
+updated = "2026-10-17T10:53:37Z"
 scope = ["crates/goway/src/remote.rs", "crates/goway/src/remote.sh"]
 
 [[acceptance]]
 text = "Given a helper without the current script version, When a call runs, Then the client installs it once (by stdin, verified by hash) and retries, and later calls send only a short command line"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given the installed script was modified on the helper, When a call runs, Then the hash check refuses it and the client reinstalls"
