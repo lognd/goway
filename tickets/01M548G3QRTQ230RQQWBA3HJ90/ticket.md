@@ -2,7 +2,8 @@
 id = "01M548G3QRTQ230RQQWBA3HJ90"
 title = "doctor: ssh-keygen -Y support and clock-skew checks for circle certs"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 reporter = "lognd"
