@@ -8,11 +8,11 @@ points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T12:00:53Z"
-updated = "2026-10-17T12:22:18Z"
+updated = "2026-10-17T12:22:32Z"
 
 [[acceptance]]
 text = "An encrypted circle key signs only with its passphrase, and a plain key never prompts"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "goway circle init --passphrase creates encrypted keys"
