@@ -443,7 +443,8 @@ pub struct JoinOut {
 
 /// Join a circle from `welcome_text` after the admin fingerprint is confirmed.
 pub fn join(paths: &Paths, renderer: Renderer, args: &CircleJoinArgs) -> Result<JoinOut> {
-    let welcome = Welcome::decode(&args.welcome)?;
+    let text = offered_text(&args.welcome, &mut std::io::stdin().lock())?;
+    let welcome = Welcome::decode(text.trim())?;
     join_welcome(paths, renderer, &welcome, &|admin_fps| {
         confirm(
             renderer,
