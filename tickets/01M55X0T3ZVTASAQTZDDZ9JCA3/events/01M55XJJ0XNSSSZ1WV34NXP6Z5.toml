@@ -1,0 +1,25 @@
+kind = "evidence"
+captured_at = "2026-10-17T21:48:25Z"
+digest = "1efa9498fd28e341c0ca972dce7a4327067ce5e8f05f4952607c1c15f5154ff9"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+   Compiling goway-circle v0.2.0 (<worktree>/crates/goway-circle)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3m 07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 67b7af0d-6555-49cc-96a7-102e044b9a7b with nextest profile: default
+    Starting 1 test across 4 binaries (109 tests skipped)
+        PASS [   0.068s] goway-circle lan::tests::a_welcome_swapped_in_transit_is_refused
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.069s] 1 test run: 1 passed, 109 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E 'test(a_welcome_swapped_in_transit_is_refused)'"
+size = 678
+status = "measured"
+test_count = 1
+tests_digest = "00a04f84d9c5f3f66bb00cb36100c1e0ca84f078b26927fdda01f90adb979db1"
+at = "2026-10-17T21:48:25Z"
+actor = "lognd"
+rev = 1

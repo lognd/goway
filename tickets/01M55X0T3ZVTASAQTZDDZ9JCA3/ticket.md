@@ -7,7 +7,7 @@ priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T21:41:51Z"
-updated = "2026-10-17T21:41:59Z"
+updated = "2026-10-17T21:48:25Z"
 idempotency_key = "audit-l2l3"
 scope = ["crates/goway/src/lanpair.rs", "crates/goway-circle/src/lan.rs"]
 
