@@ -2,13 +2,13 @@
 id = "01M55V8H24YCCZ92VT244937EV"
 title = "Audit M5: cert-authority lines never expire; docs describe nonexistent verbs"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T21:11:07Z"
-updated = "2026-10-17T21:11:07Z"
+updated = "2026-10-17T21:11:11Z"
 idempotency_key = "audit-m5"
 scope = ["crates/goway-circle/src/sshcert.rs"]
 
