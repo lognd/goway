@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T08:42:23Z"
+digest = "d4c1f7ec71bc1c9cae9d47fc2b34cae14a3808af235565dd7ce92a5e4c1f619a"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 35.38s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c7c14852-c26d-4e65-8e10-543ca4f911fd with nextest profile: default
+    Starting 3 tests across 1 binary (443 tests skipped)
+        PASS [   0.030s] goway run::tests::a_lifeline_that_ends_cleanly_with_the_job_is_not_a_break
+        PASS [   0.032s] goway run::tests::a_lifeline_that_ends_while_the_job_still_runs_is_a_break
+        PASS [   0.036s] goway run::tests::a_lifeline_that_is_still_up_is_not_a_break
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.039s] 3 tests run: 3 passed, 443 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --lib -E test(a_lifeline)"
+size = 808
+status = "measured"
+test_count = 3
+tests_digest = "339fc3b455748bbb5d2ffd3ea9b0c4b1b92ae54fb60e3613e447583e5f4cb565"
+at = "2026-10-17T08:42:23Z"
+actor = "lognd"
+rev = 1
