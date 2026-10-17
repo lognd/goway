@@ -48,6 +48,8 @@ pub struct Member {
 pub struct State {
     /// Circle name; empty until a genesis applies.
     pub circle: String,
+    /// Id of the genesis op that founded the circle; empty until a genesis applies.
+    pub genesis: String,
     /// Admin node keys.
     pub admins: BTreeSet<String>,
     /// Current members by node key.
@@ -106,6 +108,7 @@ impl State {
             return false;
         }
         circle.clone_into(&mut self.circle);
+        self.genesis = op.id();
         self.admins.insert(signer.to_owned());
         self.members.insert(
             signer.to_owned(),

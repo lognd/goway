@@ -298,9 +298,34 @@ pub fn mint_lead_cert(
     Ok(text)
 }
 
-/// The marker (trailing comment) of goway's lines for `state`: `goway-circle:<circle>:e<epoch>`.
+/// First characters of the genesis id used in markers to tell same-named circles apart.
+fn short_genesis(state: &State) -> &str {
+    &state.genesis[..state.genesis.len().min(8)]
+}
+
+/// The marker (trailing comment) of goway's lines for `state`:
+/// `goway-circle:<genesis-id>:<circle>:e<epoch>`.
 pub fn line_marker(state: &State) -> String {
-    format!("{MARKER_PREFIX}{}:e{}", state.circle, state.epoch)
+    format!(
+        "{MARKER_PREFIX}{}:{}:e{}",
+        short_genesis(state),
+        state.circle,
+        state.epoch
+    )
+}
+
+/// True when `marker` belongs to `state`'s circle, in the current or the old (no id) form.
+fn marker_is_mine(marker: &str, state: &State) -> bool {
+    let Some(rest) = marker.strip_prefix(MARKER_PREFIX) else {
+        return false;
+    };
+    let parts: Vec<&str> = rest.split(':').collect();
+    match parts.as_slice() {
+        [id, _name, epoch] => *id == short_genesis(state) && epoch.starts_with('e'),
+        // Old form `<circle>:e<epoch>`: only a circle with no recorded id can be told by name.
+        [name, epoch] => *name == state.circle && epoch.starts_with('e'),
+        _ => false,
+    }
 }
 
 /// `YYYYMMDDHHMMZ` (UTC, the `expiry-time` form sshd reads) for Unix time `secs`.
@@ -358,14 +383,13 @@ pub fn authority_lines_at(state: &State, policy: &Policy, now: u64) -> Vec<Strin
 
 /// `existing` with this circle's old goway lines replaced by `lines`; other lines are kept.
 pub fn merge_authorized_keys(existing: &str, state: &State, lines: &[String]) -> String {
-    let mine = format!("{MARKER_PREFIX}{}:", state.circle);
     let mut out: String = existing
         .split_inclusive('\n')
         .filter(|line| {
             let drop_it = line
                 .split_whitespace()
                 .last()
-                .is_some_and(|last| last.starts_with(&mine));
+                .is_some_and(|last| marker_is_mine(last, state));
             if drop_it {
                 debug!("dropping a stale circle line");
             }
@@ -430,6 +454,7 @@ mod tests {
         let (admin, lead, other) = (mk("admin"), mk("lead"), mk("other"));
         let mut state = State {
             circle: "home".to_owned(),
+            genesis: "abcdef0123456789".to_owned(),
             ..State::default()
         };
         state.admins.insert(admin.public.clone());
@@ -735,7 +760,7 @@ mod tests {
         assert!(lines[0].starts_with(
             "cert-authority,principals=\"goway-lead:home:e0\",expiry-time=\"202512051200Z\",no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 "
         ));
-        assert!(lines[0].ends_with(" goway-circle:home:e0"));
+        assert!(lines[0].ends_with(" goway-circle:abcdef01:home:e0"));
         let file = merge_authorized_keys("ssh-ed25519 KEEP me@x\n", &r.state, &lines);
         r.state.epoch = 1;
         let next = authority_lines_at(&r.state, &Policy::Open, T0);
@@ -764,5 +789,23 @@ mod tests {
             Err(SshCertError::PinMismatch { .. })
         ));
         assert!(pin_line("goway-box", "", &fp).is_err());
+    }
+
+    // frob:tests crates/goway-circle/src/sshcert.rs::merge_authorized_keys
+    #[test]
+    fn same_name_circles_do_not_clobber_and_old_markers_are_replaced() {
+        let r = rig();
+        let mut other = r.state.clone();
+        other.genesis = "99999999ffff".to_owned();
+        let theirs = authority_lines_at(&other, &Policy::Open, T0);
+        let file = merge_authorized_keys("", &other, &theirs);
+        let mine = authority_lines_at(&r.state, &Policy::Open, T0);
+        let both = merge_authorized_keys(&file, &r.state, &mine);
+        assert_eq!(both.lines().count(), 2);
+        assert!(both.contains(":99999999:home:e0") && both.contains(":abcdef01:home:e0"));
+        let old = "cert-authority ssh-ed25519 AAAA goway-circle:home:e0\nssh-ed25519 KEEP k\n";
+        let merged = merge_authorized_keys(old, &r.state, &mine);
+        assert!(!merged.contains(" goway-circle:home:e0"));
+        assert!(merged.contains("KEEP"));
     }
 }
