@@ -2,7 +2,8 @@
 id = "01M55X0T6HNRH6D9RJWJEPYXQC"
 title = "Audit L6+L10: admit validation and key dir checks"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 2
 reporter = "lognd"
