@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["Workspace crates and Cargo.lock are at 0.2.0, an added changelog fragment and a README circle section exist"]
+moved = []
+at = "2026-10-17T06:42:40Z"
+actor = "lognd"
+rev = 1
