@@ -7,7 +7,7 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:34:47Z"
-updated = "2026-10-17T11:57:57Z"
+updated = "2026-10-17T12:00:13Z"
 scope = ["crates/goway-circle/**"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "Passphrase values are redacted in Debug and empty passphrases are refused"
-bound = false
+bound = true
 +++
 
 found while working ~MV967CF; deferred hardening, see docs/circles.md section 6
