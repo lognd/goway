@@ -179,6 +179,8 @@ fn resolve_interop(host: &HostConfig, call: &Call) -> Result<Found> {
 pub struct Miss {
     /// The address tried.
     pub address: String,
+    /// The ssh port tried at that address.
+    pub port: u16,
     /// Which stage produced it.
     pub source: Source,
     /// Why it failed.
@@ -198,8 +200,20 @@ impl std::fmt::Display for Miss {
             Failure::ProbableBan => "connection refused after failed logins (probably banned)",
             Failure::Other => "ssh failed",
         };
-        if self.detail.is_empty() || !matches!(self.failure, Failure::Other | Failure::Throttled) {
-            write!(f, "{} ({}): {why}", self.address, self.source)
+        if self.failure == Failure::Unreachable {
+            write!(
+                f,
+                "{} ({}): {why} on port {}",
+                self.address, self.source, self.port
+            )
+        } else if self.detail.is_empty()
+            || !matches!(self.failure, Failure::Other | Failure::Throttled)
+        {
+            write!(
+                f,
+                "{} ({}): {why} (port {})",
+                self.address, self.source, self.port
+            )
         } else {
             write!(f, "{} ({}): {}", self.address, self.source, self.detail)
         }
@@ -289,41 +303,63 @@ pub fn resolve(
             if !tried.insert(address.clone()) {
                 continue;
             }
-            let target = Target {
-                name: host.name.clone(),
-                address: address.clone(),
-                port,
-                user: host.user.clone(),
-                identity: host.identity.as_ref().map(std::path::PathBuf::from),
+            // The cached stage remembers the port that worked; every other
+            // stage starts at the configured port.
+            let first = match source {
+                Source::Cached => state.get(&host.name).map_or(port, |s| s.port),
+                _ => port,
             };
-            match prober.probe(&target, policy, remote) {
-                Ok(output) => {
-                    tracing::info!(host = %host.name, %address, %source, "host found");
-                    state.remember(&host.name, &address, port, crate::state::now_secs());
-                    return Ok(Found {
-                        kind: Kind::of(host),
-                        target,
-                        source,
-                        output,
-                    });
-                }
-                Err((failure, stderr)) => {
-                    tracing::info!(host = %host.name, %address, %source, ?failure, stderr = stderr.trim(), "candidate failed");
-                    let miss = Miss {
-                        address,
-                        source,
-                        failure,
-                        detail: stderr
-                            .lines()
-                            .map(str::trim)
-                            .find(|l| !l.is_empty())
-                            .unwrap_or_default()
-                            .to_owned(),
-                    };
-                    // An unpinned key or refused auth at one address says
-                    // nothing about the next: a LAN host may answer first
-                    // for the name with a key we do not know, so keep going.
-                    misses.push(miss);
+            // A port the config pins (`port = N`, also what `goway host add`
+            // sets while it scans) is the only one tried.
+            let ports = if host.port.is_some() {
+                vec![first]
+            } else {
+                ports_to_try(first)
+            };
+            for try_port in ports {
+                let target = Target {
+                    name: host.name.clone(),
+                    address: address.clone(),
+                    port: try_port,
+                    user: host.user.clone(),
+                    identity: host.identity.as_ref().map(std::path::PathBuf::from),
+                };
+                match prober.probe(&target, policy, remote) {
+                    Ok(output) => {
+                        if try_port != port {
+                            tracing::warn!(host = %host.name, %address, recorded = port, found = try_port, "answered on a different ssh port than the configured one");
+                        }
+                        tracing::info!(host = %host.name, %address, port = try_port, %source, "host found");
+                        state.remember(&host.name, &address, try_port, crate::state::now_secs());
+                        return Ok(Found {
+                            kind: Kind::of(host),
+                            target,
+                            source,
+                            output,
+                        });
+                    }
+                    Err((failure, stderr)) => {
+                        tracing::info!(host = %host.name, %address, port = try_port, %source, ?failure, stderr = stderr.trim(), "candidate failed");
+                        misses.push(Miss {
+                            address: address.clone(),
+                            port: try_port,
+                            source,
+                            failure,
+                            detail: stderr
+                                .lines()
+                                .map(str::trim)
+                                .find(|l| !l.is_empty())
+                                .unwrap_or_default()
+                                .to_owned(),
+                        });
+                        // Only a port nothing answers on is worth a second
+                        // port: any other failure came from a live sshd, and
+                        // an unpinned key or refused auth at one address says
+                        // nothing about the next, so keep going.
+                        if failure != Failure::Unreachable {
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -333,6 +369,18 @@ pub fn resolve(
         misses,
     })
 }
+
+/// The ssh ports tried at one unpinned address, in order: `first`, then the usual
+/// alternatives (Windows OpenSSH on 22, the WSL sshd on 2222), because a
+/// recorded port goes stale when a helper moves between them.
+pub fn ports_to_try(first: u16) -> Vec<u16> {
+    let mut ports = vec![first];
+    ports.extend(FALLBACK_PORTS.into_iter().filter(|p| *p != first));
+    ports
+}
+
+/// The alternative ssh ports probed when the recorded one is closed.
+const FALLBACK_PORTS: [u16; 2] = [22, 2222];
 
 /// Real lookups: the OS resolver, plus Windows through WSL interop.
 #[derive(Debug, Default, Clone, Copy)]
@@ -550,7 +598,10 @@ mod tests {
 
     impl Prober for FakeProber {
         fn probe(&self, target: &Target, _: KeyPolicy, _: &str) -> ProbeResult {
-            self.probed.borrow_mut().push(target.address.clone());
+            // One entry per address: the port fallback re-probes a closed one.
+            if self.probed.borrow().last() != Some(&target.address) {
+                self.probed.borrow_mut().push(target.address.clone());
+            }
             if target.address == self.good {
                 Ok("ok\n".to_owned())
             } else if self.wrong_machine.contains(&target.address) {
@@ -732,6 +783,66 @@ mod tests {
         let text = e.to_string();
         assert!(text.contains("2 different machines"), "{text}");
         assert!(state.get("helios").is_none(), "nothing cached");
+    }
+
+    // frob:ticket 01M544DC66PA51J77JCCSMEP9M
+    // frob:tests crates/goway/src/resolve.rs::resolve
+    #[test]
+    fn a_closed_recorded_port_falls_back_to_22_and_is_remembered() {
+        /// Only port 22 answers.
+        struct Port22;
+        impl Prober for Port22 {
+            fn probe(&self, target: &Target, _: KeyPolicy, _: &str) -> ProbeResult {
+                if target.port == 22 {
+                    Ok("ok\n".to_owned())
+                } else {
+                    Err((Failure::Unreachable, String::new()))
+                }
+            }
+        }
+        let mut state = State::default();
+        state.remember("helios", "192.0.2.7", 2222, 1);
+        let found = resolve(
+            &Config::default(),
+            &host(),
+            &mut state,
+            &FakeLookup::default(),
+            &Port22,
+            KeyPolicy::Strict,
+            "true",
+        )
+        .unwrap();
+        assert_eq!(found.target.port, 22);
+        assert_eq!(state.get("helios").unwrap().port, 22);
+    }
+
+    // frob:ticket 01M544DC66PA51J77JCCSMEP9M
+    // frob:tests crates/goway/src/resolve.rs::resolve
+    #[test]
+    fn nothing_answering_names_every_port_tried() {
+        let mut state = State::default();
+        state.remember("helios", "192.0.2.7", 2222, 1);
+        let prober = FakeProber {
+            good: "none".to_owned(),
+            wrong_machine: Vec::new(),
+            probed: RefCell::new(Vec::new()),
+        };
+        let text = resolve(
+            &Config::default(),
+            &host(),
+            &mut state,
+            &FakeLookup::default(),
+            &prober,
+            KeyPolicy::Strict,
+            "true",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            text.contains("192.0.2.7 (cached): unreachable on port 2222"),
+            "{text}"
+        );
+        assert!(text.contains("unreachable on port 22"), "{text}");
     }
 
     #[test]

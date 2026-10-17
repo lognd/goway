@@ -165,12 +165,30 @@ fn network_hints(misses: &[crate::resolve::Miss]) -> String {
         matches!(m.source, Source::Name | Source::Mdns | Source::WindowsMdns)
     };
     let mut out = String::new();
-    let hidden = misses
-        .iter()
-        .filter(looked_up)
-        .any(|m| m.failure == Failure::Unreachable);
+    // Client isolation only explains an address when every port tried at it
+    // failed to connect; a port that answered with any other failure means
+    // the machine is reachable and something else is wrong.
+    let hidden = misses.iter().filter(looked_up).any(|m| {
+        m.failure == Failure::Unreachable
+            && misses
+                .iter()
+                .filter(|o| o.address == m.address)
+                .all(|o| o.failure == Failure::Unreachable)
+    });
     if hidden {
-        out.push_str("\n  next: the name resolved but nothing answered at that address: this looks like a network that isolates devices from each other (guest Wi-Fi client isolation) or a VPN that routes only some addresses; join a network where devices can see each other, or leave the VPN's full-tunnel mode, or put a reachable address in the config (`address = \"192.0.2.10\"`)");
+        let mut ports: Vec<u16> = misses
+            .iter()
+            .filter(|m| m.failure == Failure::Unreachable)
+            .map(|m| m.port)
+            .collect();
+        ports.sort_unstable();
+        ports.dedup();
+        let ports: Vec<String> = ports.iter().map(u16::to_string).collect();
+        let _ = write!(
+            out,
+            "\n  next: the name resolved but nothing answered on ssh port {} at that address: if ssh listens on another port, set `port = N` for the host in the config; otherwise this looks like a network that isolates devices from each other (guest Wi-Fi client isolation) or a VPN that routes only some addresses; join a network where devices can see each other, or leave the VPN's full-tunnel mode, or put a reachable address in the config (`address = \"192.0.2.10\"`)",
+            ports.join(", ")
+        );
     }
     let mut answering: Vec<&str> = misses
         .iter()
@@ -260,6 +278,7 @@ mod tests {
         use crate::ssh::Failure;
         let miss = |address: &str, source, failure| Miss {
             address: address.to_owned(),
+            port: 2222,
             source,
             failure,
             detail: String::new(),
@@ -275,6 +294,32 @@ mod tests {
         assert!(twins.contains("2 different machines"), "{twins}");
         assert!(twins.contains("never uses an address"), "{twins}");
         assert!(render_misses(&[]).contains("may block name discovery"));
+    }
+
+    // frob:ticket 01M544DC66PA51J77JCCSMEP9M
+    // frob:tests crates/goway/src/error.rs::network_hints
+    #[test]
+    fn unreachable_names_every_port_and_isolation_needs_all_of_them_closed() {
+        use crate::resolve::{Miss, Source};
+        use crate::ssh::Failure;
+        let miss = |port, failure| Miss {
+            address: "192.0.2.5".to_owned(),
+            port,
+            source: Source::Mdns,
+            failure,
+            detail: String::new(),
+        };
+        let all_closed = render_misses(&[
+            miss(2222, Failure::Unreachable),
+            miss(22, Failure::Unreachable),
+        ]);
+        assert!(all_closed.contains("ssh port 22, 2222"), "{all_closed}");
+        assert!(all_closed.contains("isolates devices"), "{all_closed}");
+        let one_answered = render_misses(&[
+            miss(2222, Failure::Unreachable),
+            miss(22, Failure::HostKeyUnknown),
+        ]);
+        assert!(!one_answered.contains("isolates devices"), "{one_answered}");
     }
 
     #[test]

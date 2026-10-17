@@ -49,7 +49,14 @@ name that resolves to an unreachable address (client isolation, a
 partial VPN), no address at all (mDNS blocked), or several machines
 answering for one name. See "A network that hides the helpers" in
 troubleshooting.md.
-The error lists every candidate tried and why it failed, including the
+When the port a host would use (the default 2222, or the one cached
+from the last success) is closed at an address, and the config does not
+pin `port = N`, goway also tries ports 22 and 2222 there, so a helper
+that moved between the WSL sshd and Windows OpenSSH is still found; the
+port that answers is the one cached. The usual host key check applies
+on every port. A host with `port` set in the config is only tried on
+that port.
+The error lists every candidate tried (with the port) and why it failed, including the
 reason a candidate was rejected (for example a hostname that does not
 match).
 

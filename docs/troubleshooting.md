@@ -393,8 +393,11 @@ devices can see each other, or put a reachable address in the config
 (`address = "192.0.2.10"` on the host's entry).
 
 - **Client isolation** (guest Wi-Fi, some hotel and office networks):
-  the name resolves but nothing answers at the address. The error says
-  the network "isolates devices from each other". Another network
+  the name resolves but nothing answers at the address on any ssh port
+  goway tried (the error names them). The error says the network
+  "isolates devices from each other"; it says so only when every port
+  failed to connect. If ssh listens on an unusual port, set `port = N`
+  on the host's entry. Another network
   fixes it; so does a VPN or tunnel that both machines join.
 - **A VPN that routes only some addresses**: the same symptom. Leave
   split-tunnel mode, or add a route for the helper's subnet.

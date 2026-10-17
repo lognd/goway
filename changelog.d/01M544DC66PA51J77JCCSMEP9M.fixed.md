@@ -1,0 +1,1 @@
+A helper whose recorded ssh port is closed (for example a stale 2222 after the machine moved to Windows OpenSSH on 22) is now also tried on ports 22 and 2222, and the "unreachable" error names every port tried and suggests client isolation only when all of them failed to connect.
