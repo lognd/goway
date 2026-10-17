@@ -1707,6 +1707,7 @@ fn collect<'a>(
         let facts = parse_facts(&found.output);
         let mut checks = assess_for(found.kind, &facts, needs);
         checks.extend(clock_check(&facts, found.kind != Kind::Unix));
+        checks.extend(circle_skew_check(&facts));
         // An interop host has no ssh setup to check.
         let ssh_findings = if found.kind.uses_ssh() {
             sshenv::check(&found.target.address, found.target.port)
@@ -1839,6 +1840,9 @@ pub fn doctor(
     for finding in &local_ssh {
         renderer.warn(format_args!("local ssh: {finding}"));
     }
+    for finding in circle_local_findings() {
+        renderer.warn(format_args!("circle: {finding}"));
+    }
     let print = |lines: Vec<String>| {
         for line in lines {
             renderer.line(line);
@@ -1941,6 +1945,92 @@ fn print_versions(renderer: Renderer, all: bool, needs: &projneeds::Needs, reach
     }
 }
 
+/// Oldest OpenSSH whose `ssh-keygen` has `-Y sign/verify` (circle signatures and certs).
+const MIN_SIGNING_OPENSSH: (u32, u32) = (8, 0);
+
+/// Certificates are backdated this many seconds (see `goway-circle` `sshcert`).
+const CERT_BACKDATE_SECS: i64 = 300;
+
+/// Clocks earlier than this (2024-01-01) are certainly unset, so certificates would be dated wrong.
+const CLOCK_FLOOR_SECS: u64 = 1_704_067_200;
+
+/// The `(major, minor)` of an `ssh -V` banner such as `OpenSSH_9.6p1 Ubuntu`.
+pub fn parse_openssh_version(banner: &str) -> Option<(u32, u32)> {
+    let rest = banner.split("OpenSSH_").nth(1)?;
+    let mut parts = rest.split(|c: char| !c.is_ascii_digit());
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next()?.parse().ok()?;
+    Some((major, minor))
+}
+
+/// What is wrong with this machine's ssh-keygen for circle signing, given its `ssh -V`
+/// banner (`None` if it did not run) and whether `ssh-keygen -Y` is recognised.
+pub fn signing_finding(banner: Option<&str>, knows_y: Option<bool>) -> Option<String> {
+    let Some(knows_y) = knows_y else {
+        return Some("ssh-keygen is not installed; circle signing and certificates need OpenSSH 8.0+ (install openssh-client)".to_owned());
+    };
+    let version = banner.and_then(parse_openssh_version);
+    let (major, minor) = MIN_SIGNING_OPENSSH;
+    match version {
+        Some(v) if v < MIN_SIGNING_OPENSSH => Some(format!(
+            "OpenSSH {}.{} is too old for `ssh-keygen -Y` and certificates; upgrade to {major}.{minor} or newer",
+            v.0, v.1
+        )),
+        _ if !knows_y => Some(format!(
+            "ssh-keygen has no `-Y sign/verify`; upgrade OpenSSH to {major}.{minor} or newer"
+        )),
+        _ => None,
+    }
+}
+
+/// A warning when this machine's clock is so early it is certainly unset.
+pub fn clock_sanity_finding(now_secs: u64) -> Option<String> {
+    (now_secs < CLOCK_FLOOR_SECS).then(|| {
+        "this machine's clock is before 2024; circle certificates (14-day TTL) would be dated wrong, set the time".to_owned()
+    })
+}
+
+/// Findings about this machine's fitness to sign and verify circle material.
+fn circle_local_findings() -> Vec<String> {
+    use std::process::Command;
+    let banner = Command::new("ssh").arg("-V").output().ok().map(|o| {
+        // `ssh -V` prints to stderr.
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&o.stdout),
+            String::from_utf8_lossy(&o.stderr)
+        )
+    });
+    // A bare `-Y` is "unknown option" before 8.0 and a missing-argument error after.
+    let knows_y = Command::new("ssh-keygen")
+        .arg("-Y")
+        .output()
+        .ok()
+        .map(|o| !String::from_utf8_lossy(&o.stderr).contains("unknown option"));
+    let mut out: Vec<String> = signing_finding(banner.as_deref(), knows_y)
+        .into_iter()
+        .collect();
+    out.extend(clock_sanity_finding(crate::state::now_secs()));
+    tracing::debug!(findings = out.len(), ?knows_y, "circle local checks");
+    out
+}
+
+/// A warning when a helper's clock is off by more than the certificate backdate.
+fn circle_skew_check(facts: &BTreeMap<String, String>) -> Option<Check> {
+    let ms: i64 = facts.get(crate::facts::clock::FACT)?.parse().ok()?;
+    (ms.abs() > CERT_BACKDATE_SECS * 1000).then(|| Check {
+        name: "circle clock".to_owned(),
+        explain: None,
+        level: Level::Warn,
+        detail: format!(
+            "clock is {} s off this machine, beyond the {} s certificate backdate; circle certs may be rejected as not yet valid or expired",
+            ms / 1000,
+            CERT_BACKDATE_SECS
+        ),
+        fix: None,
+    })
+}
+
 /// 1 when a host is unreachable or has a failing check, else 0.
 fn exit_code(reports: &[output::HostReport]) -> u8 {
     let bad = reports.iter().any(|r| match &r.outcome {
@@ -1953,6 +2043,51 @@ fn exit_code(reports: &[output::HostReport]) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // frob:tests crates/goway/src/doctor.rs::parse_openssh_version
+    #[test]
+    fn doctor_parses_openssh_banner() {
+        assert_eq!(
+            parse_openssh_version("OpenSSH_9.6p1 Ubuntu, OpenSSL"),
+            Some((9, 6))
+        );
+        assert_eq!(parse_openssh_version("OpenSSH_7.4p1"), Some((7, 4)));
+        assert_eq!(parse_openssh_version("dropbear"), None);
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::signing_finding
+    #[test]
+    fn doctor_flags_old_or_missing_ssh_keygen() {
+        assert!(signing_finding(Some("OpenSSH_9.6p1"), Some(true)).is_none());
+        assert!(
+            signing_finding(Some("OpenSSH_7.9p1"), Some(true))
+                .unwrap()
+                .contains("too old")
+        );
+        assert!(signing_finding(None, Some(false)).unwrap().contains("-Y"));
+        assert!(
+            signing_finding(None, None)
+                .unwrap()
+                .contains("not installed")
+        );
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::clock_sanity_finding
+    #[test]
+    fn doctor_flags_unset_local_clock() {
+        assert!(clock_sanity_finding(0).is_some());
+        assert!(clock_sanity_finding(1_800_000_000).is_none());
+    }
+
+    // frob:tests crates/goway/src/doctor.rs::circle_skew_check
+    #[test]
+    fn doctor_warns_when_helper_skew_exceeds_backdate() {
+        let mut facts = BTreeMap::new();
+        facts.insert(crate::facts::clock::FACT.to_owned(), "400000".to_owned());
+        assert!(circle_skew_check(&facts).is_some());
+        facts.insert(crate::facts::clock::FACT.to_owned(), "-3000".to_owned());
+        assert!(circle_skew_check(&facts).is_none());
+    }
     /// A fix runner pointed at a host that cannot be reached, recording into `dir`.
     fn recording_runner<'a>(
         found: &'a Found,

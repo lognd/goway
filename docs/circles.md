@@ -166,8 +166,9 @@ Implemented (phase 3, `goway-circle/src/sshcert.rs`, `goway/src/access.rs`):
 - Roster helpers (other members) are merged into the host config as hosts
   labelled `circle`; a manual `[[host]]` of the same name wins.
 
-Not yet: doctor checks for `ssh-keygen -Y` and clock skew, and a roster
-stage in host resolution.
+`goway doctor` checks local `ssh-keygen -Y` support (OpenSSH 8.0+), a sane
+local clock, and warns when a helper's clock is off by more than the 5
+minute certificate backdate. Not yet: a roster stage in host resolution.
 
 ### 4.4 Pairing (no listener, no TOFU)
 
