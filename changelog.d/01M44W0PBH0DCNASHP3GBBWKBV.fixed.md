@@ -1,0 +1,1 @@
+A short run on a Windows helper no longer ends with a warning that the lifeline broke: the lifeline closing together with a finished job is normal, and the warning is printed only when the lifeline ended while the job was still running.
