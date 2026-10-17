@@ -1,0 +1,44 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T09:15:44Z"
+digest = "e472f440d9a669fd3c2be3c6544e5f24760ec4ec94e467c3ed2a658d5143a3e3"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.53s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e3b93ed1-48b1-4a7c-b102-ceadc2d479c3 with nextest profile: default
+    Starting 20 tests across 1 binary (427 tests skipped)
+        PASS [   0.008s] goway doctor::windows::tests::a_low_system_drive_is_a_warning
+        PASS [   0.008s] goway doctor::windows::tests::a_bare_nextest_file_in_the_cargo_bin_counts_as_present
+        PASS [   0.010s] goway doctor::windows::tests::a_bare_host_gets_every_fix_as_an_exact_powershell_command
+        PASS [   0.011s] goway doctor::windows::tests::a_recorded_nextest_is_undone_by_deleting_the_file_never_cargo_uninstall
+        PASS [   0.011s] goway doctor::windows::tests::no_route_to_administrator_rights_leaves_the_exact_command
+        PASS [   0.011s] goway doctor::windows::tests::a_non_rust_project_is_not_asked_for_rust
+        PASS [   0.011s] goway doctor::windows::tests::large_machines_keep_a_quarter_of_their_ram_for_windows
+        PASS [   0.011s] goway doctor::windows::tests::a_killed_external_probe_is_reported
+        PASS [   0.011s] goway doctor::windows::tests::a_windows_host_with_everything_is_all_ok
+        PASS [   0.011s] goway doctor::windows::tests::a_wslconfig_memory_that_starves_windows_warns_with_the_safe_size_and_tune_command
+        PASS [   0.014s] goway doctor::windows::tests::an_unknown_arch_never_reaches_a_command
+        PASS [   0.007s] goway doctor::windows::tests::rustup_without_an_msvc_toolchain_gets_a_toolchain_fix
+        PASS [   0.007s] goway doctor::windows::tests::the_administrator_step_goes_through_the_elevation_and_failures_do_not_stop_the_rest
+        PASS [   0.014s] goway doctor::windows::tests::nothing_runs_until_the_whole_plan_is_confirmed
+        PASS [   0.008s] goway doctor::windows::tests::this_machines_uac_prompt_maps_onto_the_elevation_outcomes
+        PASS [   0.008s] goway doctor::windows::tests::without_rsudo_the_administrator_step_is_left_for_the_owner_and_the_user_steps_run
+        PASS [   0.009s] goway doctor::windows::tests::windows_undo_keeps_what_may_have_existed_and_the_system_package
+        PASS [   0.009s] goway doctor::windows::tests::the_plan_puts_the_administrator_step_first_and_lists_every_missing_tool
+        PASS [   0.010s] goway doctor::windows::tests::the_facts_script_never_runs_rustup_or_vswhere_unbounded
+        PASS [   0.023s] goway doctor::windows::tests::doctor_reaches_a_windows_host_through_the_run_transport_and_merges_the_facts
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.024s] 20 tests run: 20 passed, 427 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --lib -E test(doctor::windows::tests::)"
+size = 2788
+status = "measured"
+test_count = 20
+tests_digest = "0a8e486d3d02601b4c1684e87145feb43ed0fb0cd14eb216323d1f4dc92446d7"
+at = "2026-10-17T09:15:44Z"
+actor = "lognd"
+rev = 1
