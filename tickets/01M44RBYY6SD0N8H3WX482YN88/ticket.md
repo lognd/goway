@@ -7,12 +7,12 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T00:45:38Z"
-updated = "2026-10-17T09:10:59Z"
+updated = "2026-10-17T09:15:16Z"
 scope = ["crates/goway/src/changelog.rs"]
 
 [[acceptance]]
 text = "Given a journaled pinned-tool install, When goway changes lists it, Then the row names the tool, version and host in one line, shows a local time, and marks it undoable"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway changes undo on that row, When it runs, Then the tool tree and its links are removed through the fix journal"
