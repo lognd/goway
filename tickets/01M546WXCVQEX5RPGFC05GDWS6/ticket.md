@@ -4,10 +4,11 @@ title = "goway-setup install --host --join <welcome>: join a circle from the hel
 type = "task"
 category = "todo"
 priority = "medium"
+points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:56:01Z"
-updated = "2026-10-17T05:56:01Z"
+updated = "2026-10-17T07:40:58Z"
 labels = ["circles"]
 +++
 
