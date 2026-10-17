@@ -4,9 +4,10 @@ title = "Built-in passphrase prompt and encrypted node key (ssh-keygen prompt wo
 type = "task"
 category = "todo"
 priority = "medium"
+points = 3
 reporter = "lognd"
 created = "2026-10-17T06:34:47Z"
-updated = "2026-10-17T06:34:47Z"
+updated = "2026-10-17T11:40:59Z"
 scope = ["crates/goway-circle/**"]
 +++
 

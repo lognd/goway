@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T11:44:59Z"
+digest = "920302a013261bbb93a7fa6f5987c92a5915d3a1693fe33611ecfbd55f397a1a"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 0956dc1b-1ac9-4dae-b59a-4284fe9904fb with nextest profile: default
+    Starting 1 test across 1 binary (450 tests skipped)
+        PASS [   0.174s] goway lanpair::tests::the_right_code_and_an_approving_admin_admit_the_machine_over_loopback
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.175s] 1 test run: 1 passed, 450 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --lib -E test(the_right_code_and_an_approving_admin_admit_the_machine_over_loopback)"
+size = 582
+status = "measured"
+test_count = 1
+tests_digest = "ffb5844fc21f26ca1b1e00e1e341367cfafc7dd7ff8dd15a65d74daa557e51bf"
+at = "2026-10-17T11:44:59Z"
+actor = "lognd"
+rev = 1
