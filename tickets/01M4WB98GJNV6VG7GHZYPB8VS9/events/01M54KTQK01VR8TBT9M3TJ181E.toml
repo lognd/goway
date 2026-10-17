@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T09:41:48Z"
+digest = "6fd7e9a479ceb612e53b75923c670db9413e3f1bdddf93b5c0e32938aa7712aa"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.18s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 86ef05aa-7179-4b1a-8f3b-94ea2c4e3b54 with nextest profile: default
+    Starting 1 test across 1 binary (447 tests skipped)
+        PASS [   0.005s] goway sshenv::tests::a_hosts_configured_identity_counts_as_a_key
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 447 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --lib -E test(a_hosts_configured_identity_counts_as_a_key)"
+size = 610
+status = "measured"
+test_count = 1
+tests_digest = "69ac2b0e5cade20660633d9ab6f9b1893fff87849e975466de07f0c6242fd17a"
+at = "2026-10-17T09:41:48Z"
+actor = "lognd"
+rev = 1
