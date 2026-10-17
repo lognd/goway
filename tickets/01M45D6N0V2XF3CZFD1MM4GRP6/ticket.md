@@ -2,7 +2,8 @@
 id = "01M45D6N0V2XF3CZFD1MM4GRP6"
 title = "goway uninstall deletes the journals of changes on helpers without undoing them"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 reporter = "lognd"
