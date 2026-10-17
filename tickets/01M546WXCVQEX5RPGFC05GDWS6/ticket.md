@@ -8,7 +8,7 @@ points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:56:01Z"
-updated = "2026-10-17T07:45:10Z"
+updated = "2026-10-17T07:43:03Z"
 labels = ["circles", "creates:changelog.d/01M54C1N7Q3XK8D2V5R9T4WS6B.added.md"]
 scope = ["crates/goway-setup/**", "docs/circles.md", "docs/install-windows.md", "changelog.d/01M54C1N7Q3XK8D2V5R9T4WS6B.added.md"]
 
