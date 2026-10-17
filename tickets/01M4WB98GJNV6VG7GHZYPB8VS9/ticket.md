@@ -7,7 +7,7 @@ priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-14T04:38:44Z"
-updated = "2026-10-17T09:42:04Z"
+updated = "2026-10-17T09:42:25Z"
 scope = ["crates/goway/src/sshenv.rs"]
 
 [[acceptance]]
