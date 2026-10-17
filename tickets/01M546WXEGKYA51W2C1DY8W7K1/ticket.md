@@ -2,7 +2,7 @@
 id = "01M546WXEGKYA51W2C1DY8W7K1"
 title = "goway circle admin add|remove, renew and policy open|listed"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
