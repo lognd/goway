@@ -1,0 +1,67 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T20:16:49Z"
+digest = "d6d6eea12f3e385a1178516f9c080a3fc8c1a5fc532889681022af748af7c001"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 22.90s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID c8ceaf4e-bd4b-4056-ae73-d37a771c9c1a with nextest profile: default
+    Starting 43 tests across 90 binaries (1122 tests skipped)
+        PASS [   0.014s] goway lanpair::tests::detect_lan_ip_accepts_lan_and_rejects_loopback_or_failure
+        PASS [   0.014s] goway sshsetup::tests::a_native_windows_host_gets_one_goway_setup_command_with_the_key_only
+        PASS [   0.015s] goway error::tests::every_goway_error_exits_125
+        PASS [   0.014s] goway doctor::projneeds::tests::goway_toml_toolchain_takes_precedence_and_is_validated
+        PASS [   0.015s] goway sshsetup::tests::goways_own_key_is_preferred_and_becomes_the_identity
+        PASS [   0.015s] goway render::tests::host_text_cannot_forge_a_goway_line
+        PASS [   0.015s] goway interop::tests::paths_outside_goways_root_are_refused
+        PASS [   0.015s] goway doctor::projneeds::tests::rust_toolchain_targets_and_goway_toml_targets_both_count_and_hostile_names_are_refused
+        PASS [   0.006s] goway::publishing ci_builds_a_wheel_and_runs_goway_version_from_a_venv
+        PASS [   0.015s] goway::publishing only_goway_and_goway_journal_are_published
+        PASS [   0.009s] goway::publishing releases_trigger_on_goway_v_tags_and_check_the_tag_against_the_cargo_version
+        PASS [   0.006s] goway::remote_ps1 probe_reports_the_facts_goway_schedules_with
+        PASS [   0.037s] goway::doctor_project a_hostile_package_name_in_goway_toml_is_a_config_error_not_a_command
+        PASS [   0.041s] goway::doctor_project a_bad_tool_name_in_goway_toml_is_a_config_error_not_a_command
+        PASS [   0.044s] goway::changes_cmd cli::goway_changes_lists_and_undoes
+        PASS [   0.014s] goway::remote_ps1 ping_answers_and_an_unknown_verb_is_a_goway_failure
+        PASS [   0.054s] goway::contract goway_failure_exits_125_with_rendered_error
+        PASS [   0.020s] goway::winadmin_setup a_goway_setup_planted_in_the_path_never_runs
+        PASS [   0.011s] goway-journal::scenarios ensure_line_removes_a_file_goway_created
+        PASS [   0.075s] goway::project_rules a_goway_toml_with_hosts_or_unknown_keys_is_refused_with_file_and_line
+        PASS [   0.008s] goway-journal::scenarios list_entry_unsets_a_variable_goway_created
+        PASS [   0.011s] goway-journal::scenarios registry_key_is_removed_only_when_goway_created_it_and_it_is_empty
+        PASS [   0.008s] goway-setup::elevated the_admin_dir_acl_check_accepts_what_goway_creates
+        PASS [   0.020s] goway-journal::scenarios resource_is_deleted_only_if_goway_created_it
+        PASS [   0.008s] goway-setup::helper windows_device_names_become_names_goway_accepts
+        PASS [   0.019s] goway-setup::hostsys a_native_card_runs_the_installed_goway_directly
+        PASS [   0.017s] goway-setup::hostsys an_unconvertible_goway_path_is_an_error
+        PASS [   0.012s] goway-setup::hostsys goway_is_planned_into_the_distro_as_journaled_changes_only_when_missing
+        PASS [   0.016s] goway-setup::hostsys goway_jobs_are_counted_in_a_running_distro_and_a_stopped_one_has_none
+        PASS [   0.008s] goway-setup::hostsys the_card_comes_from_goway_circle_card_as_the_user
+        PASS [   0.020s] goway-setup::hostsys native_end_to_end::a_native_join_runs_a_real_goway_for_card_join_and_access
+        PASS [   0.009s] goway-setup::relay only_a_rule_shaped_like_the_relay_is_reported_and_removed_as_goways
+        PASS [   0.017s] goway-setup::native the_hand_over_block_names_the_helper_its_fingerprint_and_the_goway_add_line
+        PASS [   1.947s] goway::doctor_project goway_toml_toolchain_is_checked_and_a_missing_tool_fails_the_run
+        PASS [   1.976s] goway::doctor_project goway_toml_packages_and_targets_are_probed_and_missing_ones_fail
+        PASS [   3.760s] goway::shard_detect goway_runner_overrides_detection
+        PASS [   4.502s] goway::footprint a_tight_disk_makes_the_probe_report_what_goway_holds
+        PASS [   4.915s] goway::run_local user_settings_win_over_goway_defaults
+        PASS [   5.364s] goway::shard_detect catch2_v2_and_partial_marker_binaries_fall_back_to_goway_shard
+        PASS [   5.622s] goway::ssh_setup uninstall_everywhere_removes_goway_from_helper_and_laptop
+        PASS [   9.748s] goway::nesting recursive_goway_stops_at_the_depth_limit
+        PASS [   9.994s] goway::install_scripts goway_uninstall_reverts_the_install_journal_exactly
+        PASS [  15.078s] goway::shard_detect scripts_and_goways_own_binary_are_never_detected
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  15.124s] 43 tests run: 43 passed, 1122 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "goway lanpair::tests::detect_lan_ip_accepts_lan_and_rejects_loopback_or_failure"
+size = 4844
+status = "measured"
+test_count = 43
+tests_digest = "245263c10fb1fb4458f42a031dbbba91b762d64071a9813c257fe6ecabe86604"
+at = "2026-10-17T20:16:49Z"
+actor = "lognd"
+rev = 1

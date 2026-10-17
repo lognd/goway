@@ -1,0 +1,126 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T20:18:09Z"
+digest = "69b132d5b882506805169ea91e463409c8449a64985ed50eb914ec360179aa15"
+exit_code = 100
+failed_tests = ["scripts_and_goways_own_binary_are_never_detected", "catch2_v2_and_partial_marker_binaries_fall_back_to_goway_shard"]
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 54s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 7bbbaa8f-7b93-4eab-818f-44b99c5982eb with nextest profile: default
+    Starting 42 tests across 90 binaries (1125 tests skipped)
+        PASS [   0.017s] goway error::tests::every_goway_error_exits_125
+        PASS [   0.017s] goway sshsetup::tests::a_native_windows_host_gets_one_goway_setup_command_with_the_key_only
+        PASS [   0.016s] goway render::tests::host_text_cannot_forge_a_goway_line
+        PASS [   0.017s] goway sshsetup::tests::goways_own_key_is_preferred_and_becomes_the_identity
+        PASS [   0.023s] goway doctor::projneeds::tests::rust_toolchain_targets_and_goway_toml_targets_both_count_and_hostile_names_are_refused
+        PASS [   0.025s] goway interop::tests::paths_outside_goways_root_are_refused
+        PASS [   0.027s] goway doctor::projneeds::tests::goway_toml_toolchain_takes_precedence_and_is_validated
+        PASS [   0.010s] goway::publishing ci_builds_a_wheel_and_runs_goway_version_from_a_venv
+        PASS [   0.041s] goway::doctor_project a_hostile_package_name_in_goway_toml_is_a_config_error_not_a_command
+        PASS [   0.018s] goway::publishing only_goway_and_goway_journal_are_published
+        PASS [   0.011s] goway::remote_ps1 probe_reports_the_facts_goway_schedules_with
+        PASS [   0.057s] goway::contract goway_failure_exits_125_with_rendered_error
+        PASS [   0.021s] goway::publishing releases_trigger_on_goway_v_tags_and_check_the_tag_against_the_cargo_version
+        PASS [   0.023s] goway::remote_ps1 ping_answers_and_an_unknown_verb_is_a_goway_failure
+        PASS [   0.069s] goway::doctor_project a_bad_tool_name_in_goway_toml_is_a_config_error_not_a_command
+        PASS [   0.080s] goway::changes_cmd cli::goway_changes_lists_and_undoes
+        PASS [   0.007s] goway::winadmin_setup a_goway_setup_planted_in_the_path_never_runs
+        PASS [   0.008s] goway-journal::scenarios ensure_line_removes_a_file_goway_created
+        PASS [   0.018s] goway-journal::scenarios list_entry_unsets_a_variable_goway_created
+        PASS [   0.091s] goway::project_rules a_goway_toml_with_hosts_or_unknown_keys_is_refused_with_file_and_line
+        PASS [   0.009s] goway-journal::scenarios registry_key_is_removed_only_when_goway_created_it_and_it_is_empty
+        PASS [   0.011s] goway-journal::scenarios resource_is_deleted_only_if_goway_created_it
+        PASS [   0.007s] goway-setup::elevated the_admin_dir_acl_check_accepts_what_goway_creates
+        PASS [   0.022s] goway-setup::helper windows_device_names_become_names_goway_accepts
+        PASS [   0.018s] goway-setup::hostsys a_native_card_runs_the_installed_goway_directly
+        PASS [   0.008s] goway-setup::hostsys an_unconvertible_goway_path_is_an_error
+        PASS [   0.010s] goway-setup::hostsys goway_jobs_are_counted_in_a_running_distro_and_a_stopped_one_has_none
+        PASS [   0.021s] goway-setup::hostsys goway_is_planned_into_the_distro_as_journaled_changes_only_when_missing
+        PASS [   0.020s] goway-setup::hostsys native_end_to_end::a_native_join_runs_a_real_goway_for_card_join_and_access
+        PASS [   0.019s] goway-setup::hostsys the_card_comes_from_goway_circle_card_as_the_user
+        PASS [   0.016s] goway-setup::native the_hand_over_block_names_the_helper_its_fingerprint_and_the_goway_add_line
+        PASS [   0.022s] goway-setup::relay only_a_rule_shaped_like_the_relay_is_reported_and_removed_as_goways
+        PASS [   2.005s] goway::doctor_project goway_toml_packages_and_targets_are_probed_and_missing_ones_fail
+        PASS [   2.057s] goway::doctor_project goway_toml_toolchain_is_checked_and_a_missing_tool_fails_the_run
+        PASS [   3.899s] goway::shard_detect goway_runner_overrides_detection
+        PASS [   4.772s] goway::footprint a_tight_disk_makes_the_probe_report_what_goway_holds
+        PASS [   4.874s] goway::run_local user_settings_win_over_goway_defaults
+        FAIL [   5.165s] goway::shard_detect scripts_and_goways_own_binary_are_never_detected
+  output \u{2500}\u{2500}\u{2500}
+
+    running 1 test
+
+    thread 'scripts_and_goways_own_binary_are_never_detected' (4054165) panicked at crates/goway/tests/shard_detect.rs:227:5:
+    assertion `left == right` failed: goway: note: each helper checks whether ./build/goway-copy is a GoogleTest or Catch2 v3 binary (reading it, never running it)
+    goway: info: sharding ./build/goway-copy --version across 2 hosts: alpha, beta
+    [alpha] cp: error copying 'build/goway-copy' to '/tmp/.tmp9mFGV6/goway-remote/cache/8b89aad81702572b/tree-1/build/goway-copy': No space left on device
+    [alpha] goway-remote: failed at line 476
+    [alpha] goway-remote: failed at line 477
+    [beta ] sort: write failed: 'standard output': No space left on device
+    [beta ] goway-remote: failed at line 398
+    goway: failed: shard 1/2 on alpha (linux): exit 125 in 0.9s
+    goway: failed: shard 2/2 on beta (linux): exit 125 in 1.0s
+    goway: note: all shards done in 1.3s: exit 125
+
+      left: ["absent", "absent"]
+     right: ["none", "none"]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+    test scripts_and_goways_own_binary_are_never_detected ... FAILED
+
+    failures:
+
+    failures:
+        scripts_and_goways_own_binary_are_never_detected
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 5.16s
+
+
+  Cancelling due to test failure: 4 tests still running
+        FAIL [   5.271s] goway::shard_detect catch2_v2_and_partial_marker_binaries_fall_back_to_goway_shard
+  output \u{2500}\u{2500}\u{2500}
+
+    running 1 test
+
+    thread 'catch2_v2_and_partial_marker_binaries_fall_back_to_goway_shard' (4054159) panicked at crates/goway/tests/shard_detect.rs:201:9:
+    assertion `left == right` failed: ./build/partial: goway: note: each helper checks whether ./build/partial is a GoogleTest or Catch2 v3 binary (reading it, never running it)
+    goway: info: sharding ./build/partial across 2 hosts: alpha, beta
+    [beta ] sort: write failed: 'standard output': No space left on device
+    [beta ] goway-remote: failed at line 538
+    goway: done: shard 1/2 on alpha (linux): exit 0 in 1.2s
+    goway: failed: shard 2/2 on beta (linux): exit 125 in 1.0s
+    goway: note: all shards done in 1.5s: exit 125
+
+      left: Some(125)
+     right: Some(0)
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+    test catch2_v2_and_partial_marker_binaries_fall_back_to_goway_shard ... FAILED
+
+    failures:
+
+    failures:
+        catch2_v2_and_partial_marker_binaries_fall_back_to_goway_shard
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 5.26s
+
+
+        PASS [   5.364s] goway::ssh_setup uninstall_everywhere_removes_goway_from_helper_and_laptop
+        PASS [   8.845s] goway::install_scripts goway_uninstall_reverts_the_install_journal_exactly
+        PASS [  10.109s] goway::nesting recursive_goway_stops_at_the_depth_limit
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  10.129s] 42 tests run: 40 passed, 2 failed, 1125 skipped
+        FAIL [   5.271s] goway::shard_detect catch2_v2_and_partial_marker_binaries_fall_back_to_goway_shard
+        FAIL [   5.165s] goway::shard_detect scripts_and_goways_own_binary_are_never_detected
+error: test run failed
+'''
+passed = false
+provider = "nextest"
+ref = "goway error::tests::missing_ssh_gets_the_windows_hint_only_on_windows"
+size = 7558
+status = "measured"
+test_count = 42
+tests_digest = "c45f2324c7958ee792865d0a0bdef419820734e45926b0449f8072513de793ce"
+at = "2026-10-17T20:18:09Z"
+actor = "lognd"
+rev = 1
