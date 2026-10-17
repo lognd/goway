@@ -2,12 +2,12 @@
 id = "01M45D1XYFTD3NAV2BJZ31VW6Y"
 title = "install.sh piped into sh (dash) fails with a cryptic 'set: Illegal option -o pipefail'"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "low"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T06:47:09Z"
-updated = "2026-10-05T06:47:09Z"
+updated = "2026-10-17T08:40:58Z"
 scope = ["scripts/install.sh", "crates/goway/tests/install_scripts.rs"]
 
 [[acceptance]]
