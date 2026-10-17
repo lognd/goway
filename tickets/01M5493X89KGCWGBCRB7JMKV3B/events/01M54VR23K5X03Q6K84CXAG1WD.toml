@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway-circle/**"]
+new = ["crates/goway-circle/**", "docs/circles.md"]
+at = "2026-10-17T12:00:22Z"
+actor = "lognd"
+rev = 1

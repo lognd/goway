@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T11:57:57Z"
+digest = "3da4d8921de649fbd59134f80cb213c992b28292b294cf3bb28ce3336d29dffe"
+exit_code = 0
+inline = '''
+   Compiling goway-circle v0.2.0 (<worktree>/crates/goway-circle)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 15s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID df21a104-05dd-45ac-b0fa-fba42898c89f with nextest profile: default
+    Starting 1 test across 4 binaries (79 tests skipped)
+        PASS [   0.411s] goway-circle keys::tests::encrypted_key_needs_the_passphrase_to_sign
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.412s] 1 test run: 1 passed, 79 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E test(encrypted_key_needs_the_passphrase_to_sign)"
+size = 626
+status = "measured"
+test_count = 1
+tests_digest = "ede7789ada8461cd9c13634f09b737d378c566940f728020dd419789f600ce36"
+at = "2026-10-17T11:57:57Z"
+actor = "lognd"
+rev = 1
