@@ -2,7 +2,8 @@
 id = "01M4WB98GJNV6VG7GHZYPB8VS9"
 title = "doctor warns 'no ssh key found' when the host config names goway's own identity key"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 2
 reporter = "lognd"
