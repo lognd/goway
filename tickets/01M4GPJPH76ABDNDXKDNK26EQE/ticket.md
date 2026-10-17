@@ -2,7 +2,8 @@
 id = "01M4GPJPH76ABDNDXKDNK26EQE"
 title = "Memory estimate ran about 0.5 GiB under the measured peak on the small helper (3.7 GiB estimated, 4.2 GiB of 4.8 GiB used): add a safety margin to the fitted model"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
