@@ -48,6 +48,8 @@ pub struct Member {
 pub struct State {
     /// Circle name; empty until a genesis applies.
     pub circle: String,
+    /// Id of the genesis op that founded the circle; empty until a genesis applies.
+    pub genesis: String,
     /// Admin node keys.
     pub admins: BTreeSet<String>,
     /// Current members by node key.
@@ -106,6 +108,7 @@ impl State {
             return false;
         }
         circle.clone_into(&mut self.circle);
+        self.genesis = op.id();
         self.admins.insert(signer.to_owned());
         self.members.insert(
             signer.to_owned(),
@@ -179,6 +182,10 @@ impl State {
                     );
                     return false;
                 }
+                if self.members.contains_key(key) {
+                    warn!(op = &op.id()[..8], "admit refused: already a member");
+                    return false;
+                }
                 self.members.insert(
                     key.to_owned(),
                     Member {
@@ -247,6 +254,16 @@ pub fn fold(ops: &[Op], verifier: &dyn Verifier) -> Result<State, CircleError> {
     fold_pinned(ops, verifier, None)
 }
 
+/// True unless an admit or genesis op carries a public key the verifier does not accept.
+fn keys_ok(op: &Op, verifier: &dyn Verifier) -> bool {
+    let field = match op.kind {
+        Kind::Admit => "key",
+        Kind::Genesis => "admin",
+        _ => return true,
+    };
+    op.body.get(field).is_none_or(|k| verifier.key_ok(k))
+}
+
 /// Like [`fold`], but when `genesis_id` is given only that genesis op can found the circle.
 pub fn fold_pinned(
     ops: &[Op],
@@ -269,6 +286,8 @@ pub fn fold_pinned(
             warn!(op = &id[..8], "op rejected: too large");
         } else if !op.sig_ok(verifier) {
             warn!(op = &id[..8], "op rejected: bad signature");
+        } else if !keys_ok(op, verifier) {
+            warn!(op = &id[..8], "op rejected: invalid public key in body");
         } else if op.kind == Kind::Genesis && genesis_id.is_some_and(|g| g != id) {
             warn!(op = &id[..8], "op rejected: not the pinned genesis");
         } else {

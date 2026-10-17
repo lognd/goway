@@ -1,0 +1,1 @@
+`goway circle pin NAME` now refuses when a manual `[[host]]` has that name, so it cannot replace that host's pinned key; docs/circles.md no longer describes per-admin heads or an `--accept-reset` flag, and documents the `goway-circle:<id8>:<name>:e<epoch>` marker.

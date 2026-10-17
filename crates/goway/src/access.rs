@@ -326,6 +326,19 @@ pub fn run_pin(paths: &Paths, renderer: Renderer, args: &CirclePinArgs) -> Resul
     pin_with(paths, renderer, args, &keyscan)
 }
 
+/// Whether the config file holds a manual `[[host]]` called `name` (roster hosts do not count).
+fn manual_host_named(paths: &Paths, name: &str) -> Result<bool> {
+    let file = paths.config_file();
+    match std::fs::read_to_string(&file) {
+        Ok(text) => Ok(crate::config::Config::parse(&text, &file)?
+            .hosts
+            .iter()
+            .any(|h| h.name == name)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(Error::io("read", &file, e)),
+    }
+}
+
 /// [`run_pin`] with the scanner injected so tests need no network.
 pub fn pin_with(
     paths: &Paths,
@@ -339,6 +352,13 @@ pub fn pin_with(
     if expected.is_empty() {
         return Err(usage(format!(
             "the roster holds no host key fingerprint for `{}`",
+            args.name
+        )));
+    }
+    if manual_host_named(paths, &args.name)? {
+        tracing::warn!(name = %args.name, "refusing to pin: a manual [[host]] has this name");
+        return Err(usage(format!(
+            "a manual [[host]] named `{}` exists and shares its pinned key; rename one of them",
             args.name
         )));
     }
@@ -616,6 +636,26 @@ mod tests {
         pin_with(&r.admin, quiet(), &args, &right).unwrap();
         let known = std::fs::read_to_string(r.admin.known_hosts()).unwrap();
         assert_eq!(known, format!("goway-box {}\n", r.host_pub));
+    }
+
+    // frob:tests crates/goway/src/access.rs::pin_with
+    #[test]
+    fn pin_refuses_a_name_held_by_a_manual_host() {
+        let r = rig();
+        let file = r.admin.config_file();
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(&file, "[[host]]\nname = \"box\"\naddress = \"1.2.3.4\"\n").unwrap();
+        let args = CirclePinArgs {
+            name: "box".to_owned(),
+            address: Some("10.0.0.9".to_owned()),
+            port: 22,
+            circle: None,
+        };
+        let host = r.host_pub.clone();
+        let scan = move |_: &str, _: u16| Ok(format!("10.0.0.9 {host}\n"));
+        let err = pin_with(&r.admin, quiet(), &args, &scan).unwrap_err();
+        assert!(err.to_string().contains("manual [[host]]"), "{err}");
+        assert!(!r.admin.known_hosts().exists());
     }
 
     // frob:tests crates/goway/src/access.rs::roster_hosts

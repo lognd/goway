@@ -26,6 +26,11 @@ pub trait Signer {
 pub trait Verifier {
     /// Return true only when `signature` is valid for `message` under `public_key`.
     fn verify(&self, public_key: &str, message: &[u8], signature: &str) -> bool;
+
+    /// Return true when `public_key` is well formed enough to admit into a roster.
+    fn key_ok(&self, public_key: &str) -> bool {
+        valid_public_key(public_key)
+    }
 }
 
 /// Return true for a single-line `ssh-ed25519` (or FIDO `sk-`) key without a comment.
@@ -194,6 +199,10 @@ impl Signer for FakeCrypto {
 impl Verifier for FakeCrypto {
     fn verify(&self, public_key: &str, message: &[u8], signature: &str) -> bool {
         fake_sig(message, public_key) == signature
+    }
+
+    fn key_ok(&self, _public_key: &str) -> bool {
+        true
     }
 }
 

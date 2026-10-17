@@ -2,14 +2,14 @@
 id = "01M55X0T2DQZQR9HBJWVCYTVZD"
 title = "Audit L1+L9: roster stores unverified ops; undo can roll back roster files"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T21:41:51Z"
-updated = "2026-10-17T21:41:51Z"
+updated = "2026-10-17T22:05:01Z"
 idempotency_key = "audit-l1l9"
-scope = ["crates/goway/src/circle.rs"]
+scope = ["crates/goway/src/circle.rs", "crates/goway/src/changelog.rs", "crates/goway/tests/circle.rs", "crates/goway/src/circle_admin.rs"]
 
 [[acceptance]]
 text = "Unapplied ops are never stored as heads; undo refuses circle store paths"

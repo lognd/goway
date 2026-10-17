@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T21:51:59Z"
+digest = "dfb555aae8afcd42fd4c1aa87a50c6d655cace0f0b68f8cac8d81b7e24e14f8e"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.27s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 181269b9-3b53-47dd-a147-2dd808e710c6 with nextest profile: default
+    Starting 1 test across 65 binaries (863 tests skipped)
+        PASS [   0.114s] goway access::tests::pin_refuses_a_name_held_by_a_manual_host
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.116s] 1 test run: 1 passed, 863 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(pin_refuses_a_name_held_by_a_manual_host)'"
+size = 609
+status = "measured"
+test_count = 1
+tests_digest = "edb9b6fce490805b267624f778c8006c929fa16f21e5b08b537ba75aa22498f0"
+at = "2026-10-17T21:51:59Z"
+actor = "lognd"
+rev = 1

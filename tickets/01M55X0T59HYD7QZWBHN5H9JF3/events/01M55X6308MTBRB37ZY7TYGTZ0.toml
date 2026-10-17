@@ -1,0 +1,33 @@
+kind = "evidence"
+captured_at = "2026-10-17T21:44:44Z"
+digest = "f1b460337e5cf076415a6c0572804bb66e3da24de7d6e005c4c7980ae8de36b2"
+exit_code = 0
+inline = '''
+warning: unused variable: `out`
+   --> crates/goway-circle/src/sshcert.rs:278:9
+    |
+278 |     let out = cmd.args(["-I", &key_id, "-n", &principals]);
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_out`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `goway-circle` (lib) generated 1 warning (run `cargo fix --lib -p goway-circle` to apply 1 suggestion)
+warning: `goway-circle` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 89a1405a-ac14-4097-a798-78d535e870a4 with nextest profile: default
+    Starting 1 test across 4 binaries (104 tests skipped)
+        PASS [   0.020s] goway-circle sshcert::tests::minted_certs_carry_the_forwarding_bans
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.021s] 1 test run: 1 passed, 104 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E 'test(forwarding_bans)'"
+size = 1067
+status = "measured"
+test_count = 1
+tests_digest = "5e4684171fa25b30baa62674e909223996bc7d3f706a2ce4a82e1923e1b450a2"
+at = "2026-10-17T21:44:44Z"
+actor = "lognd"
+rev = 1

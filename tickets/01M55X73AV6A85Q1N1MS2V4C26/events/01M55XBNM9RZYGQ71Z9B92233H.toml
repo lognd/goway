@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T21:47:47Z"
+digest = "3f5d6abbaa093931fddabaf71223aff789b4fac68fdd48f9bbef65b1941fa615"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 044b16e9-3493-4fec-80e8-df96ae59c099 with nextest profile: default
+    Starting 1 test across 4 binaries (108 tests skipped)
+        PASS [   0.022s] goway-circle sshcert::tests::same_name_circles_do_not_clobber_and_old_markers_are_replaced
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.023s] 1 test run: 1 passed, 108 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E 'test(same_name_circles_do_not_clobber)'"
+size = 583
+status = "measured"
+test_count = 1
+tests_digest = "82fc5af10308af8d883e527f9a948b53c7701d85ceee518ffa3dd6a7d4a6f96c"
+at = "2026-10-17T21:47:47Z"
+actor = "lognd"
+rev = 1

@@ -1,0 +1,1 @@
+A circle roster now refuses an `admit` of a key that is already a member (which could strip another admin of its lead role) and of a malformed public key, and the key directory check follows a symlinked directory and also applies when generating a hardware (`ed25519-sk`) key, which now creates its directory with mode 0700.

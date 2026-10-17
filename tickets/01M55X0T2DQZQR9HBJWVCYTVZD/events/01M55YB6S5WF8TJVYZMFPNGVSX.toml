@@ -1,0 +1,23 @@
+kind = "evidence"
+captured_at = "2026-10-17T22:05:00Z"
+digest = "cb2071e43caf4888019a0774adcf9ffef869b64c332ebf18b4c1719457949b40"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 0c8182db-f861-46b2-9749-cba96956138e with nextest profile: default
+    Starting 1 test across 65 binaries (866 tests skipped)
+        PASS [   0.004s] goway changelog::circle_store_tests::undo_never_restores_a_circle_roster_file
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 866 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(undo_never)'"
+size = 571
+status = "measured"
+test_count = 1
+tests_digest = "a7fb29637b805818bbdde6d923d41578ab778f8d2ba6e9d80aae7b781bbf53d9"
+at = "2026-10-17T22:05:00Z"
+actor = "lognd"
+rev = 1

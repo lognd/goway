@@ -92,8 +92,9 @@ fn check_private_file(path: &Path) -> Result<(), StoreError> {
 #[cfg(unix)]
 fn check_key_dir(dir: &Path) -> Result<(), StoreError> {
     use std::os::unix::fs::PermissionsExt as _;
-    let meta = std::fs::symlink_metadata(dir).map_err(|e| io_err("stat", dir, e))?;
-    if meta.permissions().mode() & 0o022 != 0 && !meta.file_type().is_symlink() {
+    // Follow a symlinked directory so the real target's mode is checked.
+    let meta = std::fs::metadata(dir).map_err(|e| io_err("stat", dir, e))?;
+    if meta.permissions().mode() & 0o022 != 0 {
         return Err(StoreError::KeyUnsafe {
             path: dir.to_owned(),
             reason: "the key directory is group or world writable".to_owned(),
@@ -216,7 +217,16 @@ pub fn generate_sk_keypair(
         });
     }
     if let Some(dir) = private.parent() {
+        #[cfg(unix)]
+        if dir.exists() {
+            check_key_dir(dir)?;
+        }
         std::fs::create_dir_all(dir).map_err(|e| io_err("create", dir, e))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
+        }
     }
     info!(key = %private.display(), "generating an ed25519-sk admin key; touch the token when it blinks");
     let status = Command::new(program)
@@ -419,5 +429,20 @@ mod tests {
         let good = fake_keygen(dir.path(), true);
         generate_sk_keypair(&good, &key, &|_| {}).unwrap();
         assert!(generate_sk_keypair(&good, &key, &|_| {}).is_err());
+    }
+
+    // frob:tests crates/goway-circle/src/keys.rs::ensure_keypair
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_writable_key_dir_is_refused() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let root = tempfile::tempdir().unwrap();
+        let real = root.path().join("real");
+        std::fs::create_dir(&real).unwrap();
+        std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o777)).unwrap();
+        let link = root.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let err = ensure_keypair(&link.join("k"), &|_| {}).unwrap_err();
+        assert!(matches!(err, StoreError::KeyUnsafe { .. }), "{err}");
     }
 }
