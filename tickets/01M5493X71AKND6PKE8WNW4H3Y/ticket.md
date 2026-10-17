@@ -20,7 +20,7 @@ bound = true
 
 [[acceptance]]
 text = "A failing keystore falls back to the prompt"
-bound = false
+bound = true
 +++
 
 found while working ~MV967CF; deferred hardening, see docs/circles.md section 6
