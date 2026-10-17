@@ -4,9 +4,10 @@ title = "Upgrade LAN pairing to real CPace"
 type = "task"
 category = "todo"
 priority = "medium"
+points = 3
 reporter = "lognd"
 created = "2026-10-17T06:06:07Z"
-updated = "2026-10-17T06:06:07Z"
+updated = "2026-10-17T11:40:59Z"
 scope = ["crates/goway-circle/src/lan.rs"]
 +++
 
