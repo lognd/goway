@@ -10,7 +10,7 @@ use tracing::{debug, info, warn};
 use zeroize::Zeroizing;
 
 use crate::error::{CryptoError, KeystoreError};
-use crate::passphrase::{Passphrase, PassphraseSource};
+use crate::passphrase::{Passphrase, PassphraseSource, passphrase_unlocks_key};
 
 /// The service name every goway-circle secret is filed under.
 const SERVICE: &str = "goway-circle";
@@ -160,38 +160,64 @@ impl Keystore for ProgramKeystore {
     }
 }
 
+/// Decides whether a passphrase is right before it is trusted or saved.
+type Verifier = Box<dyn Fn(&Passphrase) -> bool>;
+
 /// A [`PassphraseSource`] that checks a [`Keystore`] first and falls back to prompting.
 ///
-/// A prompted passphrase is saved for next time; a keystore failure is logged and never
-/// blocks signing, since the prompt still works.
+/// A passphrase is saved only after it is verified against the key; a saved one that no
+/// longer verifies is dropped and the user is prompted. A keystore failure is logged and
+/// never blocks signing, since the prompt still works.
 pub struct KeystorePassphrase<'a, K: Keystore, S: PassphraseSource> {
     store: &'a K,
     prompt: S,
     account: String,
+    verify: Verifier,
 }
 
 impl<'a, K: Keystore, S: PassphraseSource> KeystorePassphrase<'a, K, S> {
-    /// Look up `account` in `store`, else ask `prompt` and remember the answer.
+    /// Look up `account` (the key path) in `store`, else ask `prompt`; verify with ssh-keygen.
     pub fn new(store: &'a K, prompt: S, account: impl Into<String>) -> Self {
+        let account = account.into();
+        let key = std::path::PathBuf::from(&account);
+        let verify: Verifier = Box::new(move |p| passphrase_unlocks_key(&key, p));
         Self {
             store,
             prompt,
-            account: account.into(),
+            account,
+            verify,
         }
+    }
+
+    /// Replace how a passphrase is verified (tests use this to avoid a real key).
+    #[must_use]
+    pub fn with_verifier(mut self, verify: impl Fn(&Passphrase) -> bool + 'static) -> Self {
+        self.verify = Box::new(verify);
+        self
     }
 }
 
 impl<K: Keystore, S: PassphraseSource> PassphraseSource for KeystorePassphrase<'_, K, S> {
     fn passphrase(&self, prompt: &str) -> Result<Passphrase, CryptoError> {
         match self.store.get(&self.account) {
-            Ok(Some(pass)) => {
+            Ok(Some(pass)) if (self.verify)(&pass) => {
                 debug!(account = %self.account, "passphrase came from the OS keystore");
                 return Ok(pass);
+            }
+            Ok(Some(_)) => {
+                warn!(account = %self.account, "saved passphrase no longer unlocks the key; dropping it");
+                if let Err(e) = self.store.delete(&self.account) {
+                    warn!(account = %self.account, error = %e, "could not drop the stale passphrase");
+                }
             }
             Ok(None) => {}
             Err(e) => warn!(account = %self.account, error = %e, "keystore lookup failed"),
         }
         let pass = self.prompt.passphrase(prompt)?;
+        if !(self.verify)(&pass) {
+            warn!(account = %self.account, "typed passphrase did not unlock the key; not saving it");
+            return Ok(pass);
+        }
         if let Err(e) = self.store.set(&self.account, &pass) {
             warn!(account = %self.account, error = %e, "could not remember the passphrase");
         }
@@ -252,7 +278,8 @@ mod tests {
     fn saved_passphrase_skips_the_prompt() {
         let ks = FakeKeystore::new();
         ks.set("acct", &pass("saved")).unwrap();
-        let src = KeystorePassphrase::new(&ks, Counting(Cell::new(0), pass("typed")), "acct");
+        let src = KeystorePassphrase::new(&ks, Counting(Cell::new(0), pass("typed")), "acct")
+            .with_verifier(|_| true);
         assert_eq!(src.passphrase("p: ").unwrap().expose(), "saved");
         assert_eq!(src.prompt.0.get(), 0);
     }
@@ -261,7 +288,8 @@ mod tests {
     #[test]
     fn prompted_passphrase_is_remembered() {
         let ks = FakeKeystore::new();
-        let src = KeystorePassphrase::new(&ks, Counting(Cell::new(0), pass("typed")), "acct");
+        let src = KeystorePassphrase::new(&ks, Counting(Cell::new(0), pass("typed")), "acct")
+            .with_verifier(|_| true);
         assert_eq!(src.passphrase("p: ").unwrap().expose(), "typed");
         assert_eq!(src.passphrase("p: ").unwrap().expose(), "typed");
         assert_eq!(src.prompt.0.get(), 1);
@@ -271,8 +299,33 @@ mod tests {
     // frob:tests crates/goway-circle/src/keystore.rs::KeystorePassphrase.passphrase
     #[test]
     fn broken_keystore_falls_back_to_the_prompt() {
-        let src = KeystorePassphrase::new(&Broken, FixedPassphrase(pass("typed")), "acct");
+        let src = KeystorePassphrase::new(&Broken, FixedPassphrase(pass("typed")), "acct")
+            .with_verifier(|_| true);
         assert_eq!(src.passphrase("p: ").unwrap().expose(), "typed");
+    }
+
+    // frob:ticket 01M55SHEZJMS47VT8RXNXTGZVG
+    // frob:tests crates/goway-circle/src/keystore.rs::KeystorePassphrase.passphrase
+    #[test]
+    fn mistyped_passphrase_is_not_saved() {
+        let ks = FakeKeystore::new();
+        let src = KeystorePassphrase::new(&ks, Counting(Cell::new(0), pass("typo")), "acct")
+            .with_verifier(|p| p.expose() == "right");
+        assert_eq!(src.passphrase("p: ").unwrap().expose(), "typo");
+        assert!(ks.get("acct").unwrap().is_none());
+    }
+
+    // frob:ticket 01M55SHEZJMS47VT8RXNXTGZVG
+    // frob:tests crates/goway-circle/src/keystore.rs::KeystorePassphrase.passphrase
+    #[test]
+    fn stale_saved_passphrase_is_dropped_and_reprompted() {
+        let ks = FakeKeystore::new();
+        ks.set("acct", &pass("wrong")).unwrap();
+        let src = KeystorePassphrase::new(&ks, Counting(Cell::new(0), pass("right")), "acct")
+            .with_verifier(|p| p.expose() == "right");
+        assert_eq!(src.passphrase("p: ").unwrap().expose(), "right");
+        assert_eq!(src.prompt.0.get(), 1);
+        assert_eq!(ks.get("acct").unwrap().unwrap().expose(), "right");
     }
 
     // frob:tests crates/goway-circle/src/keystore.rs::KeystorePassphrase.passphrase
