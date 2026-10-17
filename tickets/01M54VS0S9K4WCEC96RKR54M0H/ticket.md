@@ -8,7 +8,8 @@ points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T12:00:53Z"
-updated = "2026-10-17T12:22:34Z"
+updated = "2026-10-17T12:22:46Z"
+scope = ["crates/goway/src/circle.rs", "crates/goway/src/cli.rs", "crates/goway/src/access.rs", "crates/goway/src/lanpair.rs", "crates/goway/tests/circle_*.rs", "docs/circles.md"]
 
 [[acceptance]]
 text = "An encrypted circle key signs only with its passphrase, and a plain key never prompts"
