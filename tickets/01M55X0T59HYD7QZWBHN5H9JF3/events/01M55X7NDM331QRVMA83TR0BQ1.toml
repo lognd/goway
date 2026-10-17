@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T21:45:36Z"
+digest = "5484c5f260d974b56ec8219b7c1357a8eaca3f994924167fbcd7ef8873933781"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b5c73c9d-676b-429f-894f-8328176636c7 with nextest profile: default
+    Starting 1 test across 4 binaries (104 tests skipped)
+        PASS [   0.028s] goway-circle sshcert::tests::minted_certs_carry_the_forwarding_bans
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.029s] 1 test run: 1 passed, 104 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E 'test(minted_certs_carry_the_forwarding_bans)'"
+size = 560
+status = "measured"
+test_count = 1
+tests_digest = "5e4684171fa25b30baa62674e909223996bc7d3f706a2ce4a82e1923e1b450a2"
+at = "2026-10-17T21:45:36Z"
+actor = "lognd"
+rev = 1
