@@ -7,8 +7,20 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:34:47Z"
-updated = "2026-10-17T12:02:43Z"
+updated = "2026-10-17T12:03:44Z"
 scope = ["crates/goway-circle/**"]
+
+[[acceptance]]
+text = "A saved keystore passphrase is returned without prompting"
+bound = false
+
+[[acceptance]]
+text = "A prompted passphrase is remembered in the keystore"
+bound = false
+
+[[acceptance]]
+text = "A failing keystore falls back to the prompt"
+bound = false
 +++
 
 found while working ~MV967CF; deferred hardening, see docs/circles.md section 6
