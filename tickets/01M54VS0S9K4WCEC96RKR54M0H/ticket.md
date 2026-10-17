@@ -2,7 +2,7 @@
 id = "01M54VS0S9K4WCEC96RKR54M0H"
 title = "Wire the passphrase prompt into goway circle commands (init, join, admin key use)"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
