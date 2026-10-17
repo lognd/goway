@@ -4,9 +4,10 @@ title = "A failed or undone host install leaves openssh-server in rc state, whic
 type = "bug"
 category = "todo"
 priority = "high"
+points = 2
 reporter = "lognd"
 created = "2026-10-14T04:58:22Z"
-updated = "2026-10-14T04:58:22Z"
+updated = "2026-10-17T10:40:56Z"
 scope = ["crates/goway-setup/src/hostsys.rs"]
 
 [[acceptance]]
