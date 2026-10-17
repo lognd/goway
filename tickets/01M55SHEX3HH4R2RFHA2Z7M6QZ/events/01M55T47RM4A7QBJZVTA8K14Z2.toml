@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T20:51:17Z"
+digest = "dc22b60158610ad8341fed75b570ecab327a32c9b58e5e45ceaf26e4abd6670c"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b2376ac4-0535-49ba-8f79-9af2af6434ff with nextest profile: default
+    Starting 1 test across 4 binaries (93 tests skipped)
+        PASS [   0.195s] goway-circle store::tests::concurrent_writers_serialise_and_none_is_lost
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.196s] 1 test run: 1 passed, 93 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E 'test(=store::tests::concurrent_writers_serialise_and_none_is_lost)'"
+size = 563
+status = "measured"
+test_count = 1
+tests_digest = "138da0c7ca0057804c793589c9f21e17861fe8afde36350472b707307f5f0a17"
+at = "2026-10-17T20:51:17Z"
+actor = "lognd"
+rev = 1

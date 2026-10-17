@@ -208,13 +208,24 @@ pub(crate) fn append_checked(
     applied: impl Fn(&State) -> bool,
     refusal: &str,
 ) -> Result<(Vec<Op>, State)> {
+    let guard = store.lock()?;
+    // The caller's `ops` was read before the lock; a writer in between would be overwritten.
+    if store.ops()? != ops {
+        tracing::warn!(
+            circle = store.id(),
+            "roster changed while an operation was signed"
+        );
+        return Err(usage(
+            "the circle roster changed while this was being signed; run the command again",
+        ));
+    }
     ops.push(op);
     let state = fold(&ops, &SshKeygenVerifier)?;
     if !applied(&state) {
         tracing::warn!(circle = store.id(), "operation did not apply: {refusal}");
         return Err(usage(refusal));
     }
-    store.commit(&ops, &sink(paths))?;
+    store.commit_locked(&guard, &ops, &sink(paths))?;
     Ok((ops, state))
 }
 
@@ -676,13 +687,16 @@ pub fn sync_roster(paths: &Paths, renderer: Renderer, args: &CircleSyncArgs) -> 
         .map_err(|e| usage(format!("the offered roster is not valid base64: {e}")))?;
     let text = String::from_utf8(bytes).map_err(|_| usage("the offered roster is not text"))?;
     let offered = goway_circle::parse_ops(&text)?;
+    let store = Store::find(&circles_dir(paths), args.circle.as_deref())?;
+    // Lock first, then read, so a concurrent sync cannot commit between the two and be lost.
+    let guard = store.lock()?;
     let (store, ops, _) = load(paths, args.circle.as_deref())?;
     let merged = goway_circle::merge(&ops, &offered);
     let state = fold(&merged, &SshKeygenVerifier)?;
     if merged.len() == ops.len() {
         tracing::debug!(circle = store.id(), "offered roster adds nothing");
     } else {
-        store.commit(&merged, &sink(paths))?;
+        store.commit_locked(&guard, &merged, &sink(paths))?;
         tracing::info!(
             circle = store.id(),
             added = merged.len() - ops.len(),

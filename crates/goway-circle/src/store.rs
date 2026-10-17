@@ -32,6 +32,15 @@ impl FileSink for PlainSink {
     }
 }
 
+/// How long a writer waits for another writer's lock before giving up.
+const LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// An exclusive advisory lock on one circle's directory, released on drop.
+#[derive(Debug)]
+pub struct StoreLock {
+    _file: std::fs::File,
+}
+
 /// The stored heads, as written to `heads.json`.
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -155,10 +164,68 @@ impl Store {
         }
     }
 
+    /// Take the circle's exclusive writer lock, waiting a bounded time for another writer.
+    ///
+    /// Hold it across load, merge and commit so a concurrent writer cannot lose an operation.
+    pub fn lock(&self) -> Result<StoreLock, StoreError> {
+        self.lock_for(LOCK_WAIT)
+    }
+
+    /// [`Store::lock`] with an explicit wait.
+    fn lock_for(&self, wait: std::time::Duration) -> Result<StoreLock, StoreError> {
+        let path = self.dir.join(".lock");
+        let io = |source| StoreError::Io {
+            op: "lock",
+            path: path.clone(),
+            source,
+        };
+        std::fs::create_dir_all(&self.dir).map_err(io)?;
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(&path)
+            .map_err(io)?;
+        let start = std::time::Instant::now();
+        loop {
+            match file.try_lock() {
+                Ok(()) => {
+                    debug!(circle = %self.id, "circle lock taken");
+                    return Ok(StoreLock { _file: file });
+                }
+                Err(std::fs::TryLockError::WouldBlock) if start.elapsed() < wait => {
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                }
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    warn!(circle = %self.id, "timed out waiting for the circle lock");
+                    return Err(io(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "another goway process is updating this circle",
+                    )));
+                }
+                Err(std::fs::TryLockError::Error(e)) => return Err(io(e)),
+            }
+        }
+    }
+
+    /// Accept `offered` as the new roster under the writer lock (taken here).
+    ///
+    /// Callers that loaded the roster first should hold [`Store::lock`] and use
+    /// [`Store::commit_locked`] so the load is inside the lock too.
+    pub fn commit(&self, offered: &[Op], sink: &dyn FileSink) -> Result<(), StoreError> {
+        let guard = self.lock()?;
+        self.commit_locked(&guard, offered, sink)
+    }
+
     /// Accept `offered` as the new roster: refuse a rollback, then write ops and heads.
     ///
     /// The offer must hold exactly one genesis whose id matches this store.
-    pub fn commit(&self, offered: &[Op], sink: &dyn FileSink) -> Result<(), StoreError> {
+    pub fn commit_locked(
+        &self,
+        _lock: &StoreLock,
+        offered: &[Op],
+        sink: &dyn FileSink,
+    ) -> Result<(), StoreError> {
         let genesis: Vec<String> = offered
             .iter()
             .filter(|o| o.kind == Kind::Genesis)
@@ -219,6 +286,56 @@ mod tests {
         assert_eq!(store.seen_heads().unwrap(), BTreeSet::from([g.id()]));
         let found = Store::find(dir.path(), None).unwrap();
         assert_eq!(found.id(), store.id());
+    }
+
+    // frob:tests crates/goway-circle/src/store.rs::Store
+    #[test]
+    fn concurrent_writers_serialise_and_none_is_lost() {
+        let dir = tempfile::tempdir().unwrap();
+        let admin = FakeCrypto::new("admin");
+        let g = genesis(&admin);
+        let store = Store::for_genesis(dir.path(), &g.id());
+        store.commit(std::slice::from_ref(&g), &PlainSink).unwrap();
+        let threads: Vec<_> = (0..8)
+            .map(|i| {
+                let store = store.clone();
+                let admin = FakeCrypto::new("admin");
+                std::thread::spawn(move || {
+                    let guard = store.lock().unwrap();
+                    let mut ops = store.ops().unwrap();
+                    let name = format!("m{i}");
+                    let parents: Vec<String> = heads(&ops).into_iter().collect();
+                    let op = Op::signed(
+                        Kind::Admit,
+                        &[
+                            ("key", name.as_str()),
+                            ("name", name.as_str()),
+                            ("roles", "helper"),
+                            ("host_fp", ""),
+                        ],
+                        &parents,
+                        &[&admin],
+                    )
+                    .unwrap();
+                    ops.push(op);
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    store.commit_locked(&guard, &ops, &PlainSink).unwrap();
+                })
+            })
+            .collect();
+        for t in threads {
+            t.join().unwrap();
+        }
+        assert_eq!(store.ops().unwrap().len(), 9);
+    }
+
+    #[test]
+    fn a_held_lock_times_out_a_second_writer() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::for_genesis(dir.path(), "abcdef0123456789");
+        let _held = store.lock().unwrap();
+        let second = store.lock_for(std::time::Duration::from_millis(100));
+        assert!(matches!(second, Err(StoreError::Io { op: "lock", .. })));
     }
 
     // frob:tests crates/goway-circle/src/store.rs::Store
