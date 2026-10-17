@@ -6,7 +6,7 @@ category = "todo"
 priority = "medium"
 reporter = "lognd"
 created = "2026-10-14T04:38:37Z"
-updated = "2026-10-14T04:38:37Z"
+updated = "2026-10-17T14:52:07Z"
 scope = ["crates/goway-setup/build.rs", "crates/goway-setup/Cargo.toml"]
 
 [[acceptance]]

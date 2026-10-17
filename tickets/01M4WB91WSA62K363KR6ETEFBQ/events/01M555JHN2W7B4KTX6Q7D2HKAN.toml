@@ -1,0 +1,6 @@
+kind = "comment"
+subtype = "note"
+body = "Verified 2026-10-17 on Windows 11 (x64 build via scripts/windows/build.sh): dist/goway-setup.exe contains requestedExecutionLevel asInvoker (build.rs, commit b9642822), and launched with a de-elevated token (runas /trustlevel:0x20000) from an admin shell it starts and prints --help under its release name with no elevation demand. Criteria still unbound: attesting needs the repo owner identity (frob.toml evidence.attesters)."
+at = "2026-10-17T14:52:07Z"
+actor = "lognd"
+rev = 1
