@@ -12,7 +12,7 @@ scope = ["crates/goway-circle/**", "docs/circles.md", "changelog.d/01M5493X71AKN
 
 [[acceptance]]
 text = "A saved keystore passphrase is returned without prompting"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "A prompted passphrase is remembered in the keystore"
