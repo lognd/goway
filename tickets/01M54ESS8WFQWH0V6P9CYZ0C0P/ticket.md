@@ -8,12 +8,12 @@ points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T08:14:07Z"
-updated = "2026-10-17T09:15:13Z"
+updated = "2026-10-17T09:15:59Z"
 scope = ["crates/goway/src/circle_push.rs", "crates/goway/src/circle.rs", "crates/goway/src/access.rs", "crates/goway/tests/circle_revoke_now.rs", "docs/circles.md", "changelog.d/01M54ESS8WFQWH0V6P9CYZ0C0P.added.md"]
 
 [[acceptance]]
 text = "A helper's certificate expiry reported in a push answer is parsed, stored and shown by circle list as reported"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Failed ssh pushes classify host key and authentication errors"
