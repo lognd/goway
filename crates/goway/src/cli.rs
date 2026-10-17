@@ -651,7 +651,7 @@ pub struct CirclePairHostArgs {
     /// Which circle to admit into.
     #[arg(long)]
     pub circle: Option<String>,
-    /// LAN address to show the new machine (default: --bind when it is a specific address).
+    /// LAN address to show the new machine (default: --bind when specific, else detected for --qr).
     #[arg(long)]
     pub advertise: Option<String>,
     /// Also print the pair-host address as a QR code (ASCII).
