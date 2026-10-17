@@ -10,7 +10,7 @@ reporter = "lognd"
 created = "2026-10-17T20:41:03Z"
 updated = "2026-10-17T20:51:28Z"
 idempotency_key = "audit-m2"
-scope = ["crates/goway-circle/src/store.rs,crates/goway/src/circle.rs", "crates/goway-circle/src/store.rs", "crates/goway/src/circle.rs"]
+scope = ["crates/goway-circle/src/store.rs,crates/goway/src/circle.rs", "crates/goway-circle/src/store.rs", "crates/goway/src/circle.rs", "crates/goway-circle/src/lib.rs"]
 
 [[acceptance]]
 text = "Given two concurrent syncs, when both merge, then no operation is lost"
