@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["Given a host and guest on one LAN, when both humans type each other's six-digit code, then the guest is admitted and holds a welcome; when either side declines or mismatches, then no roster or state changes."]
+moved = []
+at = "2026-10-17T06:23:38Z"
+actor = "lognd"
+rev = 1

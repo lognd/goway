@@ -1,0 +1,28 @@
+kind = "evidence"
+captured_at = "2026-10-17T06:23:11Z"
+digest = "a9bb26fcb8ffaad7f5b24b23fec5f0b660a39c830fb9dc5f1f1f7c37d13157a5"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID bd182095-91f4-4ea4-8801-74021360cfdb with nextest profile: default
+    Starting 6 tests across 63 binaries (811 tests skipped)
+        PASS [   0.008s] goway lanpair::tests::a_paired_address_is_remembered_as_a_hint
+        PASS [   0.108s] goway lanpair::tests::a_machine_that_is_not_an_admin_cannot_host
+        PASS [   0.150s] goway lanpair::tests::an_expired_listener_admits_nobody
+        PASS [   0.274s] goway lanpair::tests::both_people_confirming_admits_the_machine_over_loopback
+        PASS [   2.102s] goway lanpair::tests::a_guest_who_does_not_confirm_changes_nothing_anywhere
+        PASS [   2.156s] goway lanpair::tests::a_host_who_does_not_confirm_changes_nothing_anywhere
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   2.158s] 6 tests run: 6 passed, 811 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(lanpair::tests)'"
+size = 1033
+status = "measured"
+test_count = 6
+tests_digest = "7f7737a824ae6cc3788ef4e14d5bb036a802ab2fcd5543478a8545dad9fe6535"
+at = "2026-10-17T06:23:11Z"
+actor = "lognd"
+rev = 1
