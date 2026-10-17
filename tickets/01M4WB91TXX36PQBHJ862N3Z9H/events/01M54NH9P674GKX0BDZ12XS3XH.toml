@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1, 2]
+captured_at = "2026-10-17T10:11:34Z"
+digest = "08c885d79e5066463db35b17dc26cfcce85bbd4cf29364023d5366a18b783e7a"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.71s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 28623617-100b-4a43-ae05-b13aeb96fbc9 with nextest profile: default
+    Starting 1 test across 1 binary (19 tests skipped)
+        PASS [   0.004s] goway-setup::host_plan the_distro_is_wsls_default_or_the_only_candidate_never_a_guess
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.004s] 1 test run: 1 passed, 19 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup --test host_plan -E test(the_distro_is_wsls_default)"
+size = 629
+status = "measured"
+test_count = 1
+tests_digest = "d4d06a858f953873616fafbc4fbea8dedc6efd356138b76c57f73508c2fae1e8"
+at = "2026-10-17T10:11:34Z"
+actor = "lognd"
+rev = 1

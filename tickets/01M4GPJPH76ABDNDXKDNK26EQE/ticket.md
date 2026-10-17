@@ -7,11 +7,11 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-09T16:05:14Z"
-updated = "2026-10-17T10:11:00Z"
+updated = "2026-10-17T10:11:51Z"
 
 [[acceptance]]
 text = "Given recorded runs whose peaks exceed the fitted line, when a job count is chosen, then a documented safety margin keeps the estimate at or above every recorded peak at that level, and a test covers it"
-bound = false
+bound = true
 +++
 
 Found by the per-host fitting ticket's implementer on 2026-10-09 while proving fitting with frob-v2 suite runs.
