@@ -7,7 +7,7 @@ priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T21:41:51Z"
-updated = "2026-10-17T22:05:07Z"
+updated = "2026-10-17T22:07:43Z"
 idempotency_key = "audit-l1l9"
 scope = ["crates/goway/src/circle.rs", "crates/goway/src/changelog.rs", "crates/goway/tests/circle.rs", "crates/goway/src/circle_admin.rs"]
 
