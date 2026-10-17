@@ -10,7 +10,7 @@ reporter = "lognd"
 created = "2026-10-17T21:11:07Z"
 updated = "2026-10-17T21:11:51Z"
 idempotency_key = "audit-m9"
-scope = ["crates/goway-setup/src/hostsys.rs", "crates/goway/src/circle.rs", "crates/goway-setup/tests/hostsys.rs", "docs/circles.md"]
+scope = ["crates/goway-setup/src/hostsys.rs", "crates/goway/src/circle.rs", "crates/goway-setup/tests/hostsys.rs", "docs/circles.md", "docs/install-windows.md"]
 
 [[acceptance]]
 text = "Given a welcome of 40 ops, when goway-setup joins, then the welcome travels on stdin and the command line stays short"
