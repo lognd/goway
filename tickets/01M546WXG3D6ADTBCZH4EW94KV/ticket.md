@@ -4,10 +4,11 @@ title = "goway circle revoke --now (epoch push), certificate expiry and last see
 type = "task"
 category = "todo"
 priority = "medium"
+points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:56:01Z"
-updated = "2026-10-17T05:56:01Z"
+updated = "2026-10-17T07:20:51Z"
 labels = ["circles"]
 +++
 
