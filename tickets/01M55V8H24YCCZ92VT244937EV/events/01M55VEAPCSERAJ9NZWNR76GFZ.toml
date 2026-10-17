@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T21:14:03Z"
+digest = "4c4bccbdf78ea11ea103420a97cc67a856c29a226fa76e23fc9d275946ad45c7"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.47s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2789174a-ce93-4359-ac98-c0048737af7b with nextest profile: default
+    Starting 1 test across 4 binaries (103 tests skipped)
+        PASS [   0.023s] goway-circle sshcert::tests::every_line_expires_at_twice_the_cert_ttl
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.024s] 1 test run: 1 passed, 103 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E 'test(every_line_expires_at)'"
+size = 617
+status = "measured"
+test_count = 1
+tests_digest = "3d40375bcb3b7c5f0d53f43e8e47d7b7dcce137f42e21783dea2fe10749cedf9"
+at = "2026-10-17T21:14:03Z"
+actor = "lognd"
+rev = 1
