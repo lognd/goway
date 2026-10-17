@@ -1,0 +1,7 @@
+kind = "transition"
+from = "todo"
+to = "in-progress"
+reason = "lease: lognd in goway-wt/S2V4C26; scope: crates/goway-circle/src/state.rs, crates/goway-circle/src/sshcert.rs; ttl 7200s"
+at = "2026-10-17T21:47:03Z"
+actor = "lognd"
+rev = 1

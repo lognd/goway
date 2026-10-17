@@ -1,0 +1,1 @@
+Lead certificates are now minted with `-O no-agent-forwarding -O no-port-forwarding -O no-x11-forwarding`, matching docs/circles.md, so the bans hold even if a helper's authorized_keys line options are missing.

@@ -22,7 +22,9 @@ use crate::paths::Paths;
 use crate::render::{self, Renderer};
 use crate::state::State;
 
-/// How long one connected session may stall on a read or write (people are comparing codes).
+/// How long a connected peer may stall before it has proved the code (a silent peer must not hold the listener).
+const PRE_PROOF_IO_TIMEOUT: Duration = Duration::from_secs(15);
+/// How long one session may stall once the peer proved the code (people are comparing codes).
 const SESSION_IO_TIMEOUT: Duration = Duration::from_secs(180);
 /// How long the new machine waits to connect.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -53,10 +55,10 @@ pub fn bind_listener(bind: &str, port: u16) -> Result<TcpListener> {
     Ok(listener)
 }
 
-fn timed(stream: &TcpStream) -> std::io::Result<()> {
+fn timed(stream: &TcpStream, limit: Duration) -> std::io::Result<()> {
     stream.set_nonblocking(false)?;
-    stream.set_read_timeout(Some(SESSION_IO_TIMEOUT))?;
-    stream.set_write_timeout(Some(SESSION_IO_TIMEOUT))
+    stream.set_read_timeout(Some(limit))?;
+    stream.set_write_timeout(Some(limit))
 }
 
 /// Serve the one pairing on `listener` for at most `ttl` seconds, authenticated by `code`;
@@ -124,7 +126,8 @@ fn session(
     circle: Option<&str>,
     confirm: &mut dyn FnMut(&Card) -> bool,
 ) -> std::result::Result<Card, LanError> {
-    timed(&stream)?;
+    timed(&stream, PRE_PROOF_IO_TIMEOUT)?;
+    let relax = stream.try_clone()?;
     let mut reader = BufReader::new(stream.try_clone()?);
     let mut writer = stream;
     let out = run_host(
@@ -132,7 +135,13 @@ fn session(
         &mut writer,
         code,
         &[ident.to_owned()],
-        confirm,
+        &mut |card| {
+            // The guest proved the code: allow the admin's person time to compare and approve.
+            if let Err(e) = timed(&relax, SESSION_IO_TIMEOUT) {
+                tracing::warn!(error = %e, "lan pairing: could not extend the session timeout");
+            }
+            confirm(card)
+        },
         &mut |card| {
             let args = CircleAdmitArgs {
                 card: card.encode(),
@@ -173,7 +182,7 @@ pub fn pair_join(
         .ok_or_else(|| Error::Usage(format!("`{}` is not an address:port", args.address)))?;
     let stream = TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT)
         .map_err(|e| Error::Usage(format!("cannot reach {addr}: {e}")))?;
-    timed(&stream).map_err(|e| Error::Usage(e.to_string()))?;
+    timed(&stream, SESSION_IO_TIMEOUT).map_err(|e| Error::Usage(e.to_string()))?;
     let mut reader = BufReader::new(
         stream
             .try_clone()

@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["Certs carry no-forwarding options; same-name circles do not overwrite"]
+new = ["Minted certs carry the no-forwarding options"]
+moved = [0]
+at = "2026-10-17T21:45:36Z"
+actor = "lognd"
+rev = 1

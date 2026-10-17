@@ -568,3 +568,33 @@ fn ops_signed_before_the_removal_still_count() {
     let s = run(&ops);
     assert!(s.members.contains_key("H") && !s.admins.contains("A"));
 }
+
+// frob:tests crates/goway-circle/src/state.rs::fold
+#[test]
+fn admit_of_an_existing_member_is_refused() {
+    let (g, l, _) = chain();
+    let again = admit("A", "L", "helper", &[l.id()]);
+    let s = run(&[g, l, again]);
+    assert!(s.members["L"].roles.contains(&Role::Lead));
+}
+
+// frob:tests crates/goway-circle/src/state.rs::fold_pinned
+#[test]
+fn admit_with_a_malformed_key_is_refused_when_the_verifier_checks_keys() {
+    use goway_circle::Verifier;
+    struct Strict(goway_circle::FakeCrypto);
+    impl Verifier for Strict {
+        fn verify(&self, k: &str, m: &[u8], s: &str) -> bool {
+            self.0.verify(k, m, s)
+        }
+    }
+    let (g, l, _) = chain();
+    // Strict uses the default key_ok, which rejects the one-letter test keys.
+    assert!(!Strict(fake("v")).key_ok("L"));
+    assert!(
+        fold(&[g, l], &Strict(fake("v")))
+            .unwrap()
+            .members
+            .is_empty()
+    );
+}
