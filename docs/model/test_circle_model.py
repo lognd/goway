@@ -224,6 +224,11 @@ class RosterTests(unittest.TestCase):
         self.assertFalse(m.accept_roster(known, {g, l}))
         self.assertTrue(m.accept_roster(known, {g, l, h}))
 
+    def test_offer_dropping_an_ancestor_is_refused(self):
+        g, l, h = self.chain()
+        self.assertFalse(m.accept_superset({g, l, h}, {g, h}))
+        self.assertTrue(m.accept_superset({g, l, h}, {g, l, h}))
+
     def test_merge_is_commutative_and_idempotent(self):
         g, l, h = self.chain()
         a, b = {g, l}, {g, h, l}
