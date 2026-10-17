@@ -4,9 +4,10 @@ title = "Fold docs/circle-admin.md into circles.md and config.md; refresh 0.2.0 
 type = "docs"
 category = "todo"
 priority = "medium"
+points = 1
 reporter = "lognd"
 created = "2026-10-17T07:20:01Z"
-updated = "2026-10-17T07:20:01Z"
+updated = "2026-10-17T07:20:03Z"
 idempotency_key = "docs-circles-fold"
 +++
 
