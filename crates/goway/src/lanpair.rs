@@ -100,10 +100,7 @@ pub fn serve(
         match session(paths, renderer, stream, code, &ident, circle, confirm) {
             Ok(card) => {
                 guard.consume();
-                return Ok(PairedPeer {
-                    card,
-                    address: peer.ip(),
-                });
+                return Ok(PairedPeer { card, address: peer.ip() });
             }
             Err(e) => {
                 tracing::warn!(%peer, error = %e, "lan pairing: session failed");
@@ -173,11 +170,7 @@ pub fn pair_join(
     let stream = TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT)
         .map_err(|e| Error::Usage(format!("cannot reach {addr}: {e}")))?;
     timed(&stream).map_err(|e| Error::Usage(e.to_string()))?;
-    let mut reader = BufReader::new(
-        stream
-            .try_clone()
-            .map_err(|e| Error::Usage(e.to_string()))?,
-    );
+    let mut reader = BufReader::new(stream.try_clone().map_err(|e| Error::Usage(e.to_string()))?);
     let mut writer = stream;
     let (welcome, idents) =
         run_guest(&mut reader, &mut writer, code, &card.card).map_err(lan_error)?;
@@ -228,17 +221,12 @@ fn advertised(args: &CirclePairHostArgs, port: u16) -> Option<String> {
             _ => return None,
         },
     };
-    Some(if host.contains(':') && !host.starts_with('[') {
-        format!("[{host}]:{port}")
-    } else {
-        format!("{host}:{port}")
-    })
+    Some(if host.contains(':') && !host.starts_with('[') { format!("[{host}]:{port}") } else { format!("{host}:{port}") })
 }
 
 /// Render `text` as an ASCII QR code ('#' dark, ' ' light) with a quiet zone.
 pub fn qr_ascii(text: &str) -> Result<String> {
-    let code = qrcode::QrCode::new(text.as_bytes())
-        .map_err(|e| Error::Usage(format!("cannot make a QR code: {e}")))?;
+    let code = qrcode::QrCode::new(text.as_bytes()).map_err(|e| Error::Usage(format!("cannot make a QR code: {e}")))?;
     tracing::debug!(width = code.width(), "QR code rendered");
     Ok(code
         .render::<char>()
@@ -259,28 +247,19 @@ pub fn print_qr(renderer: Renderer, text: &str) -> Result<()> {
 /// `goway circle pair-host`.
 pub fn pair_host_cli(paths: &Paths, renderer: Renderer, args: &CirclePairHostArgs) -> Result<()> {
     let listener = bind_listener(&args.bind, args.port)?;
-    let local = listener
-        .local_addr()
-        .map_err(|e| Error::Usage(e.to_string()))?;
+    let local = listener.local_addr().map_err(|e| Error::Usage(e.to_string()))?;
     renderer.headline(format!("waiting {} min for a new machine", args.wait));
     match advertised(args, local.port()) {
         Some(addr) => {
-            renderer.next(format!(
-                "on the new machine run `goway circle pair-join {addr}`"
-            ));
+            renderer.next(format!("on the new machine run `goway circle pair-join {addr}`"));
             if args.qr {
                 print_qr(renderer, &addr)?;
             }
         }
         None if args.qr => {
-            return Err(Error::Usage(
-                "--qr needs --advertise ADDRESS or a specific --bind address".to_owned(),
-            ));
+            return Err(Error::Usage("--qr needs --advertise ADDRESS or a specific --bind address".to_owned()));
         }
-        None => renderer.next(format!(
-            "on the new machine run `goway circle pair-join <this machine's LAN address>:{}`",
-            local.port()
-        )),
+        None => renderer.next(format!("on the new machine run `goway circle pair-join <this machine's LAN address>:{}`", local.port())),
     }
     let code = new_code().map_err(lan_error)?;
     renderer.headline(format!("one-time pairing code: {code}"));
@@ -300,14 +279,9 @@ pub fn pair_host_cli(paths: &Paths, renderer: Renderer, args: &CirclePairHostArg
 
 /// `goway circle pair-join`.
 pub fn pair_join_cli(paths: &Paths, renderer: Renderer, args: &CirclePairJoinArgs) -> Result<()> {
-    let code = ask_code(renderer).ok_or_else(|| {
-        Error::Usage("no valid pairing code was entered; nothing was changed".into())
-    })?;
+    let code = ask_code(renderer).ok_or_else(|| Error::Usage("no valid pairing code was entered; nothing was changed".into()))?;
     let (out, addr) = pair_join(paths, renderer, args, &code)?;
-    renderer.ok(format!(
-        "joined circle {} ({} members)",
-        out.id, out.members
-    ));
+    renderer.ok(format!("joined circle {} ({} members)", out.id, out.members));
     if let Some(peer) = &args.peer {
         remember_hint(paths, peer, addr.ip());
     }
@@ -332,7 +306,7 @@ mod tests {
     use crate::cli::{CircleInitArgs, CircleSelect};
     use crate::render::ColorWhen;
     use std::path::Path;
-
+    
     #[test]
     fn qr_ascii_is_ascii_square_with_quiet_zone() {
         let qr = qr_ascii("192.168.1.20:41234").unwrap();
@@ -359,18 +333,9 @@ mod tests {
             qr: true,
         };
         assert_eq!(advertised(&mk("0.0.0.0", None), 9), None);
-        assert_eq!(
-            advertised(&mk("192.168.1.2", None), 9).as_deref(),
-            Some("192.168.1.2:9")
-        );
-        assert_eq!(
-            advertised(&mk("0.0.0.0", Some("10.0.0.5")), 9).as_deref(),
-            Some("10.0.0.5:9")
-        );
-        assert_eq!(
-            advertised(&mk("0.0.0.0", Some("fe80::1")), 9).as_deref(),
-            Some("[fe80::1]:9")
-        );
+        assert_eq!(advertised(&mk("192.168.1.2", None), 9).as_deref(), Some("192.168.1.2:9"));
+        assert_eq!(advertised(&mk("0.0.0.0", Some("10.0.0.5")), 9).as_deref(), Some("10.0.0.5:9"));
+        assert_eq!(advertised(&mk("0.0.0.0", Some("fe80::1")), 9).as_deref(), Some("[fe80::1]:9"));
     }
 
     fn paths(dir: &Path) -> Paths {
@@ -396,9 +361,7 @@ mod tests {
     }
 
     fn members(p: &Paths) -> Option<usize> {
-        circle::list_rows(p, quiet(), &CircleSelect { circle: None })
-            .ok()
-            .map(|r| r.len())
+        circle::list_rows(p, quiet(), &CircleSelect { circle: None }).ok().map(|r| r.len())
     }
 
     /// An admin machine with a circle, a fresh joiner, and a loopback listener.
@@ -416,19 +379,10 @@ mod tests {
         circle::init(
             &admin,
             quiet(),
-            &CircleInitArgs {
-                name: "home".into(),
-                machine: Some("lap".into()),
-                passphrase: false,
-            },
+            &CircleInitArgs { name: "home".into(), machine: Some("lap".into()), passphrase: false },
         )
         .unwrap();
-        Rig {
-            _tmp: tmp,
-            admin,
-            joiner,
-            listener: bind_listener("127.0.0.1", 0).unwrap(),
-        }
+        Rig { _tmp: tmp, admin, joiner, listener: bind_listener("127.0.0.1", 0).unwrap() }
     }
 
     /// Run host and guest at once; the host approves per `host_says`, the guest types `guest_code`.
@@ -440,15 +394,7 @@ mod tests {
         let addr = rig.listener.local_addr().unwrap();
         std::thread::scope(|sc| {
             let host = sc.spawn(|| {
-                serve(
-                    &rig.admin,
-                    quiet(),
-                    &rig.listener,
-                    2,
-                    "1234 5678",
-                    None,
-                    &mut |_| host_says,
-                )
+                serve(&rig.admin, quiet(), &rig.listener, 2, "1234 5678", None, &mut |_| host_says)
             });
             let guest = sc.spawn(|| pair_join(&rig.joiner, quiet(), &join_args(addr), guest_code));
             (host.join().unwrap(), guest.join().unwrap())
@@ -478,10 +424,7 @@ mod tests {
         let before = members(&rig.admin);
         let (host, guest) = pair(&rig, true, "1234 5679");
         assert!(guest.is_err());
-        assert!(
-            host.is_err(),
-            "the host session fails and the listener times out or strikes"
-        );
+        assert!(host.is_err(), "the host session fails and the listener times out or strikes");
         assert_eq!(members(&rig.admin), before);
         assert_eq!(members(&rig.joiner), None);
     }
@@ -503,15 +446,7 @@ mod tests {
     fn an_expired_listener_admits_nobody() {
         let rig = rig();
         let before = members(&rig.admin);
-        let r = serve(
-            &rig.admin,
-            quiet(),
-            &rig.listener,
-            0,
-            "1234 5678",
-            None,
-            &mut |_| true,
-        );
+        let r = serve(&rig.admin, quiet(), &rig.listener, 0, "1234 5678", None, &mut |_| true);
         assert!(r.is_err());
         assert_eq!(members(&rig.admin), before);
     }
@@ -520,15 +455,7 @@ mod tests {
     #[test]
     fn a_machine_that_is_not_an_admin_cannot_host() {
         let rig = rig();
-        let r = serve(
-            &rig.joiner,
-            quiet(),
-            &rig.listener,
-            5,
-            "1234 5678",
-            None,
-            &mut |_| true,
-        );
+        let r = serve(&rig.joiner, quiet(), &rig.listener, 5, "1234 5678", None, &mut |_| true);
         assert!(r.is_err());
     }
 
@@ -538,9 +465,6 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let p = paths(tmp.path());
         remember_hint(&p, "newbox", "192.0.2.9".parse().unwrap());
-        assert_eq!(
-            State::load(&p.state_file()).unwrap().hints("newbox"),
-            ["192.0.2.9"]
-        );
+        assert_eq!(State::load(&p.state_file()).unwrap().hints("newbox"), ["192.0.2.9"]);
     }
 }

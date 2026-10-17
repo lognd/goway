@@ -135,10 +135,7 @@ impl State {
 
     /// Remember an unsigned address hint for `name` (newest first, deduplicated, capped).
     pub fn add_hint(&mut self, name: &str, address: &str) {
-        let list = self
-            .peer_hints
-            .entry(name.to_ascii_lowercase())
-            .or_default();
+        let list = self.peer_hints.entry(name.to_ascii_lowercase()).or_default();
         list.retain(|a| a != address);
         list.insert(0, address.to_owned());
         list.truncate(MAX_HINTS);
@@ -262,15 +259,10 @@ mod tests {
     #[test]
     fn hints_are_newest_first_deduplicated_and_capped() {
         let mut s = State::default();
-        for a in [
-            "10.0.0.1", "10.0.0.2", "10.0.0.1", "10.0.0.3", "10.0.0.4", "10.0.0.5",
-        ] {
+        for a in ["10.0.0.1", "10.0.0.2", "10.0.0.1", "10.0.0.3", "10.0.0.4", "10.0.0.5"] {
             s.add_hint("Box", a);
         }
-        assert_eq!(
-            s.hints("box"),
-            ["10.0.0.5", "10.0.0.4", "10.0.0.3", "10.0.0.1"]
-        );
+        assert_eq!(s.hints("box"), ["10.0.0.5", "10.0.0.4", "10.0.0.3", "10.0.0.1"]);
         assert!(s.hints("other").is_empty());
     }
 
