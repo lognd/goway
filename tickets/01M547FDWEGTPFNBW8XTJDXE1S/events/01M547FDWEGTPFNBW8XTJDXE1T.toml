@@ -1,0 +1,10 @@
+kind = "create"
+title = "Upgrade LAN pairing to real CPace"
+type = "task"
+category = "todo"
+priority = "medium"
+scope = ["crates/goway-circle/src/lan.rs"]
+body = "Phase 4 uses a commit-reveal SAS because no prime-order group crate is available. Add a vetted ristretto255 crate and implement CPace with a short code. Found while working ~42YF0JB."
+at = "2026-10-17T06:06:07Z"
+actor = "lognd"
+rev = 1

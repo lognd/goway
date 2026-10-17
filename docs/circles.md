@@ -187,11 +187,47 @@ human to confirm at both ends.
    `goway-setup install --host --join <welcome>` does the same for a helper
    (not yet built; until then run `goway circle join` on the helper).
 
-Convenience layers on top (same card and welcome bytes): LAN auto-pairing
-with CPace (a PAKE) using a short code, and a short authentication string
-both screens must show equal. The listener is open only during pairing, is
-single use, rate limited and expires in minutes. mDNS announcements never
-carry circle identity.
+#### LAN pairing (`pair-host`, `pair-join`)
+
+`goway circle pair-host [--port N] [--bind ADDR] [--wait MIN]` on an admin
+and `goway circle pair-join <addr:port> [--peer NAME]` on the new machine do
+steps 1 to 3 over one short TCP session. The card and welcome are the same
+bytes; the fingerprint comparison is replaced by a six digit code:
+
+    guest -> host   commit    SHA-256(guest nonce, card)
+    host  -> guest  nonce     host nonce, admin key fingerprint(s)
+    guest -> host   reveal    guest nonce, card (host checks it against the commit)
+    both            code      digits from SHA-256(both nonces, fingerprints, card)
+    guest -> host   confirm   only after the new machine's person typed the host's code
+    host  -> guest  welcome   only after the admin's person typed the guest's code too
+
+Each person types the code shown on the OTHER screen. Nothing is admitted,
+stored or sent before both match; a mismatch, a declined prompt, a closed
+terminal or a timeout changes nothing on either machine. The guest commits
+to its card before it sees the host's nonce, so an attacker in the middle
+who swaps the card or the host identity has about a one in a million chance
+per attempt of producing equal codes, and the listener allows few attempts.
+The new machine also requires the admin that paired with it to be an admin
+of the circle in the welcome, then verifies the genesis as in `join`.
+
+Deviation from the design: CPace (a PAKE) needs a prime-order group, and no
+such crate is in the dependency tree, so a hand-rolled one was refused.
+The substitute is the commit-reveal short authentication string above, the
+closest safe design without a group. It has no offline-guessing exposure
+because no secret code is typed into the channel; the codes are only
+compared. A real CPace upgrade is a separate ticket.
+
+The listener is open only during pairing: it expires (`--wait`, default 5,
+at most 30 minutes), is single use (it closes after the first session that
+reaches the comparison), enforces a one second gap between connections,
+and closes after five failed sessions. It reads one JSON line per message
+with fixed size caps and unknown fields refused. mDNS announcements never
+carry circle identity: nothing is announced, the admin prints its port and
+the person gives the new machine the admin's LAN address.
+
+On success the admin remembers the new machine's address, and
+`pair-join --peer NAME` remembers the admin's, as peer address hints (4.5).
+The QR code for the card is not built yet.
 
 ### 4.5 Discovery and resolution
 
@@ -302,6 +338,6 @@ The status of this document stays "design" until the commands exist.
 2. `goway circle` card, admit, join, list, revoke; `goway-setup --join`.
 3. Certificates, `authorized_keys` lines, roster-fed pinning, config merge,
    Windows path.
-4. LAN pairing (CPace plus SAS), QR, peer address hints.
+4. LAN pairing (commit-reveal SAS; CPace and QR are follow-ups), peer address hints. Done except QR and CPace.
 5. Later: forced-command gate for instant revocation, guest sandbox,
    cross-circle federation.

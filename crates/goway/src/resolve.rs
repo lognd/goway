@@ -6,6 +6,7 @@
 //! Windows interop lookup takes seconds):
 //!
 //! 1. the cached last good address,
+//! 1b. unsigned peer address hints (learned from other circle members),
 //! 2. the configured `address`,
 //! 3. the name through the system resolver,
 //! 4. `<name>.local` through the system resolver (mDNS where supported),
@@ -32,6 +33,8 @@ use crate::transport::{self, Kind};
 pub enum Source {
     /// The last address that worked.
     Cached,
+    /// An unsigned last-seen address learned from a circle peer.
+    Hint,
     /// The `address` field of the host config.
     Configured,
     /// The host name through the system resolver.
@@ -52,6 +55,7 @@ impl std::fmt::Display for Source {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::Cached => "cached",
+            Self::Hint => "peer hint",
             Self::Configured => "configured",
             Self::Name => "dns",
             Self::Mdns => "mdns",
@@ -251,6 +255,7 @@ fn stage(source: Source, host: &HostConfig, state: &State, lookup: &dyn Lookup) 
             .get(&host.name)
             .map(|s| vec![s.address.clone()])
             .unwrap_or_default(),
+        Source::Hint => state.hints(&host.name).to_vec(),
         Source::Configured => match &host.address {
             Some(a) if a.parse::<IpAddr>().is_ok() => vec![a.clone()],
             Some(a) => {
@@ -273,8 +278,9 @@ fn stage(source: Source, host: &HostConfig, state: &State, lookup: &dyn Lookup) 
     }
 }
 
-const STAGES: [Source; 5] = [
+const STAGES: [Source; 6] = [
     Source::Cached,
+    Source::Hint,
     Source::Configured,
     Source::Name,
     Source::Mdns,
@@ -621,6 +627,26 @@ mod tests {
             name: "helios".to_owned(),
             ..HostConfig::default()
         }
+    }
+
+    #[test]
+    fn a_peer_hint_is_tried_after_the_cache_and_is_still_probed_for_the_pinned_key() {
+        let config = Config::default();
+        let mut state = State::default();
+        state.add_hint("helios", "192.0.2.77");
+        state.add_hint("helios", "192.0.2.78");
+        let prober = FakeProber {
+            good: "192.0.2.77".to_owned(),
+            wrong_machine: vec!["192.0.2.78".to_owned()],
+            probed: RefCell::new(Vec::new()),
+        };
+        let found = resolve(
+            &config, &host(), &mut state, &FakeLookup::default(), &prober, KeyPolicy::Strict, "true",
+        )
+        .unwrap();
+        assert_eq!(found.source, Source::Hint);
+        assert_eq!(*prober.probed.borrow(), ["192.0.2.78", "192.0.2.77"], "a wrong-key hint is rejected");
+        assert_eq!(state.get("helios").unwrap().address, "192.0.2.77");
     }
 
     #[test]

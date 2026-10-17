@@ -1,0 +1,6 @@
+kind = "field"
+field = "scope"
+new = ["crates/goway/tests/journal_invariant.rs"]
+at = "2026-10-17T06:21:51Z"
+actor = "lognd"
+rev = 1

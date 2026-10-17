@@ -1,0 +1,24 @@
+kind = "evidence"
+captured_at = "2026-10-17T06:23:14Z"
+digest = "c076948b862ba3346749e05939bc49a9a591c9ccdf669683afdd76df1d006174"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1eede4e9-0efc-4708-b30f-ea177cf2ff78 with nextest profile: default
+    Starting 2 tests across 63 binaries (815 tests skipped)
+        PASS [   0.005s] goway state::tests::hints_are_newest_first_deduplicated_and_capped
+        PASS [   0.005s] goway resolve::tests::a_peer_hint_is_tried_after_the_cache_and_is_still_probed_for_the_pinned_key
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.007s] 2 tests run: 2 passed, 815 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(hints_are_newest_first) | test(a_peer_hint_is_tried)'"
+size = 685
+status = "measured"
+test_count = 2
+tests_digest = "fc8a3498e3c642c2575de628b6f7b7d236bb87aca632795e75f3a49d1bc4a54e"
+at = "2026-10-17T06:23:14Z"
+actor = "lognd"
+rev = 1

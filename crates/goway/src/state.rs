@@ -86,6 +86,10 @@ pub struct State {
     /// Tool versions doctor last saw, per host (lowercase name).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tool_versions: BTreeMap<String, ToolVersions>,
+    /// Unsigned last-seen addresses of hosts learned from peers (newest first), never trusted:
+    /// the pinned host key is still verified before use.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub peer_hints: BTreeMap<String, Vec<String>>,
     /// Probe static facts on the next probe regardless of age (not saved).
     #[serde(skip)]
     pub refresh_facts: bool,
@@ -93,6 +97,9 @@ pub struct State {
     #[serde(skip)]
     pub want_tools: Option<(String, Vec<String>)>,
 }
+
+/// Most peer address hints kept per host.
+pub const MAX_HINTS: usize = 4;
 
 /// Cached tool versions older than this are probed again by a run (one day).
 pub const TOOLS_MAX_AGE: u64 = 24 * 60 * 60;
@@ -124,6 +131,22 @@ impl State {
     /// The cached state of `name`.
     pub fn get(&self, name: &str) -> Option<&HostState> {
         self.hosts.get(&name.to_ascii_lowercase())
+    }
+
+    /// Remember an unsigned address hint for `name` (newest first, deduplicated, capped).
+    pub fn add_hint(&mut self, name: &str, address: &str) {
+        let list = self.peer_hints.entry(name.to_ascii_lowercase()).or_default();
+        list.retain(|a| a != address);
+        list.insert(0, address.to_owned());
+        list.truncate(MAX_HINTS);
+        tracing::info!(host = name, address, "remembering peer address hint");
+    }
+
+    /// The peer address hints for `name`, newest first.
+    pub fn hints(&self, name: &str) -> &[String] {
+        self.peer_hints
+            .get(&name.to_ascii_lowercase())
+            .map_or(&[], Vec::as_slice)
     }
 
     /// Record that `address:port` just worked for `name`.
@@ -232,6 +255,16 @@ pub fn now_secs() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hints_are_newest_first_deduplicated_and_capped() {
+        let mut s = State::default();
+        for a in ["10.0.0.1", "10.0.0.2", "10.0.0.1", "10.0.0.3", "10.0.0.4", "10.0.0.5"] {
+            s.add_hint("Box", a);
+        }
+        assert_eq!(s.hints("box"), ["10.0.0.5", "10.0.0.4", "10.0.0.3", "10.0.0.1"]);
+        assert!(s.hints("other").is_empty());
+    }
 
     #[test]
     fn distrust_expires_after_seven_clean_days_and_clears_by_repo() {
