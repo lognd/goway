@@ -2,7 +2,8 @@
 id = "01M55SHERW6M3D3ZXM6Y1EKY38"
 title = "Audit H1: a revoked admin key can act by backdating its parents"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "critical"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
