@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["An encrypted circle key signs only with its passphrase, and a plain key never prompts", "goway circle init --passphrase creates encrypted keys"]
+moved = []
+at = "2026-10-17T12:09:07Z"
+actor = "lognd"
+rev = 1
