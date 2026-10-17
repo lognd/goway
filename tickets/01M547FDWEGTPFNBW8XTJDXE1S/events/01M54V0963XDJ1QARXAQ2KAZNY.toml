@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-17T11:47:22Z"
+digest = "b2a999595113fd8860ae15a54f5d6f0e859f8d83db696c19becce717b26727cd"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 80efc8df-107f-4acc-a1c6-bed654db2fe8 with nextest profile: default
+    Starting 1 test across 1 binary (43 tests skipped)
+        PASS [   0.003s] goway-circle lan::tests::degenerate_and_malformed_points_are_rejected
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.004s] 1 test run: 1 passed, 43 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle --lib -E test(degenerate_and_malformed_points_are_rejected)"
+size = 558
+status = "measured"
+test_count = 1
+tests_digest = "b6ee6bd276c7ce4b9cd0022dc00e2f05a2192ead020cc6800fb234fd1528f7bd"
+at = "2026-10-17T11:47:22Z"
+actor = "lognd"
+rev = 1
