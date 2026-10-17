@@ -4,10 +4,11 @@ title = "Phase 3: certificates, authorized_keys cert-authority lines, roster-fed
 type = "story"
 category = "todo"
 priority = "high"
+points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:07:06Z"
-updated = "2026-10-17T05:07:06Z"
+updated = "2026-10-17T05:58:43Z"
 idempotency_key = "c3"
 labels = ["circles"]
 
