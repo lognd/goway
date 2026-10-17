@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "a matching pair yields encrypted keys that sign only with the passphrase"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "the double-entry check accepts equal entries and rejects differing ones"
