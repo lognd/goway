@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-17T05:55:02Z"
+digest = "494129cc445a46e7d12b7cbb35ce427a3bfe7d7c8aa0d25af3a65c1191835b71"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 7248ed8d-71fc-438b-8383-375e7d246c66 with nextest profile: default
+    Starting 2 tests across 63 binaries (796 tests skipped)
+        PASS [   0.006s] goway hosts::tests::windows_banner_is_recognised
+        PASS [   0.006s] goway hosts::tests::windows_advice_is_windows_specific
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.009s] 2 tests run: 2 passed, 796 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E test(hosts::tests::windows_advice_is_windows_specific)|test(hosts::tests::windows_banner_is_recognised)"
+size = 624
+status = "measured"
+test_count = 2
+tests_digest = "aa470012916be9833c541f7f79491a3ce42158669fba49f59879ee0f9d9e48a4"
+at = "2026-10-17T05:55:02Z"
+actor = "lognd"
+rev = 1
