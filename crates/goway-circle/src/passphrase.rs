@@ -133,6 +133,17 @@ mod tests {
         Passphrase::new(s.into()).unwrap()
     }
 
+    // frob:ticket 01M55SHEZJMS47VT8RXNXTGZVG
+    // frob:tests crates/goway-circle/src/passphrase.rs::passphrase_unlocks_key
+    #[test]
+    fn passphrase_unlock_check_accepts_only_the_right_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let key = dir.path().join("k");
+        keygen_encrypted(&key, &pp("right right")).unwrap();
+        assert!(passphrase_unlocks_key(&key, &pp("right right")));
+        assert!(!passphrase_unlocks_key(&key, &pp("wrong wrong")));
+    }
+
     // frob:tests crates/goway-circle/src/passphrase.rs::ask_new_passphrase
     #[test]
     fn passphrase_confirmation_mismatch_is_refused() {
@@ -228,6 +239,20 @@ pub fn key_is_encrypted(path: &Path) -> bool {
     let encrypted = rest.get(..len).is_some_and(|c| c != b"none");
     info!(key = %path.display(), encrypted, "checked key encryption");
     encrypted
+}
+
+/// Return true when `pass` decrypts the private key at `private` (checked by `ssh-keygen -y`).
+pub fn passphrase_unlocks_key(private: &Path, pass: &Passphrase) -> bool {
+    let Ok(askpass) = Askpass::new() else {
+        warn!("could not set up askpass to verify a passphrase");
+        return false;
+    };
+    let mut cmd = Command::new("ssh-keygen");
+    cmd.arg("-y").arg("-f").arg(private);
+    askpass.apply(&mut cmd, pass);
+    let ok = cmd.output().is_ok_and(|o| o.status.success());
+    info!(key = %private.display(), ok, "verified a passphrase against its key");
+    ok
 }
 
 /// Generate an encrypted ed25519 key at `private` using `pass`.

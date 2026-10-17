@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 
 use goway::access::{needs_renewal, run_policy, run_renew};
 use goway::circle::{admit, init, join, make_card};
-use goway::circle_admin::{Proposed, admin_card, cosign, propose, run_admin_with};
+#[cfg(unix)]
+use goway::circle_admin::run_admin_with;
+use goway::circle_admin::{Proposed, admin_card, cosign, propose};
 use goway::cli::{
     CircleAdminCardArgs, CircleAdminChangeArgs, CircleAdmitArgs, CircleCardArgs, CircleCosignArgs,
     CircleInitArgs, CircleJoinArgs, CirclePolicyArgs, CircleRenewArgs,
