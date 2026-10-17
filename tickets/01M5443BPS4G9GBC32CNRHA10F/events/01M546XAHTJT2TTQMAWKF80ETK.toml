@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["Cargo.toml", "Cargo.lock", "crates/goway-circle/**", "crates/goway/Cargo.toml", "crates/goway/tests/journal_invariant.rs", "crates/goway/src/circle.rs", "crates/goway/src/error.rs", "crates/goway/src/lib.rs", "crates/goway/src/changelog.rs", "crates/goway/src/sshsetup.rs", "docs/circles.md"]
+new = ["Cargo.toml", "Cargo.lock", "crates/goway-circle/**", "crates/goway/Cargo.toml", "crates/goway/tests/journal_invariant.rs", "crates/goway/src/circle.rs", "crates/goway/src/error.rs", "crates/goway/src/lib.rs", "crates/goway/src/changelog.rs", "crates/goway/src/sshsetup.rs", "docs/circles.md", "docs/config.md"]
+at = "2026-10-17T05:56:14Z"
+actor = "lognd"
+rev = 1
