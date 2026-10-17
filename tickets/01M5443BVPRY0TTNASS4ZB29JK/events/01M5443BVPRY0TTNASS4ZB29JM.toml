@@ -1,0 +1,12 @@
+kind = "create"
+title = "Phase 5 (later): forced-command gate, guest sandbox, cross-circle federation"
+type = "story"
+category = "todo"
+priority = "low"
+parent = "01M54433AG8J1V0GYT3ZWY9C9A"
+idempotency_key = "c6"
+labels = ["circles"]
+body = "Deferred. Instant revocation, sandboxing for non-owner members, federation between circles."
+at = "2026-10-17T05:07:06Z"
+actor = "lognd"
+rev = 1
