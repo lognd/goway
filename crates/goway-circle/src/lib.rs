@@ -23,7 +23,10 @@ pub use crypto::{
     FakeCrypto, NAMESPACE, Signer, SshKeygenSigner, SshKeygenVerifier, Verifier, valid_public_key,
 };
 pub use error::{CertError, CircleError, CryptoError, PairingError, SshCertError, StoreError};
-pub use keys::{KeyPair, ensure_keypair, ensure_keypair_with, key_fingerprint, read_public_key};
+pub use keys::{
+    KeyPair, ensure_keypair, ensure_keypair_with, generate_sk_keypair, key_fingerprint,
+    read_public_key,
+};
 pub use lan::{
     HostOutcome, LanError, ListenGuard, Msg, Refusal, new_code, normalize_code, read_msg,
     run_guest, run_host, write_msg,

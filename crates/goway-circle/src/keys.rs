@@ -198,6 +198,45 @@ pub fn ensure_keypair_with(
     ))
 }
 
+/// Generate an `ed25519-sk` (FIDO2) admin key at `private` by running `program` (`ssh-keygen`).
+///
+/// The token is touched (and its PIN asked) on the caller's terminal, so stdio is inherited;
+/// `program` is a parameter so tests can substitute a fake. Refuses to overwrite an existing key.
+// frob:ticket 01M5493X9E88JC1ECXBSKGF7C1
+pub fn generate_sk_keypair(
+    program: &Path,
+    private: &Path,
+    restrict: &dyn Fn(&Path),
+) -> Result<KeyPair, StoreError> {
+    if std::fs::symlink_metadata(private).is_ok() || pub_path(private).exists() {
+        warn!(key = %private.display(), "refusing to overwrite an existing key with a hardware key");
+        return Err(StoreError::KeyUnsafe {
+            path: private.to_owned(),
+            reason: "a key already exists there".to_owned(),
+        });
+    }
+    if let Some(dir) = private.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| io_err("create", dir, e))?;
+    }
+    info!(key = %private.display(), "generating an ed25519-sk admin key; touch the token when it blinks");
+    let status = Command::new(program)
+        .args(["-t", "ed25519-sk", "-N", "", "-C", "", "-f"])
+        .arg(private)
+        .status()
+        .map_err(|e| CryptoError::Tool(format!("cannot run ssh-keygen: {e}")))?;
+    if !status.success() {
+        warn!(?status, "ssh-keygen could not make an ed25519-sk key");
+        return Err(CryptoError::Tool(format!("ssh-keygen exited with {status}")).into());
+    }
+    restrict(private);
+    let public = read_public_key(&pub_path(private))?;
+    info!(key = %private.display(), "generated an ed25519-sk admin key");
+    Ok(KeyPair {
+        private: private.to_owned(),
+        public,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,5 +376,48 @@ mod tests {
         assert!(!made);
         assert_eq!(kept.public, again.public);
         assert!(!file.exists(), "no private key may be invented");
+    }
+
+    /// Write an executable fake `ssh-keygen` that records its args and makes a key pair.
+    #[cfg(unix)]
+    fn fake_keygen(dir: &Path, succeed: bool) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt as _;
+        let script = dir.join("fake-ssh-keygen");
+        let body = if succeed {
+            "#!/bin/sh\nwhile [ $# -gt 0 ]; do case \"$1\" in -f) f=\"$2\";; esac; echo \"$1\" >> \"$0.args\"; shift; done\n\
+             echo secret > \"$f\"; echo 'sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29t comment' > \"$f.pub\"\n"
+        } else {
+            "#!/bin/sh\nexit 1\n"
+        };
+        std::fs::write(&script, body).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        script
+    }
+
+    // frob:tests crates/goway-circle/src/keys.rs::generate_sk_keypair
+    #[cfg(unix)]
+    #[test]
+    fn sk_keygen_runs_the_tool_and_returns_the_pair() {
+        let dir = tempfile::tempdir().unwrap();
+        let tool = fake_keygen(dir.path(), true);
+        let key = dir.path().join("circle").join("admin_ed25519");
+        let pair = generate_sk_keypair(&tool, &key, &|_| {}).unwrap();
+        assert!(pair.public.starts_with("sk-ssh-ed25519@openssh.com "));
+        assert!(!pair.public.contains("comment"));
+        let args = std::fs::read_to_string(dir.path().join("fake-ssh-keygen.args")).unwrap();
+        assert!(args.lines().any(|l| l == "ed25519-sk"));
+    }
+
+    // frob:tests crates/goway-circle/src/keys.rs::generate_sk_keypair
+    #[cfg(unix)]
+    #[test]
+    fn sk_keygen_failure_and_existing_key_are_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let bad = fake_keygen(dir.path(), false);
+        let key = dir.path().join("admin");
+        assert!(generate_sk_keypair(&bad, &key, &|_| {}).is_err());
+        let good = fake_keygen(dir.path(), true);
+        generate_sk_keypair(&good, &key, &|_| {}).unwrap();
+        assert!(generate_sk_keypair(&good, &key, &|_| {}).is_err());
     }
 }

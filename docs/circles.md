@@ -69,7 +69,9 @@ An admin is always a lead; a helper-only machine can never be admin.
 - **Admin key**: a second ed25519 key, used only to sign roster operations and
   certificates. Never the daily login key. `ed25519-sk` (FIDO2) is
   recommended; goway shells out to `ssh-keygen`, so a hardware key works
-  without goway code.
+  with any existing key file. `goway_circle::generate_sk_keypair` automates
+  creating one (`ssh-keygen -t ed25519-sk`, token touch and PIN on the
+  terminal; it never overwrites an existing key).
 - **Host key**: the machine's sshd host key. The roster carries its
   fingerprint, so leads pin it without a TOFU prompt.
 - Only ed25519 is accepted anywhere. There is no negotiation.
