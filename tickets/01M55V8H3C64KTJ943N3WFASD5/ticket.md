@@ -2,13 +2,13 @@
 id = "01M55V8H3C64KTJ943N3WFASD5"
 title = "Audit M9: goway-setup --join passes the whole welcome on the command line"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 5
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T21:11:07Z"
-updated = "2026-10-17T21:11:07Z"
+updated = "2026-10-17T21:11:12Z"
 idempotency_key = "audit-m9"
 scope = ["crates/goway-setup/src/hostsys.rs"]
 
