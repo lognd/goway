@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T21:12:26Z"
+digest = "b267d06f705bea18bc7717a11caef373a070e136047284322e2a18441183d444"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 6ea837c8-2490-405c-9d1b-5ab21ddd7a96 with nextest profile: default
+    Starting 1 test across 65 binaries (861 tests skipped)
+        PASS [   0.273s] goway access::tests::a_revoked_lead_in_the_saved_policy_is_dropped_not_fatal
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.275s] 1 test run: 1 passed, 861 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(a_revoked_lead_in_the_saved_policy_is_dropped_not_fatal)'"
+size = 625
+status = "measured"
+test_count = 1
+tests_digest = "5e5644c6ffeaad2fca1d5d1481d81daa5ba876e5530078c3280c6494da68f892"
+at = "2026-10-17T21:12:26Z"
+actor = "lognd"
+rev = 1
