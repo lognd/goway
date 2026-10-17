@@ -6,6 +6,7 @@ pub mod add;
 pub mod changelog;
 pub mod circle;
 pub mod circle_admin;
+pub mod circle_push;
 pub mod cli;
 pub mod cmakeapi;
 pub mod config;

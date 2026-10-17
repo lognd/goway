@@ -295,7 +295,7 @@ Implemented in phase 2: the confirmation is a fingerprint a person types back
 (or passes as `--fingerprint SHA256:...`); `admit` compares the card's
 node-key fingerprint, `join` compares an admin-key fingerprint of the
 welcome. A wrong fingerprint changes nothing. `revoke` asks unless `--yes`.
-Not yet: `revoke --now`, certificate expiry and last seen in `list`.
+`revoke --now` and the certificate expiry and last seen columns of `list` are implemented (see section 5).
 
 ## 5. Commands
 
@@ -313,8 +313,13 @@ Not yet: `revoke --now`, certificate expiry and last seen in `list`.
     goway circle renew                  renew this machine's certificate
     goway circle policy open|listed     helper policy
 
-`revoke --now` pushes the epoch to every reachable helper and prints the
-helpers it could not reach, which stay exposed until they hear.
+`revoke --now` asks every other helper of the roster (found like any pool
+host) to run `goway circle access`, so its `cert-authority` lines move to the
+new epoch, and prints the helpers it could not reach; those stay exposed until
+they hear. Each helper that answers is recorded as last seen. Limits: the
+helper uses its own copy of the roster, so it must already have the revoke
+(roster sync is not pushed yet); `list` shows certificate expiry only for this
+machine (other certs are not stored here) and last seen only from these pushes.
 
 ## 6. Security audit
 

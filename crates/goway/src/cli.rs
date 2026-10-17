@@ -660,6 +660,9 @@ pub struct CircleRevokeArgs {
     /// Remove without asking.
     #[arg(long)]
     pub yes: bool,
+    /// Also push the new epoch to every reachable helper now, and list the ones not reached.
+    #[arg(long)]
+    pub now: bool,
     /// Which circle.
     #[arg(long)]
     pub circle: Option<String>,

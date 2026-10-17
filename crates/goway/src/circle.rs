@@ -500,8 +500,25 @@ fn admin_op(
     Ok(())
 }
 
-/// Remove `args.name` from the circle for good.
+/// Remove `args.name` from the circle for good; with `--now`, also push the new epoch to helpers.
 pub fn revoke(paths: &Paths, renderer: Renderer, args: &CircleRevokeArgs) -> Result<()> {
+    revoke_with(
+        paths,
+        renderer,
+        args,
+        &crate::circle_push::SshPusher {
+            paths: paths.clone(),
+        },
+    )
+}
+
+/// [`revoke`] with the helper-reaching step injected (tests pass a fake).
+pub fn revoke_with(
+    paths: &Paths,
+    renderer: Renderer,
+    args: &CircleRevokeArgs,
+    pusher: &dyn crate::circle_push::Pusher,
+) -> Result<()> {
     if !args.yes {
         let ok = render::ask(&format!(
             "revoke `{}` for good? it can never be re-admitted [y/N] ",
@@ -523,7 +540,45 @@ pub fn revoke(paths: &Paths, renderer: Renderer, args: &CircleRevokeArgs) -> Res
         "the roster refused this revoke (an admin member needs the admin quorum)",
     )?;
     renderer.ok(format!("revoked `{}`", args.name));
+    if args.now {
+        push_epoch(paths, renderer, args.circle.as_deref(), pusher)?;
+    } else {
+        renderer.next("pass --now next time, or run `goway circle access` on each helper, so old certificates stop working");
+    }
     Ok(())
+}
+
+/// Ask every other helper to refresh its access lines and report who could not be reached.
+fn push_epoch(
+    paths: &Paths,
+    renderer: Renderer,
+    circle: Option<&str>,
+    pusher: &dyn crate::circle_push::Pusher,
+) -> Result<()> {
+    let (store, _, state) = load(paths, circle)?;
+    let me = read_public_key(&pub_of(&node_key_path(paths))).ok();
+    let hosts = crate::circle_push::helper_names(&state, me.as_deref());
+    let report = crate::circle_push::push_all(&hosts, pusher);
+    crate::circle_push::record_seen(paths, store.id(), &report.reached, now_secs())?;
+    tracing::info!(circle = store.id(), epoch = state.epoch, reached = report.reached.len(), unreachable = report.unreachable.len(), "epoch pushed");
+    renderer.ok(format!(
+        "epoch {} pushed to {} helper(s)",
+        state.epoch,
+        report.reached.len()
+    ));
+    for (name, why) in &report.unreachable {
+        renderer.warn(format_args!(
+            "`{name}` was not reached ({why}); it stays exposed until it runs `goway circle access`"
+        ));
+    }
+    Ok(())
+}
+
+/// Seconds since the unix epoch (0 if the clock is before it).
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
 }
 
 /// Change the roles of `args.name`.
@@ -560,10 +615,13 @@ pub fn list_rows(
         .flatten();
     let _ = renderer;
     let mut rows = vec![
-        ["name", "roles", "fingerprint", "host key", "notes"]
+        ["name", "roles", "fingerprint", "host key", "cert expires", "last seen", "notes"]
             .map(str::to_owned)
             .to_vec(),
     ];
+    let seen = crate::circle_push::last_seen(paths, store.id());
+    let now = now_secs();
+    let own_expiry = own_cert_expiry(paths);
     for (key, m) in &state.members {
         let roles: Vec<&str> = m
             .roles
@@ -585,11 +643,29 @@ pub fn list_rows(
             roles.join(","),
             fingerprint_of(key),
             m.host_fp.clone(),
+            if own.as_deref() == Some(key.as_str()) {
+                own_expiry.map_or_else(|| "none".to_owned(), |t| format!("unix {t}"))
+            } else {
+                "-".to_owned()
+            },
+            if own.as_deref() == Some(key.as_str()) {
+                "now".to_owned()
+            } else {
+                crate::circle_push::ago(seen.get(&m.name).copied(), now)
+            },
             notes.join(", "),
         ]);
     }
     tracing::debug!(circle = store.id(), epoch = state.epoch, "listed members");
     Ok(rows)
+}
+
+/// Expiry (unix seconds) of this machine's lead certificate, if one is written and readable.
+fn own_cert_expiry(paths: &Paths) -> Option<u64> {
+    let mut file = node_key_path(paths).into_os_string();
+    file.push("-cert.pub");
+    let text = std::fs::read_to_string(PathBuf::from(file)).ok()?;
+    goway_circle::parse_cert(&text).ok().map(|c| c.valid_before)
 }
 
 pub(crate) fn pub_of(private: &Path) -> PathBuf {
@@ -744,11 +820,11 @@ mod tests {
         let rows = list_rows(&p.joiner, quiet(), &CircleSelect { circle: None }).unwrap();
         assert!(
             rows.iter()
-                .any(|r| r[0] == "box" && r[4].contains("this machine"))
+                .any(|r| r[0] == "box" && r[6].contains("this machine"))
         );
         assert!(
             rows.iter()
-                .any(|r| r[0] == "lap-admin" && r[4].contains("admin"))
+                .any(|r| r[0] == "lap-admin" && r[6].contains("admin"))
         );
     }
 
@@ -874,6 +950,7 @@ mod tests {
             &CircleRevokeArgs {
                 name: "box".to_owned(),
                 yes: true,
+                now: false,
                 circle: None,
             },
         )

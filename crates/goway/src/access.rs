@@ -425,6 +425,7 @@ mod tests {
             &CircleRevokeArgs {
                 name: "box".to_owned(),
                 yes: true,
+                now: false,
                 circle: None,
             },
         )
