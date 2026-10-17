@@ -335,6 +335,11 @@ pub struct HostAddArgs {
     /// goway asks you to confirm the key at the terminal.
     #[arg(long, value_name = "SHA256:...")]
     pub fingerprint: Option<String>,
+    /// Only print the commands that set a Windows machine up as an OpenSSH
+    /// helper (install the server, authorize goway's key, PowerShell shell);
+    /// nothing is probed or changed.
+    #[arg(long)]
+    pub windows: bool,
 }
 
 /// `goway ssh` verbs.

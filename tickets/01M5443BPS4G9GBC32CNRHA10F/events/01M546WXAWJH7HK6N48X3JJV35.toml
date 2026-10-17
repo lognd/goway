@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["A helper and a lead join with no network pairing", "Cards and welcomes never logged"]
+new = ["A helper and a lead join with no network pairing", "Cards and welcomes never logged", "A wrong fingerprint on admit or join changes nothing", "Revoke and roles change the roster; a revoked key cannot be re-admitted", "Node and admin private keys are created readable only by their owner and every roster write is journaled"]
+moved = [1, 2]
+at = "2026-10-17T05:56:00Z"
+actor = "lognd"
+rev = 1
