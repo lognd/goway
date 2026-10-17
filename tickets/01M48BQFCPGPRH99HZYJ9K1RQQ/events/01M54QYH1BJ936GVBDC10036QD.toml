@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T10:53:50Z"
+digest = "ce2d1fd5fd332c36f1d36e3ee5a8cc0355f5ff0808b42ec57e0c3744cb030f35"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 13518140-708d-4c72-b1ed-bb67e82dab24 with nextest profile: default
+    Starting 1 test across 1 binary (10 tests skipped)
+        PASS [   9.283s] goway::mem_footprint a_cargo_run_with_no_record_starts_lowered_and_says_why_until_a_record_exists
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   9.283s] 1 test run: 1 passed, 10 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --test mem_footprint -E test(a_cargo_run_with_no_record_starts_lowered_and_says_why_until_a_record_exists)"
+size = 638
+status = "measured"
+test_count = 1
+tests_digest = "6d15b2e600787915aaba835965b2ff2eea99f9862c6ca57b8178fcfd9f933e47"
+at = "2026-10-17T10:53:50Z"
+actor = "lognd"
+rev = 1

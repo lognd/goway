@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T10:54:21Z"
+digest = "450fb871d38ea389ff858cabd27fb6e79df4279a8609c9dc692a680135c9c96d"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID dfdea4d1-d1bc-43fe-94fd-ee24bdffd53c with nextest profile: default
+    Starting 1 test across 1 binary (450 tests skipped)
+        PASS [   0.005s] goway fit::tests::a_run_with_no_record_starts_conservatively_and_a_record_replaces_the_guess
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 450 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --lib -E test(a_run_with_no_record_starts_conservatively_and_a_record_replaces_the_guess)"
+size = 583
+status = "measured"
+test_count = 1
+tests_digest = "3086d1c21e7793d9fd5957f03094ac2bb6e9fe3257120d319d1e921673e0b5ea"
+at = "2026-10-17T10:54:21Z"
+actor = "lognd"
+rev = 1
