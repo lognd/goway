@@ -1,0 +1,26 @@
+kind = "evidence"
+captured_at = "2026-10-17T21:17:57Z"
+digest = "ba4503e8c9ad9d4ffca1e63ba92731d5cf7b790d93e0c9f2dd765c2155d8f709"
+exit_code = 0
+inline = '''
+   Compiling goway-journal v0.2.0 (<worktree>/crates/goway-journal)
+   Compiling goway-circle v0.2.0 (<worktree>/crates/goway-circle)
+   Compiling goway v0.2.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 48.82s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e0e5d767-6341-488b-8378-9af7d21c1d39 with nextest profile: default
+    Starting 1 test across 65 binaries (861 tests skipped)
+        PASS [   0.368s] goway access::tests::a_revoked_lead_in_the_saved_policy_is_dropped_not_fatal
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.371s] 1 test run: 1 passed, 861 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(a_revoked_lead_in_the_saved_policy_is_dropped_not_fatal)'"
+size = 757
+status = "measured"
+test_count = 1
+tests_digest = "5e5644c6ffeaad2fca1d5d1481d81daa5ba876e5530078c3280c6494da68f892"
+at = "2026-10-17T21:17:57Z"
+actor = "lognd"
+rev = 1
