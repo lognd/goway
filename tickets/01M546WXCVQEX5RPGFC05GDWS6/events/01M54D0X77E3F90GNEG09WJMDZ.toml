@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["goway-setup install --host --join <welcome> --join-fingerprint <fp> validates the paste up front, then joins the circle and installs access lines inside the WSL distro"]
+moved = []
+at = "2026-10-17T07:43:03Z"
+actor = "lognd"
+rev = 1

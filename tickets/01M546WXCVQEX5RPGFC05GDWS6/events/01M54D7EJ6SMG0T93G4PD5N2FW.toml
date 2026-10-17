@@ -1,0 +1,33 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T07:43:03Z"
+digest = "2a91ad7f45e2dbd2b3fe7eb49c8c7c21786cfcb3422525070f8ef16d32cac563"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+   Compiling goway-circle v0.2.0 (<worktree>/crates/goway-circle)
+   Compiling goway-journal v0.2.0 (<worktree>/crates/goway-journal)
+   Compiling goway-setup v0.2.0 (<worktree>/crates/goway-setup)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3m 33s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 156a02d8-9362-468c-b9d7-7adea200f33f with nextest profile: default
+    Starting 6 tests across 90 binaries (1122 tests skipped)
+        PASS [   0.006s] goway-setup::hostsys joining_runs_join_then_access_as_the_user
+        PASS [   0.006s] goway-setup::helper join_needs_a_whole_welcome_and_a_fingerprint
+        PASS [   0.006s] goway-setup::hostsys a_failed_join_stops_before_access
+        PASS [   0.008s] goway pool::tests::concurrent_runs_cannot_jointly_overcommit_a_hosts_memory
+        PASS [   0.172s] goway circle::tests::join_with_a_wrong_admin_fingerprint_stores_nothing
+        PASS [   0.190s] goway circle::tests::two_paste_pairing_joins_a_machine
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.193s] 6 tests run: 6 passed, 1122 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "join"
+size = 1261
+status = "measured"
+test_count = 6
+tests_digest = "053b37983ecf265e2b0bb35e47f8d98ccb5bea17f4fb20eb8032ef3cb94f9bbc"
+at = "2026-10-17T07:43:03Z"
+actor = "lognd"
+rev = 1
