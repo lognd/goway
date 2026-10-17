@@ -10,6 +10,7 @@ use tracing::{info, warn};
 
 use crate::crypto::valid_public_key;
 use crate::error::{CryptoError, StoreError};
+use crate::passphrase::{Passphrase, keygen_encrypted};
 
 /// A private key file and its public half (the roster identity).
 #[derive(Debug, Clone)]
@@ -111,6 +112,17 @@ pub fn ensure_keypair(
     private: &Path,
     restrict: &dyn Fn(&Path),
 ) -> Result<(KeyPair, bool), StoreError> {
+    ensure_keypair_with(private, restrict, None)
+}
+
+/// Like [`ensure_keypair`], but a fresh key is encrypted with `pass` when one is given.
+///
+/// An existing key is loaded as is (encrypted or not); the passphrase is only used to make it.
+pub fn ensure_keypair_with(
+    private: &Path,
+    restrict: &dyn Fn(&Path),
+    pass: Option<&Passphrase>,
+) -> Result<(KeyPair, bool), StoreError> {
     let public_file = pub_path(private);
     let has_private = std::fs::symlink_metadata(private).is_ok();
     let has_public = public_file.exists();
@@ -158,17 +170,21 @@ pub fn ensure_keypair(
             let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
         }
     }
-    let out = Command::new("ssh-keygen")
-        .args(["-q", "-t", "ed25519", "-N", "", "-C", "", "-f"])
-        .arg(private)
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| CryptoError::Tool(format!("cannot run ssh-keygen: {e}")))?;
-    if !out.status.success() {
-        warn!(status = ?out.status, "ssh-keygen could not make a key");
-        return Err(
-            CryptoError::Tool(String::from_utf8_lossy(&out.stderr).trim().to_owned()).into(),
-        );
+    if let Some(pass) = pass {
+        keygen_encrypted(private, pass)?;
+    } else {
+        let out = Command::new("ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-N", "", "-C", "", "-f"])
+            .arg(private)
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|e| CryptoError::Tool(format!("cannot run ssh-keygen: {e}")))?;
+        if !out.status.success() {
+            warn!(status = ?out.status, "ssh-keygen could not make a key");
+            return Err(
+                CryptoError::Tool(String::from_utf8_lossy(&out.stderr).trim().to_owned()).into(),
+            );
+        }
     }
     restrict(private);
     let public = read_public_key(&public_file)?;
@@ -216,6 +232,43 @@ mod tests {
                 "private key must not be group/world readable"
             );
         }
+    }
+
+    // frob:tests crates/goway-circle/src/keys.rs::ensure_keypair_with
+    #[test]
+    fn encrypted_key_needs_the_passphrase_to_sign() {
+        use crate::crypto::{Signer as _, SshKeygenSigner};
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("k");
+        let pass = Passphrase::new("correct horse battery".into()).unwrap();
+        let (pair, made) = ensure_keypair_with(&file, &|_| {}, Some(&pass)).unwrap();
+        assert!(made);
+        assert!(crate::passphrase::key_is_encrypted(&file));
+        let wrong = Passphrase::new("wrong wrong wrong".into()).unwrap();
+        let bad = SshKeygenSigner::new(file.clone(), pair.public.clone())
+            .unwrap()
+            .with_passphrase(wrong);
+        assert!(bad.sign(b"m").is_err());
+        let good = SshKeygenSigner::new(file, pair.public)
+            .unwrap()
+            .with_passphrase(pass);
+        assert!(good.sign(b"m").unwrap().contains("BEGIN SSH SIGNATURE"));
+    }
+
+    // frob:tests crates/goway-circle/src/keys.rs::ensure_keypair_with
+    #[test]
+    fn plain_key_is_not_reported_encrypted() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = make_key(dir.path());
+        assert!(!crate::passphrase::key_is_encrypted(&file));
+    }
+
+    // frob:tests crates/goway-circle/src/passphrase.rs::Passphrase
+    #[test]
+    fn passphrase_debug_is_redacted_and_empty_refused() {
+        let p = Passphrase::new("s3cret-value".into()).unwrap();
+        assert!(!format!("{p:?}").contains("s3cret"));
+        assert!(Passphrase::new(String::new()).is_err());
     }
 
     fn make_key(dir: &Path) -> PathBuf {

@@ -396,8 +396,12 @@ signature cannot be replayed as any other ssh signature.
   or load into the agent. Certificates signed by an `sk-ssh-ed25519@openssh.com` key are
   parsed and accepted as admin signatures. Generation is manual (~SKGF7C1).
 - Passphrase-protected keys work through the ssh-keygen prompt.
-- Deferred: OS keystore (~WNW4H3Y), built-in passphrase prompt and encrypted node key
-  (~7JMKV3B).
+- Built-in passphrase support: `ensure_keypair_with` makes a node key encrypted with a
+  `Passphrase` (redacted in `Debug`, wiped on drop, never logged); `TtyPrompt` reads one from
+  `/dev/tty` with echo off; `SshKeygenSigner::with_passphrase` signs with it. The passphrase
+  reaches `ssh-keygen` only through a private askpass script and the child's environment,
+  never argv or a file. `key_is_encrypted` tells callers whether to prompt.
+- Deferred: OS keystore (~WNW4H3Y); wiring the prompt into the `goway circle` commands.
 
 ## 7. Alternatives rejected
 

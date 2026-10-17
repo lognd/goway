@@ -8,6 +8,7 @@ use goway_journal::sha256_hex;
 use tracing::{debug, warn};
 
 use crate::error::CryptoError;
+use crate::passphrase::{Askpass, Passphrase};
 
 /// The `ssh-keygen -Y` namespace that binds signatures to roster operations.
 // frob:invariant INV-CIRCLE-002
@@ -45,6 +46,7 @@ pub fn valid_public_key(key: &str) -> bool {
 pub struct SshKeygenSigner {
     public_key: String,
     key_file: PathBuf,
+    passphrase: Option<Passphrase>,
 }
 
 impl SshKeygenSigner {
@@ -56,7 +58,15 @@ impl SshKeygenSigner {
         Ok(Self {
             public_key,
             key_file,
+            passphrase: None,
         })
+    }
+
+    /// Supply the key's passphrase so signing never prompts on its own.
+    #[must_use]
+    pub fn with_passphrase(mut self, passphrase: Passphrase) -> Self {
+        self.passphrase = Some(passphrase);
+        self
     }
 }
 
@@ -87,7 +97,16 @@ impl Signer for SshKeygenSigner {
         let mut cmd = Command::new("ssh-keygen");
         cmd.args(["-Y", "sign", "-n", NAMESPACE, "-f"])
             .arg(self.signing_target());
+        let askpass = match &self.passphrase {
+            Some(pass) => {
+                let askpass = Askpass::new()?;
+                askpass.apply(&mut cmd, pass);
+                Some(askpass)
+            }
+            None => None,
+        };
         let out = run(cmd, message)?;
+        drop(askpass);
         if !out.status.success() {
             warn!(status = ?out.status, "ssh-keygen sign failed");
             return Err(CryptoError::Tool(
