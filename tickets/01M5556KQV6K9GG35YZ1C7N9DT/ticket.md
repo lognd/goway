@@ -2,7 +2,8 @@
 id = "01M5556KQV6K9GG35YZ1C7N9DT"
 title = "run_admin keygen arm has no test"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 1
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
