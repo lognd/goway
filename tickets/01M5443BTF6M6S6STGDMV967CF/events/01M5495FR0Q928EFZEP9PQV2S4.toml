@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T06:35:14Z"
+digest = "d1b09b0258118f31f9c80a4351d9eece4a4a1bc0ef593db2be4f074fdf5d4632"
+exit_code = 0
+inline = '''
+   Compiling goway-circle v0.1.2 (<worktree>/crates/goway-circle)
+   Compiling goway-setup v0.1.2 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.1.2 (<worktree>/crates/goway-journal)
+   Compiling goway v0.1.2 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 23.74s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d78d6a3c-5063-452c-9305-753bd70a3b42 with nextest profile: default
+    Starting 1 test across 88 binaries (1107 tests skipped)
+        PASS [   0.014s] goway-circle keys::tests::loose_key_mode_is_refused
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.017s] 1 test run: 1 passed, 1107 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "goway-circle keys::tests::loose_key_mode_is_refused"
+size = 798
+status = "measured"
+test_count = 1
+tests_digest = "fe3a7261b7963400c7c548dd9bd2bc1fb5abace518e1dbae53e200f20a8ff679"
+at = "2026-10-17T06:35:14Z"
+actor = "lognd"
+rev = 1

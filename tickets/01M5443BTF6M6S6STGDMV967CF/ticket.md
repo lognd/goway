@@ -8,14 +8,14 @@ points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:07:06Z"
-updated = "2026-10-17T06:35:09Z"
+updated = "2026-10-17T06:35:14Z"
 idempotency_key = "c5"
 labels = ["circles"]
 scope = ["crates/goway-circle/src/keys.rs", "crates/goway-circle/src/state.rs", "crates/goway-circle/src/store.rs", "crates/goway-circle/src/sshcert.rs", "crates/goway-circle/src/crypto.rs", "crates/goway-circle/src/error.rs", "crates/goway-circle/src/lib.rs", "crates/goway-circle/src/pairing.rs", "crates/goway/src/circle.rs", "crates/goway/src/access.rs", "docs/circles.md", "docs/config.md"]
 
 [[acceptance]]
 text = "Loose-mode, symlinked or private-without-pub node keys are refused and never regenerated"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Unsafe names and fingerprints cannot enter the roster or authorized_keys"
