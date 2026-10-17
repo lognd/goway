@@ -1,0 +1,29 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T20:49:12Z"
+digest = "1adba08f40af94b5bfb6946d9fa6fef300f1b32891c42f1702896e7cfb569c77"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+   Compiling goway-circle v0.2.0 (<worktree>/crates/goway-circle)
+   Compiling goway v0.2.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 25s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 24a41e0f-a284-4e0f-8beb-2b286721a20d with nextest profile: default
+    Starting 3 tests across 90 binaries (1172 tests skipped)
+        PASS [   0.007s] goway-circle::roster ops_signed_before_the_removal_still_count
+        PASS [   0.008s] goway-circle::roster backdated_revoke_of_honest_admin_cannot_undo_a_revoke
+        PASS [   0.009s] goway-circle::roster backdated_admin_additions_cannot_break_the_revoke_quorum
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.012s] 3 tests run: 3 passed, 1172 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E 'test(backdated_revoke_of_honest_admin_cannot_undo_a_revoke) | test(backdated_admin_additions_cannot_break_the_revoke_quorum) | test(ops_signed_before_the_removal_still_count)'"
+size = 936
+status = "measured"
+test_count = 3
+tests_digest = "26ab703cdf2a8df251b173de5d470ba90a22eec8dfbfdfa4b2ddcf761aa850e2"
+at = "2026-10-17T20:49:12Z"
+actor = "lognd"
+rev = 1
