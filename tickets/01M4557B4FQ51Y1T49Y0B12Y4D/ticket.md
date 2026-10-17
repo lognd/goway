@@ -7,8 +7,8 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T04:30:18Z"
-updated = "2026-10-17T10:54:13Z"
-scope = ["crates/goway/src/remote.rs", "crates/goway/src/remote.sh"]
+updated = "2026-10-17T10:54:16Z"
+scope = ["crates/goway/src/remote.rs", "crates/goway/src/remote.sh", "docs/positioning.md", "changelog.d/01M4557B4FQ51Y1T49Y0B12Y4D.fixed.md"]
 
 [[acceptance]]
 text = "Given a helper without the current script version, When a call runs, Then the client installs it once (by stdin, verified by hash) and retries, and later calls send only a short command line"
