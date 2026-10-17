@@ -7,7 +7,7 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-09T16:05:14Z"
-updated = "2026-10-17T10:11:51Z"
+updated = "2026-10-17T10:12:03Z"
 
 [[acceptance]]
 text = "Given recorded runs whose peaks exceed the fitted line, when a job count is chosen, then a documented safety margin keeps the estimate at or above every recorded peak at that level, and a test covers it"
