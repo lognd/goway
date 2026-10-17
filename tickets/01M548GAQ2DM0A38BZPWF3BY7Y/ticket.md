@@ -7,7 +7,7 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:24:05Z"
-updated = "2026-10-17T08:20:51Z"
+updated = "2026-10-17T08:20:52Z"
 scope = ["crates/goway/tests/common/mod.rs", "crates/goway/tests/local_host.rs", "crates/goway/tests/slot_wait.rs", "crates/goway/tests/weighted_shards.rs", "changelog.d/01M548GAQ2DM0A38BZPWF3BY7Y*"]
 
 [[acceptance]]
