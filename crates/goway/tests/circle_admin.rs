@@ -252,3 +252,29 @@ fn policy_switches_between_open_and_listed() {
     assert!(policy(&w, "open", &["lap"]).is_err(), "open takes no lead");
     assert!(policy(&w, "listed", &["ghost"]).is_err(), "unknown lead refused");
 }
+
+/// Write an executable fake `ssh-keygen` that makes a key pair at the `-f` path (no device).
+#[cfg(unix)]
+fn fake_keygen(dir: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt as _;
+    let script = dir.join("fake-ssh-keygen");
+    let body = "#!/bin/sh\nwhile [ $# -gt 0 ]; do case \"$1\" in -f) f=\"$2\";; esac; shift; done\n\
+        echo secret > \"$f\"; echo 'sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29t c' > \"$f.pub\"\n";
+    std::fs::write(&script, body).unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    script
+}
+
+// frob:tests crates/goway/src/circle_admin.rs::keygen
+#[cfg(unix)]
+#[test]
+fn keygen_makes_the_admin_key_once() {
+    let tmp = tempfile::tempdir().unwrap();
+    let p = paths(&tmp.path().join("lap"));
+    let tool = fake_keygen(tmp.path());
+    let (pair, fp) = goway::circle_admin::keygen(&p, quiet(), &tool).unwrap();
+    assert_eq!(pair.private, p.config_dir.join("circle").join("admin_ed25519"));
+    assert!(pair.public.starts_with("sk-ssh-ed25519@openssh.com "));
+    assert!(fp.starts_with("SHA256:"));
+    assert!(goway::circle_admin::keygen(&p, quiet(), &tool).is_err());
+}

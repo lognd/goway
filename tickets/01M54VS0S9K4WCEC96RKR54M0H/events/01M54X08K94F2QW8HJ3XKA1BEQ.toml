@@ -1,0 +1,43 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T12:22:18Z"
+digest = "a1cb289816668037a8d247e247841e5d46a29db67a3d2e85da97f02e93980912"
+exit_code = 101
+inline = """
+warning: unused variable: `layout`
+   --> crates/goway-setup/src/cli.rs:783:29
+    |
+783 | fn join_circle(r: Renderer, layout: &Layout, distro: &str, welcome: &str, fingerprint: &str) {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_layout`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `goway-setup` (lib) generated 1 warning (run `cargo fix --lib -p goway-setup` to apply 1 suggestion)
+warning: `goway-setup` (lib test) generated 1 warning (1 duplicate)
+   Compiling goway v0.2.0 (<worktree>/crates/goway)
+error[E0063]: missing field `passphrase` in initializer of `CircleInitArgs`
+  --> crates/goway/tests/circle_admin.rs:60:10
+   |
+60 |         &CircleInitArgs {
+   |          ^^^^^^^^^^^^^^ missing `passphrase`
+
+error[E0063]: missing field `passphrase` in initializer of `CircleInitArgs`
+  --> crates/goway/tests/circle_revoke_now.rs:57:10
+   |
+57 |         &CircleInitArgs {
+   |          ^^^^^^^^^^^^^^ missing `passphrase`
+
+For more information about this error, try `rustc --explain E0063`.
+error: could not compile `goway` (test "circle_revoke_now") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `goway` (test "circle_admin") due to 1 previous error
+error: command `~/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo '--color=never' test --no-run --message-format json-render-diagnostics` exited with code 101
+"""
+passed = false
+provider = "nextest"
+ref = "a_plain_key_never_asks_for_a_passphrase"
+size = 1503
+status = "measured"
+at = "2026-10-17T12:22:18Z"
+actor = "lognd"
+rev = 1

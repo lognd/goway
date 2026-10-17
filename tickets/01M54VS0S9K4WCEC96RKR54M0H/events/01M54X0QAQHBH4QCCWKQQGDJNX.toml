@@ -1,0 +1,34 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T12:22:34Z"
+digest = "09acd6376f2a47cf4b813c5c8ca8b264806211a56d9d261af57209816c9442b1"
+exit_code = 0
+inline = '''
+warning: unused variable: `layout`
+   --> crates/goway-setup/src/cli.rs:783:29
+    |
+783 | fn join_circle(r: Renderer, layout: &Layout, distro: &str, welcome: &str, fingerprint: &str) {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_layout`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `goway-setup` (lib) generated 1 warning (run `cargo fix --lib -p goway-setup` to apply 1 suggestion)
+warning: `goway-setup` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 4bb1823e-a78b-4c2e-a04f-a5efe518f463 with nextest profile: default
+    Starting 1 test across 90 binaries (1156 tests skipped)
+        PASS [   0.028s] goway circle::tests::keys_are_private_and_changes_are_journaled
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.030s] 1 test run: 1 passed, 1156 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "keys_are_private_and_changes_are_journaled"
+size = 1123
+status = "measured"
+test_count = 1
+tests_digest = "194263d6745598797390424b7f9e0660cb6c112cfffe37f37ff5b6ddf9f62c7a"
+at = "2026-10-17T12:22:34Z"
+actor = "lognd"
+rev = 1

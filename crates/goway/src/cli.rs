@@ -443,6 +443,8 @@ pub enum CircleAdminCommand {
     Remove(CircleAdminChangeArgs),
     /// Add this admin's signature to a proposal file and apply it.
     Cosign(CircleCosignArgs),
+    /// Make this machine's admin key on a FIDO2 token (`ssh-keygen -t ed25519-sk`); touch it when it blinks.
+    Keygen,
 }
 
 /// Arguments of `goway circle admin card`.

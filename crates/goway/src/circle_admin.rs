@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use goway_circle::{Card, Kind, Op, Signer, State, parse_ops};
+use goway_circle::{Card, Kind, Op, Signer, State, generate_sk_keypair, parse_ops};
 
 use crate::changelog;
 use crate::circle::{
@@ -59,6 +59,18 @@ pub fn admin_card(paths: &Paths, renderer: Renderer, args: &CircleAdminCardArgs)
     tracing::info!(name = %card.name, "admin card made");
     let fp = fingerprint_of(&card.key);
     Ok((card, fp))
+}
+
+/// Make this machine's `ed25519-sk` admin key by running `program` (`ssh-keygen`); never overwrites.
+// frob:ticket 01M54VV1JY0C7FDCHM9A8Q2EJJ
+pub fn keygen(paths: &Paths, renderer: Renderer, program: &Path) -> Result<(goway_circle::KeyPair, String)> {
+    let path = admin_key_path(paths);
+    let pair = generate_sk_keypair(program, &path, &|p| {
+        crate::sshsetup::restrict_key_acl(p, renderer);
+    })?;
+    tracing::info!(key = %path.display(), "hardware admin key made");
+    let fp = fingerprint_of(&pair.public);
+    Ok((pair, fp))
 }
 
 /// What a proposal did: applied to the roster, or written half-signed to a file.
@@ -155,6 +167,12 @@ pub fn run_admin(paths: &Paths, renderer: Renderer, command: &CircleAdminCommand
             renderer.line(card.encode());
             renderer.note(format!("admin key fingerprint: {fp}"));
             renderer.next("paste it into `goway circle admit` on an admin, then `goway circle admin add NAME`");
+        }
+        CircleAdminCommand::Keygen => {
+            let (pair, fp) = keygen(paths, renderer, Path::new("ssh-keygen"))?;
+            renderer.ok(format!("admin key made at {}", pair.private.display()));
+            renderer.note(format!("admin key fingerprint: {fp}"));
+            renderer.next("run `goway circle admin card` to get its card");
         }
         CircleAdminCommand::Add(args) => report(paths, renderer, Kind::AddAdmin, args)?,
         CircleAdminCommand::Remove(args) => report(paths, renderer, Kind::RemoveAdmin, args)?,
