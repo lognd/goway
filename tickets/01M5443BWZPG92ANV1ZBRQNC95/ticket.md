@@ -8,10 +8,10 @@ points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:07:06Z"
-updated = "2026-10-17T06:42:40Z"
+updated = "2026-10-17T06:42:46Z"
 idempotency_key = "c7"
 labels = ["circles"]
-scope = ["Cargo.toml"]
+scope = ["Cargo.toml", "{Cargo.toml,Cargo.lock,README.md,crates/goway-circle/Cargo.toml,changelog.d/*}"]
 
 [[acceptance]]
 text = "Workspace crates and Cargo.lock are at 0.2.0, an added changelog fragment and a README circle section exist"
