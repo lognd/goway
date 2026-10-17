@@ -2,7 +2,8 @@
 id = "01M5443BQZFS1KV0S4JQ5WP11P"
 title = "Phase 3: certificates, authorized_keys cert-authority lines, roster-fed pinning"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
