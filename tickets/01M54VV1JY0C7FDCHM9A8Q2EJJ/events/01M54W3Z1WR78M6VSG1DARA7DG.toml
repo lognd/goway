@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T12:06:51Z"
+digest = "3b6b6d7ea69d73028bca20775ca91403c02f74bae68257f28c09327dbfaf7369"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 95284b08-847e-45e9-96bb-05d9d2a595c1 with nextest profile: default
+    Starting 1 test across 1 binary (5 tests skipped)
+        PASS [   0.005s] goway::circle_admin keygen_makes_the_admin_key_once
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.005s] 1 test run: 1 passed, 5 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --test circle_admin -E test(keygen)"
+size = 538
+status = "measured"
+test_count = 1
+tests_digest = "7980b06a57f3d6b24f94a0dc91e6058a0205fff402155a7417ffcf6dc4f0ad05"
+at = "2026-10-17T12:06:51Z"
+actor = "lognd"
+rev = 1
