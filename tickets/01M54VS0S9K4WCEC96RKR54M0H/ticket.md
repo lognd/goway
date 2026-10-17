@@ -8,7 +8,7 @@ points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T12:00:53Z"
-updated = "2026-10-17T12:09:07Z"
+updated = "2026-10-17T12:21:50Z"
 
 [[acceptance]]
 text = "An encrypted circle key signs only with its passphrase, and a plain key never prompts"
