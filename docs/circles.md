@@ -222,7 +222,7 @@ human to confirm at both ends.
    asks to confirm, appends an `admit` operation and prints a **welcome**:
    `gww1.` plus base32 of `{circle name, genesis id, every operation of the
    roster}` (the first certificate joins it in phase 3).
-3. New machine: `goway circle join <welcome>` verifies the genesis hash it is
+3. New machine: `goway circle join <welcome>` (`-` reads the welcome from stdin) verifies the genesis hash it is
    shown against the admin's fingerprint (printed by step 2, compared by
    eye), stores the circle and, on first contact, pulls the full roster.
    `goway-setup install --host --join <welcome> --join-fingerprint <fp>` does
@@ -330,7 +330,7 @@ welcome. A wrong fingerprint changes nothing. `revoke` asks unless `--yes`.
     goway circle init [NAME]            create a circle; this machine becomes admin 1
     goway circle card [--role ...]      print this machine's card
     goway circle admit <card>           admit a machine (admin)
-    goway circle join <welcome>         join with a welcome
+    goway circle join <welcome>         join with a welcome (`-`: read it from stdin)
     goway circle list                   members, roles, cert expiry, last seen
     goway circle revoke <name>          revoke; bump epoch; reissue; list unreachable helpers
     goway circle roles <name> <roles>   change roles (admin)

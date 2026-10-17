@@ -1143,9 +1143,27 @@ fn joining_runs_join_then_access_as_the_user() {
         log[0]
             .args
             .join(" ")
-            .contains("--exec goway circle join gww1.ABC --fingerprint SHA256:x")
+            .contains("--exec goway circle join - --fingerprint SHA256:x")
     );
+    assert_eq!(log[0].stdin.as_deref(), Some(&b"gww1.ABC"[..]));
     assert!(!log[0].args.contains(&"root".to_owned()));
+}
+
+// frob:tests crates/goway-setup/src/hostsys.rs::join_circle
+#[test]
+fn a_large_welcome_never_appears_in_argv() {
+    let fake = Fake::new(vec![
+        ("circle join", 0, "ok\n"),
+        ("circle access", 0, "2 lines\n"),
+    ]);
+    let welcome = format!("gww1.{}", "A".repeat(1100 * 40));
+    sys(&fake).join_circle(&welcome, "SHA256:x").unwrap();
+    let log = fake.log.borrow();
+    for inv in log.iter() {
+        let argv_len: usize = inv.args.iter().map(String::len).sum();
+        assert!(argv_len < 500, "argv is {argv_len} bytes");
+    }
+    assert_eq!(log[0].stdin.as_deref(), Some(welcome.as_bytes()));
 }
 
 // frob:tests crates/goway-setup/src/hostsys.rs::join_circle
@@ -1192,8 +1210,9 @@ fn a_native_join_runs_join_then_access_and_stops_on_failure() {
     let log = fake.log.borrow();
     assert_eq!(
         log[0].args,
-        ["circle", "join", "gww1.ABC", "--fingerprint", "SHA256:x"]
+        ["circle", "join", "-", "--fingerprint", "SHA256:x"]
     );
+    assert_eq!(log[0].stdin.as_deref(), Some(&b"gww1.ABC"[..]));
     assert_eq!(log[1].args, ["circle", "access"]);
     drop(log);
     let bad = Fake::new(vec![("circle join", 1, "no\n")]);
@@ -1265,7 +1284,8 @@ mod native_end_to_end {
         std::fs::write(
             &exe,
             format!(
-                "#!/bin/sh\necho \"$@\" >> {}\ncase \"$2\" in card) echo gwc1.REAL;; access) echo 3 lines;; esac\n",
+                "#!/bin/sh\necho \"$@\" >> {}\ncase \"$2\" in card) echo gwc1.REAL;; access) echo 3 lines;; join) echo \"stdin: $(cat)\" >> {};; esac\n",
+                log.display(),
                 log.display()
             ),
         )
@@ -1282,7 +1302,8 @@ mod native_end_to_end {
             calls.lines().collect::<Vec<_>>(),
             [
                 "circle card",
-                "circle join gww1.ABC --fingerprint SHA256:x",
+                "circle join - --fingerprint SHA256:x",
+                "stdin: gww1.ABC",
                 "circle access"
             ]
         );

@@ -632,7 +632,7 @@ pub struct CircleAdmitArgs {
 /// Arguments of `goway circle join`.
 #[derive(Debug, Args)]
 pub struct CircleJoinArgs {
-    /// The pasted welcome.
+    /// The pasted welcome, or `-` to read it from stdin (keeps a big welcome off the command line).
     pub welcome: String,
     /// The admin fingerprint the admin shows; joins without asking when it is in the welcome.
     #[arg(long)]
