@@ -7,9 +7,9 @@ priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T21:41:51Z"
-updated = "2026-10-17T21:41:57Z"
+updated = "2026-10-17T21:41:58Z"
 idempotency_key = "audit-l1l9"
-scope = ["crates/goway/src/circle.rs"]
+scope = ["crates/goway/src/circle.rs", "crates/goway/src/changelog.rs", "crates/goway/tests/circle.rs"]
 
 [[acceptance]]
 text = "Unapplied ops are never stored as heads; undo refuses circle store paths"
