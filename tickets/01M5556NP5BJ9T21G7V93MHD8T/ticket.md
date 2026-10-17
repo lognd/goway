@@ -15,5 +15,5 @@ scope = ["crates/goway/src/cli.rs", "crates/goway/src/lanpair.rs", "docs/circles
 
 [[acceptance]]
 text = "Given pair-host --qr, when no address is passed, then the LAN address is detected and encoded"
-bound = false
+bound = true
 +++
