@@ -2,7 +2,8 @@
 id = "01M544DC8P7E0DTBA25QMYNF4Q"
 title = "host add --port 22 refuses a Windows OpenSSH helper; setup advice is Linux-only"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 5
 reporter = "lognd"
