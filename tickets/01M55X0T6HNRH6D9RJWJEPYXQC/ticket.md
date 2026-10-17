@@ -2,12 +2,12 @@
 id = "01M55X0T6HNRH6D9RJWJEPYXQC"
 title = "Audit L6+L10: admit validation and key dir checks"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T21:41:51Z"
-updated = "2026-10-17T21:41:51Z"
+updated = "2026-10-17T21:41:59Z"
 idempotency_key = "audit-l6l10"
 scope = ["crates/goway-circle/src/state.rs"]
 
