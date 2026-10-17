@@ -1,0 +1,7 @@
+kind = "transition"
+from = "in-progress"
+to = "todo"
+reason = "previous agent ended without a lease; restarting"
+at = "2026-10-17T20:13:09Z"
+actor = "lognd"
+rev = 1
