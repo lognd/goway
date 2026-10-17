@@ -7,7 +7,7 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:34:47Z"
-updated = "2026-10-17T12:03:54Z"
+updated = "2026-10-17T12:04:08Z"
 scope = ["crates/goway-circle/**", "docs/circles.md", "changelog.d/01M5493X71AKND6PKE8WNW4H3Y.added.md"]
 
 [[acceptance]]
