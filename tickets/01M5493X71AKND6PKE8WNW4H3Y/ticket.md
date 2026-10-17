@@ -7,7 +7,7 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:34:47Z"
-updated = "2026-10-17T12:03:53Z"
+updated = "2026-10-17T12:03:54Z"
 scope = ["crates/goway-circle/**", "docs/circles.md", "changelog.d/01M5493X71AKND6PKE8WNW4H3Y.added.md"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "A prompted passphrase is remembered in the keystore"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "A failing keystore falls back to the prompt"
