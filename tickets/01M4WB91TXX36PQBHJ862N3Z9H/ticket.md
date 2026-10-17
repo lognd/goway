@@ -2,7 +2,7 @@
 id = "01M4WB91TXX36PQBHJ862N3Z9H"
 title = "install --host --distro defaults to 'Ubuntu' instead of the installed or default WSL distro"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
