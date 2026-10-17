@@ -2,12 +2,12 @@
 id = "01M544DC66PA51J77JCCSMEP9M"
 title = "Unreachable helper: probe port 22 when the recorded port is closed, and stop blaming client isolation"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T05:12:34Z"
-updated = "2026-10-17T05:14:38Z"
+updated = "2026-10-17T05:14:44Z"
 idempotency_key = "nova-port-fallback"
 labels = ["windows", "onboarding"]
 +++
