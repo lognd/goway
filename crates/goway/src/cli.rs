@@ -421,6 +421,95 @@ pub enum CircleCommand {
     Cert(CircleCertArgs),
     /// Pin a roster member's ssh host key from a scan, only if it matches the roster.
     Pin(CirclePinArgs),
+    /// Add or remove an admin, with a second admin's signature once there are three.
+    #[command(subcommand)]
+    Admin(CircleAdminCommand),
+    /// Renew this machine's (or a lead's) access certificate once half its life has passed.
+    Renew(CircleRenewArgs),
+    /// Set this helper's access policy: `open` (every lead) or `listed` (named leads only).
+    Policy(CirclePolicyArgs),
+}
+
+/// `goway circle admin` verbs.
+#[derive(Debug, Subcommand)]
+pub enum CircleAdminCommand {
+    /// Print a card for this machine's admin key, to be admitted like any member first.
+    Card(CircleAdminCardArgs),
+    /// Promote a member (admitted with an admin-key card) to admin.
+    Add(CircleAdminChangeArgs),
+    /// Demote an admin.
+    Remove(CircleAdminChangeArgs),
+    /// Add this admin's signature to a proposal file and apply it.
+    Cosign(CircleCosignArgs),
+}
+
+/// Arguments of `goway circle admin card`.
+#[derive(Debug, Args)]
+pub struct CircleAdminCardArgs {
+    /// This machine's name; `-admin` is appended (default: its host name).
+    #[arg(long, value_parser = circle_label)]
+    pub name: Option<String>,
+}
+
+/// Arguments of `goway circle admin add` and `remove`.
+#[derive(Debug, Args)]
+pub struct CircleAdminChangeArgs {
+    /// Name of the member whose admin key changes status.
+    #[arg(value_parser = circle_label)]
+    pub name: String,
+    /// The second admin (member name of its admin key); needed when there are 3 or more admins.
+    #[arg(long, value_parser = circle_label)]
+    pub cosigner: Option<String>,
+    /// Write the half-signed proposal here instead of applying it (with `--cosigner`).
+    #[arg(long)]
+    pub out: Option<std::path::PathBuf>,
+    /// Which circle.
+    #[arg(long)]
+    pub circle: Option<String>,
+}
+
+/// Arguments of `goway circle admin cosign`.
+#[derive(Debug, Args)]
+pub struct CircleCosignArgs {
+    /// The proposal file written by `admin add|remove --out`.
+    pub file: std::path::PathBuf,
+    /// Which circle.
+    #[arg(long)]
+    pub circle: Option<String>,
+}
+
+/// Arguments of `goway circle renew`.
+#[derive(Debug, Args)]
+pub struct CircleRenewArgs {
+    /// The lead to renew (default: this machine).
+    #[arg(value_parser = circle_label)]
+    pub name: Option<String>,
+    /// Renew even when more than half of the certificate's life is left.
+    #[arg(long)]
+    pub force: bool,
+    /// Which circle.
+    #[arg(long)]
+    pub circle: Option<String>,
+}
+
+/// Arguments of `goway circle policy`.
+#[derive(Debug, Args)]
+pub struct CirclePolicyArgs {
+    /// `open` accepts every lead of the circle; `listed` only the leads named with `--lead`.
+    #[arg(value_parser = ["open", "listed"])]
+    pub mode: String,
+    /// A lead to accept (repeatable; required for `listed`).
+    #[arg(long = "lead", value_parser = circle_label)]
+    pub lead: Vec<String>,
+    /// The `authorized_keys` file to edit (default: the user's, or the Windows admin file).
+    #[arg(long)]
+    pub file: Option<std::path::PathBuf>,
+    /// Edit `%ProgramData%\ssh\administrators_authorized_keys` (a Windows administrator account).
+    #[arg(long)]
+    pub windows_admin: bool,
+    /// Which circle.
+    #[arg(long)]
+    pub circle: Option<String>,
 }
 
 /// Arguments of `goway circle access`.

@@ -66,7 +66,7 @@ fn sink(paths: &Paths) -> JournalSink {
 }
 
 /// Load or create a key pair under the circle dir; tightens the ACL of a new key on Windows.
-fn key_pair(path: &Path, renderer: Renderer) -> Result<goway_circle::KeyPair> {
+pub(crate) fn key_pair(path: &Path, renderer: Renderer) -> Result<goway_circle::KeyPair> {
     let (pair, created) = ensure_keypair(path, &|p| {
         crate::sshsetup::restrict_key_acl(p, renderer);
     })?;
@@ -77,7 +77,7 @@ fn key_pair(path: &Path, renderer: Renderer) -> Result<goway_circle::KeyPair> {
     Ok(pair)
 }
 
-fn signer_for(pair: &goway_circle::KeyPair) -> Result<SshKeygenSigner> {
+pub(crate) fn signer_for(pair: &goway_circle::KeyPair) -> Result<SshKeygenSigner> {
     Ok(SshKeygenSigner::new(
         pair.private.clone(),
         pair.public.clone(),
@@ -85,7 +85,7 @@ fn signer_for(pair: &goway_circle::KeyPair) -> Result<SshKeygenSigner> {
 }
 
 /// This machine's name as a valid circle label.
-fn machine_name() -> String {
+pub(crate) fn machine_name() -> String {
     let raw = crate::repo::client_name();
     let first = raw.split('.').next().unwrap_or_default();
     let clean: String = first
@@ -166,7 +166,7 @@ pub(crate) fn load(paths: &Paths, select: Option<&str>) -> Result<(Store, Vec<Op
 }
 
 /// Append `op` to `ops` and commit when `applied` holds on the resulting state.
-fn append_checked(
+pub(crate) fn append_checked(
     paths: &Paths,
     store: &Store,
     mut ops: Vec<Op>,
@@ -638,6 +638,9 @@ pub fn run(paths: &Paths, renderer: Renderer, command: &CircleCommand) -> Result
         CircleCommand::Pin(args) => crate::access::run_pin(paths, renderer, args)?,
         CircleCommand::Revoke(args) => revoke(paths, renderer, args)?,
         CircleCommand::Roles(args) => set_roles(paths, renderer, args)?,
+        CircleCommand::Admin(cmd) => crate::circle_admin::run_admin(paths, renderer, cmd)?,
+        CircleCommand::Renew(args) => crate::access::run_renew(paths, renderer, args)?,
+        CircleCommand::Policy(args) => crate::access::run_policy(paths, renderer, args)?,
     }
     Ok(())
 }

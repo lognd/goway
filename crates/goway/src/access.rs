@@ -16,7 +16,7 @@ use goway_circle::{
 
 use crate::changelog;
 use crate::circle::{admin_key_path, has_key, load, member_key, node_key_path, pub_of, usage};
-use crate::cli::{CircleAccessArgs, CircleCertArgs, CirclePinArgs};
+use crate::cli::{CircleAccessArgs, CircleCertArgs, CirclePinArgs, CirclePolicyArgs, CircleRenewArgs};
 use crate::config::HostConfig;
 use crate::error::{Error, Result};
 use crate::paths::Paths;
@@ -164,6 +164,67 @@ pub fn run_cert(paths: &Paths, renderer: Renderer, args: &CircleCertArgs) -> Res
         parsed.valid_before
     ));
     Ok(())
+}
+
+/// True when a certificate valid until `valid_before` has less than half of its life left at `now`.
+pub fn needs_renewal(valid_before: u64, now: u64) -> bool {
+    valid_before.saturating_sub(now) <= goway_circle::CERT_TTL_SECS / 2
+}
+
+/// Renew the lead certificate of `args.name` (default: this machine) once half its life has passed.
+///
+/// Without `--force`, this machine's own fresh certificate is left alone. Minting needs this
+/// machine's admin key, so a machine without one must ask an admin to run `cert` or `renew`.
+pub fn run_renew(paths: &Paths, renderer: Renderer, args: &CircleRenewArgs) -> Result<()> {
+    if !args.force && args.name.is_none() {
+        let mut file = node_key_path(paths).into_os_string();
+        file.push("-cert.pub");
+        if let Ok(text) = std::fs::read_to_string(PathBuf::from(file)) {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs());
+            if let Ok(cert) = parse_cert(&text) {
+                if !needs_renewal(cert.valid_before, now) {
+                    tracing::info!(valid_before = cert.valid_before, "certificate still fresh");
+                    renderer.ok("the certificate has more than half of its life left; nothing renewed");
+                    renderer.next("pass --force to renew anyway");
+                    return Ok(());
+                }
+            }
+        }
+    }
+    tracing::info!(name = ?args.name, force = args.force, "renewing certificate");
+    run_cert(
+        paths,
+        renderer,
+        &CircleCertArgs {
+            name: args.name.clone(),
+            circle: args.circle.clone(),
+        },
+    )
+}
+
+/// Set the helper's access policy (`open` or `listed`) and rewrite its `cert-authority` lines.
+pub fn run_policy(paths: &Paths, renderer: Renderer, args: &CirclePolicyArgs) -> Result<()> {
+    let open = args.mode == "open";
+    if open && !args.lead.is_empty() {
+        return Err(usage("`policy open` takes no --lead; use `policy listed`"));
+    }
+    if !open && args.lead.is_empty() {
+        return Err(usage("`policy listed` needs at least one --lead NAME"));
+    }
+    tracing::info!(mode = %args.mode, leads = args.lead.len(), "setting access policy");
+    run_access(
+        paths,
+        renderer,
+        &CircleAccessArgs {
+            lead: args.lead.clone(),
+            open,
+            file: args.file.clone(),
+            windows_admin: args.windows_admin,
+            circle: args.circle.clone(),
+        },
+    )
 }
 
 /// `ssh-keyscan` for one ed25519 host key.

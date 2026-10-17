@@ -153,6 +153,27 @@ impl Op {
         Ok(op)
     }
 
+    /// Build an op that lists every future signer but carries no signature yet.
+    pub fn draft(kind: Kind, body: &[(&str, &str)], parents: &[String], signers: &[String]) -> Self {
+        let mut op = Self::signed(kind, body, parents, &[]).unwrap_or_else(|_| unreachable!());
+        op.signers = signers.to_vec();
+        op
+    }
+
+    /// Add `signer`'s signature to a draft; false when it is not a listed signer or already signed.
+    pub fn cosign(&mut self, signer: &dyn Signer) -> Result<bool, CircleError> {
+        let key = signer.public_key();
+        if !self.signers.iter().any(|s| s == key) || self.sigs.iter().any(|s| s.signer == key) {
+            return Ok(false);
+        }
+        let sig = signer.sign(self.id().as_bytes())?;
+        self.sigs.push(Sig {
+            signer: key.to_owned(),
+            sig,
+        });
+        Ok(true)
+    }
+
     /// Return true when there is at least one signer and each distinct signer has a valid signature.
     pub fn sig_ok(&self, verifier: &dyn Verifier) -> bool {
         let signers: BTreeSet<&str> = self.signers.iter().map(String::as_str).collect();
