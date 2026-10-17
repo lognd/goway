@@ -2,7 +2,8 @@
 id = "01M55X0T3ZVTASAQTZDDZ9JCA3"
 title = "Audit L2+L3: LAN pairing single-use, pre-PAKE timeout, welcome tag"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 2
 reporter = "lognd"
