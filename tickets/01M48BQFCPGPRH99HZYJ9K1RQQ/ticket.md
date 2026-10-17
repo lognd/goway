@@ -2,7 +2,7 @@
 id = "01M48BQFCPGPRH99HZYJ9K1RQQ"
 title = "With no memory record, a cargo run starts at full parallelism and can OOM a small helper"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
