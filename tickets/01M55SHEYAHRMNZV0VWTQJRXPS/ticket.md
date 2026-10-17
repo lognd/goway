@@ -10,7 +10,7 @@ reporter = "lognd"
 created = "2026-10-17T20:41:03Z"
 updated = "2026-10-17T20:54:57Z"
 idempotency_key = "audit-m3"
-scope = ["crates/goway-circle/src/state.rs", "crates/goway-circle/tests/roster.rs", "docs/circles.md"]
+scope = ["crates/goway-circle/src/state.rs", "crates/goway-circle/tests/roster.rs", "docs/circles.md", "docs/model/circle_model.py"]
 
 [[acceptance]]
 text = "Given set_roles removes a lead role, when the roster is applied, then the epoch advances and old certs stop validating"
