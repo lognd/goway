@@ -2,12 +2,12 @@
 id = "01M44RCJMHYZCZJDE3B2F9Q3NC"
 title = "Tests that run goway inside a goway run leave real systemd scopes behind on the helper"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T00:45:58Z"
-updated = "2026-10-05T00:45:58Z"
+updated = "2026-10-17T11:10:58Z"
 scope = ["crates/goway/tests/common/mod.rs", "docs/design.md"]
 
 [[acceptance]]
