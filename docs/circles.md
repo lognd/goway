@@ -1,8 +1,8 @@
 # Circles: peer-to-peer trust for goway
 
-Status: phases 1 and 2 are implemented (the `goway-circle` crate and
-`goway circle init|card|admit|join|list|revoke|roles`); certificates, host
-pinning from the roster and `goway-setup --join` are not yet. Target release: 0.2.0 (a minor bump; the
+Status: phases 1 to 3 are implemented (the `goway-circle` crate,
+`goway circle init|card|admit|join|list|revoke|roles` and
+`goway circle access|cert|pin`); `goway-setup --join` is not yet. Target release: 0.2.0 (a minor bump; the
 version is raised when the work lands, not by this document). The executable model of the rules in this
 document is `docs/model/circle_model.py` (run its tests with
 `python -I -m unittest discover -s docs/model`). Tickets are under the
@@ -143,6 +143,32 @@ A helper has, once, one line per admin in `authorized_keys`:
   default) or `listed` (only named nodes, each with the extra principal
   `goway-node:<name>`, placed in the line's `principals=`).
 
+Implemented (phase 3, `goway-circle/src/sshcert.rs`, `goway/src/access.rs`):
+
+- `goway circle cert [NAME]` has an admin mint a real OpenSSH user
+  certificate (14-day TTL, backdated 5 minutes) for a member lead, after the
+  model checks of `issue_cert`. Renewal is rerunning `cert`.
+- Principals: `goway-lead:<circle>:e<epoch>` and
+  `goway-lead:<circle>:e<epoch>:lead:<name>`. Policy `open` accepts the
+  first; policy `listed` accepts only the `:lead:<name>` principals of the
+  named leads. This replaces the `goway-node:<name>` wording above; the
+  circle and epoch stay bound in both.
+- `goway circle access [--lead NAME].. [--open] [--file F] [--windows-admin]`
+  writes the helper's `cert-authority` lines (tagged
+  `goway-circle:<circle>:e<epoch>`). Lines of older epochs are replaced, so
+  after a revoke every helper must rerun `access` to refuse old certificates;
+  a new lead needs no helper edit. `--windows-admin` targets
+  `%ProgramData%\ssh\administrators_authorized_keys`. The policy is kept in
+  `access-<id>.policy` in the circle directory.
+- `goway circle pin NAME [--address A] [--port P]` scans the host key and
+  writes it to `known_hosts` as `goway-<name>` only if its fingerprint equals
+  the roster's `host_fp`; a mismatch is refused.
+- Roster helpers (other members) are merged into the host config as hosts
+  labelled `circle`; a manual `[[host]]` of the same name wins.
+
+Not yet: doctor checks for `ssh-keygen -Y` and clock skew, and a roster
+stage in host resolution.
+
 ### 4.4 Pairing (no listener, no TOFU)
 
 Pairing exchanges two strings. The fingerprint and name are displayed for the
@@ -217,6 +243,9 @@ expiry and last seen in `list`.
     goway circle list                   members, roles, cert expiry, last seen
     goway circle revoke <name>          revoke; bump epoch; reissue; list unreachable helpers
     goway circle roles <name> <roles>   change roles (admin)
+    goway circle access [--lead N].. [--open] [--windows-admin]   write cert-authority lines
+    goway circle cert [NAME]            mint a lead certificate (admin)
+    goway circle pin <name>             pin a helper's host key from the roster
     goway circle admin add|remove <name>
     goway circle renew                  renew this machine's certificate
     goway circle policy open|listed     helper policy

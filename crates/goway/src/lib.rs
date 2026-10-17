@@ -1,6 +1,7 @@
 //! goway: run a command on another machine, natively, from the current git
 //! work tree. See docs/design.md for the problem tree.
 
+pub mod access;
 pub mod add;
 pub mod changelog;
 pub mod circle;

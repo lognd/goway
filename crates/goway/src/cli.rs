@@ -411,6 +411,60 @@ pub enum CircleCommand {
     Revoke(CircleRevokeArgs),
     /// Change a member's roles (admin only).
     Roles(CircleRolesArgs),
+    /// Make this machine trust the circle's admins: write the `cert-authority` lines.
+    Access(CircleAccessArgs),
+    /// Mint (or renew) a lead's 14-day access certificate (admin only).
+    Cert(CircleCertArgs),
+    /// Pin a roster member's ssh host key from a scan, only if it matches the roster.
+    Pin(CirclePinArgs),
+}
+
+/// Arguments of `goway circle access`.
+#[derive(Debug, Args)]
+pub struct CircleAccessArgs {
+    /// Accept only this lead (repeatable); default is every lead of the circle (open).
+    #[arg(long = "lead", value_parser = circle_label)]
+    pub lead: Vec<String>,
+    /// Go back to accepting every lead of the circle.
+    #[arg(long, conflicts_with = "lead")]
+    pub open: bool,
+    /// The `authorized_keys` file to edit (default: the user's, or the Windows admin file).
+    #[arg(long)]
+    pub file: Option<std::path::PathBuf>,
+    /// Edit `%ProgramData%\ssh\administrators_authorized_keys` (a Windows administrator account).
+    #[arg(long)]
+    pub windows_admin: bool,
+    /// Which circle.
+    #[arg(long)]
+    pub circle: Option<String>,
+}
+
+/// Arguments of `goway circle cert`.
+#[derive(Debug, Args)]
+pub struct CircleCertArgs {
+    /// The lead to certify (default: this machine).
+    #[arg(value_parser = circle_label)]
+    pub name: Option<String>,
+    /// Which circle.
+    #[arg(long)]
+    pub circle: Option<String>,
+}
+
+/// Arguments of `goway circle pin`.
+#[derive(Debug, Args)]
+pub struct CirclePinArgs {
+    /// Name of the roster member.
+    #[arg(value_parser = circle_label)]
+    pub name: String,
+    /// Where to scan its ssh host key (default: the member name).
+    #[arg(long)]
+    pub address: Option<String>,
+    /// The ssh port to scan.
+    #[arg(long, default_value_t = 22)]
+    pub port: u16,
+    /// Which circle.
+    #[arg(long)]
+    pub circle: Option<String>,
 }
 
 /// Which circle a verb works on when this machine holds more than one.

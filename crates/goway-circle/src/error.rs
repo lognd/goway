@@ -72,6 +72,28 @@ pub enum CertError {
     NotLead,
 }
 
+/// A failure to mint, parse or pin an OpenSSH certificate or host key.
+#[derive(Debug, thiserror::Error)]
+pub enum SshCertError {
+    /// The model refused to issue the certificate.
+    #[error("{0}")]
+    Cert(#[from] CertError),
+    /// `ssh-keygen` or a scratch file failed.
+    #[error("{0}")]
+    Crypto(#[from] CryptoError),
+    /// The certificate text is not a well-formed ed25519 certificate.
+    #[error("malformed certificate: {0}")]
+    Malformed(&'static str),
+    /// No scanned host key matches the fingerprint pinned in the roster.
+    #[error("host key does not match the roster (expected {expected}, saw {seen:?})")]
+    PinMismatch {
+        /// Fingerprint recorded in the roster.
+        expected: String,
+        /// Fingerprints the host actually offered.
+        seen: Vec<String>,
+    },
+}
+
 /// A card or welcome that cannot be accepted.
 #[derive(Debug, thiserror::Error)]
 pub enum PairingError {

@@ -26,20 +26,20 @@ use crate::render::{self, Renderer};
 const SSHD_HOST_KEY_PUB: &str = "/etc/ssh/ssh_host_ed25519_key.pub";
 
 /// The directory that holds this machine's circle keys and circles.
-fn circle_dir(paths: &Paths) -> PathBuf {
+pub(crate) fn circle_dir(paths: &Paths) -> PathBuf {
     paths.config_dir.join("circle")
 }
 
 /// The directory holding one directory per circle.
-fn circles_dir(paths: &Paths) -> PathBuf {
+pub(crate) fn circles_dir(paths: &Paths) -> PathBuf {
     circle_dir(paths).join("circles")
 }
 
-fn node_key_path(paths: &Paths) -> PathBuf {
+pub(crate) fn node_key_path(paths: &Paths) -> PathBuf {
     circle_dir(paths).join("node_ed25519")
 }
 
-fn admin_key_path(paths: &Paths) -> PathBuf {
+pub(crate) fn admin_key_path(paths: &Paths) -> PathBuf {
     circle_dir(paths).join("admin_ed25519")
 }
 
@@ -122,7 +122,7 @@ fn role_set(roles: &str) -> BTreeSet<Role> {
         .collect()
 }
 
-fn usage(message: impl Into<String>) -> Error {
+pub(crate) fn usage(message: impl Into<String>) -> Error {
     Error::Usage(message.into())
 }
 
@@ -153,7 +153,7 @@ fn confirm(renderer: Renderer, given: Option<&str>, accepted: &[String], what: &
 }
 
 /// Load the circle store and its folded state.
-fn load(paths: &Paths, select: Option<&str>) -> Result<(Store, Vec<Op>, State)> {
+pub(crate) fn load(paths: &Paths, select: Option<&str>) -> Result<(Store, Vec<Op>, State)> {
     let store = Store::find(&circles_dir(paths), select)?;
     let ops = store.ops()?;
     let state = fold(&ops, &SshKeygenVerifier)?;
@@ -412,7 +412,7 @@ pub fn join(paths: &Paths, renderer: Renderer, args: &CircleJoinArgs) -> Result<
 }
 
 /// Find the one member called `name`.
-fn member_key(state: &State, name: &str) -> Result<String> {
+pub(crate) fn member_key(state: &State, name: &str) -> Result<String> {
     let mut hits = state
         .members
         .iter()
@@ -561,7 +561,7 @@ pub fn list_rows(
     Ok(rows)
 }
 
-fn pub_of(private: &Path) -> PathBuf {
+pub(crate) fn pub_of(private: &Path) -> PathBuf {
     let mut name = private.as_os_str().to_owned();
     name.push(".pub");
     PathBuf::from(name)
@@ -600,6 +600,9 @@ pub fn run(paths: &Paths, renderer: Renderer, command: &CircleCommand) -> Result
         CircleCommand::List(select) => {
             renderer.table(&list_rows(paths, renderer, select)?);
         }
+        CircleCommand::Access(args) => crate::access::run_access(paths, renderer, args)?,
+        CircleCommand::Cert(args) => crate::access::run_cert(paths, renderer, args)?,
+        CircleCommand::Pin(args) => crate::access::run_pin(paths, renderer, args)?,
         CircleCommand::Revoke(args) => revoke(paths, renderer, args)?,
         CircleCommand::Roles(args) => set_roles(paths, renderer, args)?,
     }

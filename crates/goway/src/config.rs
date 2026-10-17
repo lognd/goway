@@ -515,15 +515,31 @@ impl Config {
     pub fn load(path: &Path) -> Result<Self> {
         match std::fs::read_to_string(path) {
             Ok(text) => {
-                let config = Self::parse(&text, path)?;
+                let mut config = Self::parse(&text, path)?;
+                config.merge_roster(path);
                 tracing::debug!(path = %path.display(), hosts = config.hosts.len(), "config loaded");
                 Ok(config)
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 tracing::debug!(path = %path.display(), "no config file; using defaults");
-                Ok(Self::default())
+                let mut config = Self::default();
+                config.merge_roster(path);
+                Ok(config)
             }
             Err(e) => Err(Error::io("read", path, e)),
+        }
+    }
+
+    /// Add the circle roster's helpers next to the config file; a manual `[[host]]` of the same name wins.
+    fn merge_roster(&mut self, path: &Path) {
+        let Some(dir) = path.parent() else { return };
+        for host in crate::access::roster_hosts(dir) {
+            if self.hosts.iter().any(|h| h.name == host.name) {
+                tracing::debug!(host = %host.name, "manual host overrides the roster");
+            } else {
+                tracing::debug!(host = %host.name, "host added from the circle roster");
+                self.hosts.push(host);
+            }
         }
     }
 

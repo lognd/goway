@@ -127,6 +127,9 @@ pub enum Error {
     /// Signing with `ssh-keygen` failed.
     #[error(transparent)]
     CircleCrypto(#[from] goway_circle::CryptoError),
+    /// A certificate could not be minted, parsed or pinned.
+    #[error(transparent)]
+    CircleCert(#[from] goway_circle::SshCertError),
     /// A command line feature that is planned but not built yet.
     #[error("`{0}` is not implemented yet")]
     NotImplemented(&'static str),

@@ -1,0 +1,1 @@
+Circle trust: `goway circle access` writes `cert-authority` lines, `goway circle cert` mints 14-day lead certificates, `goway circle pin` pins a roster host key only when it matches, and roster helpers join the host list.
