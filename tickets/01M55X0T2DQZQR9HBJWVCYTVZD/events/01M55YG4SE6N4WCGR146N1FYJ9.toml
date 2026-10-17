@@ -1,0 +1,30 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T22:05:07Z"
+digest = "203aee24ee2ab7f0fb66142a13161f89136fa1b24e63017c5da68d7923c08be0"
+exit_code = 0
+inline = '''
+   Compiling goway-circle v0.2.0 (<worktree>/crates/goway-circle)
+   Compiling goway v0.2.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 35s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID de8429fa-0095-43c5-9c96-3417335a4bf5 with nextest profile: default
+    Starting 5 tests across 65 binaries (863 tests skipped)
+        PASS [   0.007s] goway changelog::circle_store_tests::undo_never_restores_a_circle_roster_file
+        PASS [   0.082s] goway circle::tests::keys_are_private_and_roster_writes_are_not_journaled
+        PASS [   0.100s] goway circle::tests::parents_come_from_applied_ops_only
+        PASS [   0.122s] goway circle::tests::roster_writes_stay_out_of_the_change_log
+        PASS [   0.128s] goway circle::tests::sync_drops_an_offered_op_that_never_applies
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.131s] 5 tests run: 5 passed, 863 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(sync_drops) | test(parents_come) | test(undo_never) | test(roster_writes)'"
+size = 1049
+status = "measured"
+test_count = 5
+tests_digest = "67b03b73dd135a787aef71574462666254d040f4b5c81f39dd93521c52f6e931"
+at = "2026-10-17T22:05:07Z"
+actor = "lognd"
+rev = 1
