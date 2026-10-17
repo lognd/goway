@@ -2,7 +2,8 @@
 id = "01M5556NP5BJ9T21G7V93MHD8T"
 title = "pair-host --qr does not detect the LAN address"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
