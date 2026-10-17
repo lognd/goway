@@ -8,8 +8,8 @@ points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T09:45:19Z"
-updated = "2026-10-17T11:13:03Z"
-scope = ["crates/goway-setup/**"]
+updated = "2026-10-17T11:13:07Z"
+scope = ["crates/goway-setup/**", "docs/install-windows.md", "changelog.d/01M54M0SAC217GDVXHQMCW2EYP.fixed.md"]
 
 [[acceptance]]
 text = "The distro goway wrapper is a journaled change, written only when goway is not on PATH"
