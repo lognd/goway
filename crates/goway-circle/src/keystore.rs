@@ -202,6 +202,8 @@ mod tests {
     }
 
     // frob:tests crates/goway-circle/src/keystore.rs::Keystore.get
+    // frob:tests crates/goway-circle/src/keystore.rs::Keystore.set
+    // frob:tests crates/goway-circle/src/keystore.rs::Keystore.delete
     #[test]
     fn keystore_round_trips_and_deletes() {
         let ks = FakeKeystore::new();
