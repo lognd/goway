@@ -2,7 +2,8 @@
 id = "01M55V8H4Q52Z733TCA0NP7DAT"
 title = "Audit M8: access --windows-admin rewrites administrators_authorized_keys without its protected DACL"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
