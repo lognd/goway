@@ -2,7 +2,8 @@
 id = "01M55VFT0AJ44HCXFP5NH43F9V"
 title = "Docs: circles.md note on dropped revoked leads in saved listed policy"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
