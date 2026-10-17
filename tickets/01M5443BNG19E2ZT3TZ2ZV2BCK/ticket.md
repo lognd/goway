@@ -8,9 +8,10 @@ points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:07:06Z"
-updated = "2026-10-17T05:14:44Z"
+updated = "2026-10-17T05:18:52Z"
 idempotency_key = "c1"
 labels = ["circles"]
+scope = ["crates/goway-circle/**", "docs/circles.md", "docs/model/**", "Cargo.lock"]
 
 [[acceptance]]
 text = "Every model test has a Rust equivalent"
