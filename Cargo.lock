@@ -366,6 +366,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "goway-circle"
+version = "0.1.2"
+dependencies = [
+ "goway-journal",
+ "proptest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "goway-journal"
 version = "0.1.2"
 dependencies = [
