@@ -2,7 +2,8 @@
 id = "01M44TCANTN1ZSR2RGN8RVD8CV"
 title = "The probe should report running jobs per repository so a repository with no peak is held only behind its own runs"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 reporter = "lognd"
