@@ -2,13 +2,13 @@
 id = "01M55V8H0SBF8BY25NQP023524"
 title = "Audit M4: revoked lead in a saved listed policy breaks circle access"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T21:11:07Z"
-updated = "2026-10-17T21:11:07Z"
+updated = "2026-10-17T21:11:11Z"
 idempotency_key = "audit-m4"
 scope = ["crates/goway/src/access.rs"]
 
