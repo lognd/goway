@@ -11,6 +11,8 @@ use crate::system::{SysResult, System};
 pub const DEFAULT_MODE: u32 = 0o644;
 /// SDDL reported for paths whose ACL was never set.
 pub const DEFAULT_SDDL: &str = "";
+/// DACL of `administrators_authorized_keys`: SYSTEM and Administrators only, no inheritance.
+pub const ADMIN_KEYS_SDDL: &str = "D:P(A;;FA;;;SY)(A;;FA;;;BA)";
 
 /// A fully comparable in-memory machine; equality is state equality.
 ///

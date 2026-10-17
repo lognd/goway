@@ -13,6 +13,8 @@ use goway_circle::{
     Policy, Role, State, authority_lines, merge_authorized_keys, mint_lead_cert, parse_cert,
     pin_line, read_public_key,
 };
+#[cfg(any(windows, test))]
+use goway_journal::ADMIN_KEYS_SDDL;
 
 use crate::changelog;
 use crate::circle::{admin_key_path, has_key, load, member_key, node_key_path, pub_of, usage};
@@ -76,6 +78,63 @@ fn authorized_keys_file(args: &CircleAccessArgs) -> Result<PathBuf> {
         .ok_or_else(|| usage("no home directory; pass --file"))
 }
 
+/// PowerShell script that replaces the DACL of `file` with [`ADMIN_KEYS_SDDL`] (owner untouched).
+#[cfg(any(windows, test))]
+fn admin_keys_acl_script(file: &Path) -> String {
+    format!(
+        "$ErrorActionPreference = 'Stop'; $sec = New-Object System.Security.AccessControl.FileSecurity; \
+         $sec.SetSecurityDescriptorSddlForm({}, 'Access'); [System.IO.File]::SetAccessControl({}, $sec)",
+        goway_journal::ps_quote(ADMIN_KEYS_SDDL),
+        goway_journal::ps_quote(&file.display().to_string())
+    )
+}
+
+/// The program and arguments that put the protected DACL back on `file`.
+#[cfg(any(windows, test))]
+fn admin_keys_acl_command(file: &Path) -> (PathBuf, Vec<String>) {
+    let root =
+        std::env::var_os("SystemRoot").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
+    let program = root
+        .join("System32")
+        .join("WindowsPowerShell")
+        .join("v1.0")
+        .join("powershell.exe");
+    let args = ["-NoProfile", "-NonInteractive", "-Command"]
+        .map(str::to_owned)
+        .into_iter()
+        .chain([admin_keys_acl_script(file)])
+        .collect();
+    (program, args)
+}
+
+/// Re-apply the protected DACL sshd demands of `administrators_authorized_keys` after a rewrite.
+#[cfg(windows)]
+fn protect_admin_keys(file: &Path) -> Result<()> {
+    let (program, args) = admin_keys_acl_command(file);
+    tracing::info!(file = %file.display(), "re-applying the protected DACL to the administrators key file");
+    let out = std::process::Command::new(program)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .output_locked()
+        .map_err(|e| Error::io("set the ACL of", file, e))?;
+    if out.status.success() {
+        return Ok(());
+    }
+    tracing::error!(file = %file.display(), "could not set the protected DACL");
+    Err(usage(format!(
+        "wrote {} but could not restore its SYSTEM+Administrators-only ACL, so sshd will ignore it: {}",
+        file.display(),
+        String::from_utf8_lossy(&out.stderr).trim()
+    )))
+}
+
+/// Off Windows there is no DACL to restore.
+#[cfg(not(windows))]
+#[allow(clippy::unnecessary_wraps)]
+fn protect_admin_keys(_file: &Path) -> Result<()> {
+    Ok(())
+}
+
 /// Write this circle's `cert-authority` lines into the chosen `authorized_keys`.
 ///
 /// Lines of this circle from an older epoch are replaced, so a revoke closes the door on
@@ -116,6 +175,9 @@ pub fn run_access(paths: &Paths, renderer: Renderer, args: &CircleAccessArgs) ->
     let lines = authority_lines(&state, &policy);
     let merged = merge_authorized_keys(&existing, &state, &lines);
     changelog::write_file_in(&paths.config_dir, &file, merged.as_bytes())?;
+    if args.windows_admin && args.file.is_none() {
+        protect_admin_keys(&file)?;
+    }
     changelog::write_file_in(
         &paths.config_dir,
         &policy_path(paths, store.id()),
@@ -433,6 +495,16 @@ mod tests {
                 circle: None,
             },
         )
+    }
+
+    // frob:tests crates/goway/src/access.rs::admin_keys_acl_command
+    #[test]
+    fn admin_keys_acl_command_applies_the_protected_sddl_to_the_file() {
+        let (program, args) = admin_keys_acl_command(Path::new("C:\\ProgramData\\ssh\\it's"));
+        assert!(program.ends_with("powershell.exe"));
+        assert_eq!(&args[..3], ["-NoProfile", "-NonInteractive", "-Command"]);
+        assert!(args[3].contains("'D:P(A;;FA;;;SY)(A;;FA;;;BA)'"));
+        assert!(args[3].contains("SetAccessControl('C:\\ProgramData\\ssh\\it''s'"));
     }
 
     // frob:tests crates/goway/src/access.rs::run_access

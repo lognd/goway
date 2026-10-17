@@ -39,8 +39,7 @@ pub const SHELL_VALUE: &str = "DefaultShell";
 pub const ADMIN_KEYS_FILE: &str = "administrators_authorized_keys";
 /// Name of sshd's ed25519 host public key (in `%ProgramData%\ssh`).
 pub const HOST_KEY_FILE: &str = "ssh_host_ed25519_key.pub";
-/// DACL of the administrators' key file: SYSTEM and Administrators only, no inheritance.
-pub const ADMIN_KEYS_SDDL: &str = "D:P(A;;FA;;;SY)(A;;FA;;;BA)";
+pub use goway_journal::ADMIN_KEYS_SDDL;
 
 /// A service startup type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

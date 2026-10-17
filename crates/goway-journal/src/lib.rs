@@ -24,7 +24,7 @@ pub use digest::sha256_hex;
 pub use error::{ApplyError, JournalError, SystemError};
 pub use journal::{Entry, Journal, Prior};
 pub use local::LocalSystem;
-pub use model::{DEFAULT_MODE, DEFAULT_SDDL, ModelSystem};
+pub use model::{ADMIN_KEYS_SDDL, DEFAULT_MODE, DEFAULT_SDDL, ModelSystem};
 pub use plan::{Outcome, still_applied};
 pub use psquote::ps_quote;
 pub use system::{SysResult, System};
