@@ -66,9 +66,35 @@ impl Keystore for FakeKeystore {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SecretToolKeystore;
 
-impl SecretToolKeystore {
-    fn base(verb: &str, account: &str) -> Command {
-        let mut cmd = Command::new("secret-tool");
+impl Keystore for SecretToolKeystore {
+    fn get(&self, account: &str) -> Result<Option<Passphrase>, KeystoreError> {
+        ProgramKeystore::new("secret-tool").get(account)
+    }
+
+    fn set(&self, account: &str, pass: &Passphrase) -> Result<(), KeystoreError> {
+        ProgramKeystore::new("secret-tool").set(account, pass)
+    }
+
+    fn delete(&self, account: &str) -> Result<(), KeystoreError> {
+        ProgramKeystore::new("secret-tool").delete(account)
+    }
+}
+
+/// The `secret-tool` protocol against a configurable program, so tests can use a fake.
+#[derive(Debug, Clone)]
+struct ProgramKeystore {
+    program: std::ffi::OsString,
+}
+
+impl ProgramKeystore {
+    fn new(program: impl Into<std::ffi::OsString>) -> Self {
+        Self {
+            program: program.into(),
+        }
+    }
+
+    fn base(&self, verb: &str, account: &str) -> Command {
+        let mut cmd = Command::new(&self.program);
         cmd.arg(verb);
         if verb == "store" {
             cmd.args(["--label", "goway circle key passphrase"]);
@@ -82,9 +108,10 @@ impl SecretToolKeystore {
     }
 }
 
-impl Keystore for SecretToolKeystore {
+impl Keystore for ProgramKeystore {
     fn get(&self, account: &str) -> Result<Option<Passphrase>, KeystoreError> {
-        let out = Self::base("lookup", account)
+        let out = self
+            .base("lookup", account)
             .stdin(Stdio::null())
             .output()
             .map_err(|e| Self::spawn_err(&e))?;
@@ -98,7 +125,8 @@ impl Keystore for SecretToolKeystore {
     }
 
     fn set(&self, account: &str, pass: &Passphrase) -> Result<(), KeystoreError> {
-        let mut child = Self::base("store", account)
+        let mut child = self
+            .base("store", account)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
@@ -123,7 +151,7 @@ impl Keystore for SecretToolKeystore {
     }
 
     fn delete(&self, account: &str) -> Result<(), KeystoreError> {
-        Self::base("clear", account)
+        self.base("clear", account)
             .stdin(Stdio::null())
             .output()
             .map_err(|e| Self::spawn_err(&e))?;
@@ -253,5 +281,46 @@ mod tests {
         let ks = FakeKeystore::new();
         ks.set("a", &pass("aaa")).unwrap();
         assert!(ks.get("b").unwrap().is_none());
+    }
+
+    /// Writes a fake `secret-tool` that keeps one file per account under `dir`.
+    #[cfg(unix)]
+    fn fake_secret_tool(dir: &std::path::Path) -> std::path::PathBuf {
+        use std::os::unix::fs::PermissionsExt as _;
+        let script = dir.join("secret-tool");
+        let body = format!(
+            "#!/bin/sh\nverb=$1\nfor a; do acct=$a; done\nf='{}'/\"$acct\"\n\
+             case $verb in\n store) cat > \"$f\" ;;\n lookup) cat \"$f\" 2>/dev/null || exit 1 ;;\n\
+             clear) rm -f \"$f\" ;;\n *) exit 2 ;;\nesac\n",
+            dir.display()
+        );
+        std::fs::write(&script, body).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        script
+    }
+
+    // frob:ticket 01M5556M6B1K0X435YP2H934R3
+    // frob:tests crates/goway-circle/src/keystore.rs::SecretToolKeystore.get
+    // frob:tests crates/goway-circle/src/keystore.rs::SecretToolKeystore.set
+    // frob:tests crates/goway-circle/src/keystore.rs::SecretToolKeystore.delete
+    #[cfg(unix)]
+    #[test]
+    fn secret_tool_protocol_stores_loads_and_deletes() {
+        let dir = tempfile::tempdir().unwrap();
+        let ks = ProgramKeystore::new(fake_secret_tool(dir.path()));
+        assert!(ks.get("acct").unwrap().is_none());
+        ks.set("acct", &pass("hunter2")).unwrap();
+        assert_eq!(ks.get("acct").unwrap().unwrap().expose(), "hunter2");
+        assert!(ks.get("other").unwrap().is_none());
+        ks.delete("acct").unwrap();
+        assert!(ks.get("acct").unwrap().is_none());
+    }
+
+    // frob:ticket 01M5556M6B1K0X435YP2H934R3
+    // frob:tests crates/goway-circle/src/keystore.rs::SecretToolKeystore.get
+    #[test]
+    fn missing_secret_tool_is_unavailable() {
+        let ks = ProgramKeystore::new("/nonexistent/secret-tool");
+        assert!(matches!(ks.get("a"), Err(KeystoreError::Unavailable(_))));
     }
 }
