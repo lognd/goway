@@ -2,7 +2,8 @@
 id = "01M45D6N5HJJ6VVK0XNQYFK0KC"
 title = "install.sh cannot upgrade an existing install: it says run goway uninstall first"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 2
 reporter = "lognd"
