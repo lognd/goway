@@ -8,13 +8,13 @@ points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T20:41:03Z"
-updated = "2026-10-17T20:51:51Z"
+updated = "2026-10-17T20:52:43Z"
 idempotency_key = "audit-m1"
 scope = ["crates/goway-circle/src/state.rs,crates/goway-circle/src/store.rs,crates/goway/src/circle.rs"]
 
 [[acceptance]]
 text = "Given a crafted welcome that drops a revoke, when join runs on a stored roster, then it is refused"
-bound = false
+bound = true
 +++
 
 Compare ancestry not head ids; join must not replace a stored roster with one lacking its ops.
