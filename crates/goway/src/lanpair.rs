@@ -250,10 +250,15 @@ pub fn qr_ascii(text: &str) -> Result<String> {
 
 /// Print `text` as a QR code, one renderer line per row so the rows stay aligned.
 pub fn print_qr(renderer: Renderer, text: &str) -> Result<()> {
-    for row in qr_ascii(text)?.lines() {
+    for row in qr_rows(text)? {
         renderer.line(row);
     }
     Ok(())
+}
+
+/// The rows `print_qr` emits for `text`: the ASCII QR code split into lines.
+fn qr_rows(text: &str) -> Result<Vec<String>> {
+    Ok(qr_ascii(text)?.lines().map(str::to_owned).collect())
 }
 
 /// `goway circle pair-host`.
@@ -341,6 +346,24 @@ mod tests {
         let rows: Vec<&str> = qr.lines().collect();
         assert!(rows.len() >= 21);
         assert!(rows[0].trim().is_empty());
+    }
+
+    #[test]
+    fn print_qr_rows_are_aligned_ascii_and_print_succeeds() {
+        let text = "192.168.1.20:41234";
+        let rows = qr_rows(text).unwrap();
+        assert!(rows.len() >= 21);
+        assert!(rows.iter().all(|r| r.is_ascii()));
+        let width = rows[0].len();
+        assert!(rows.iter().all(|r| r.len() == width));
+        assert!(rows.iter().any(|r| r.contains('#')));
+        assert!(print_qr(Renderer::new(ColorWhen::Never), text).is_ok());
+    }
+
+    #[test]
+    fn print_qr_rejects_text_too_long_for_a_qr_code() {
+        let err = print_qr(Renderer::new(ColorWhen::Never), &"x".repeat(5000)).unwrap_err();
+        assert!(matches!(err, Error::Usage(_)));
     }
 
     #[test]
