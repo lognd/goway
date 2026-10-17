@@ -7,9 +7,9 @@ priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T21:41:51Z"
-updated = "2026-10-17T21:41:58Z"
+updated = "2026-10-17T21:41:59Z"
 idempotency_key = "audit-l2l3"
-scope = ["crates/goway/src/lanpair.rs"]
+scope = ["crates/goway/src/lanpair.rs", "crates/goway-circle/src/lan.rs"]
 
 [[acceptance]]
 text = "Listener closes after first comparison; welcome authenticated"
