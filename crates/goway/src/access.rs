@@ -4,7 +4,7 @@
 //! lead needs no helper edit); an admin runs `cert` to mint a lead's 14-day certificate; `pin`
 //! records a roster member's host key, but only when its fingerprint equals the roster's.
 //! The roster also feeds the host list ([`roster_hosts`]); manual `[[host]]` entries win.
-//! frob:ticket ~Q5WP11P
+//! frob:ticket 01M5443BQZFS1KV0S4JQ5WP11P
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
