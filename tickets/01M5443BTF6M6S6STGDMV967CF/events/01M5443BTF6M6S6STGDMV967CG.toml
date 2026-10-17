@@ -1,0 +1,12 @@
+kind = "create"
+title = "Security: circle threat model review and key-at-rest hardening"
+type = "security"
+category = "todo"
+priority = "high"
+parent = "01M54433AG8J1V0GYT3ZWY9C9A"
+idempotency_key = "c5"
+labels = ["circles"]
+body = "Walk the 16-row table in docs/circles.md against the code; agent/keystore support for the node key (config.md notes the unencrypted key); FIDO2 admin key path; add frob rules for the invariants."
+at = "2026-10-17T05:07:06Z"
+actor = "lognd"
+rev = 1
