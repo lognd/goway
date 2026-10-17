@@ -2,7 +2,8 @@
 id = "01M5443BS97HP1VEGYP42YF0JB"
 title = "Phase 4: LAN pairing (CPace + SAS), QR, peer address hints"
 type = "story"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
