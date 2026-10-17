@@ -8,7 +8,7 @@ points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T20:41:03Z"
-updated = "2026-10-17T20:51:17Z"
+updated = "2026-10-17T20:51:18Z"
 idempotency_key = "audit-m2"
 scope = ["crates/goway-circle/src/store.rs,crates/goway/src/circle.rs"]
 
