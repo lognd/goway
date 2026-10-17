@@ -2,7 +2,8 @@
 id = "01M54D7R6PPDKHA7CGZM7H9TBV"
 title = "goway-setup --join: native (non-WSL) helpers, node key creation and card output"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
