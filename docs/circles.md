@@ -205,8 +205,13 @@ human to confirm at both ends.
 3. New machine: `goway circle join <welcome>` verifies the genesis hash it is
    shown against the admin's fingerprint (printed by step 2, compared by
    eye), stores the circle and, on first contact, pulls the full roster.
-   `goway-setup install --host --join <welcome>` does the same for a helper
-   (not yet built; until then run `goway circle join` on the helper).
+   `goway-setup install --host --join <welcome> --join-fingerprint <fp>` does
+   the same for a WSL helper: after the host install it runs `goway circle
+   join <welcome> --fingerprint <fp>` and then `goway circle access` inside
+   the distro, so the access lines are installed. A bad paste is rejected
+   before anything changes; a failed join prints the commands to retry. The
+   helper must already have a node key and goway on its PATH inside the
+   distro (native helpers: run `goway circle join` yourself).
 
 #### LAN pairing (`pair-host`, `pair-join`)
 

@@ -1127,3 +1127,31 @@ fn goway_jobs_are_counted_in_a_running_distro_and_a_stopped_one_has_none() {
     assert!(probe.args.iter().any(|a| a.contains("flock -n")));
     assert!(!probe.args.iter().any(|a| a == "--user"));
 }
+
+// frob:tests crates/goway-setup/src/hostsys.rs::join_circle
+#[test]
+fn joining_runs_join_then_access_as_the_user() {
+    let fake = Fake::new(vec![
+        ("circle join", 0, "ok\n"),
+        ("circle access", 0, "2 lines\n"),
+    ]);
+    let out = sys(&fake).join_circle("gww1.ABC", "SHA256:x").unwrap();
+    assert_eq!(out, "2 lines");
+    let log = fake.log.borrow();
+    assert_eq!(log.len(), 2);
+    assert!(
+        log[0]
+            .args
+            .join(" ")
+            .contains("--exec goway circle join gww1.ABC --fingerprint SHA256:x")
+    );
+    assert!(!log[0].args.contains(&"root".to_owned()));
+}
+
+// frob:tests crates/goway-setup/src/hostsys.rs::join_circle
+#[test]
+fn a_failed_join_stops_before_access() {
+    let fake = Fake::new(vec![("circle join", 1, "bad fingerprint\n")]);
+    assert!(sys(&fake).join_circle("gww1.ABC", "SHA256:x").is_err());
+    assert_eq!(fake.log.borrow().len(), 1);
+}

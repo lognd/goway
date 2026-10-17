@@ -10,7 +10,7 @@ use crate::admin;
 use crate::app::{self, Retry};
 use crate::elevate;
 use crate::error::SetupError;
-use crate::helper::{HelperInfo, check_wsl, next_steps, public_network_warning, wsl_steps};
+use crate::helper::{self, HelperInfo, check_wsl, next_steps, public_network_warning, wsl_steps};
 use crate::host::{
     self, DEFAULT_DISTRO, DEFAULT_PORT, HostFacts, HostParams, HostSettings, Keepalive,
     NetworkChoice, NetworkMode, host_plan,
@@ -141,6 +141,18 @@ pub enum Command {
         /// Host: ask no questions; when WSL needs a restart, print the command instead of offering it.
         #[arg(long)]
         yes: bool,
+        /// Host (WSL): after the install, join the circle in this `gww1.` welcome inside the distro
+        /// and install its access lines (`goway circle join`, then `goway circle access`).
+        #[arg(
+            long,
+            value_name = "WELCOME",
+            requires = "host",
+            conflicts_with = "native"
+        )]
+        join: Option<String>,
+        /// Host: the admin key fingerprint the admin showed, checked against the welcome.
+        #[arg(long, value_name = "SHA256:...", requires = "join")]
+        join_fingerprint: Option<String>,
         /// Profile selection.
         #[command(flatten)]
         profile: ProfileArg,
@@ -256,6 +268,7 @@ struct InstallRequest {
     allow_wide: bool,
     activate: bool,
     yes: bool,
+    join: Option<(String, String)>,
     elevate: Elevate,
 }
 
@@ -302,6 +315,8 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
             no_activate,
             no_elevate,
             yes,
+            join,
+            join_fingerprint,
             profile,
             child,
         } => install(
@@ -322,6 +337,7 @@ pub fn run(cli: &Cli, r: Renderer) -> Result<(), SetupError> {
                 allow_wide: *allow_wide,
                 activate: !*no_activate,
                 yes: *yes,
+                join: helper::validate_join(join.as_deref(), join_fingerprint.as_deref())?,
                 elevate: Elevate::new(*no_elevate, child),
             },
         ),
@@ -758,6 +774,27 @@ fn after_host_install(r: Renderer, layout: &Layout, req: &InstallRequest) {
         }
     }
     show_helper_block(r, &req.distro, req.port, network);
+    if let Some((welcome, fingerprint)) = &req.join {
+        join_circle(r, &req.distro, welcome, fingerprint);
+    }
+}
+
+/// Join the circle inside the distro and install its access lines; a failure is reported with the
+/// exact commands to retry, never failing the finished install.
+fn join_circle(r: Renderer, distro: &str, welcome: &str, fingerprint: &str) {
+    match HostSystem::new(distro).join_circle(welcome, fingerprint) {
+        Ok(text) => {
+            tracing::info!("joined the circle from the welcome");
+            r.notice(&format!("joined the circle. {text}"));
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "could not join the circle");
+            r.notice(&format!(
+                "could not join the circle ({e}); in the distro run: {}",
+                helper::join_command(welcome, fingerprint)
+            ));
+        }
+    }
 }
 
 /// Ask a yes/no question on the console; anything but y or yes is no.
