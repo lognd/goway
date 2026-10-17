@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T09:15:59Z"
+digest = "18e8be1e9f793145ee9838f65e55820e9db4e1f4aa563f280bf587d799cb7a0d"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2fe2df2c-c3cf-4545-aee5-210c0f0c6906 with nextest profile: default
+    Starting 1 test across 65 binaries (846 tests skipped)
+        PASS [   0.004s] goway::circle_revoke_now push_errors_name_host_key_and_auth_failures
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 846 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(push_errors_name_host_key_and_auth_failures)'"
+size = 562
+status = "measured"
+test_count = 1
+tests_digest = "c04195e40afb457744ab4f18cf208655102865f6937558bc1e5f51f1cc4256ec"
+at = "2026-10-17T09:15:59Z"
+actor = "lognd"
+rev = 1

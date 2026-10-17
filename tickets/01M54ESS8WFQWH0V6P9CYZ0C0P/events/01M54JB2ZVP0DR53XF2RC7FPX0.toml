@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T09:15:59Z"
+digest = "8576e893a74c3508fd80fd4829d22acdae553fce0882006a9497ae5d25d8bdf5"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 4196b007-c171-4d12-9836-b2f0721b1caf with nextest profile: default
+    Starting 2 tests across 65 binaries (845 tests skipped)
+        PASS [   0.018s] goway::circle_revoke_now reported_expiry_is_read_from_helper_stdout
+        PASS [   0.359s] goway::circle_revoke_now expiry_reported_by_a_helper_shows_in_list
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.361s] 2 tests run: 2 passed, 845 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(reported_expiry_is_read_from_helper_stdout) | test(expiry_reported_by_a_helper_shows_in_list)'"
+size = 655
+status = "measured"
+test_count = 2
+tests_digest = "198a655b81314ec6ac7f0de06597c99d18b106001a1d6964e9fab0a549e65bf6"
+at = "2026-10-17T09:15:59Z"
+actor = "lognd"
+rev = 1
