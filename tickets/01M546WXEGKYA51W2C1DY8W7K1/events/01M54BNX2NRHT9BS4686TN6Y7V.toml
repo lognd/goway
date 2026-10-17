@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["circle admin add/remove (two signatures at 3+ admins via cosign), renew and policy open|listed work end to end"]
+moved = []
+at = "2026-10-17T07:19:34Z"
+actor = "lognd"
+rev = 1
