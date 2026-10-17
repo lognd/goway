@@ -186,6 +186,11 @@ const ALLOW: &[Allow] = &[
         why: "fix and undo command text: fixes run only through SshFixRunner/HostRunner, which record a RunFix action first (pinned tools and rustup targets run as journaled resources); the rest is advice text; the file call removes the fix journal after its replay; ssh-keygen is a read-only `-Y` capability probe and advice text",
     },
     Allow {
+        file: "crates/goway/src/error.rs",
+        labels: &["add-windowscapability"],
+        why: "advice text telling a person how to install the OpenSSH client; nothing runs here",
+    },
+    Allow {
         file: "crates/goway/src/doctor/logout.rs",
         labels: &[
             "loginctl enable-linger",
