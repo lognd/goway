@@ -4,10 +4,10 @@ title = "Push the circle roster to helpers on revoke --now so they adopt the new
 type = "task"
 category = "todo"
 priority = "medium"
-parent = "01M546WXG3D6ADTBCZH4EW94KV"
+parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T07:24:12Z"
-updated = "2026-10-17T07:24:12Z"
+updated = "2026-10-17T07:25:11Z"
 idempotency_key = "4EW94KV-roster-push"
 +++
 
