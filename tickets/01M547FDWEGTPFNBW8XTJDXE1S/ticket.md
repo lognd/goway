@@ -7,7 +7,7 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:06:07Z"
-updated = "2026-10-17T11:44:59Z"
+updated = "2026-10-17T11:45:00Z"
 scope = ["crates/goway-circle/src/lan.rs", "crates/goway-circle/**", "crates/goway/src/lanpair.rs", "docs/circles.md", "README.md", "Cargo.lock"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "A wrong code fails both sides and changes nothing"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Degenerate or malformed CPace points are rejected"
