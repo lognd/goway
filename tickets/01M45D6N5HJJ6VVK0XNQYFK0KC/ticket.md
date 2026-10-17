@@ -2,12 +2,12 @@
 id = "01M45D6N5HJJ6VVK0XNQYFK0KC"
 title = "install.sh cannot upgrade an existing install: it says run goway uninstall first"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T06:49:44Z"
-updated = "2026-10-05T06:49:44Z"
+updated = "2026-10-17T08:58:22Z"
 scope = ["scripts/install.sh", "crates/goway/tests/install_scripts.rs"]
 
 [[acceptance]]
