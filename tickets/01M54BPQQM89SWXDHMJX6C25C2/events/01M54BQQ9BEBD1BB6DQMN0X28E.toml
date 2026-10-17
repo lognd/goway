@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["docs/circles.md", "docs/config.md", "docs/circle-admin.md"]
+new = ["docs/circles.md", "docs/config.md", "docs/circle-admin.md", "changelog.d/01M54BPQQM89SWXDHMJX6C25C2.changed.md"]
+at = "2026-10-17T07:20:33Z"
+actor = "lognd"
+rev = 1

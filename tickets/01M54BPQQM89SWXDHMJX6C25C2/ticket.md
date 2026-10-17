@@ -7,9 +7,10 @@ priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-17T07:20:01Z"
-updated = "2026-10-17T07:20:28Z"
+updated = "2026-10-17T07:20:33Z"
 idempotency_key = "docs-circles-fold"
-scope = ["docs/circles.md", "docs/config.md", "docs/circle-admin.md"]
+labels = ["creates:changelog.d/01M54BPQQM89SWXDHMJX6C25C2.changed.md"]
+scope = ["docs/circles.md", "docs/config.md", "docs/circle-admin.md", "changelog.d/01M54BPQQM89SWXDHMJX6C25C2.changed.md"]
 
 [[acceptance]]
 text = "docs/circle-admin.md is folded into docs/circles.md and docs/config.md and removed; circles.md status and roster-stage text match the code"
