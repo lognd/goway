@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-17T12:42:33Z"
+digest = "d2208c64f92e5bbdb6d7ebe9d88a5e3e95b03f88fee20609adb97009dbfb9205"
+exit_code = 0
+inline = '''
+   Compiling goway-journal v0.2.0 (<worktree>/crates/goway-journal)
+   Compiling goway-circle v0.2.0 (<worktree>/crates/goway-circle)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 17s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 74e20438-8b30-446f-acc6-5d10e9246805 with nextest profile: default
+    Starting 2 tests across 4 binaries (88 tests skipped)
+        PASS [   0.004s] goway-circle passphrase::tests::passphrase_confirmation_mismatch_is_refused
+        PASS [   0.004s] goway-circle passphrase::tests::passphrase_confirmation_match_is_accepted
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.005s] 2 tests run: 2 passed, 88 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E test(passphrase_confirmation)"
+size = 802
+status = "measured"
+test_count = 2
+tests_digest = "b2a35e22eb512a85ecffdc6e90f6f6fe82ea7c600fbfd6728c2d5fd60780a279"
+at = "2026-10-17T12:42:33Z"
+actor = "lognd"
+rev = 1
