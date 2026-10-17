@@ -7,8 +7,8 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T06:06:07Z"
-updated = "2026-10-17T10:11:38Z"
-scope = ["crates/goway/src/lanpair.rs", "crates/goway/Cargo.toml"]
+updated = "2026-10-17T10:11:39Z"
+scope = ["crates/goway/src/lanpair.rs", "crates/goway/Cargo.toml", "crates/goway/src/cli.rs"]
 +++
 
 Phase 4 left QR undone: no qrcode crate in the tree. Evaluate adding one; print the card and pair-host address as QR. Found while working ~42YF0JB.
