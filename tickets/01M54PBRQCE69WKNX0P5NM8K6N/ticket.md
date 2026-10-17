@@ -8,7 +8,7 @@ points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T10:26:16Z"
-updated = "2026-10-17T10:50:39Z"
+updated = "2026-10-17T10:50:44Z"
 
 [[acceptance]]
 text = "no_production_code_spawns_a_child_outside_the_lock passes"
@@ -20,5 +20,9 @@ bound = false
 
 [[acceptance]]
 text = "a_failure_on_a_nearly_full_disk_is_explained_in_plain_words passes"
+bound = false
+
+[[acceptance]]
+text = "a_wave_over_a_tiny_budget_never_loses_a_live_runs_work_dir passes"
 bound = false
 +++
