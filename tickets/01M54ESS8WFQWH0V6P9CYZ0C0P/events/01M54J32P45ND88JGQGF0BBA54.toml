@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway/src/circle_push.rs", "crates/goway/src/circle.rs", "crates/goway/src/access.rs", "crates/goway/tests/circle_revoke_now.rs", "docs/circles.md"]
+new = ["crates/goway/src/circle_push.rs", "crates/goway/src/circle.rs", "crates/goway/src/access.rs", "crates/goway/tests/circle_revoke_now.rs", "docs/circles.md", "changelog.d/01M54ESS8WFQWH0V6P9CYZ0C0P.added.md"]
+at = "2026-10-17T09:11:37Z"
+actor = "lognd"
+rev = 1

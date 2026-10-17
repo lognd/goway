@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T09:15:28Z"
+digest = "8b95d64f5566e7bb705acee8034758d92c4da80319fce996fda39ef3027714d5"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID a59439e1-f93a-40a8-871a-e6a13872eafb with nextest profile: default
+    Starting 1 test across 1 binary (10 tests skipped)
+        PASS [   0.009s] goway::changes_cmd undoing_a_pinned_tool_install_reverts_it_through_the_fix_journal
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.009s] 1 test run: 1 passed, 10 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --test changes_cmd -E test(undoing_a_pinned_tool_install_reverts_it_through_the_fix_journal)"
+size = 730
+status = "measured"
+test_count = 1
+tests_digest = "30e805c697785e5b0771edaa4580c5c60ec06bb450caf0c962e1948d9dab638b"
+at = "2026-10-17T09:15:28Z"
+actor = "lognd"
+rev = 1

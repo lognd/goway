@@ -2,12 +2,12 @@
 id = "01M44QABBBGGQFS25HF0RKW5RF"
 title = "Doctor's Windows facts probe runs rustup and vswhere with no server-side time limit"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T00:27:16Z"
-updated = "2026-10-05T00:27:47Z"
+updated = "2026-10-17T09:15:14Z"
 scope = ["crates/goway/src/doctor/windows.rs", "crates/goway/tests/doctor_output.rs"]
 +++
 
