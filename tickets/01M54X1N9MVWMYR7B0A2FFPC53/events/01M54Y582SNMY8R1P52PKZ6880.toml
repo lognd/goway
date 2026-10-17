@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["init --passphrase asks twice and refuses a mismatched confirmation, making no keys", "a matching pair yields encrypted keys that sign only with the passphrase", "the double-entry check accepts equal entries and rejects differing ones"]
+moved = []
+at = "2026-10-17T12:42:31Z"
+actor = "lognd"
+rev = 1
