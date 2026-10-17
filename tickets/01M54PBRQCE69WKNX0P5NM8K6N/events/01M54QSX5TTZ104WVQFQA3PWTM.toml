@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T10:51:27Z"
+digest = "5fa020034f2f33adf48dcc03ae8840e4f6d48004510f7c5d28e1130382df5a4e"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 72b61028-ced3-40c2-9a41-79801024c142 with nextest profile: default
+    Starting 1 test across 1 binary (5 tests skipped)
+        PASS [   1.017s] goway::journal_invariant no_machine_change_appears_outside_the_journal_backed_modules
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.018s] 1 test run: 1 passed, 5 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --test journal_invariant -E test(no_machine_change_appears_outside_the_journal_backed_modules)"
+size = 572
+status = "measured"
+test_count = 1
+tests_digest = "53aea1aede729f9fe89ebbe837310d25219501e544c60830360ab77f1bea1d55"
+at = "2026-10-17T10:51:27Z"
+actor = "lognd"
+rev = 1
