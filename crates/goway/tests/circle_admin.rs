@@ -336,6 +336,7 @@ fn keygen_makes_the_admin_key_once() {
 }
 
 // frob:tests crates/goway/src/circle_admin.rs::run_admin_with
+// frob:tests crates/goway/src/circle_admin.rs::run_admin
 #[cfg(unix)]
 #[test]
 fn run_admin_keygen_arm_makes_the_key() {
