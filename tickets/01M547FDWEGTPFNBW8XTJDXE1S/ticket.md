@@ -12,7 +12,7 @@ scope = ["crates/goway-circle/src/lan.rs", "crates/goway-circle/**", "crates/gow
 
 [[acceptance]]
 text = "A correct one-time code plus admin approval admits the machine over loopback"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "A wrong code fails both sides and changes nothing"
