@@ -2,7 +2,8 @@
 id = "01M54D8XZV6YE5PMWJRNA776V1"
 title = "Circle push leftovers: stdin transport for large rosters and per-member cert expiry"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
