@@ -7,11 +7,11 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-09T16:05:07Z"
-updated = "2026-10-17T10:41:21Z"
+updated = "2026-10-17T10:42:09Z"
 
 [[acceptance]]
 text = "Given the condition in the title, when a fix lands, then a test reproduces it and the condition no longer occurs"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "A light command's memory peak is recorded and judged under its own repository-and-command key, never by a heavier command's peak in the same repository"

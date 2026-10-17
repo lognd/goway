@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T10:42:09Z"
+digest = "582194e1b75496329f2c3fbc22f73febe4005768c9e29aa645d533c678caf7cd"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID de77fb4d-2745-453f-97b0-0fc71b808f83 with nextest profile: default
+    Starting 1 test across 65 binaries (850 tests skipped)
+        PASS [   0.005s] goway fit::tests::a_light_command_is_not_judged_by_a_heavy_commands_peak
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.007s] 1 test run: 1 passed, 850 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E test(a_light_command_is_not_judged_by_a_heavy_commands_peak)"
+size = 566
+status = "measured"
+test_count = 1
+tests_digest = "4bf555c79728849d7dba115e5c87b50301b88f28282b7b45527bf35f1603c392"
+at = "2026-10-17T10:42:09Z"
+actor = "lognd"
+rev = 1
