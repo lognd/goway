@@ -4,9 +4,10 @@ title = "Audit L7: circle marker in authorized_keys needs genesis id"
 type = "bug"
 category = "todo"
 priority = "medium"
+points = 2
 reporter = "lognd"
 created = "2026-10-17T21:45:17Z"
-updated = "2026-10-17T21:45:17Z"
+updated = "2026-10-17T21:47:03Z"
 scope = ["crates/goway-circle/src/state.rs", "crates/goway-circle/src/sshcert.rs"]
 +++
 
