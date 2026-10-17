@@ -7,7 +7,7 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-14T04:58:22Z"
-updated = "2026-10-17T10:42:07Z"
+updated = "2026-10-17T10:42:21Z"
 scope = ["crates/goway-setup/src/hostsys.rs"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "The reinstalled sshd presents the same host key as before the uninstall"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Test a_package_left_removed_with_its_configuration_is_installed_again_without_purging passes: rc state reinstalls without purge"

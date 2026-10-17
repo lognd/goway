@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T10:42:21Z"
+digest = "9a19abd5be500522c53cd71b0689b56264a0f0488d407ac7005fb3ab67e8c96d"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e7b0b6c2-851f-41ba-93b9-9731fdff4641 with nextest profile: default
+    Starting 1 test across 1 binary (36 tests skipped)
+        PASS [   0.003s] goway-setup::hostsys a_package_left_removed_with_its_configuration_is_installed_again_without_purging
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.004s] 1 test run: 1 passed, 36 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup --test hostsys -E test(a_package_left_removed_with_its_configuration)"
+size = 590
+status = "measured"
+test_count = 1
+tests_digest = "c0c6d1c965101658da4c3d7c37d70e64d3ea1dad8fc44891624bd26c4c425f63"
+at = "2026-10-17T10:42:21Z"
+actor = "lognd"
+rev = 1
