@@ -1,0 +1,13 @@
+kind = "create"
+title = "SecretToolKeystore has no test"
+type = "task"
+category = "todo"
+priority = "low"
+points = 1
+parent = "01M54433AG8J1V0GYT3ZWY9C9A"
+idempotency_key = "gap-secrettool"
+labels = ["circles"]
+acceptance = ["Given SecretToolKeystore, when the suite runs, then a test covers store, load and delete against a fake secret-tool"]
+at = "2026-10-17T14:45:36Z"
+actor = "lognd"
+rev = 1
