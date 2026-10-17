@@ -403,7 +403,14 @@ signature cannot be replayed as any other ssh signature.
   `/dev/tty` with echo off; `SshKeygenSigner::with_passphrase` signs with it. The passphrase
   reaches `ssh-keygen` only through a private askpass script and the child's environment,
   never argv or a file. `key_is_encrypted` tells callers whether to prompt.
-- Deferred: OS keystore (~WNW4H3Y); wiring the prompt into the `goway circle` commands.
+- OS keystore: the `Keystore` trait (`get`/`set`/`delete` by account, normally the key path)
+  keeps a key passphrase in the platform secret store. `KeystorePassphrase` is a
+  `PassphraseSource` that tries the keystore, else prompts and remembers the answer; a
+  keystore failure is logged and falls back to the prompt. `SecretToolKeystore` drives the
+  freedesktop Secret Service via `secret-tool` (secret on stdin, never argv); other platforms
+  report `Unavailable` until a backend exists. `FakeKeystore` is the in-memory test double;
+  tests never touch a real keystore.
+- Deferred: wiring the prompt and keystore into the `goway circle` commands.
 
 ## 7. Alternatives rejected
 

@@ -17,8 +17,8 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use tracing::{debug, info, warn};
 
-use crate::crypto::valid_public_key;
 use crate::cert::{CERT_TTL_DAYS, issue_cert, principal};
+use crate::crypto::valid_public_key;
 use crate::error::{CertError, CryptoError, SshCertError};
 use crate::pairing::valid_name;
 use crate::state::State;
@@ -130,8 +130,7 @@ impl<'a> Reader<'a> {
     }
 
     fn text(&mut self) -> Result<String, SshCertError> {
-        String::from_utf8(self.string()?.to_vec())
-            .map_err(|_| SshCertError::Malformed("not utf-8"))
+        String::from_utf8(self.string()?.to_vec()).map_err(|_| SshCertError::Malformed("not utf-8"))
     }
 }
 
@@ -261,7 +260,8 @@ pub fn mint_lead_cert(
         info!("admin key has no private file; signing through ssh-agent");
     }
     let mut cmd = Command::new("ssh-keygen");
-    cmd.args(["-q", "-s"]).arg(if agent { &ca_file } else { admin_key });
+    cmd.args(["-q", "-s"])
+        .arg(if agent { &ca_file } else { admin_key });
     if agent {
         cmd.arg("-U");
     }
@@ -423,10 +423,7 @@ mod tests {
         assert_eq!(cert.subject, r.lead.public);
         assert_eq!(cert.signer, r.admin.public);
         assert!(cert.user);
-        assert!(
-            cert.principals
-                .contains(&"goway-lead:home:e0".to_owned())
-        );
+        assert!(cert.principals.contains(&"goway-lead:home:e0".to_owned()));
         assert_eq!(accepts(&r.state, &Policy::Open, &cert, NOW_REAL()), Ok(()));
     }
 
@@ -454,8 +451,13 @@ mod tests {
                 host_fp: String::new(),
             },
         );
-        let text =
-            mint_lead_cert(&r.state, &r.admin.public, &r.admin.private, &newcomer.public).unwrap();
+        let text = mint_lead_cert(
+            &r.state,
+            &r.admin.public,
+            &r.admin.private,
+            &newcomer.public,
+        )
+        .unwrap();
         let cert = parse_cert(&text).unwrap();
         assert_eq!(authority_lines(&r.state, &Policy::Open), before);
         assert_eq!(accepts(&r.state, &Policy::Open, &cert, NOW_REAL()), Ok(()));
@@ -515,10 +517,9 @@ mod tests {
             .output()
             .unwrap();
         assert!(text.status.success());
-        let cert = parse_cert(
-            &std::fs::read_to_string(r._dir.path().join("subj-cert.pub")).unwrap(),
-        )
-        .unwrap();
+        let cert =
+            parse_cert(&std::fs::read_to_string(r._dir.path().join("subj-cert.pub")).unwrap())
+                .unwrap();
         assert_eq!(cert.signer, r.other.public);
         assert_eq!(
             accepts(&r.state, &Policy::Open, &cert, NOW_REAL()),
@@ -608,9 +609,15 @@ mod tests {
     #[test]
     fn an_admin_key_with_a_newline_never_reaches_authorized_keys() {
         let mut r = rig();
-        r.state.admins.insert("ssh-ed25519 AAAA\nssh-rsa EVIL".to_owned());
+        r.state
+            .admins
+            .insert("ssh-ed25519 AAAA\nssh-rsa EVIL".to_owned());
         let lines = authority_lines(&r.state, &Policy::Open);
-        assert!(lines.iter().all(|l| !l.contains('\n') && !l.contains("EVIL")));
+        assert!(
+            lines
+                .iter()
+                .all(|l| !l.contains('\n') && !l.contains("EVIL"))
+        );
     }
 
     #[test]

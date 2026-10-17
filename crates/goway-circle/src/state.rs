@@ -171,7 +171,10 @@ impl State {
                     return false;
                 }
                 if !valid_name(name) || !safe_fp(host_fp) {
-                    warn!(op = &op.id()[..8], "admit refused: unsafe name or fingerprint");
+                    warn!(
+                        op = &op.id()[..8],
+                        "admit refused: unsafe name or fingerprint"
+                    );
                     return false;
                 }
                 self.members.insert(

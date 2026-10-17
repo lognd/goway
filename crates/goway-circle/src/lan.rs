@@ -141,7 +141,9 @@ pub fn new_code() -> Result<String, LanError> {
 
 /// The digits of a typed code when it is well formed (spaces and dashes ignored), else `None`.
 pub fn normalize_code(typed: &str) -> Option<String> {
-    let ok = typed.chars().all(|c| c.is_ascii_digit() || c.is_whitespace() || c == '-');
+    let ok = typed
+        .chars()
+        .all(|c| c.is_ascii_digit() || c.is_whitespace() || c == '-');
     let digits: String = typed.chars().filter(char::is_ascii_digit).collect();
     (ok && digits.len() == CODE_DIGITS).then_some(digits)
 }
@@ -157,7 +159,10 @@ impl Pake {
     fn new(code: &str) -> Result<Self, LanError> {
         let digits = normalize_code(code).ok_or_else(|| protocol("malformed pairing code"))?;
         let secret = Scalar::from_bytes_mod_order_wide(&random::<64>()?);
-        Ok(Self { secret, code: digits })
+        Ok(Self {
+            secret,
+            code: digits,
+        })
     }
 
     /// Our public point over the generator derived from the code and the host's session id.
@@ -241,7 +246,9 @@ pub fn write_msg<W: Write>(w: &mut W, msg: &Msg) -> Result<(), LanError> {
 /// Read one capped JSON-line message.
 pub fn read_msg<R: BufRead>(r: &mut R, max: usize) -> Result<Msg, LanError> {
     let mut buf = Vec::new();
-    r.by_ref().take(max as u64 + 1).read_until(b'\n', &mut buf)?;
+    r.by_ref()
+        .take(max as u64 + 1)
+        .read_until(b'\n', &mut buf)?;
     if buf.last() != Some(&b'\n') {
         return Err(if buf.len() > max {
             protocol("message too long")
@@ -253,7 +260,11 @@ pub fn read_msg<R: BufRead>(r: &mut R, max: usize) -> Result<Msg, LanError> {
 }
 
 fn abort_text(reason: &str) -> String {
-    reason.chars().filter(char::is_ascii_graphic).take(MAX_REASON).collect()
+    reason
+        .chars()
+        .filter(char::is_ascii_graphic)
+        .take(MAX_REASON)
+        .collect()
 }
 
 fn check_idents(idents: &[String]) -> Result<(), LanError> {
@@ -262,7 +273,8 @@ fn check_idents(idents: &[String]) -> Result<(), LanError> {
         && idents
             .iter()
             .all(|i| !i.is_empty() && i.len() <= MAX_IDENT_LEN && i.is_ascii());
-    ok.then_some(()).ok_or_else(|| protocol("bad fingerprint list"))
+    ok.then_some(())
+        .ok_or_else(|| protocol("bad fingerprint list"))
 }
 
 /// What the host's session produced.
@@ -287,7 +299,13 @@ pub fn run_host<R: BufRead, W: Write>(
     let pake = Pake::new(code)?;
     let sid = random::<SID_BYTES>()?;
     let host_y = pake.publish(&sid);
-    write_msg(writer, &Msg::Pake { s: hex(&sid), y: enc(&host_y) })?;
+    write_msg(
+        writer,
+        &Msg::Pake {
+            s: hex(&sid),
+            y: enc(&host_y),
+        },
+    )?;
     let Msg::Pake { s, y } = read_msg(reader, MAX_SMALL_MSG)? else {
         return Err(protocol("expected pake"));
     };
@@ -299,28 +317,55 @@ pub fn run_host<R: BufRead, W: Write>(
     let blob = idents_blob(idents);
     write_msg(
         writer,
-        &Msg::Proof { ident: idents.to_vec(), tag: tag(&isk, b"host", &[&blob]) },
+        &Msg::Proof {
+            ident: idents.to_vec(),
+            tag: tag(&isk, b"host", &[&blob]),
+        },
     )?;
-    let Msg::Card { card: card_text, tag: guest_tag } = read_msg(reader, MAX_SMALL_MSG)? else {
+    let Msg::Card {
+        card: card_text,
+        tag: guest_tag,
+    } = read_msg(reader, MAX_SMALL_MSG)?
+    else {
         return Err(protocol("expected card"));
     };
     if tag(&isk, b"guest", &[&blob, card_text.as_bytes()]) != guest_tag {
         warn!("lan pairing: guest confirmation tag mismatch (wrong code?)");
-        let _ = write_msg(writer, &Msg::Abort { reason: "pairing code mismatch".into() });
+        let _ = write_msg(
+            writer,
+            &Msg::Abort {
+                reason: "pairing code mismatch".into(),
+            },
+        );
         return Err(LanError::WrongCode);
     }
     let card = Card::decode(&card_text).map_err(|e| protocol(e.to_string()))?;
     debug!(name = %card.name, "lan pairing: guest proved the code");
     if !confirm(&card) {
         warn!("lan pairing: host person declined");
-        let _ = write_msg(writer, &Msg::Abort { reason: "declined on the admin machine".into() });
+        let _ = write_msg(
+            writer,
+            &Msg::Abort {
+                reason: "declined on the admin machine".into(),
+            },
+        );
         return Err(LanError::Declined);
     }
     let welcome = admit(&card).map_err(|e| {
-        let _ = write_msg(writer, &Msg::Abort { reason: abort_text(&e) });
+        let _ = write_msg(
+            writer,
+            &Msg::Abort {
+                reason: abort_text(&e),
+            },
+        );
         LanError::Admit(e)
     })?;
-    write_msg(writer, &Msg::Welcome { welcome: welcome.encode() })?;
+    write_msg(
+        writer,
+        &Msg::Welcome {
+            welcome: welcome.encode(),
+        },
+    )?;
     info!(name = %card.name, "lan pairing: welcome sent");
     Ok(HostOutcome { card })
 }
@@ -342,21 +387,39 @@ pub fn run_guest<R: BufRead, W: Write>(
     let sid = sid_of(&s)?;
     let host_y = point(&y)?;
     let guest_y = pake.publish(&sid);
-    write_msg(writer, &Msg::Pake { s, y: enc(&guest_y) })?;
+    write_msg(
+        writer,
+        &Msg::Pake {
+            s,
+            y: enc(&guest_y),
+        },
+    )?;
     let isk = pake.finish(&sid, &host_y, &guest_y, &host_y)?;
-    let Msg::Proof { ident, tag: host_tag } = read_msg(reader, MAX_SMALL_MSG)? else {
+    let Msg::Proof {
+        ident,
+        tag: host_tag,
+    } = read_msg(reader, MAX_SMALL_MSG)?
+    else {
         return Err(protocol("expected proof"));
     };
     check_idents(&ident)?;
     let blob = idents_blob(&ident);
     if tag(&isk, b"host", &[&blob]) != host_tag {
         warn!("lan pairing: host confirmation tag mismatch (wrong code?)");
-        let _ = write_msg(writer, &Msg::Abort { reason: "pairing code mismatch".into() });
+        let _ = write_msg(
+            writer,
+            &Msg::Abort {
+                reason: "pairing code mismatch".into(),
+            },
+        );
         return Err(LanError::WrongCode);
     }
     write_msg(
         writer,
-        &Msg::Card { card: card_text.clone(), tag: tag(&isk, b"guest", &[&blob, card_text.as_bytes()]) },
+        &Msg::Card {
+            card: card_text.clone(),
+            tag: tag(&isk, b"guest", &[&blob, card_text.as_bytes()]),
+        },
     )?;
     match read_msg(reader, MAX_WELCOME_CHARS + 1024)? {
         Msg::Welcome { welcome } => {
@@ -399,7 +462,14 @@ pub struct ListenGuard {
 impl ListenGuard {
     /// A guard open from `now` for `ttl` seconds (seconds on any monotonic clock).
     pub fn new(now: u64, ttl: u64) -> Self {
-        Self { expires: now + ttl, min_gap: 1, max_strikes: 5, last: None, strikes: 0, used: false }
+        Self {
+            expires: now + ttl,
+            min_gap: 1,
+            max_strikes: 5,
+            last: None,
+            strikes: 0,
+            used: false,
+        }
     }
 
     /// Decide whether a connection at `now` may be served.
@@ -410,7 +480,10 @@ impl ListenGuard {
             Err(Refusal::Used)
         } else if self.strikes >= self.max_strikes {
             Err(Refusal::Strikes)
-        } else if self.last.is_some_and(|l| now.saturating_sub(l) < self.min_gap) {
+        } else if self
+            .last
+            .is_some_and(|l| now.saturating_sub(l) < self.min_gap)
+        {
             Err(Refusal::TooFast)
         } else {
             Ok(())
@@ -464,7 +537,12 @@ mod tests {
             &[&admin as &dyn crate::Signer],
         )
         .unwrap();
-        Welcome { v: 1, circle: "home".into(), genesis: genesis.id(), ops: vec![genesis] }
+        Welcome {
+            v: 1,
+            circle: "home".into(),
+            genesis: genesis.id(),
+            ops: vec![genesis],
+        }
     }
 
     #[test]
@@ -481,10 +559,14 @@ mod tests {
     #[test]
     fn messages_refuse_unknown_fields_and_oversize() {
         let mut ok = BufReader::new(&b"{\"t\":\"abort\",\"reason\":\"x\"}\n"[..]);
-        assert_eq!(read_msg(&mut ok, 100).unwrap(), Msg::Abort { reason: "x".into() });
+        assert_eq!(
+            read_msg(&mut ok, 100).unwrap(),
+            Msg::Abort { reason: "x".into() }
+        );
         let mut extra = BufReader::new(&b"{\"t\":\"abort\",\"reason\":\"x\",\"x\":1}\n"[..]);
         assert!(read_msg(&mut extra, 100).is_err());
-        let mut big = BufReader::new(&b"{\"t\":\"abort\",\"reason\":\"aaaaaaaaaaaaaaaaaaaa\"}\n"[..]);
+        let mut big =
+            BufReader::new(&b"{\"t\":\"abort\",\"reason\":\"aaaaaaaaaaaaaaaaaaaa\"}\n"[..]);
         assert!(matches!(read_msg(&mut big, 10), Err(LanError::Protocol(_))));
         let mut cut = BufReader::new(&b"{\"t\":\"conf"[..]);
         assert!(matches!(read_msg(&mut cut, 100), Err(LanError::Io(_))));
@@ -509,7 +591,11 @@ mod tests {
         assert_eq!(g.allow(20), Err(Refusal::Strikes));
     }
 
-    type Run = (Result<HostOutcome, LanError>, Result<(Welcome, Vec<String>), LanError>, bool);
+    type Run = (
+        Result<HostOutcome, LanError>,
+        Result<(Welcome, Vec<String>), LanError>,
+        bool,
+    );
 
     /// Drive host and guest over loopback TCP with the given codes and host approval.
     fn session(host_code: &str, guest_code: &str, host_says: bool) -> Run {
@@ -573,8 +659,14 @@ mod tests {
         // A guest tag over one card does not authenticate another.
         let isk = [7u8; 32];
         let blob = idents_blob(&["SHA256:a".to_owned()]);
-        assert_ne!(tag(&isk, b"guest", &[&blob, b"card-a"]), tag(&isk, b"guest", &[&blob, b"card-b"]));
-        assert_ne!(tag(&isk, b"guest", &[&blob, b"c"]), tag(&isk, b"host", &[&blob, b"c"]));
+        assert_ne!(
+            tag(&isk, b"guest", &[&blob, b"card-a"]),
+            tag(&isk, b"guest", &[&blob, b"card-b"])
+        );
+        assert_ne!(
+            tag(&isk, b"guest", &[&blob, b"c"]),
+            tag(&isk, b"host", &[&blob, b"c"])
+        );
     }
 
     #[test]
@@ -589,13 +681,24 @@ mod tests {
     #[test]
     fn a_guest_refuses_a_bad_session_id_or_point() {
         for msg in [
-            Msg::Pake { s: "zz".into(), y: hex(&[0u8; 32]) },
-            Msg::Pake { s: hex(&[1u8; SID_BYTES]), y: hex(&[0u8; 32]) },
+            Msg::Pake {
+                s: "zz".into(),
+                y: hex(&[0u8; 32]),
+            },
+            Msg::Pake {
+                s: hex(&[1u8; SID_BYTES]),
+                y: hex(&[0u8; 32]),
+            },
         ] {
             let mut input = Vec::new();
             write_msg(&mut input, &msg).unwrap();
             let mut out = Vec::new();
-            let res = run_guest(&mut BufReader::new(&input[..]), &mut out, "12345678", &card());
+            let res = run_guest(
+                &mut BufReader::new(&input[..]),
+                &mut out,
+                "12345678",
+                &card(),
+            );
             assert!(matches!(res, Err(LanError::Protocol(_))));
         }
     }

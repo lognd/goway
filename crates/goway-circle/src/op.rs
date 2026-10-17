@@ -154,7 +154,12 @@ impl Op {
     }
 
     /// Build an op that lists every future signer but carries no signature yet.
-    pub fn draft(kind: Kind, body: &[(&str, &str)], parents: &[String], signers: &[String]) -> Self {
+    pub fn draft(
+        kind: Kind,
+        body: &[(&str, &str)],
+        parents: &[String],
+        signers: &[String],
+    ) -> Self {
         let mut op = Self::signed(kind, body, parents, &[]).unwrap_or_else(|_| unreachable!());
         op.signers = signers.to_vec();
         op

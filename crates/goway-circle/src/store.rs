@@ -229,10 +229,7 @@ mod tests {
         std::fs::create_dir_all(store.ops_path().parent().unwrap()).unwrap();
         let f = std::fs::File::create(store.ops_path()).unwrap();
         f.set_len((MAX_OPS * MAX_OP_BYTES) as u64 + 1).unwrap();
-        assert!(matches!(
-            store.ops(),
-            Err(StoreError::OpsTooLarge { .. })
-        ));
+        assert!(matches!(store.ops(), Err(StoreError::OpsTooLarge { .. })));
     }
 
     #[test]

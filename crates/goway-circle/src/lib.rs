@@ -10,6 +10,7 @@ mod cert;
 mod crypto;
 mod error;
 mod keys;
+mod keystore;
 mod lan;
 mod op;
 mod pairing;
@@ -22,11 +23,14 @@ pub use cert::{CERT_TTL_DAYS, CERT_TTL_SECS, Cert, helper_accepts, issue_cert, p
 pub use crypto::{
     FakeCrypto, NAMESPACE, Signer, SshKeygenSigner, SshKeygenVerifier, Verifier, valid_public_key,
 };
-pub use error::{CertError, CircleError, CryptoError, PairingError, SshCertError, StoreError};
+pub use error::{
+    CertError, CircleError, CryptoError, KeystoreError, PairingError, SshCertError, StoreError,
+};
 pub use keys::{
     KeyPair, ensure_keypair, ensure_keypair_with, generate_sk_keypair, key_fingerprint,
     read_public_key,
 };
+pub use keystore::{FakeKeystore, Keystore, KeystorePassphrase, SecretToolKeystore};
 pub use lan::{
     HostOutcome, LanError, ListenGuard, Msg, Refusal, new_code, normalize_code, read_msg,
     run_guest, run_host, write_msg,

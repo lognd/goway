@@ -14,6 +14,20 @@ pub enum CryptoError {
     Io(#[from] std::io::Error),
 }
 
+/// A failure of an OS keystore holding key passphrases.
+#[derive(Debug, thiserror::Error)]
+pub enum KeystoreError {
+    /// No keystore tool is installed or usable on this machine.
+    #[error("no usable OS keystore: {0}")]
+    Unavailable(String),
+    /// The keystore ran but refused the request.
+    #[error("keystore refused: {0}")]
+    Refused(String),
+    /// The stored secret is not usable as a passphrase.
+    #[error(transparent)]
+    Secret(#[from] CryptoError),
+}
+
 /// A failure to build, parse or fold roster operations.
 #[derive(Debug, thiserror::Error)]
 pub enum CircleError {
