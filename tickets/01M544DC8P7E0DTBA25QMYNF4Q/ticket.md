@@ -7,13 +7,13 @@ priority = "high"
 points = 5
 reporter = "lognd"
 created = "2026-10-17T05:12:34Z"
-updated = "2026-10-17T05:54:38Z"
+updated = "2026-10-17T05:54:44Z"
 idempotency_key = "nova-windows-host-add"
 labels = ["windows", "onboarding"]
 
 [[acceptance]]
 text = "A Windows sshd that refuses the key is detected by banner and recorded as os=windows when vouched for"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "host add --windows prints Windows setup commands and writes nothing"
