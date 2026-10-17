@@ -9,7 +9,7 @@ reporter = "lognd"
 created = "2026-10-17T21:41:51Z"
 updated = "2026-10-17T21:42:00Z"
 idempotency_key = "audit-l5l8"
-scope = ["crates/goway/src/access.rs"]
+scope = ["crates/goway/src/access.rs", "docs/circles.md"]
 
 [[acceptance]]
 text = "pin refuses name collision; docs accurate"
