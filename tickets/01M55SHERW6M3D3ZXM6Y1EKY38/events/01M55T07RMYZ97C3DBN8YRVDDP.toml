@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway-circle/src/state.rs,crates/goway-circle/tests/**,docs/model/**"]
+new = ["crates/goway-circle/src/state.rs,crates/goway-circle/tests/**,docs/model/**", "docs/circles.md"]
+at = "2026-10-17T20:49:07Z"
+actor = "lognd"
+rev = 1
