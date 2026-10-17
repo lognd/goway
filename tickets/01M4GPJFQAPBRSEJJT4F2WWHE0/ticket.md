@@ -2,7 +2,8 @@
 id = "01M4GPJFQAPBRSEJJT4F2WWHE0"
 title = "Every long run ends with 'the lifeline connection to <host> broke while the job ran (ssh exit status: 0)'"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
