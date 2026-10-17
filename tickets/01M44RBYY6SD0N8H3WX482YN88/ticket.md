@@ -7,7 +7,7 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T00:45:38Z"
-updated = "2026-10-17T09:15:16Z"
+updated = "2026-10-17T09:15:28Z"
 scope = ["crates/goway/src/changelog.rs"]
 
 [[acceptance]]
@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "Given goway changes undo on that row, When it runs, Then the tool tree and its links are removed through the fix journal"
-bound = false
+bound = true
 +++
 
 Seen right after the first real doctor --fix uv install: each row is the full curl/tar/ln shell script, the time is 'unix time 1791161006', and the undo column says no although the install is journaled in fixes-HOST.json and can be undone. Rows should name the change (installed uv 0.12.23 user-level on HOST), show a local time, and point at the undo that applies.
