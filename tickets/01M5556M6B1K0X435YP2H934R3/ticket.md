@@ -2,7 +2,8 @@
 id = "01M5556M6B1K0X435YP2H934R3"
 title = "SecretToolKeystore has no test"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 1
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
