@@ -20,7 +20,7 @@ bound = true
 
 [[acceptance]]
 text = "Given a helper whose .wslconfig memory leaves Windows under the headroom, When goway doctor checks that helper, Then it warns with the safe size and the journaled tune command that sets it"
-bound = false
+bound = true
 +++
 
 Observed 2026-10-04: a helper with 7.4 GB of RAM was tuned to memory=5632MB, leaving Windows under 2 GB. The Windows event log recorded 'The paging file is too small for this operation to complete' at 16:58; WSL died two minutes later, and later deadlocked twice under concurrent test runs, taking the Windows OpenSSH server down with it. tune takes the size as given with no check against the machine.
