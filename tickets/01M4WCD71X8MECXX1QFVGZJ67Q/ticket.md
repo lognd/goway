@@ -2,20 +2,24 @@
 id = "01M4WCD71X8MECXX1QFVGZJ67Q"
 title = "A failed or undone host install leaves openssh-server in rc state, which the next install refuses"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-14T04:58:22Z"
-updated = "2026-10-17T10:40:56Z"
+updated = "2026-10-17T10:42:07Z"
 scope = ["crates/goway-setup/src/hostsys.rs"]
 
 [[acceptance]]
 text = "After install --host is rolled back or uninstalled, rerunning install --host succeeds without manual apt commands"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "The reinstalled sshd presents the same host key as before the uninstall"
+bound = false
+
+[[acceptance]]
+text = "Test a_package_left_removed_with_its_configuration_is_installed_again_without_purging passes: rc state reinstalls without purge"
 bound = false
 +++
 
