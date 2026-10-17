@@ -443,6 +443,22 @@ Old copies and caches on the helpers are cleaned up automatically
 (`goway gc --dry-run` shows what would go). More:
 [docs/usage.md](docs/usage.md).
 
+## Circles: machines that trust each other
+
+A circle is a group of your own machines that trust each other, so you
+do not set up every main laptop against every helper by hand.
+
+- `goway circle init` makes a circle; this machine becomes its admin.
+- `goway circle card` (on a new machine) prints a card; `goway circle
+  admit` (on an admin) turns it into a welcome; `goway circle join`
+  (on the new machine) uses the welcome.
+- `goway circle pair-host` and `goway circle pair-join ADDR:PORT` do the
+  same over the LAN, with a short code you compare on both screens.
+- `goway circle list`, `roles`, `access`, `cert`, `pin` and `revoke`
+  show and change who may do what.
+
+Only public keys are shared. Details: [docs/circles.md](docs/circles.md).
+
 ## Uninstall
 
 On your main laptop:
