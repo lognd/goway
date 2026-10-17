@@ -2,12 +2,12 @@
 id = "01M5493X89KGCWGBCRB7JMKV3B"
 title = "Built-in passphrase prompt and encrypted node key (ssh-keygen prompt works today)"
 type = "task"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:34:47Z"
-updated = "2026-10-17T11:40:59Z"
+updated = "2026-10-17T11:56:29Z"
 scope = ["crates/goway-circle/**"]
 +++
 
