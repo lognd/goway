@@ -2,7 +2,8 @@
 id = "01M55V8H24YCCZ92VT244937EV"
 title = "Audit M5: cert-authority lines never expire; docs describe nonexistent verbs"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
