@@ -4,10 +4,10 @@ title = "Stop sending all of remote.sh on every call: install it once per versio
 type = "story"
 category = "todo"
 priority = "high"
-points = 5
+points = 2
 reporter = "lognd"
 created = "2026-10-05T04:30:18Z"
-updated = "2026-10-05T04:30:18Z"
+updated = "2026-10-17T10:52:44Z"
 scope = ["crates/goway/src/remote.rs", "crates/goway/src/remote.sh"]
 
 [[acceptance]]
