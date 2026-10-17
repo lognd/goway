@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [3]
+captured_at = "2026-10-17T06:35:40Z"
+digest = "12ab3c098e78a6452d4019558d89548eac56baa8f046af8f89c00da0d7fc065d"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 2b989881-9b06-4602-a574-f4b045345b3d with nextest profile: default
+    Starting 1 test across 88 binaries (1107 tests skipped)
+        PASS [   0.006s] goway-circle store::tests::an_oversized_ops_file_is_refused_unread
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.009s] 1 test run: 1 passed, 1107 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "goway-circle store::tests::an_oversized_ops_file_is_refused_unread"
+size = 562
+status = "measured"
+test_count = 1
+tests_digest = "97520b6ae161552adce57e946406c93eee111a456ddf133a10baaeec9731546f"
+at = "2026-10-17T06:35:40Z"
+actor = "lognd"
+rev = 1
