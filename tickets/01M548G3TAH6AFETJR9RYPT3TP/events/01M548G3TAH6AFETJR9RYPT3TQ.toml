@@ -1,0 +1,10 @@
+kind = "create"
+title = "resolve: roster stage for circle hosts"
+type = "task"
+category = "todo"
+priority = "medium"
+scope = ["crates/goway/src/resolve.rs"]
+body = "found while working ~Q5WP11P"
+at = "2026-10-17T06:23:58Z"
+actor = "lognd"
+rev = 1
