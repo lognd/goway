@@ -2,7 +2,8 @@
 id = "01M55SHF0XJ5547TTQ2BTKNYVE"
 title = "Audit M7: admin cosign signs without showing what it approves"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
