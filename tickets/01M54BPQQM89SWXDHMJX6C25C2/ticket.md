@@ -2,7 +2,7 @@
 id = "01M54BPQQM89SWXDHMJX6C25C2"
 title = "Fold docs/circle-admin.md into circles.md and config.md; refresh 0.2.0 wording and roster stage"
 type = "docs"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 1
 reporter = "lognd"
