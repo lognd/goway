@@ -7,12 +7,12 @@ priority = "high"
 points = 3
 reporter = "lognd"
 created = "2026-10-05T06:49:43Z"
-updated = "2026-10-17T09:42:05Z"
+updated = "2026-10-17T09:45:09Z"
 scope = ["crates/goway/src/uninstall.rs", "changelog.d/01M45D6N0V2XF3CZFD1MM4GRP6.fixed.md"]
 
 [[acceptance]]
 text = "Given active change records for helpers, When goway uninstall runs without --everywhere, Then it keeps those records (or refuses), names each helper with active changes and the command that undoes them (goway uninstall --everywhere, or per host)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given goway uninstall --everywhere, When it runs, Then each helper's changes are undone first and its record is deleted only after its undo succeeded"

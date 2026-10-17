@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T09:45:09Z"
+digest = "d215b4ad6b18aa04d0b6fc55c0b5f15643fd300f313a952ee567290db7f307ab"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d64a5aec-cc53-4eb8-8be9-9f30c4d00631 with nextest profile: default
+    Starting 1 test across 65 binaries (847 tests skipped)
+        PASS [   0.005s] goway uninstall::tests::records_of_helpers_outside_the_config_are_orphans
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 847 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E test(records_of_helpers_outside_the_config_are_orphans)"
+size = 567
+status = "measured"
+test_count = 1
+tests_digest = "e523f249cefb7d1300b3899897c4e174f678fd8bbdf7c27acfd23f0f47d85e2a"
+at = "2026-10-17T09:45:09Z"
+actor = "lognd"
+rev = 1
