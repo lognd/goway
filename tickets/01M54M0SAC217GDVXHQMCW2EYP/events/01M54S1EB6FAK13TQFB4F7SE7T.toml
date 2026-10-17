@@ -1,0 +1,33 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T11:13:03Z"
+digest = "b790e040eb54a0f1046efc1c6b9f7e578e666a4061f0a231ba4293500b4d5c84"
+exit_code = 0
+inline = '''
+warning: unused variable: `layout`
+   --> crates/goway-setup/src/cli.rs:783:29
+    |
+783 | fn join_circle(r: Renderer, layout: &Layout, distro: &str, welcome: &str, fingerprint: &str) {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_layout`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `goway-setup` (lib) generated 1 warning (run `cargo fix --lib -p goway-setup` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 32a14391-ea82-4b44-9b1e-5e969e9faa4b with nextest profile: default
+    Starting 1 test across 1 binary (36 tests skipped)
+        PASS [   0.003s] goway-setup::hostsys goway_is_planned_into_the_distro_as_journaled_changes_only_when_missing
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.004s] 1 test run: 1 passed, 36 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup --test hostsys -E test(goway_is_planned_into_the_distro_as_journaled_changes_only_when_missing)"
+size = 1077
+status = "measured"
+test_count = 1
+tests_digest = "5b5e985d7f4e14941e8f14bd581e9c57bd623431ed022c6861df88fbade681a6"
+at = "2026-10-17T11:13:03Z"
+actor = "lognd"
+rev = 1

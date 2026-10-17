@@ -13,7 +13,7 @@ scope = ["crates/goway-setup/**"]
 
 [[acceptance]]
 text = "The distro goway wrapper is a journaled change, written only when goway is not on PATH"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Native join is not run as an account other than the ssh login account"
