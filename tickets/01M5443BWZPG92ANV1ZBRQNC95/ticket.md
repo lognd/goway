@@ -2,7 +2,8 @@
 id = "01M5443BWZPG92ANV1ZBRQNC95"
 title = "Release 0.2.0: version bump, CHANGELOG, README and docs updates"
 type = "chore"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
