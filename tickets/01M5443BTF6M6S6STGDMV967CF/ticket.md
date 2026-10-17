@@ -20,6 +20,10 @@ bound = false
 [[acceptance]]
 text = "Unsafe names and fingerprints cannot enter the roster or authorized_keys"
 bound = false
+
+[[acceptance]]
+text = "Oversized ops file is refused unread"
+bound = false
 +++
 
 Walk the 16-row table in docs/circles.md against the code; agent/keystore support for the node key (config.md notes the unencrypted key); FIDO2 admin key path; add frob rules for the invariants.
