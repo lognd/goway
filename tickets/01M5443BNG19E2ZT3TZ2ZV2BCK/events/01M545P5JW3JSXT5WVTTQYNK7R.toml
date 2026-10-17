@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["Every model test has a Rust equivalent", "Convergence and no-unauthorized-op property tests pass"]
+new = ["Every model test has a Rust equivalent", "Convergence and no-unauthorized-op property tests pass", "Given the roster rules in docs/model, when the Rust crate folds the same ops, then every model test has a passing Rust equivalent", "Given random op orderings or unauthorized ops, when folded, then state converges and unauthorized ops change nothing"]
+moved = [1, 2]
+at = "2026-10-17T05:34:51Z"
+actor = "lognd"
+rev = 1
