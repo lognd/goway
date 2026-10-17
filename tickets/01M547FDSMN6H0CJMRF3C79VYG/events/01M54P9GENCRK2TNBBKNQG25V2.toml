@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T10:22:46Z"
+digest = "b79e2cbacc8917f3c400e5076a4db30a7635c97784ea7fb4351be2d3bf672482"
+exit_code = 0
+inline = '''
+   Compiling goway v0.2.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 15s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8fa123db-ac06-48a0-8661-552de3588c7f with nextest profile: default
+    Starting 2 tests across 1 binary (449 tests skipped)
+        PASS [   0.008s] goway lanpair::tests::qr_ascii_is_ascii_square_with_quiet_zone
+        PASS [   0.022s] goway lanpair::tests::qr_ascii_encodes_a_full_card_length_text
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.024s] 2 tests run: 2 passed, 449 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --lib -E test(qr_ascii)"
+size = 696
+status = "measured"
+test_count = 2
+tests_digest = "397a25b327e83b5927a8e6f9f504d269a49fdfc3c727563bec215b78b852da71"
+at = "2026-10-17T10:22:46Z"
+actor = "lognd"
+rev = 1

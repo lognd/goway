@@ -12,7 +12,7 @@ scope = ["crates/goway/src/lanpair.rs", "crates/goway/Cargo.toml", "crates/goway
 
 [[acceptance]]
 text = "circle card --qr and pair-host --qr print an ASCII-only QR code of the card or host:port"
-bound = false
+bound = true
 +++
 
 Phase 4 left QR undone: no qrcode crate in the tree. Evaluate adding one; print the card and pair-host address as QR. Found while working ~42YF0JB.
