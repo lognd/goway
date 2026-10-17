@@ -2,12 +2,12 @@
 id = "01M544DC8P7E0DTBA25QMYNF4Q"
 title = "host add --port 22 refuses a Windows OpenSSH helper; setup advice is Linux-only"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 5
 reporter = "lognd"
 created = "2026-10-17T05:12:34Z"
-updated = "2026-10-17T05:30:22Z"
+updated = "2026-10-17T05:35:12Z"
 idempotency_key = "nova-windows-host-add"
 labels = ["windows", "onboarding"]
 +++
