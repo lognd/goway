@@ -16,7 +16,7 @@ bound = false
 
 [[acceptance]]
 text = "Given goway uninstall --everywhere, When it runs, Then each helper's changes are undone first and its record is deleted only after its undo succeeded"
-bound = false
+bound = true
 +++
 
 goway uninstall --dry-run (without --everywhere) on a machine with helpers lists 'delete' for ~/.config/goway/installed-HOST.json, fixes-HOST.json and ssh-setup-HOST.json, the records goway needs to undo what it changed on each helper (installs, doctor fixes, authorized_keys). Deleting them without undoing the changes orphans those changes: they can no longer be listed or reverted, which breaks the journaling invariant (docs/changes.md).
