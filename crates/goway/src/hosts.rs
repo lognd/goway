@@ -27,15 +27,18 @@ pub const IDENTIFY: &str = "uname -s; uname -n; uname -m";
 /// PowerShell and has no `uname`): the same three lines, `Windows` first.
 pub const IDENTIFY_WINDOWS: &str = "powershell -NoProfile -NonInteractive -Command \"'Windows'; $env:COMPUTERNAME; $env:PROCESSOR_ARCHITECTURE\"";
 
+// frob:ticket 01M544DC8P7E0DTBA25QMYNF4Q
 /// The probe output recorded when a Windows sshd was recognised by its
 /// banner but refused goway's key, so it could not be asked who it is.
 pub const WINDOWS_KEY_REFUSED: &str = "Windows\n?\n?\n";
 
+// frob:ticket 01M544DC8P7E0DTBA25QMYNF4Q
 /// Whether an ssh banner line (`SSH-2.0-OpenSSH_for_Windows_9.5`) is Windows' OpenSSH.
 pub fn is_windows_banner(banner: &str) -> bool {
     banner.starts_with("SSH-") && banner.to_ascii_lowercase().contains("windows")
 }
 
+// frob:ticket 01M544DC8P7E0DTBA25QMYNF4Q
 /// Read the first line a sshd sends (its banner); `None` if nothing answers in time.
 pub fn read_banner(address: &str, port: u16) -> Option<String> {
     use std::io::{BufRead as _, BufReader};
@@ -51,6 +54,7 @@ pub fn read_banner(address: &str, port: u16) -> Option<String> {
     Some(line)
 }
 
+// frob:ticket 01M544DC8P7E0DTBA25QMYNF4Q
 /// The commands that make a Windows machine a goway helper over OpenSSH,
 /// run in PowerShell as Administrator; `key` is goway's public key line.
 /// (Printed text lives in `winsetup.txt`: goway runs none of it itself.)
@@ -60,6 +64,7 @@ pub fn windows_setup_commands(key: &str) -> String {
         .replace("{KEY}", key)
 }
 
+// frob:ticket 01M544DC8P7E0DTBA25QMYNF4Q
 /// What to do about a Windows OpenSSH server that refused goway's key.
 pub fn windows_refused_advice(name: &str, key: &str) -> String {
     format!(
