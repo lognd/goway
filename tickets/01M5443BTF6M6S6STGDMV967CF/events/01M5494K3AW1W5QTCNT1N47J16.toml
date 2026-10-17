@@ -1,0 +1,8 @@
+kind = "field"
+field = "acceptance"
+old = ["Loose-mode, symlinked or private-without-pub node keys are refused and never regenerated"]
+new = ["Loose-mode, symlinked or private-without-pub node keys are refused and never regenerated", "Unsafe names and fingerprints cannot enter the roster or authorized_keys"]
+moved = [1]
+at = "2026-10-17T06:35:09Z"
+actor = "lognd"
+rev = 1

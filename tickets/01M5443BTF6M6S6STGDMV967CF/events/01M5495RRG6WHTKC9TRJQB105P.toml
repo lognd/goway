@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T06:35:47Z"
+digest = "f6a214944a5f092b019a8276e17af7563844f62a586d2318043c4cab9a266cd8"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 18b9918d-7837-446d-9d5a-cc6d33c867cf with nextest profile: default
+    Starting 1 test across 88 binaries (1107 tests skipped)
+        PASS [   0.006s] goway-circle::roster unsafe_names_and_fingerprints_never_enter_the_roster
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.008s] 1 test run: 1 passed, 1107 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "goway-circle unsafe_names_and_fingerprints_never_enter_the_roster"
+size = 569
+status = "measured"
+test_count = 1
+tests_digest = "34b2bae15b4c98d97004b8676b1eaccc13bc0c41dff8daeb013f2dd4ea84ca40"
+at = "2026-10-17T06:35:47Z"
+actor = "lognd"
+rev = 1

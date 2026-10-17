@@ -1,0 +1,7 @@
+kind = "field"
+field = "scope"
+old = ["crates/goway-circle/src/keys.rs", "crates/goway-circle/src/state.rs", "crates/goway-circle/src/store.rs", "crates/goway-circle/src/sshcert.rs", "crates/goway-circle/src/crypto.rs"]
+new = ["crates/goway-circle/src/keys.rs", "crates/goway-circle/src/state.rs", "crates/goway-circle/src/store.rs", "crates/goway-circle/src/sshcert.rs", "crates/goway-circle/src/crypto.rs", "crates/goway-circle/src/error.rs"]
+at = "2026-10-17T06:28:06Z"
+actor = "lognd"
+rev = 1

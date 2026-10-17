@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-17T06:35:40Z"
+digest = "f5c6c560b8e373dc4bae9dc505123f3af9c97f2bdbda752eb6bced56ed6f110d"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 90f5be69-0c4d-46b4-860d-f7bde286d1cd with nextest profile: default
+    Starting 1 test across 88 binaries (1107 tests skipped)
+        PASS [   0.004s] goway-circle crypto::signer_tests::a_missing_private_file_falls_back_to_the_pub_for_the_agent
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.007s] 1 test run: 1 passed, 1107 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "goway-circle crypto::signer_tests::a_missing_private_file_falls_back_to_the_pub_for_the_agent"
+size = 589
+status = "measured"
+test_count = 1
+tests_digest = "59b4f74b6ac63c69ed3f65ebb2bab611eee0b6696c96a3c9812526f073cbaae1"
+at = "2026-10-17T06:35:40Z"
+actor = "lognd"
+rev = 1

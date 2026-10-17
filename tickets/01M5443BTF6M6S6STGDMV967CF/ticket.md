@@ -2,15 +2,32 @@
 id = "01M5443BTF6M6S6STGDMV967CF"
 title = "Security: circle threat model review and key-at-rest hardening"
 type = "security"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 8
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T05:07:06Z"
-updated = "2026-10-17T06:25:55Z"
+updated = "2026-10-17T06:35:47Z"
 idempotency_key = "c5"
 labels = ["circles"]
+scope = ["crates/goway-circle/src/keys.rs", "crates/goway-circle/src/state.rs", "crates/goway-circle/src/store.rs", "crates/goway-circle/src/sshcert.rs", "crates/goway-circle/src/crypto.rs", "crates/goway-circle/src/error.rs", "crates/goway-circle/src/lib.rs", "crates/goway-circle/src/pairing.rs", "crates/goway/src/circle.rs", "crates/goway/src/access.rs", "docs/circles.md", "docs/config.md", "crates/goway-circle/tests/roster.rs"]
+
+[[acceptance]]
+text = "Loose-mode, symlinked or private-without-pub node keys are refused and never regenerated"
+bound = true
+
+[[acceptance]]
+text = "Unsafe names and fingerprints cannot enter the roster or authorized_keys"
+bound = true
+
+[[acceptance]]
+text = "Oversized ops file is refused unread"
+bound = true
+
+[[acceptance]]
+text = "Public-only (agent / FIDO2) keys can sign and mint; docs/circles.md records per-row threat enforcement"
+bound = true
 +++
 
 Walk the 16-row table in docs/circles.md against the code; agent/keystore support for the node key (config.md notes the unencrypted key); FIDO2 admin key path; add frob rules for the invariants.

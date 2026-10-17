@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["Loose-mode, symlinked or private-without-pub node keys are refused and never regenerated"]
+moved = []
+at = "2026-10-17T06:35:09Z"
+actor = "lognd"
+rev = 1
