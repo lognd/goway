@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T10:50:36Z"
+digest = "61a4c629ae4ed9cd32a4a8f4b29d8f73b123760e5436bde5b45837a746bdd49b"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 672a27b1-ae40-4562-bb87-500f21640680 with nextest profile: default
+    Starting 1 test across 65 binaries (850 tests skipped)
+        PASS [   0.024s] goway spawn::tests::no_production_code_spawns_a_child_outside_the_lock
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.025s] 1 test run: 1 passed, 850 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E test(no_production_code_spawns_a_child_outside_the_lock)"
+size = 564
+status = "measured"
+test_count = 1
+tests_digest = "54f18e5b98033fef32e5cc2b74ba86f2695b6a49d6c47d3dc88c15a588f16932"
+at = "2026-10-17T10:50:36Z"
+actor = "lognd"
+rev = 1

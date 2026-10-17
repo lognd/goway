@@ -12,5 +12,5 @@ updated = "2026-10-17T10:50:36Z"
 
 [[acceptance]]
 text = "no_production_code_spawns_a_child_outside_the_lock passes"
-bound = false
+bound = true
 +++
