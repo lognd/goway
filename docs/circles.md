@@ -206,7 +206,10 @@ minute certificate backdate.
   missing or past half of its 14 day TTL; `--force` reissues regardless.
 - `goway circle policy open` accepts every circle member;
   `goway circle policy listed --lead NAME ...` accepts only the named leads
-  (at least one known lead; `open` takes none). `--file` overrides the
+  (at least one known lead; `open` takes none). A lead in the saved
+  `listed` policy that is later revoked is dropped with a warning by
+  `goway circle access`, which still writes the new-epoch lines; only
+  names passed explicitly with `--lead` error. `--file` overrides the
   `authorized_keys` target and `--windows-admin` targets the Windows
   administrators file.
 
