@@ -2,7 +2,8 @@
 id = "01M5556P849B2XW68GHMZ35ZE4"
 title = "render_misses lacks the Windows hint"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 1
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
