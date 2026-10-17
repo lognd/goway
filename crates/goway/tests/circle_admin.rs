@@ -35,12 +35,7 @@ fn state_of(p: &Paths) -> State {
 /// Copy `from`'s roster files over `to`'s (a stand-in for the sync that spreads rosters).
 fn sync(from: &Paths, to: &Paths) {
     let base = |p: &Paths| p.config_dir.join("circle").join("circles");
-    let src = std::fs::read_dir(base(from))
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap()
-        .path();
+    let src = std::fs::read_dir(base(from)).unwrap().next().unwrap().unwrap().path();
     let dst = base(to).join(src.file_name().unwrap());
     std::fs::create_dir_all(&dst).unwrap();
     for f in std::fs::read_dir(&src).unwrap() {
@@ -135,29 +130,12 @@ fn one_admin_adds_and_removes_another_with_a_single_signature() {
     let w = world();
     let bee = new_admin_candidate(&w, "bee");
     sync(&w.founder, &bee);
-    let out = propose(
-        &w.founder,
-        quiet(),
-        Kind::AddAdmin,
-        &change("bee-admin", None),
-    )
-    .unwrap();
+    let out = propose(&w.founder, quiet(), Kind::AddAdmin, &change("bee-admin", None)).unwrap();
     assert_eq!(out, Proposed::Applied);
     assert_eq!(state_of(&w.founder).admins.len(), 2);
-    let again = propose(
-        &w.founder,
-        quiet(),
-        Kind::AddAdmin,
-        &change("bee-admin", None),
-    );
+    let again = propose(&w.founder, quiet(), Kind::AddAdmin, &change("bee-admin", None));
     assert!(again.is_err(), "adding an admin twice is refused");
-    propose(
-        &w.founder,
-        quiet(),
-        Kind::RemoveAdmin,
-        &change("bee-admin", None),
-    )
-    .unwrap();
+    propose(&w.founder, quiet(), Kind::RemoveAdmin, &change("bee-admin", None)).unwrap();
     let state = state_of(&w.founder);
     assert_eq!(state.admins.len(), 1);
     assert_eq!(state.epoch, 1, "removing an admin bumps the epoch");
@@ -179,27 +157,15 @@ fn three_admins_need_a_second_signature_to_add_a_fourth() {
     sync(&w.founder, &cat);
     sync(&w.founder, &dog);
 
-    let alone = propose(
-        &w.founder,
-        quiet(),
-        Kind::AddAdmin,
-        &change("dog-admin", None),
-    );
+    let alone = propose(&w.founder, quiet(), Kind::AddAdmin, &change("dog-admin", None));
     assert!(alone.is_err(), "one signature is not a quorum");
-    let Proposed::NeedsCosign(line) = propose(
-        &w.founder,
-        quiet(),
-        Kind::AddAdmin,
-        &change("dog-admin", Some("bee-admin")),
-    )
-    .unwrap() else {
+    let Proposed::NeedsCosign(line) =
+        propose(&w.founder, quiet(), Kind::AddAdmin, &change("dog-admin", Some("bee-admin")))
+            .unwrap()
+    else {
         panic!("expected a half-signed proposal");
     };
-    assert_eq!(
-        state_of(&w.founder).admins.len(),
-        3,
-        "a half-signed op changes nothing"
-    );
+    assert_eq!(state_of(&w.founder).admins.len(), 3, "a half-signed op changes nothing");
     let file = w.root.join("proposal.jsonl");
     std::fs::write(&file, format!("{line}\n")).unwrap();
 
@@ -211,11 +177,16 @@ fn three_admins_need_a_second_signature_to_add_a_fourth() {
             circle: None,
         },
     );
-    assert!(
-        wrong.is_err(),
-        "an admin who is not a named signer cannot finish it"
-    );
-    cosign(&bee, quiet(), &CircleCosignArgs { file, circle: None }).unwrap();
+    assert!(wrong.is_err(), "an admin who is not a named signer cannot finish it");
+    cosign(
+        &bee,
+        quiet(),
+        &CircleCosignArgs {
+            file,
+            circle: None,
+        },
+    )
+    .unwrap();
     assert_eq!(state_of(&bee).admins.len(), 4);
 }
 
@@ -234,12 +205,7 @@ fn renewal_starts_at_half_of_the_ttl() {
 fn renew_leaves_a_fresh_certificate_alone_unless_forced() {
     let w = world();
     let cert = {
-        let mut p = w
-            .founder
-            .config_dir
-            .join("circle")
-            .join("node_ed25519")
-            .into_os_string();
+        let mut p = w.founder.config_dir.join("circle").join("node_ed25519").into_os_string();
         p.push("-cert.pub");
         PathBuf::from(p)
     };
@@ -250,24 +216,12 @@ fn renew_leaves_a_fresh_certificate_alone_unless_forced() {
     };
     run_renew(&w.founder, quiet(), &args(false)).unwrap();
     assert!(cert.is_file(), "no certificate yet, so renew mints one");
-    std::fs::write(
-        &cert,
-        std::fs::read_to_string(&cert).unwrap() + "# marker\n",
-    )
-    .unwrap_or(());
+    std::fs::write(&cert, std::fs::read_to_string(&cert).unwrap() + "# marker\n").unwrap_or(());
     let before = std::fs::read_to_string(&cert).unwrap();
     run_renew(&w.founder, quiet(), &args(false)).unwrap();
-    assert_eq!(
-        std::fs::read_to_string(&cert).unwrap(),
-        before,
-        "fresh cert is untouched"
-    );
+    assert_eq!(std::fs::read_to_string(&cert).unwrap(), before, "fresh cert is untouched");
     run_renew(&w.founder, quiet(), &args(true)).unwrap();
-    assert_ne!(
-        std::fs::read_to_string(&cert).unwrap(),
-        before,
-        "--force reissues"
-    );
+    assert_ne!(std::fs::read_to_string(&cert).unwrap(), before, "--force reissues");
 }
 
 fn policy(w: &World, mode: &str, lead: &[&str]) -> goway::error::Result<()> {
@@ -290,19 +244,12 @@ fn policy_switches_between_open_and_listed() {
     let w = world();
     let keys = w.root.join("authorized_keys");
     policy(&w, "listed", &["lap"]).unwrap();
-    assert!(
-        std::fs::read_to_string(&keys)
-            .unwrap()
-            .contains(":lead:lap")
-    );
+    assert!(std::fs::read_to_string(&keys).unwrap().contains(":lead:lap"));
     policy(&w, "open", &[]).unwrap();
     assert!(!std::fs::read_to_string(&keys).unwrap().contains(":lead:"));
     assert!(policy(&w, "listed", &[]).is_err(), "listed needs a lead");
     assert!(policy(&w, "open", &["lap"]).is_err(), "open takes no lead");
-    assert!(
-        policy(&w, "listed", &["ghost"]).is_err(),
-        "unknown lead refused"
-    );
+    assert!(policy(&w, "listed", &["ghost"]).is_err(), "unknown lead refused");
 }
 
 /// Write an executable fake `ssh-keygen` that makes a key pair at the `-f` path (no device).
@@ -325,10 +272,7 @@ fn keygen_makes_the_admin_key_once() {
     let p = paths(&tmp.path().join("lap"));
     let tool = fake_keygen(tmp.path());
     let (pair, fp) = goway::circle_admin::keygen(&p, quiet(), &tool).unwrap();
-    assert_eq!(
-        pair.private,
-        p.config_dir.join("circle").join("admin_ed25519")
-    );
+    assert_eq!(pair.private, p.config_dir.join("circle").join("admin_ed25519"));
     assert!(pair.public.starts_with("sk-ssh-ed25519@openssh.com "));
     assert!(fp.starts_with("SHA256:"));
     assert!(goway::circle_admin::keygen(&p, quiet(), &tool).is_err());
