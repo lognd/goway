@@ -2,7 +2,8 @@
 id = "01M44W0PBH0DCNASHP3GBBWKBV"
 title = "A short Windows run warns that its lifeline broke although the job finished normally"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 2
 reporter = "lognd"
