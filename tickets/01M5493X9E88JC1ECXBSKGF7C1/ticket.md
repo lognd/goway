@@ -16,7 +16,7 @@ bound = true
 
 [[acceptance]]
 text = "generate_sk_keypair reports tool failure and never overwrites an existing key"
-bound = false
+bound = true
 +++
 
 found while working ~MV967CF; deferred hardening, see docs/circles.md section 6

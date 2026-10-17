@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T12:01:37Z"
+digest = "ffa464672446e98be1cae97178c57b92dfb7df94e7dadb7a83d2847bb81cc2a7"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 4dc5b995-fd0a-4b6e-aa6f-0377d178d8a2 with nextest profile: default
+    Starting 1 test across 4 binaries (82 tests skipped)
+        PASS [   0.005s] goway-circle keys::tests::sk_keygen_failure_and_existing_key_are_errors
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.005s] 1 test run: 1 passed, 82 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E test(sk_keygen_failure_and_existing_key_are_errors)"
+size = 562
+status = "measured"
+test_count = 1
+tests_digest = "17a978160533613edd7bd9c3c2bafece8c90d7674a0a7da31c1b43ebb4559893"
+at = "2026-10-17T12:01:37Z"
+actor = "lognd"
+rev = 1
