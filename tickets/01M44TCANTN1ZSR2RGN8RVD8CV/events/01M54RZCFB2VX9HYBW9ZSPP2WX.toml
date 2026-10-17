@@ -1,0 +1,23 @@
+kind = "evidence"
+captured_at = "2026-10-17T11:11:54Z"
+digest = "3c7d6c61aac5bd3a6caaa9009681611105e165653f4170278c890d1bac360e80"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID e9891d74-6f65-4afa-b010-6cc40c125a5a with nextest profile: default
+    Starting 1 test across 1 binary (10 tests skipped)
+        LEAK [   1.308s] goway::mem_footprint the_probe_reports_running_jobs_per_repository
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.308s] 1 test run: 1 passed (1 leaky), 10 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --test mem_footprint -E test(the_probe_reports_running_jobs_per_repository)"
+size = 565
+status = "measured"
+test_count = 1
+tests_digest = "aff768585c7602f75da4d54cb44fde516674f8cd9b3d2d6667e237c44e05d40a"
+at = "2026-10-17T11:11:54Z"
+actor = "lognd"
+rev = 1
