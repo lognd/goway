@@ -405,6 +405,10 @@ pub enum CircleCommand {
     Admit(CircleAdmitArgs),
     /// Join a circle from a pasted welcome (`gww1.`...).
     Join(CircleJoinArgs),
+    /// Admit a machine on the local network: show a code, compare it on both screens.
+    PairHost(CirclePairHostArgs),
+    /// Join a circle from an admin that is running `pair-host` on the local network.
+    PairJoin(CirclePairJoinArgs),
     /// Show the members of the circle.
     List(CircleSelect),
     /// Remove a member for good (admin only).
@@ -467,6 +471,42 @@ pub struct CircleJoinArgs {
     /// The admin fingerprint the admin shows; joins without asking when it is in the welcome.
     #[arg(long)]
     pub fingerprint: Option<String>,
+}
+
+/// Arguments of `goway circle pair-host`.
+#[derive(Debug, Args)]
+pub struct CirclePairHostArgs {
+    /// Port to listen on (default: a free one, printed).
+    #[arg(long, default_value_t = 0)]
+    pub port: u16,
+    /// Address to listen on; a LAN address keeps the listener off other networks.
+    #[arg(long, default_value = "0.0.0.0")]
+    pub bind: String,
+    /// Minutes to wait for the new machine before the listener closes.
+    #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u64).range(1..=30))]
+    pub wait: u64,
+    /// Which circle to admit into.
+    #[arg(long)]
+    pub circle: Option<String>,
+}
+
+/// Arguments of `goway circle pair-join`.
+#[derive(Debug, Args)]
+pub struct CirclePairJoinArgs {
+    /// Address and port the admin printed, such as 192.168.1.20:41234.
+    pub address: String,
+    /// Roles to ask for: lead, helper or both.
+    #[arg(long, default_value = "both", value_parser = ["lead", "helper", "both"])]
+    pub role: String,
+    /// This machine's name in the circle (default: its host name).
+    #[arg(long, value_parser = circle_label)]
+    pub name: Option<String>,
+    /// Fingerprint of this machine's sshd host key (default: read from /etc/ssh when possible).
+    #[arg(long)]
+    pub host_fp: Option<String>,
+    /// Remember the admin's address as a hint for the goway host with this name.
+    #[arg(long, value_parser = circle_label)]
+    pub peer: Option<String>,
 }
 
 /// Arguments of `goway circle revoke`.

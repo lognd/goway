@@ -371,6 +371,7 @@ name = "goway-circle"
 version = "0.1.2"
 dependencies = [
  "base64",
+ "getrandom 0.3.4",
  "goway-journal",
  "proptest",
  "serde",

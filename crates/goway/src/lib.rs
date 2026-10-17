@@ -20,6 +20,7 @@ pub mod gitmeta;
 pub mod hosts;
 pub mod interop;
 pub mod local;
+pub mod lanpair;
 pub mod lostlink;
 pub mod needs;
 pub mod paths;

@@ -25,13 +25,16 @@ remote command, so finding the host costs no extra round trip. A later
 stage only runs if every earlier one failed:
 
 1. **cached**: the last address that worked (state file).
-2. **configured**: the host's `address`, through the system resolver,
+2. **peer hint**: an unsigned address learned when this machine paired over the
+   LAN (`goway circle pair-host` / `pair-join`; at most 4 per host in the state
+   file). It is only a candidate: the pinned host key is verified like any other.
+3. **configured**: the host's `address`, through the system resolver,
    then Windows. If neither resolves it, ssh is given the name as is.
-3. **dns**: the host name through the system resolver.
-4. **mdns**: `<name>.local` through the system resolver (works where
+4. **dns**: the host name through the system resolver.
+5. **mdns**: `<name>.local` through the system resolver (works where
    the OS resolves mDNS, such as Windows, macOS, or Linux with
    nss-mdns).
-5. **windows-mdns**: `<name>.local` asked of Windows through WSL interop
+6. **windows-mdns**: `<name>.local` asked of Windows through WSL interop
    (`powershell.exe Resolve-DnsName`). A WSL client in NAT mode cannot
    do mDNS itself. This takes about 1 to 4 seconds, which is why it is
    last and why the result is cached. `GOWAY_WINDOWS_LOOKUP=0` turns

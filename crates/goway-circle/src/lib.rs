@@ -10,6 +10,7 @@ mod cert;
 mod crypto;
 mod error;
 mod keys;
+mod lan;
 mod op;
 mod pairing;
 mod state;
@@ -21,6 +22,10 @@ pub use crypto::{
 };
 pub use error::{CertError, CircleError, CryptoError, PairingError, StoreError};
 pub use keys::{KeyPair, ensure_keypair, key_fingerprint, read_public_key};
+pub use lan::{
+    HostOutcome, LanError, ListenGuard, Msg, Refusal, commitment, new_nonce, read_msg, run_guest,
+    run_host, sas, sas_matches, write_msg,
+};
 pub use op::{Kind, MAX_OP_BYTES, MAX_OPS, Op, Sig, parse_ops};
 pub use pairing::{Card, Welcome, decode_blob, encode_blob, valid_name, valid_roles};
 pub use state::{Member, Role, State, accept_roster, fold, fold_pinned, heads, merge};

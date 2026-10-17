@@ -107,7 +107,7 @@ fn detected_host_fp() -> Option<String> {
     key_fingerprint(&key)
 }
 
-fn fingerprint_of(key: &str) -> String {
+pub(crate) fn fingerprint_of(key: &str) -> String {
     key_fingerprint(key).unwrap_or_else(|| "(unreadable key)".to_owned())
 }
 
@@ -371,6 +371,23 @@ pub struct JoinOut {
 /// Join a circle from `welcome_text` after the admin fingerprint is confirmed.
 pub fn join(paths: &Paths, renderer: Renderer, args: &CircleJoinArgs) -> Result<JoinOut> {
     let welcome = Welcome::decode(&args.welcome)?;
+    join_welcome(paths, renderer, &welcome, &|admin_fps| {
+        confirm(
+            renderer,
+            args.fingerprint.as_deref(),
+            admin_fps,
+            "admin key fingerprint",
+        )
+    })
+}
+
+/// Verify `welcome` for this machine, ask `accept` to approve the admin fingerprints, then store.
+pub(crate) fn join_welcome(
+    paths: &Paths,
+    renderer: Renderer,
+    welcome: &Welcome,
+    accept: &dyn Fn(&[String]) -> Result<()>,
+) -> Result<JoinOut> {
     let node_path = node_key_path(paths);
     if !node_path.is_file() {
         return Err(usage(
@@ -396,12 +413,7 @@ pub fn join(paths: &Paths, renderer: Renderer, args: &CircleJoinArgs) -> Result<
     for fp in &admin_fps {
         renderer.line(format!("  admin key fingerprint: {fp}"));
     }
-    confirm(
-        renderer,
-        args.fingerprint.as_deref(),
-        &admin_fps,
-        "admin key fingerprint",
-    )?;
+    accept(&admin_fps)?;
     let store = Store::for_genesis(&circles_dir(paths), &welcome.genesis);
     store.commit(&welcome.ops, &sink(paths))?;
     tracing::info!(circle = store.id(), "circle joined");
@@ -409,6 +421,20 @@ pub fn join(paths: &Paths, renderer: Renderer, args: &CircleJoinArgs) -> Result<
         id: store.id().to_owned(),
         members: state.members.len(),
     })
+}
+
+/// Fingerprint of this machine's admin key, when it is an admin of the selected circle.
+pub(crate) fn admin_ident(paths: &Paths, renderer: Renderer, circle: Option<&str>) -> Result<String> {
+    let (_, _, state) = load(paths, circle)?;
+    let admin_path = admin_key_path(paths);
+    if !admin_path.is_file() {
+        return Err(usage("this machine has no admin key; pair from an admin machine"));
+    }
+    let admin = key_pair(&admin_path, renderer)?;
+    if !state.admins.contains(&admin.public) {
+        return Err(usage("this machine's admin key is not an admin of that circle"));
+    }
+    Ok(fingerprint_of(&admin.public))
 }
 
 /// Find the one member called `name`.
@@ -597,6 +623,8 @@ pub fn run(paths: &Paths, renderer: Renderer, command: &CircleCommand) -> Result
                 out.id, out.members
             ));
         }
+        CircleCommand::PairHost(args) => crate::lanpair::pair_host_cli(paths, renderer, args)?,
+        CircleCommand::PairJoin(args) => crate::lanpair::pair_join_cli(paths, renderer, args)?,
         CircleCommand::List(select) => {
             renderer.table(&list_rows(paths, renderer, select)?);
         }
