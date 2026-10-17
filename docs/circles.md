@@ -306,6 +306,7 @@ welcome. A wrong fingerprint changes nothing. `revoke` asks unless `--yes`.
     goway circle list                   members, roles, cert expiry, last seen
     goway circle revoke <name>          revoke; bump epoch; reissue; list unreachable helpers
     goway circle roles <name> <roles>   change roles (admin)
+    goway circle sync <ops>             merge a pushed roster (run by revoke --now)
     goway circle access [--lead N].. [--open] [--windows-admin]   write cert-authority lines
     goway circle cert [NAME]            mint a lead certificate (admin)
     goway circle pin <name>             pin a helper's host key from the roster
@@ -313,13 +314,17 @@ welcome. A wrong fingerprint changes nothing. `revoke` asks unless `--yes`.
     goway circle renew                  renew this machine's certificate
     goway circle policy open|listed     helper policy
 
-`revoke --now` asks every other helper of the roster (found like any pool
-host) to run `goway circle access`, so its `cert-authority` lines move to the
-new epoch, and prints the helpers it could not reach; those stay exposed until
-they hear. Each helper that answers is recorded as last seen. Limits: the
-helper uses its own copy of the roster, so it must already have the revoke
-(roster sync is not pushed yet); `list` shows certificate expiry only for this
-machine (other certs are not stored here) and last seen only from these pushes.
+`revoke --now` sends the roster to every other helper of the roster (found
+like any pool host) and runs, over ssh, `goway circle sync --circle ID OPS &&
+goway circle access --circle ID`. `sync` merges the offered operations into the
+helper's own (union by operation id, then replay) and refuses any result that
+lacks a head the helper already saw, so a stale push cannot roll it back; then
+`access` moves its `cert-authority` lines to the new epoch. Helpers it could
+not reach are printed and stay exposed until they hear. Each helper that
+answers is recorded as last seen. Limits: the roster travels on the command
+line (rosters over 100 KB of base64 are not pushed; stdin transport is a
+follow-up); `list` shows certificate expiry only for this machine (other
+certs are not stored here) and last seen only from these pushes.
 
 ## 6. Security audit
 

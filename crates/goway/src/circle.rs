@@ -6,6 +6,9 @@
 //! admitting, an admin-key fingerprint when joining. Nothing here logs or prints a private key.
 
 use std::collections::BTreeSet;
+
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use std::path::{Path, PathBuf};
 
 use goway_circle::{
@@ -16,7 +19,7 @@ use goway_circle::{
 use crate::changelog;
 use crate::cli::{
     CircleAdmitArgs, CircleCardArgs, CircleCommand, CircleInitArgs, CircleJoinArgs,
-    CircleRevokeArgs, CircleRolesArgs, CircleSelect,
+    CircleRevokeArgs, CircleRolesArgs, CircleSelect, CircleSyncArgs,
 };
 use crate::error::{Error, Result};
 use crate::paths::Paths;
@@ -429,15 +432,23 @@ pub(crate) fn join_welcome(
 }
 
 /// Fingerprint of this machine's admin key, when it is an admin of the selected circle.
-pub(crate) fn admin_ident(paths: &Paths, renderer: Renderer, circle: Option<&str>) -> Result<String> {
+pub(crate) fn admin_ident(
+    paths: &Paths,
+    renderer: Renderer,
+    circle: Option<&str>,
+) -> Result<String> {
     let (_, _, state) = load(paths, circle)?;
     let admin_path = admin_key_path(paths);
     if !has_key(&admin_path) {
-        return Err(usage("this machine has no admin key; pair from an admin machine"));
+        return Err(usage(
+            "this machine has no admin key; pair from an admin machine",
+        ));
     }
     let admin = key_pair(&admin_path, renderer)?;
     if !state.admins.contains(&admin.public) {
-        return Err(usage("this machine's admin key is not an admin of that circle"));
+        return Err(usage(
+            "this machine's admin key is not an admin of that circle",
+        ));
     }
     Ok(fingerprint_of(&admin.public))
 }
@@ -548,19 +559,27 @@ pub fn revoke_with(
     Ok(())
 }
 
-/// Ask every other helper to refresh its access lines and report who could not be reached.
+/// Send the roster to every other helper, ask it to refresh its access lines, and report who could not be reached.
 fn push_epoch(
     paths: &Paths,
     renderer: Renderer,
     circle: Option<&str>,
     pusher: &dyn crate::circle_push::Pusher,
 ) -> Result<()> {
-    let (store, _, state) = load(paths, circle)?;
+    let (store, ops, state) = load(paths, circle)?;
     let me = read_public_key(&pub_of(&node_key_path(paths))).ok();
     let hosts = crate::circle_push::helper_names(&state, me.as_deref());
-    let report = crate::circle_push::push_all(&hosts, pusher);
+    let text: String = ops.iter().map(|o| format!("{}\n", o.to_line())).collect();
+    let offer = crate::circle_push::RosterOffer::new(store.id(), &text);
+    let report = crate::circle_push::push_all(&hosts, &offer, pusher);
     crate::circle_push::record_seen(paths, store.id(), &report.reached, now_secs())?;
-    tracing::info!(circle = store.id(), epoch = state.epoch, reached = report.reached.len(), unreachable = report.unreachable.len(), "epoch pushed");
+    tracing::info!(
+        circle = store.id(),
+        epoch = state.epoch,
+        reached = report.reached.len(),
+        unreachable = report.unreachable.len(),
+        "epoch pushed"
+    );
     renderer.ok(format!(
         "epoch {} pushed to {} helper(s)",
         state.epoch,
@@ -571,6 +590,38 @@ fn push_epoch(
             "`{name}` was not reached ({why}); it stays exposed until it runs `goway circle access`"
         ));
     }
+    Ok(())
+}
+
+/// `goway circle sync`: merge an offered roster (url-safe base64 `ops.jsonl`) into the stored one.
+///
+/// The merge is a union by op id, folded and verified, and the store refuses a result that
+/// lacks a head it already saw, so a stale offer can never roll this machine back.
+pub fn sync_roster(paths: &Paths, renderer: Renderer, args: &CircleSyncArgs) -> Result<()> {
+    let bytes = URL_SAFE_NO_PAD
+        .decode(args.ops.as_bytes())
+        .map_err(|e| usage(format!("the offered roster is not valid base64: {e}")))?;
+    let text = String::from_utf8(bytes).map_err(|_| usage("the offered roster is not text"))?;
+    let offered = goway_circle::parse_ops(&text)?;
+    let (store, ops, _) = load(paths, args.circle.as_deref())?;
+    let merged = goway_circle::merge(&ops, &offered);
+    let state = fold(&merged, &SshKeygenVerifier)?;
+    if merged.len() == ops.len() {
+        tracing::debug!(circle = store.id(), "offered roster adds nothing");
+    } else {
+        store.commit(&merged, &sink(paths))?;
+        tracing::info!(
+            circle = store.id(),
+            added = merged.len() - ops.len(),
+            epoch = state.epoch,
+            "roster adopted from a push"
+        );
+    }
+    renderer.ok(format!(
+        "roster at epoch {} ({} operations)",
+        state.epoch,
+        merged.len()
+    ));
     Ok(())
 }
 
@@ -615,9 +666,17 @@ pub fn list_rows(
         .flatten();
     let _ = renderer;
     let mut rows = vec![
-        ["name", "roles", "fingerprint", "host key", "cert expires", "last seen", "notes"]
-            .map(str::to_owned)
-            .to_vec(),
+        [
+            "name",
+            "roles",
+            "fingerprint",
+            "host key",
+            "cert expires",
+            "last seen",
+            "notes",
+        ]
+        .map(str::to_owned)
+        .to_vec(),
     ];
     let seen = crate::circle_push::last_seen(paths, store.id());
     let now = now_secs();
@@ -709,6 +768,7 @@ pub fn run(paths: &Paths, renderer: Renderer, command: &CircleCommand) -> Result
         CircleCommand::List(select) => {
             renderer.table(&list_rows(paths, renderer, select)?);
         }
+        CircleCommand::Sync(args) => sync_roster(paths, renderer, args)?,
         CircleCommand::Access(args) => crate::access::run_access(paths, renderer, args)?,
         CircleCommand::Cert(args) => crate::access::run_cert(paths, renderer, args)?,
         CircleCommand::Pin(args) => crate::access::run_pin(paths, renderer, args)?,

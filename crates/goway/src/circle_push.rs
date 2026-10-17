@@ -6,18 +6,54 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use goway_circle::{Role, State};
 
 use crate::error::{Error, Result};
 use crate::paths::Paths;
 
-/// The command a helper runs to adopt the circle's current epoch.
-const REMOTE_REFRESH: &str = "goway circle access";
+/// Largest roster (base64 text) sent on a remote command line; bigger rosters wait for stdin transport.
+const MAX_OFFER_B64: usize = 100_000;
 
-/// Reaches one helper and makes it refresh its access lines.
+/// The roster this machine offers a helper: its operations, merged on the helper before it refreshes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RosterOffer {
+    /// Short id of the circle.
+    pub circle: String,
+    /// The `ops.jsonl` text, url-safe base64 without padding (shell-safe).
+    pub ops_b64: String,
+}
+
+impl RosterOffer {
+    /// Encode the operations file `ops_text` of circle `circle`.
+    pub fn new(circle: &str, ops_text: &str) -> Self {
+        Self {
+            circle: circle.to_owned(),
+            ops_b64: URL_SAFE_NO_PAD.encode(ops_text.as_bytes()),
+        }
+    }
+
+    /// The command a helper runs: adopt the offered roster, then refresh its access lines.
+    pub fn remote_command(&self) -> std::result::Result<String, String> {
+        if self.ops_b64.len() > MAX_OFFER_B64 {
+            return Err(format!(
+                "roster is too large to push ({} bytes of text)",
+                self.ops_b64.len()
+            ));
+        }
+        Ok(format!(
+            "goway circle sync --circle {c} {o} && goway circle access --circle {c}",
+            c = self.circle,
+            o = self.ops_b64
+        ))
+    }
+}
+
+/// Reaches one helper, hands it the roster and makes it refresh its access lines.
 pub trait Pusher {
-    /// Refresh `host`; the error text says why it could not be reached or refreshed.
-    fn push(&self, host: &str) -> std::result::Result<(), String>;
+    /// Update `host`; the error text says why it could not be reached or updated.
+    fn push(&self, host: &str, offer: &RosterOffer) -> std::result::Result<(), String>;
 }
 
 /// Who answered and who did not.
@@ -40,10 +76,10 @@ pub fn helper_names(state: &State, me: Option<&str>) -> Vec<String> {
 }
 
 /// Push to every host in `hosts`, collecting who answered.
-pub fn push_all(hosts: &[String], pusher: &dyn Pusher) -> PushReport {
+pub fn push_all(hosts: &[String], offer: &RosterOffer, pusher: &dyn Pusher) -> PushReport {
     let mut report = PushReport::default();
     for host in hosts {
-        match pusher.push(host) {
+        match pusher.push(host, offer) {
             Ok(()) => {
                 tracing::info!(host = %host, "helper refreshed its access lines");
                 report.reached.push(host.clone());
@@ -57,14 +93,15 @@ pub fn push_all(hosts: &[String], pusher: &dyn Pusher) -> PushReport {
     report
 }
 
-/// The production [`Pusher`]: finds the helper like any pool host and runs `goway circle access` there.
+/// The production [`Pusher`]: finds the helper like any pool host and sends the roster and runs `goway circle access` there.
 pub struct SshPusher {
     /// Local paths (config and state).
     pub paths: Paths,
 }
 
 impl Pusher for SshPusher {
-    fn push(&self, host: &str) -> std::result::Result<(), String> {
+    fn push(&self, host: &str, offer: &RosterOffer) -> std::result::Result<(), String> {
+        let remote = offer.remote_command()?;
         let config =
             crate::config::Config::load(&self.paths.config_file()).map_err(|e| e.to_string())?;
         let host = config.host(host).map_err(|e| e.to_string())?;
@@ -88,7 +125,7 @@ impl Pusher for SshPusher {
             &prober,
             &found.target,
             crate::ssh::KeyPolicy::Strict,
-            REMOTE_REFRESH,
+            &remote,
         )
         .map(|_| ())
         .map_err(|(_, e)| e)
@@ -123,7 +160,8 @@ pub fn record_seen(paths: &Paths, id: &str, names: &[String], now: u64) -> Resul
         let _ = writeln!(text, "{t} {n}");
     }
     let file = seen_path(paths, id);
-    std::fs::create_dir_all(&paths.state_dir).map_err(|e| Error::io("create", &paths.state_dir, e))?;
+    std::fs::create_dir_all(&paths.state_dir)
+        .map_err(|e| Error::io("create", &paths.state_dir, e))?;
     std::fs::write(&file, text).map_err(|e| Error::io("write", &file, e))?;
     tracing::debug!(circle = id, count = names.len(), "recorded last seen");
     Ok(())

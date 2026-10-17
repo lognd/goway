@@ -3,11 +3,11 @@
 use std::cell::RefCell;
 use std::path::Path;
 
-use goway::circle::{admit, init, join, list_rows, make_card, revoke_with};
-use goway::circle_push::{Pusher, ago};
+use goway::circle::{admit, init, join, list_rows, make_card, revoke_with, sync_roster};
+use goway::circle_push::{Pusher, RosterOffer, ago};
 use goway::cli::{
     CircleAdmitArgs, CircleCardArgs, CircleInitArgs, CircleJoinArgs, CircleRevokeArgs,
-    CircleSelect,
+    CircleSelect, CircleSyncArgs,
 };
 use goway::paths::Paths;
 use goway::render::{ColorWhen, Renderer};
@@ -28,10 +28,12 @@ fn paths(dir: &Path) -> Paths {
 struct Fake {
     up: Vec<&'static str>,
     calls: RefCell<Vec<String>>,
+    offers: RefCell<Vec<RosterOffer>>,
 }
 
 impl Pusher for Fake {
-    fn push(&self, host: &str) -> Result<(), String> {
+    fn push(&self, host: &str, offer: &RosterOffer) -> Result<(), String> {
+        self.offers.borrow_mut().push(offer.clone());
         self.calls.borrow_mut().push(host.to_owned());
         if self.up.contains(&host) {
             Ok(())
@@ -105,6 +107,7 @@ fn revoke_now_pushes_to_reachable_helpers_and_records_last_seen() {
     let fake = Fake {
         up: vec!["a"],
         calls: RefCell::new(Vec::new()),
+        offers: RefCell::new(Vec::new()),
     };
     revoke_with(&founder, quiet(), &revoke_args("c", true), &fake).unwrap();
     let mut calls = fake.calls.borrow().clone();
@@ -126,6 +129,7 @@ fn revoke_without_now_contacts_nobody() {
     let fake = Fake {
         up: vec!["a"],
         calls: RefCell::new(Vec::new()),
+        offers: RefCell::new(Vec::new()),
     };
     revoke_with(&founder, quiet(), &revoke_args("a", false), &fake).unwrap();
     assert!(fake.calls.borrow().is_empty());
@@ -139,4 +143,77 @@ fn ago_words() {
     assert_eq!(ago(Some(0), 300), "5m ago");
     assert_eq!(ago(Some(0), 7200), "2h ago");
     assert_eq!(ago(Some(0), 200_000), "2d ago");
+}
+
+fn sync_args(offer: &RosterOffer) -> CircleSyncArgs {
+    CircleSyncArgs {
+        ops: offer.ops_b64.clone(),
+        circle: None,
+    }
+}
+
+// frob:tests crates/goway/src/circle.rs::sync_roster
+#[test]
+fn pushed_roster_makes_a_stale_helper_adopt_the_revoke() {
+    let tmp = tempfile::tempdir().unwrap();
+    let founder = circle(tmp.path(), &["c", "a"]);
+    let fake = Fake {
+        up: vec!["a"],
+        calls: RefCell::new(Vec::new()),
+        offers: RefCell::new(Vec::new()),
+    };
+    revoke_with(&founder, quiet(), &revoke_args("c", true), &fake).unwrap();
+    let offer = fake.offers.borrow()[0].clone();
+    let helper = paths(&tmp.path().join("a"));
+    let names = |p: &Paths| -> Vec<String> {
+        list_rows(p, quiet(), &CircleSelect { circle: None })
+            .unwrap()
+            .iter()
+            .map(|r| r[0].clone())
+            .collect()
+    };
+    assert!(names(&helper).contains(&"c".to_owned()), "helper is stale");
+    sync_roster(&helper, quiet(), &sync_args(&offer)).unwrap();
+    assert!(!names(&helper).contains(&"c".to_owned()), "revoke adopted");
+    // Offering the same roster again changes nothing.
+    sync_roster(&helper, quiet(), &sync_args(&offer)).unwrap();
+}
+
+// frob:tests crates/goway/src/circle.rs::sync_roster
+#[test]
+fn an_old_roster_cannot_roll_a_helper_back() {
+    let tmp = tempfile::tempdir().unwrap();
+    let founder = circle(tmp.path(), &["c", "a"]);
+    let old = {
+        let dir = std::fs::read_dir(founder.config_dir.join("circle/circles")).unwrap();
+        let id = dir.flatten().next().unwrap().path();
+        RosterOffer::new("x", &std::fs::read_to_string(id.join("ops.jsonl")).unwrap())
+    };
+    let fake = Fake {
+        up: vec!["a"],
+        calls: RefCell::new(Vec::new()),
+        offers: RefCell::new(Vec::new()),
+    };
+    revoke_with(&founder, quiet(), &revoke_args("c", true), &fake).unwrap();
+    // The founder already holds the revoke; an older roster is a no-op, not a rollback.
+    sync_roster(&founder, quiet(), &sync_args(&old)).unwrap();
+    let rows = list_rows(&founder, quiet(), &CircleSelect { circle: None }).unwrap();
+    assert!(!rows.iter().any(|r| r[0] == "c"));
+}
+
+// frob:tests crates/goway/src/circle_push.rs::RosterOffer
+#[test]
+fn offer_command_carries_the_roster_and_is_size_capped() {
+    let offer = RosterOffer::new("abc", "line\n");
+    let cmd = offer.remote_command().unwrap();
+    assert!(cmd.starts_with("goway circle sync --circle abc "), "{cmd}");
+    assert!(
+        cmd.ends_with("&& goway circle access --circle abc"),
+        "{cmd}"
+    );
+    assert!(
+        RosterOffer::new("abc", &"x".repeat(200_000))
+            .remote_command()
+            .is_err()
+    );
 }

@@ -415,6 +415,8 @@ pub enum CircleCommand {
     Revoke(CircleRevokeArgs),
     /// Change a member's roles (admin only).
     Roles(CircleRolesArgs),
+    /// Merge a roster pushed by an admin (`revoke --now` runs this on helpers).
+    Sync(CircleSyncArgs),
     /// Make this machine trust the circle's admins: write the `cert-authority` lines.
     Access(CircleAccessArgs),
     /// Mint (or renew) a lead's 14-day access certificate (admin only).
@@ -507,6 +509,16 @@ pub struct CirclePolicyArgs {
     /// Edit `%ProgramData%\ssh\administrators_authorized_keys` (a Windows administrator account).
     #[arg(long)]
     pub windows_admin: bool,
+    /// Which circle.
+    #[arg(long)]
+    pub circle: Option<String>,
+}
+
+/// Arguments of `goway circle sync`.
+#[derive(Debug, Args)]
+pub struct CircleSyncArgs {
+    /// The roster (`ops.jsonl` text) as url-safe base64 without padding.
+    pub ops: String,
     /// Which circle.
     #[arg(long)]
     pub circle: Option<String>,
