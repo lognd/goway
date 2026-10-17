@@ -11,7 +11,7 @@ created = "2026-10-17T05:07:06Z"
 updated = "2026-10-17T06:25:01Z"
 idempotency_key = "c3"
 labels = ["circles"]
-scope = ["crates/goway/tests/journal_invariant.rs", "crates/goway-circle/src/error.rs", "crates/goway-circle/src/lib.rs", "crates/goway-circle/src/sshcert.rs", "crates/goway/src/access.rs", "crates/goway/src/circle.rs", "crates/goway/src/cli.rs", "crates/goway/src/config.rs", "crates/goway/src/error.rs", "crates/goway/src/lib.rs"]
+scope = ["crates/goway/tests/journal_invariant.rs", "crates/goway-circle/src/error.rs", "crates/goway-circle/src/lib.rs", "crates/goway-circle/src/sshcert.rs", "crates/goway/src/access.rs", "crates/goway/src/circle.rs", "crates/goway/src/cli.rs", "crates/goway/src/config.rs", "crates/goway/src/error.rs", "crates/goway/src/lib.rs", "docs/circles.md"]
 
 [[acceptance]]
 text = "New lead runs on every helper with no helper edit"
