@@ -119,10 +119,11 @@ State is computed by deterministic replay (the `fold` function of the model):
 - Merging two rosters is set union followed by replay. Operations
   authenticate themselves, so they may arrive over ssh, a pasted string or a
   USB stick; the transport is not trusted.
-- Anti-rollback: each node stores the heads it has seen per admin and refuses
+- Anti-rollback: each node stores one global set of heads it has seen and refuses
   a roster that lacks any of them or any stored operation (head ids alone
-  are not enough, an ancestor such as a revoke could be omitted). An explicit `--accept-reset` is the only
-  way past it.
+  are not enough, an ancestor such as a revoke could be omitted). There is no
+  `--accept-reset` flag; a corrupt `heads.json` is recovered by hand
+  (delete the file in the circle directory).
 - Size caps: at most 4096 operations and 64 KiB per operation. Parsing is
   strict (unknown fields rejected), as with helper answers today.
 
@@ -172,14 +173,19 @@ Implemented (phase 3, `goway-circle/src/sshcert.rs`, `goway/src/access.rs`):
   circle and epoch stay bound in both.
 - `goway circle access [--lead NAME].. [--open] [--file F] [--windows-admin]`
   writes the helper's `cert-authority` lines (tagged
-  `goway-circle:<circle>:e<epoch>`). Lines of older epochs are replaced, so
+  `goway-circle:<id8>:<name>:e<epoch>`, where `id8` is the first 8 characters
+  of the genesis id so same-named circles do not collide; the old
+  `goway-circle:<name>:e<epoch>` form is still matched on removal). Lines of older epochs are replaced, so
   after a revoke every helper must rerun `access` to refuse old certificates;
   a new lead needs no helper edit. `--windows-admin` targets
   `%ProgramData%\ssh\administrators_authorized_keys`. The policy is kept in
   `access-<id>.policy` in the circle directory.
 - `goway circle pin NAME [--address A] [--port P]` scans the host key and
   writes it to `known_hosts` as `goway-<name>` only if its fingerprint equals
-  the roster's `host_fp`; a mismatch is refused.
+  the roster's `host_fp`; a mismatch is refused, and so is a name that a manual
+  `[[host]]` already uses (both share the `goway-<name>` key alias).
+  Certificates are minted with `-O no-agent-forwarding -O no-port-forwarding
+  -O no-x11-forwarding`, matching the restrictions on the `cert-authority` line.
 - Roster helpers (other members) are merged into the host config as hosts
   labelled `circle`; a manual `[[host]]` of the same name wins.
 
