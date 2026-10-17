@@ -85,26 +85,35 @@ pub fn run_access(paths: &Paths, renderer: Renderer, args: &CircleAccessArgs) ->
     let policy = if args.open {
         Policy::Open
     } else if args.lead.is_empty() {
-        saved_policy(paths, store.id())
+        match saved_policy(paths, store.id()) {
+            Policy::Listed(names) => {
+                // A lead revoked since the policy was saved must not block the refresh.
+                let (kept, gone): (BTreeSet<_>, BTreeSet<_>) = names
+                    .into_iter()
+                    .partition(|n| member_key(&state, n).is_ok());
+                for name in &gone {
+                    tracing::warn!(circle = store.id(), lead = %name, "saved policy names a lead that is no longer a member; dropping it");
+                    renderer.note(format!(
+                        "dropped {name} from the saved listed policy: no longer a member"
+                    ));
+                }
+                Policy::Listed(kept)
+            }
+            Policy::Open => Policy::Open,
+        }
     } else {
+        for name in &args.lead {
+            member_key(&state, name)?;
+        }
         Policy::Listed(args.lead.iter().cloned().collect())
     };
-    for name in match &policy {
-        Policy::Listed(n) => n.iter().cloned().collect(),
-        Policy::Open => Vec::new(),
-    } {
-        member_key(&state, &name)?;
-    }
     let file = authorized_keys_file(args)?;
     let existing = match std::fs::read_to_string(&file) {
         Ok(t) => t,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(e) => return Err(Error::io("read", &file, e)),
     };
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs());
-    let lines = authority_lines(&state, &policy, now);
+    let lines = authority_lines(&state, &policy);
     let merged = merge_authorized_keys(&existing, &state, &lines);
     changelog::write_file_in(&paths.config_dir, &file, merged.as_bytes())?;
     changelog::write_file_in(
@@ -466,6 +475,30 @@ mod tests {
         access(&r, &[], true).unwrap();
         let text = std::fs::read_to_string(&r.keys).unwrap();
         assert!(!text.contains(":lead:box"));
+    }
+
+    // frob:tests crates/goway/src/access.rs::run_access
+    #[test]
+    fn a_revoked_lead_in_the_saved_policy_is_dropped_not_fatal() {
+        let r = rig();
+        access(&r, &["box", "lap"], false).unwrap();
+        circle::revoke(
+            &r.admin,
+            quiet(),
+            &CircleRevokeArgs {
+                name: "box".to_owned(),
+                yes: true,
+                now: false,
+                circle: None,
+            },
+        )
+        .unwrap();
+        access(&r, &[], false).unwrap();
+        let text = std::fs::read_to_string(&r.keys).unwrap();
+        assert!(text.contains("goway-lead:home:e1:lead:lap"), "{text}");
+        assert!(!text.contains(":lead:box"), "{text}");
+        assert!(!text.contains("goway-lead:home:e0"), "{text}");
+        assert!(access(&r, &["box"], false).is_err());
     }
 
     // frob:tests crates/goway/src/access.rs::run_cert
