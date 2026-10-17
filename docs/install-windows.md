@@ -28,7 +28,9 @@ If an older build prompts just to start, see "Installation problems" in docs/tro
 
 To make this helper join a circle in the same step (see `docs/circles.md`), add
 `--join <welcome> --join-fingerprint <fp>`; after the install it runs `goway circle join` and
-`goway circle access` inside the distro.
+`goway circle access` inside the distro (with `--native`: on this laptop, using the installed
+`goway.exe`, as the user who ran the installer). It first makes this helper's node key if missing and
+prints the circle card (`goway circle card`).
 
 Windows asks permission once (the administrator prompt); say yes. What you are asked: nothing else,
 except possibly "Restart WSL now? [y/N]". Answer `n` (the default) if you have Linux windows open: the

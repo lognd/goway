@@ -202,6 +202,44 @@ impl HostSystem<ProcessRunner> {
     }
 }
 
+/// The two circle commands that join a helper, run through `run` (which gets the full argv,
+/// starting with `goway`); stops at the first failure and returns the access step's output.
+fn circle_join_steps(
+    welcome: &str,
+    fingerprint: &str,
+    run: impl Fn(&[&str]) -> SysResult<Output>,
+) -> SysResult<String> {
+    let join = [
+        "goway",
+        "circle",
+        "join",
+        welcome,
+        "--fingerprint",
+        fingerprint,
+    ];
+    let out = run(&join)?;
+    if !out.success() {
+        return Err(cmd_error("goway circle join", &out));
+    }
+    tracing::info!(step = "join", "circle step done");
+    let out = run(&["goway", "circle", "access"])?;
+    if !out.success() {
+        return Err(cmd_error("goway circle access", &out));
+    }
+    tracing::info!(step = "access", "circle step done");
+    Ok(out.text())
+}
+
+/// `goway circle card` through `run`; the card text on success.
+fn circle_card_step(run: impl Fn(&[&str]) -> SysResult<Output>) -> SysResult<String> {
+    let out = run(&["goway", "circle", "card"])?;
+    if !out.success() || out.text().is_empty() {
+        return Err(cmd_error("goway circle card", &out));
+    }
+    tracing::info!("circle card made");
+    Ok(out.text())
+}
+
 fn cmd_error(what: &str, out: &Output) -> SystemError {
     SystemError::Command {
         what: what.to_owned(),
@@ -532,27 +570,41 @@ impl<R: Runner> HostSystem<R> {
     /// by `fingerprint`), then install its access lines (`goway circle access`); returns the
     /// last command's output.
     pub fn join_circle(&self, welcome: &str, fingerprint: &str) -> SysResult<String> {
-        for argv in [
-            vec![
-                "goway",
-                "circle",
-                "join",
-                welcome,
-                "--fingerprint",
-                fingerprint,
-            ],
-            vec!["goway", "circle", "access"],
-        ] {
-            let out = self.wsl_user(&argv)?;
-            if !out.success() {
-                return Err(cmd_error("wsl goway circle", &out));
-            }
-            tracing::info!(step = argv[2], "circle step done in the distro");
-            if argv[2] == "access" {
-                return Ok(out.text());
-            }
-        }
-        unreachable!("the loop returns at the access step")
+        circle_join_steps(welcome, fingerprint, |argv| self.wsl_user(argv))
+    }
+
+    /// This machine's circle card as the distro's default user (`goway circle card`, which
+    /// creates the node key when none exists yet).
+    pub fn circle_card(&self) -> SysResult<String> {
+        circle_card_step(|argv| self.wsl_user(argv))
+    }
+
+    /// [`HostSystem::join_circle`] for a native helper: runs `goway_exe` directly as the
+    /// current user.
+    pub fn native_join_circle(
+        &self,
+        goway_exe: &Path,
+        welcome: &str,
+        fingerprint: &str,
+    ) -> SysResult<String> {
+        circle_join_steps(welcome, fingerprint, |argv| {
+            self.native_goway(goway_exe, argv)
+        })
+    }
+
+    /// [`HostSystem::circle_card`] for a native helper.
+    pub fn native_circle_card(&self, goway_exe: &Path) -> SysResult<String> {
+        circle_card_step(|argv| self.native_goway(goway_exe, argv))
+    }
+
+    /// Run `goway_exe` with `argv` (without the program name) as the current user.
+    fn native_goway(&self, goway_exe: &Path, argv: &[&str]) -> SysResult<Output> {
+        let inv = Invocation {
+            program: goway_exe.display().to_string(),
+            args: argv.iter().skip(1).map(|a| (*a).to_owned()).collect(),
+            stdin: None,
+        };
+        self.run(&format!("goway {}", argv[1..].join(" ")), &inv)
     }
 
     /// Whether systemd runs as PID 1 in the distro.
