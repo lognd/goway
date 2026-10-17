@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [4]
+captured_at = "2026-10-17T10:51:33Z"
+digest = "dc37afeed8e112eb5ea9667acfca2db98e8e58014e909aacdf6cb0dad058adb2"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID aca81db3-6021-4cae-a712-63ddcedc1273 with nextest profile: default
+    Starting 1 test across 1 binary (3 tests skipped)
+        PASS [  18.393s] goway::evict_live a_wave_over_a_tiny_budget_never_loses_a_live_runs_work_dir
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [  18.394s] 1 test run: 1 passed, 3 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --test evict_live -E test(a_wave_over_a_tiny_budget_never_loses_a_live_runs_work_dir)"
+size = 563
+status = "measured"
+test_count = 1
+tests_digest = "29983c2e4df731d0fdb97f5b28468567abcd300b02332e741fb526c8d58a4298"
+at = "2026-10-17T10:51:33Z"
+actor = "lognd"
+rev = 1
