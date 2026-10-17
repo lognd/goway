@@ -1,0 +1,28 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T07:19:37Z"
+digest = "839c177a2964d9c7cecd59d35442bd84c87acaf7220d69b300d8c4b4c6e36276"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 21a56815-6e21-4792-a8c4-c309418e59e8 with nextest profile: default
+    Starting 5 tests across 1 binary
+        PASS [   0.005s] goway::circle_admin renewal_starts_at_half_of_the_ttl
+        PASS [   0.073s] goway::circle_admin renew_leaves_a_fresh_certificate_alone_unless_forced
+        PASS [   0.073s] goway::circle_admin policy_switches_between_open_and_listed
+        PASS [   0.395s] goway::circle_admin one_admin_adds_and_removes_another_with_a_single_signature
+        PASS [   1.357s] goway::circle_admin three_admins_need_a_second_signature_to_add_a_fourth
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.358s] 5 tests run: 5 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --test circle_admin"
+size = 909
+status = "measured"
+test_count = 5
+tests_digest = "855fc7f712afe61f8239817753f420716ca1234af0ad2df155d0ebcfb5b99722"
+at = "2026-10-17T07:19:37Z"
+actor = "lognd"
+rev = 1
