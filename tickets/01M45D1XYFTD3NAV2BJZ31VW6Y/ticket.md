@@ -2,7 +2,8 @@
 id = "01M45D1XYFTD3NAV2BJZ31VW6Y"
 title = "install.sh piped into sh (dash) fails with a cryptic 'set: Illegal option -o pipefail'"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "low"
 points = 1
 reporter = "lognd"
