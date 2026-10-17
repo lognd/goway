@@ -2,12 +2,12 @@
 id = "01M44QW7SEHV2EJP5H1EPZMT2B"
 title = "goway-setup tune accepts a WSL memory size that starves Windows, and doctor does not flag it"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T00:37:02Z"
-updated = "2026-10-17T10:52:44Z"
+updated = "2026-10-17T10:52:45Z"
 scope = ["crates/goway-setup/src/tune.rs", "crates/goway-setup/tests/cli.rs", "crates/goway/src/doctor/windows.rs"]
 
 [[acceptance]]
