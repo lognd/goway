@@ -7,12 +7,12 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-06T10:21:41Z"
-updated = "2026-10-17T10:52:43Z"
+updated = "2026-10-17T10:53:50Z"
 scope = ["crates/goway/src/fit.rs", "crates/goway/tests/**"]
 
 [[acceptance]]
 text = "a cargo run with no recorded peak on a small helper starts with lowered jobs and says why"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "once a record exists, the recorded estimate replaces the cold-start one"
