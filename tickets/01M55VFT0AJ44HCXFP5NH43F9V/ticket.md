@@ -4,9 +4,10 @@ title = "Docs: circles.md note on dropped revoked leads in saved listed policy"
 type = "task"
 category = "todo"
 priority = "medium"
+points = 1
 reporter = "lognd"
 created = "2026-10-17T21:15:06Z"
-updated = "2026-10-17T21:15:06Z"
+updated = "2026-10-17T21:17:44Z"
 scope = ["docs/circles.md"]
 +++
 
