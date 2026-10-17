@@ -2,7 +2,8 @@
 id = "01M55V8H0SBF8BY25NQP023524"
 title = "Audit M4: revoked lead in a saved listed policy breaks circle access"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
