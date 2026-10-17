@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T20:21:26Z"
+digest = "c65af779f18fe75ede5aeeda569587771064926a29c36face1df8ac1cf7290f3"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+   Compiling goway v0.2.0 (<worktree>/crates/goway)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 55.05s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 1fdf418f-bb5a-424d-8c2b-4dbe64e78b91 with nextest profile: default
+    Starting 1 test across 90 binaries (1164 tests skipped)
+        PASS [   0.010s] goway error::tests::missing_ssh_gets_the_windows_hint_only_on_windows
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.013s] 1 test run: 1 passed, 1164 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "missing_ssh_gets_the_windows_hint_only_on_windows"
+size = 672
+status = "measured"
+test_count = 1
+tests_digest = "1ec31e32d8430cb42aea37f058329e10515c1793219bfd693efc2e3a1a012fc9"
+at = "2026-10-17T20:21:26Z"
+actor = "lognd"
+rev = 1
