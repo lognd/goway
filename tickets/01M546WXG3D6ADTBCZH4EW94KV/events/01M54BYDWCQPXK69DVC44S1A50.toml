@@ -1,0 +1,26 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T07:24:13Z"
+digest = "d972e86a8da455b0aadfd2fcda5507d5b330a862c90eabebeecfd371c87433cd"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b2bef1b3-c1bb-4c32-bd1a-f0923ee141f2 with nextest profile: default
+    Starting 3 tests across 1 binary
+        PASS [   0.004s] goway::circle_revoke_now ago_words
+        PASS [   0.118s] goway::circle_revoke_now revoke_without_now_contacts_nobody
+        PASS [   0.327s] goway::circle_revoke_now revoke_now_pushes_to_reachable_helpers_and_records_last_seen
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.328s] 3 tests run: 3 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway --test circle_revoke_now"
+size = 701
+status = "measured"
+test_count = 3
+tests_digest = "b28322d1463d1a4c8811195bfa745073f1196eb96c02163867d7b37ccc6c4e5b"
+at = "2026-10-17T07:24:13Z"
+actor = "lognd"
+rev = 1
