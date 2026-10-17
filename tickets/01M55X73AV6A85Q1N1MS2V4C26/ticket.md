@@ -7,7 +7,7 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T21:45:17Z"
-updated = "2026-10-17T21:47:23Z"
+updated = "2026-10-17T21:47:44Z"
 scope = ["crates/goway-circle/src/state.rs", "crates/goway-circle/src/sshcert.rs", "changelog.d/01M55X73AV6A85Q1N1MS2V4C26.fixed.md"]
 +++
 
