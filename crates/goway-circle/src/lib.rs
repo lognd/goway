@@ -24,8 +24,8 @@ pub use crypto::{
 pub use error::{CertError, CircleError, CryptoError, PairingError, SshCertError, StoreError};
 pub use keys::{KeyPair, ensure_keypair, key_fingerprint, read_public_key};
 pub use lan::{
-    HostOutcome, LanError, ListenGuard, Msg, Refusal, commitment, new_nonce, read_msg, run_guest,
-    run_host, sas, sas_matches, write_msg,
+    HostOutcome, LanError, ListenGuard, Msg, Refusal, new_code, normalize_code, read_msg, run_guest,
+    run_host, write_msg,
 };
 pub use op::{Kind, MAX_OP_BYTES, MAX_OPS, Op, Sig, parse_ops};
 pub use pairing::{Card, Welcome, decode_blob, encode_blob, valid_name, valid_roles};

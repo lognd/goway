@@ -219,30 +219,26 @@ human to confirm at both ends.
 `goway circle pair-host [--port N] [--bind ADDR] [--wait MIN]` on an admin
 and `goway circle pair-join <addr:port> [--peer NAME]` on the new machine do
 steps 1 to 3 over one short TCP session. The card and welcome are the same
-bytes; the fingerprint comparison is replaced by a six digit code:
+bytes; the fingerprint comparison is replaced by a one-time eight digit code
+that `pair-host` prints and the person on the new machine types into
+`pair-join`. The code feeds CPace over ristretto255 (`curve25519-dalek`):
 
-    guest -> host   commit    SHA-256(guest nonce, card)
-    host  -> guest  nonce     host nonce, admin key fingerprint(s)
-    guest -> host   reveal    guest nonce, card (host checks it against the commit)
-    both            code      digits from SHA-256(both nonces, fingerprints, card)
-    guest -> host   confirm   only after the new machine's person typed the host's code
-    host  -> guest  welcome   only after the admin's person typed the guest's code too
+    host  -> guest  pake      host session id, host point (generator from code + session id)
+    guest -> host   pake      echoed session id, guest point
+    both            key       SHA-256 over the shared point, both points, session id
+    host  -> guest  proof     admin key fingerprint(s), confirmation tag under the key
+    guest -> host   card      card, confirmation tag over card and fingerprints
+    host            approve   the admin's person approves the named card (y/N)
+    host  -> guest  welcome   only after approval
 
-Each person types the code shown on the OTHER screen. Nothing is admitted,
-stored or sent before both match; a mismatch, a declined prompt, a closed
-terminal or a timeout changes nothing on either machine. The guest commits
-to its card before it sees the host's nonce, so an attacker in the middle
-who swaps the card or the host identity has about a one in a million chance
-per attempt of producing equal codes, and the listener allows few attempts.
-The new machine also requires the admin that paired with it to be an admin
-of the circle in the welcome, then verifies the genesis as in `join`.
-
-Deviation from the design: CPace (a PAKE) needs a prime-order group, and no
-such crate is in the dependency tree, so a hand-rolled one was refused.
-The substitute is the commit-reveal short authentication string above, the
-closest safe design without a group. It has no offline-guessing exposure
-because no secret code is typed into the channel; the codes are only
-compared. A real CPace upgrade is a separate ticket.
+The code never crosses the network. A wrong code yields different keys, the
+tags fail, and both sides stop having learned nothing they can test offline:
+an attacker gets one guess per session, and the listener allows few sessions.
+The tags bind the host's fingerprints and the guest's card to the code-keyed
+exchange, so neither can be swapped in flight. Nothing is admitted, stored or
+sent before the code matched and the admin approved. The new machine also
+requires the admin that paired with it to be an admin of the circle in the
+welcome, then verifies the genesis as in `join`.
 
 The listener is open only during pairing: it expires (`--wait`, default 5,
 at most 30 minutes), is single use (it closes after the first session that
@@ -348,7 +344,7 @@ Last seen comes only from these pushes.
 |---|---|---|---|---|
 | 1 | Admin key theft | Mint a login to every helper | Separate admin key; FIDO2 recommended; 1-3 admins; two signatures to change admins at 3+, including revoking an admin | Highest risk; documented |
 | 2 | Stolen or compromised lead | RCE on trusting helpers | Short TTL; epoch bump on revoke; key file 0600 and refused if looser, or ssh-agent / FIDO2 (section 6.2) | Window until helpers hear, at most TTL |
-| 3 | Hostile-LAN pairing: MITM, spoofing | Attacker joins or impersonates | Offline blobs need no network trust; PAKE plus SAS for LAN; single use, expiring listener | User skips the comparison |
+| 3 | Hostile-LAN pairing: MITM, spoofing | Attacker joins or impersonates | Offline blobs need no network trust; CPace PAKE with a one-time code for LAN; single use, expiring listener | User skips the comparison |
 | 4 | Roster rollback or replay | Removed member returns | Remove wins; tombstones permanent; heads refuse regression | Node offline since before the removal |
 | 5 | Compromised helper | Source and `--env` leak, false results | Out of scope (SECURITY.md); helper-only nodes hold no credential, so no pivot | Data already sent |
 | 6 | Principal or circle confusion | Cert reused across circle or role | Principal carries circle, role, epoch; line pins `principals=` | None expected |
@@ -369,7 +365,7 @@ Last seen comes only from these pushes.
 |---|---|---|
 | 1 | Mitigated | Quorum rules in `state.rs`; admin key may be agent or FIDO2 only (6.2) |
 | 2 | Fixed | `keys.rs::ensure_keypair` refuses loose modes, symlinks, writable key dirs (INV-CIRCLE-001); tests `loose_key_mode_is_refused`, `symlinked_key_is_refused`, `writable_key_dir_is_refused` |
-| 3 | Enforced | `lan.rs` size and count caps, commit-reveal SAS, single-use `ListenGuard`, timeouts |
+| 3 | Enforced | `lan.rs` size and count caps, CPace PAKE, single-use `ListenGuard`, timeouts |
 | 4 | Enforced | `Store::commit` and `accept_roster`; tests `rollback_is_refused_and_nothing_is_written`, `rollback_is_refused` |
 | 5 | Out of scope | SECURITY.md |
 | 6 | Enforced | Principal `goway-lead:<circle>:e<epoch>` plus `principals=` pin; `sshcert.rs` `accepts` tests; pin mismatch refused (INV-CIRCLE-003) |
@@ -430,6 +426,6 @@ tests for convergence and for unauthorized operations never changing state.
 2. `goway circle` card, admit, join, list, revoke; `goway-setup --join`.
 3. Certificates, `authorized_keys` lines, roster-fed pinning, config merge,
    Windows path.
-4. LAN pairing (commit-reveal SAS; CPace is a follow-up), peer address hints. Done except CPace.
+4. LAN pairing (CPace with a one-time code), peer address hints. Done.
 5. Later: forced-command gate for instant revocation, guest sandbox,
    cross-circle federation.

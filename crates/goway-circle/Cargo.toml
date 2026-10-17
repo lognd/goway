@@ -15,6 +15,7 @@ categories.workspace = true
 
 [dependencies]
 base64 = "0.22"
+curve25519-dalek = { version = "4", default-features = false, features = ["alloc", "zeroize"] }
 getrandom = "0.3"
 goway-journal = { path = "../goway-journal", version = "0.2.0" }
 serde = { version = "1", features = ["derive"] }

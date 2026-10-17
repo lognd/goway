@@ -453,7 +453,7 @@ do not set up every main laptop against every helper by hand.
   admit` (on an admin) turns it into a welcome; `goway circle join`
   (on the new machine) uses the welcome.
 - `goway circle pair-host` and `goway circle pair-join ADDR:PORT` do the
-  same over the LAN, with a short code you compare on both screens.
+  same over the LAN, with a one-time code (CPace) typed on the new machine.
 - `goway circle list`, `roles`, `access`, `cert`, `pin` and `revoke`
   show and change who may do what.
 

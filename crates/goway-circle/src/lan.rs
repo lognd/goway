@@ -1,26 +1,32 @@
-//! LAN pairing: a commit-reveal exchange of the card and welcome over one TCP stream,
-//! authenticated by a short authentication string (SAS) a person compares on both screens.
+//! LAN pairing: a `CPace` password-authenticated key exchange over ristretto255, then the card
+//! and welcome over one TCP stream.
 //!
-//! Design note: `CPace` needs a prime-order group (ristretto255), and no curve crate is in the
-//! dependency tree, so this is the closest safe design that needs only SHA-256. The guest commits
-//! to its nonce and card before the host reveals anything, so a man in the middle cannot grind
-//! for a matching SAS: it has about one chance in a million per attempt, and the listener is
-//! single use, so a mismatch ends it. There is no shared code and nothing for an offline guess
-//! to attack. Nothing changes on either machine until both people have confirmed the SAS.
+//! The admin's screen shows a short one-time code; the person on the new machine types it. Both
+//! sides feed it into `CPace` (a balanced PAKE): the code never crosses the wire, a man in the
+//! middle gets exactly one guess per session and learns nothing to test offline, and a session
+//! ends in a shared key only when the codes were equal. Key-confirmation tags under that key
+//! then bind the host's presented fingerprints and the guest's card, so neither can be swapped
+//! in flight. Nothing changes on either machine until the host's person has also approved the
+//! card.
 //!
-//! Flow: guest `commit` -> host `nonce` (+ its admin key fingerprints) -> guest `reveal` (nonce +
-//! card) -> both show the SAS -> guest `confirm` -> host admits and sends `welcome`.
+//! Flow: host `pake` -> guest `pake` -> host `proof` (fingerprints + tag) -> guest `card`
+//! (card + tag) -> host person approves -> host admits and sends `welcome`.
 
 use std::io::{BufRead, Read, Write};
 
+use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+use curve25519_dalek::scalar::Scalar;
+use curve25519_dalek::traits::IsIdentity;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha512};
 use tracing::{debug, info, warn};
 
 use crate::pairing::{Card, MAX_CARD_CHARS, MAX_WELCOME_CHARS, Welcome};
 
-/// Bytes of each side's random nonce.
-const NONCE_BYTES: usize = 16;
+/// Bytes of the host's random session id.
+const SID_BYTES: usize = 16;
+/// Digits in the one-time pairing code.
+const CODE_DIGITS: usize = 8;
 /// Most characters of any message before the welcome.
 const MAX_SMALL_MSG: usize = MAX_CARD_CHARS + 1024;
 /// Most fingerprints a host may present.
@@ -39,11 +45,11 @@ pub enum LanError {
     /// The peer sent something outside the protocol.
     #[error("the other machine broke the pairing protocol: {0}")]
     Protocol(String),
-    /// The guest's reveal does not match its commitment (a sign of tampering).
-    #[error("the commitment does not match the reveal; pairing refused")]
-    CommitMismatch,
-    /// The local person declined (or typed a different code); nothing was changed.
-    #[error("the confirmation code was not accepted here; nothing was changed")]
+    /// The key confirmation failed: the codes differed or the exchange was tampered with.
+    #[error("the pairing code did not match (or the exchange was tampered with); pairing refused")]
+    WrongCode,
+    /// The local person declined; nothing was changed.
+    #[error("the pairing was not approved here; nothing was changed")]
     Declined,
     /// The other machine stopped the pairing.
     #[error("the other machine stopped the pairing: {0}")]
@@ -60,31 +66,28 @@ pub enum LanError {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "lowercase", deny_unknown_fields)]
 pub enum Msg {
-    /// Guest: hash of its nonce and card.
-    Commit {
-        /// Hex of the commitment.
-        c: String,
+    /// Host: its session id and public point; guest: the echoed id and its point.
+    Pake {
+        /// Hex of the random session id part.
+        s: String,
+        /// Hex of the compressed ristretto255 point.
+        y: String,
     },
-    /// Host: its nonce and the admin key fingerprints it will vouch with.
-    Nonce {
-        /// Hex of the host nonce.
-        n: String,
+    /// Host: the admin key fingerprints it vouches with, under a key-confirmation tag.
+    Proof {
         /// Admin key fingerprints of the host.
         ident: Vec<String>,
+        /// Hex of the host confirmation tag.
+        tag: String,
     },
-    /// Guest: opens the commitment.
-    Reveal {
-        /// Hex of the guest nonce.
-        n: String,
+    /// Guest: its card under a key-confirmation tag.
+    Card {
         /// The `gwc1.` card.
         card: String,
+        /// Hex of the guest confirmation tag.
+        tag: String,
     },
-    /// Guest: whether its person accepted the SAS.
-    Confirm {
-        /// True when accepted.
-        ok: bool,
-    },
-    /// Host: the `gww1.` welcome, sent only after both confirmations.
+    /// Host: the `gww1.` welcome, sent only after approval.
     Welcome {
         /// The welcome string.
         welcome: String,
@@ -118,59 +121,112 @@ fn unhex(text: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
-/// A fresh random nonce.
-pub fn new_nonce() -> Result<[u8; NONCE_BYTES], LanError> {
-    let mut n = [0u8; NONCE_BYTES];
-    getrandom::fill(&mut n).map_err(|e| LanError::Random(e.to_string()))?;
-    Ok(n)
+fn random<const N: usize>() -> Result<[u8; N], LanError> {
+    let mut b = [0u8; N];
+    getrandom::fill(&mut b).map_err(|e| LanError::Random(e.to_string()))?;
+    Ok(b)
 }
 
-fn nonce_of(text: &str) -> Result<[u8; NONCE_BYTES], LanError> {
-    unhex(text)
-        .and_then(|v| <[u8; NONCE_BYTES]>::try_from(v).ok())
-        .ok_or_else(|| protocol("bad nonce"))
-}
-
-fn feed(h: &mut Sha256, part: &[u8]) {
+fn feed<D: Digest>(h: &mut D, part: &[u8]) {
     h.update((part.len() as u64).to_be_bytes());
     h.update(part);
 }
 
-/// The guest's commitment to `nonce` and `card_text`.
-pub fn commitment(nonce: &[u8; NONCE_BYTES], card_text: &str) -> String {
+/// A fresh one-time pairing code, shown as "1234 5678".
+pub fn new_code() -> Result<String, LanError> {
+    let n = u64::from_be_bytes(random::<8>()?) % 10u64.pow(CODE_DIGITS as u32);
+    let digits = format!("{n:0width$}", width = CODE_DIGITS);
+    Ok(format!("{} {}", &digits[..4], &digits[4..]))
+}
+
+/// The digits of a typed code when it is well formed (spaces and dashes ignored), else `None`.
+pub fn normalize_code(typed: &str) -> Option<String> {
+    let ok = typed.chars().all(|c| c.is_ascii_digit() || c.is_whitespace() || c == '-');
+    let digits: String = typed.chars().filter(char::is_ascii_digit).collect();
+    (ok && digits.len() == CODE_DIGITS).then_some(digits)
+}
+
+/// One side's `CPace` state: the secret scalar and the code digits.
+struct Pake {
+    secret: Scalar,
+    code: String,
+}
+
+impl Pake {
+    /// Start with a fresh secret scalar for the typed or displayed `code`.
+    fn new(code: &str) -> Result<Self, LanError> {
+        let digits = normalize_code(code).ok_or_else(|| protocol("malformed pairing code"))?;
+        let secret = Scalar::from_bytes_mod_order_wide(&random::<64>()?);
+        Ok(Self { secret, code: digits })
+    }
+
+    /// Our public point over the generator derived from the code and the host's session id.
+    fn publish(&self, sid: &[u8]) -> RistrettoPoint {
+        let mut h = Sha512::new();
+        feed(&mut h, b"goway-cpace-r255-gen-v1");
+        feed(&mut h, self.code.as_bytes());
+        feed(&mut h, sid);
+        RistrettoPoint::from_uniform_bytes(&h.finalize().into()) * self.secret
+    }
+
+    /// The shared key from the peer's point; both sides hash the points guest first.
+    fn finish(
+        &self,
+        sid: &[u8],
+        peer: &RistrettoPoint,
+        guest_y: &RistrettoPoint,
+        host_y: &RistrettoPoint,
+    ) -> Result<[u8; 32], LanError> {
+        let k = peer * self.secret;
+        if k.is_identity() {
+            return Err(protocol("degenerate key share"));
+        }
+        let mut h = Sha256::new();
+        feed(&mut h, b"goway-cpace-r255-isk-v1");
+        feed(&mut h, sid);
+        feed(&mut h, k.compress().as_bytes());
+        feed(&mut h, guest_y.compress().as_bytes());
+        feed(&mut h, host_y.compress().as_bytes());
+        Ok(h.finalize().into())
+    }
+}
+
+fn enc(p: &RistrettoPoint) -> String {
+    hex(p.compress().as_bytes())
+}
+
+fn point(text: &str) -> Result<RistrettoPoint, LanError> {
+    let bytes = unhex(text).ok_or_else(|| protocol("bad point encoding"))?;
+    let p = CompressedRistretto::from_slice(&bytes)
+        .map_err(|_| protocol("bad point length"))?
+        .decompress()
+        .ok_or_else(|| protocol("point is not on the group"))?;
+    if p.is_identity() {
+        return Err(protocol("degenerate public point"));
+    }
+    Ok(p)
+}
+
+fn sid_of(text: &str) -> Result<[u8; SID_BYTES], LanError> {
+    unhex(text)
+        .and_then(|v| <[u8; SID_BYTES]>::try_from(v).ok())
+        .ok_or_else(|| protocol("bad session id"))
+}
+
+/// A key-confirmation tag over `role` and `payload` under the shared key.
+fn tag(isk: &[u8; 32], role: &[u8], payload: &[&[u8]]) -> String {
     let mut h = Sha256::new();
-    feed(&mut h, b"goway-lan-commit-v1");
-    feed(&mut h, nonce);
-    feed(&mut h, card_text.as_bytes());
+    feed(&mut h, b"goway-cpace-confirm-v1");
+    feed(&mut h, isk);
+    feed(&mut h, role);
+    for p in payload {
+        feed(&mut h, p);
+    }
     hex(&h.finalize())
 }
 
-/// The six-digit SAS ("123 456") both people compare; it binds both nonces, the card and the
-/// host's presented fingerprints, so any change in flight changes it.
-pub fn sas(
-    guest: &[u8; NONCE_BYTES],
-    host: &[u8; NONCE_BYTES],
-    idents: &[String],
-    card_text: &str,
-) -> String {
-    let mut h = Sha256::new();
-    feed(&mut h, b"goway-lan-sas-v1");
-    feed(&mut h, guest);
-    feed(&mut h, host);
-    feed(&mut h, card_text.as_bytes());
-    for i in idents {
-        feed(&mut h, i.as_bytes());
-    }
-    let d = h.finalize();
-    let n = u32::from_be_bytes([d[0], d[1], d[2], d[3]]) % 1_000_000;
-    format!("{:03} {:03}", n / 1000, n % 1000)
-}
-
-/// True when `typed` holds the same six digits as `shown`, ignoring spaces and dashes.
-pub fn sas_matches(shown: &str, typed: &str) -> bool {
-    let digits = |s: &str| -> String { s.chars().filter(char::is_ascii_digit).collect() };
-    let (a, b) = (digits(shown), digits(typed));
-    a.len() == 6 && a == b && typed.chars().all(|c| c.is_ascii_digit() || c.is_whitespace() || c == '-')
+fn idents_blob(idents: &[String]) -> Vec<u8> {
+    idents.join("\n").into_bytes()
 }
 
 /// Write one message as a JSON line.
@@ -216,46 +272,49 @@ pub struct HostOutcome {
     pub card: Card,
 }
 
-/// Run the host (admin) side on `reader`/`writer`: `confirm` is asked with the SAS and the card
-/// and must return true only after a person matched it; `admit` runs only after both people
-/// confirmed and returns the welcome to send.
+/// Run the host (admin) side on `reader`/`writer` with the one-time `code` it displayed:
+/// `confirm` is asked to approve the card (after the guest proved it knew the code) and `admit`
+/// runs only after approval, returning the welcome to send.
 pub fn run_host<R: BufRead, W: Write>(
     reader: &mut R,
     writer: &mut W,
+    code: &str,
     idents: &[String],
-    confirm: &mut dyn FnMut(&str, &Card) -> bool,
+    confirm: &mut dyn FnMut(&Card) -> bool,
     admit: &mut dyn FnMut(&Card) -> Result<Welcome, String>,
 ) -> Result<HostOutcome, LanError> {
     check_idents(idents)?;
-    let Msg::Commit { c } = read_msg(reader, MAX_SMALL_MSG)? else {
-        return Err(protocol("expected commit"));
+    let pake = Pake::new(code)?;
+    let sid = random::<SID_BYTES>()?;
+    let host_y = pake.publish(&sid);
+    write_msg(writer, &Msg::Pake { s: hex(&sid), y: enc(&host_y) })?;
+    let Msg::Pake { s, y } = read_msg(reader, MAX_SMALL_MSG)? else {
+        return Err(protocol("expected pake"));
     };
-    let host_n = new_nonce()?;
-    write_msg(writer, &Msg::Nonce { n: hex(&host_n), ident: idents.to_vec() })?;
-    let Msg::Reveal { n, card: card_text } = read_msg(reader, MAX_SMALL_MSG)? else {
-        return Err(protocol("expected reveal"));
+    if sid_of(&s)? != sid {
+        return Err(protocol("session id mismatch"));
+    }
+    let guest_y = point(&y)?;
+    let isk = pake.finish(&sid, &guest_y, &guest_y, &host_y)?;
+    let blob = idents_blob(idents);
+    write_msg(
+        writer,
+        &Msg::Proof { ident: idents.to_vec(), tag: tag(&isk, b"host", &[&blob]) },
+    )?;
+    let Msg::Card { card: card_text, tag: guest_tag } = read_msg(reader, MAX_SMALL_MSG)? else {
+        return Err(protocol("expected card"));
     };
-    let guest_n = nonce_of(&n)?;
-    if commitment(&guest_n, &card_text) != c {
-        warn!("lan pairing: commitment mismatch");
-        let _ = write_msg(writer, &Msg::Abort { reason: "commitment mismatch".into() });
-        return Err(LanError::CommitMismatch);
+    if tag(&isk, b"guest", &[&blob, card_text.as_bytes()]) != guest_tag {
+        warn!("lan pairing: guest confirmation tag mismatch (wrong code?)");
+        let _ = write_msg(writer, &Msg::Abort { reason: "pairing code mismatch".into() });
+        return Err(LanError::WrongCode);
     }
     let card = Card::decode(&card_text).map_err(|e| protocol(e.to_string()))?;
-    let code = sas(&guest_n, &host_n, idents, &card_text);
-    debug!(name = %card.name, "lan pairing: sas computed on host");
-    if !confirm(&code, &card) {
+    debug!(name = %card.name, "lan pairing: guest proved the code");
+    if !confirm(&card) {
         warn!("lan pairing: host person declined");
         let _ = write_msg(writer, &Msg::Abort { reason: "declined on the admin machine".into() });
         return Err(LanError::Declined);
-    }
-    match read_msg(reader, MAX_SMALL_MSG)? {
-        Msg::Confirm { ok: true } => {}
-        Msg::Confirm { ok: false } | Msg::Abort { .. } => {
-            warn!("lan pairing: guest declined");
-            return Err(LanError::PeerAborted("declined on the new machine".into()));
-        }
-        _ => return Err(protocol("expected confirm")),
     }
     let welcome = admit(&card).map_err(|e| {
         let _ = write_msg(writer, &Msg::Abort { reason: abort_text(&e) });
@@ -266,31 +325,39 @@ pub fn run_host<R: BufRead, W: Write>(
     Ok(HostOutcome { card })
 }
 
-/// Run the guest (new machine) side: `confirm` is asked with the SAS and must return true only
-/// after a person matched it. Returns the welcome and the fingerprints the host presented, which
-/// the caller must check against the admins in the welcome.
+/// Run the guest (new machine) side with the `code` its person typed. Returns the welcome and
+/// the fingerprints the host presented (authenticated by the code), which the caller must check
+/// against the admins in the welcome.
 pub fn run_guest<R: BufRead, W: Write>(
     reader: &mut R,
     writer: &mut W,
+    code: &str,
     card: &Card,
-    confirm: &mut dyn FnMut(&str) -> bool,
 ) -> Result<(Welcome, Vec<String>), LanError> {
     let card_text = card.encode();
-    let guest_n = new_nonce()?;
-    write_msg(writer, &Msg::Commit { c: commitment(&guest_n, &card_text) })?;
-    let Msg::Nonce { n, ident } = read_msg(reader, MAX_SMALL_MSG)? else {
-        return Err(protocol("expected nonce"));
+    let pake = Pake::new(code)?;
+    let Msg::Pake { s, y } = read_msg(reader, MAX_SMALL_MSG)? else {
+        return Err(protocol("expected pake"));
     };
-    let host_n = nonce_of(&n)?;
+    let sid = sid_of(&s)?;
+    let host_y = point(&y)?;
+    let guest_y = pake.publish(&sid);
+    write_msg(writer, &Msg::Pake { s, y: enc(&guest_y) })?;
+    let isk = pake.finish(&sid, &host_y, &guest_y, &host_y)?;
+    let Msg::Proof { ident, tag: host_tag } = read_msg(reader, MAX_SMALL_MSG)? else {
+        return Err(protocol("expected proof"));
+    };
     check_idents(&ident)?;
-    write_msg(writer, &Msg::Reveal { n: hex(&guest_n), card: card_text.clone() })?;
-    let code = sas(&guest_n, &host_n, &ident, &card_text);
-    if !confirm(&code) {
-        warn!("lan pairing: guest person declined");
-        let _ = write_msg(writer, &Msg::Confirm { ok: false });
-        return Err(LanError::Declined);
+    let blob = idents_blob(&ident);
+    if tag(&isk, b"host", &[&blob]) != host_tag {
+        warn!("lan pairing: host confirmation tag mismatch (wrong code?)");
+        let _ = write_msg(writer, &Msg::Abort { reason: "pairing code mismatch".into() });
+        return Err(LanError::WrongCode);
     }
-    write_msg(writer, &Msg::Confirm { ok: true })?;
+    write_msg(
+        writer,
+        &Msg::Card { card: card_text.clone(), tag: tag(&isk, b"guest", &[&blob, card_text.as_bytes()]) },
+    )?;
     match read_msg(reader, MAX_WELCOME_CHARS + 1024)? {
         Msg::Welcome { welcome } => {
             let w = Welcome::decode(&welcome).map_err(|e| protocol(e.to_string()))?;
@@ -401,33 +468,21 @@ mod tests {
     }
 
     #[test]
-    fn sas_changes_with_every_input() {
-        let (g, h) = ([1u8; 16], [2u8; 16]);
-        let idents = vec!["SHA256:aa".to_owned()];
-        let base = sas(&g, &h, &idents, "card");
-        assert_eq!(base, sas(&g, &h, &idents, "card"));
-        assert_ne!(base, sas(&[3u8; 16], &h, &idents, "card"));
-        assert_ne!(base, sas(&g, &[3u8; 16], &idents, "card"));
-        assert_ne!(base, sas(&g, &h, &["SHA256:bb".to_owned()], "card"));
-        assert_ne!(base, sas(&g, &h, &idents, "card2"));
-        assert_eq!(base.len(), 7);
-    }
-
-    #[test]
-    fn typed_codes_must_match_exactly() {
-        assert!(sas_matches("123 456", "123456"));
-        assert!(sas_matches("123 456", " 123-456\n"));
-        assert!(!sas_matches("123 456", "123457"));
-        assert!(!sas_matches("123 456", "12345"));
-        assert!(!sas_matches("123 456", "y"));
-        assert!(!sas_matches("123 456", "123456abc"));
+    fn codes_are_eight_digits_and_normalize() {
+        let c = new_code().unwrap();
+        assert_eq!(c.len(), 9);
+        assert_eq!(normalize_code(&c).unwrap().len(), 8);
+        assert_eq!(normalize_code(" 1234-5678\n").as_deref(), Some("12345678"));
+        assert_eq!(normalize_code("1234567"), None);
+        assert_eq!(normalize_code("12345678a"), None);
+        assert_eq!(normalize_code("y"), None);
     }
 
     #[test]
     fn messages_refuse_unknown_fields_and_oversize() {
-        let mut ok = BufReader::new(&b"{\"t\":\"confirm\",\"ok\":true}\n"[..]);
-        assert_eq!(read_msg(&mut ok, 100).unwrap(), Msg::Confirm { ok: true });
-        let mut extra = BufReader::new(&b"{\"t\":\"confirm\",\"ok\":true,\"x\":1}\n"[..]);
+        let mut ok = BufReader::new(&b"{\"t\":\"abort\",\"reason\":\"x\"}\n"[..]);
+        assert_eq!(read_msg(&mut ok, 100).unwrap(), Msg::Abort { reason: "x".into() });
+        let mut extra = BufReader::new(&b"{\"t\":\"abort\",\"reason\":\"x\",\"x\":1}\n"[..]);
         assert!(read_msg(&mut extra, 100).is_err());
         let mut big = BufReader::new(&b"{\"t\":\"abort\",\"reason\":\"aaaaaaaaaaaaaaaaaaaa\"}\n"[..]);
         assert!(matches!(read_msg(&mut big, 10), Err(LanError::Protocol(_))));
@@ -454,116 +509,93 @@ mod tests {
         assert_eq!(g.allow(20), Err(Refusal::Strikes));
     }
 
-    /// Drive host and guest over loopback TCP; `guest_says`/`host_says` decide the confirmations.
-    fn session(host_says: bool, guest_says: bool) -> (Result<HostOutcome, LanError>, Result<(Welcome, Vec<String>), LanError>, bool, Vec<String>) {
+    type Run = (Result<HostOutcome, LanError>, Result<(Welcome, Vec<String>), LanError>, bool);
+
+    /// Drive host and guest over loopback TCP with the given codes and host approval.
+    fn session(host_code: &str, guest_code: &str, host_says: bool) -> Run {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
+        let host_code = host_code.to_owned();
         let host = std::thread::spawn(move || {
             let (s, _) = listener.accept().unwrap();
             let mut r = BufReader::new(s.try_clone().unwrap());
             let mut w = s;
             let mut admitted = false;
-            let mut seen = Vec::new();
             let out = run_host(
                 &mut r,
                 &mut w,
+                &host_code,
                 &["SHA256:adminfp".to_owned()],
-                &mut |code, _| {
-                    seen.push(code.to_owned());
-                    host_says
-                },
+                &mut |_| host_says,
                 &mut |_| {
                     admitted = true;
                     Ok(welcome())
                 },
             );
-            (out, admitted, seen)
+            (out, admitted)
         });
         let s = TcpStream::connect(addr).unwrap();
         let mut r = BufReader::new(s.try_clone().unwrap());
         let mut w = s;
-        let mut guest_codes = Vec::new();
-        let g = run_guest(&mut r, &mut w, &card(), &mut |c| {
-            guest_codes.push(c.to_owned());
-            guest_says
-        });
-        let (h, admitted, mut seen) = host.join().unwrap();
-        seen.extend(guest_codes);
-        (h, g, admitted, seen)
+        let g = run_guest(&mut r, &mut w, guest_code, &card());
+        let (h, admitted) = host.join().unwrap();
+        (h, g, admitted)
     }
 
     #[test]
-    fn both_confirming_admits_and_codes_agree() {
-        let (h, g, admitted, codes) = session(true, true);
+    fn equal_codes_admit_and_deliver_the_welcome() {
+        let (h, g, admitted) = session("1234 5678", "12345678", true);
         assert!(h.is_ok());
         let (w, idents) = g.unwrap();
         assert_eq!(w, welcome());
         assert_eq!(idents, ["SHA256:adminfp"]);
         assert!(admitted);
-        assert_eq!(codes.len(), 2);
-        assert_eq!(codes[0], codes[1]);
+    }
+
+    #[test]
+    fn a_wrong_code_fails_both_sides_and_admits_nothing() {
+        let (h, g, admitted) = session("1234 5678", "1234 5679", true);
+        assert!(matches!(g, Err(LanError::WrongCode)));
+        assert!(h.is_err());
+        assert!(!admitted);
     }
 
     #[test]
     fn a_host_decline_admits_nothing() {
-        let (h, g, admitted, _) = session(false, true);
+        let (h, g, admitted) = session("1234 5678", "1234 5678", false);
         assert!(matches!(h, Err(LanError::Declined)));
         assert!(g.is_err());
         assert!(!admitted);
     }
 
     #[test]
-    fn a_guest_decline_admits_nothing() {
-        let (h, g, admitted, _) = session(true, false);
-        assert!(matches!(h, Err(LanError::PeerAborted(_))));
-        assert!(matches!(g, Err(LanError::Declined)));
-        assert!(!admitted);
+    fn a_swapped_card_after_the_exchange_is_refused() {
+        // A guest tag over one card does not authenticate another.
+        let isk = [7u8; 32];
+        let blob = idents_blob(&["SHA256:a".to_owned()]);
+        assert_ne!(tag(&isk, b"guest", &[&blob, b"card-a"]), tag(&isk, b"guest", &[&blob, b"card-b"]));
+        assert_ne!(tag(&isk, b"guest", &[&blob, b"c"]), tag(&isk, b"host", &[&blob, b"c"]));
     }
 
     #[test]
-    fn a_tampered_reveal_is_refused_before_any_code_is_shown() {
-        // A man in the middle swaps the card after the commitment.
-        let mut input = Vec::new();
-        write_msg(&mut input, &Msg::Commit { c: commitment(&[9u8; 16], &card().encode()) }).unwrap();
-        let mut other = card();
-        other.name = "evil".into();
-        write_msg(&mut input, &Msg::Reveal { n: hex(&[9u8; 16]), card: other.encode() }).unwrap();
-        let mut out = Vec::new();
-        let mut asked = false;
-        let res = run_host(
-            &mut BufReader::new(&input[..]),
-            &mut out,
-            &["SHA256:a".to_owned()],
-            &mut |_, _| {
-                asked = true;
-                true
-            },
-            &mut |_| Ok(welcome()),
-        );
-        assert!(matches!(res, Err(LanError::CommitMismatch)));
-        assert!(!asked);
+    fn degenerate_and_malformed_points_are_rejected() {
+        let identity = hex(&[0u8; 32]);
+        assert!(point(&identity).is_err());
+        assert!(point("zz").is_err());
+        assert!(point(&hex(&[0xffu8; 32])).is_err());
+        assert!(point(&hex(&[1u8; 5])).is_err());
     }
 
     #[test]
-    fn a_swapped_host_identity_gives_a_different_code() {
-        let (g, h) = ([4u8; 16], [5u8; 16]);
-        let c = card().encode();
-        assert_ne!(
-            sas(&g, &h, &["SHA256:real".to_owned()], &c),
-            sas(&g, &h, &["SHA256:mitm".to_owned()], &c)
-        );
-    }
-
-    #[test]
-    fn a_guest_refuses_a_bad_nonce_or_fingerprint_list() {
+    fn a_guest_refuses_a_bad_session_id_or_point() {
         for msg in [
-            Msg::Nonce { n: "zz".into(), ident: vec!["a".into()] },
-            Msg::Nonce { n: hex(&[1u8; 16]), ident: Vec::new() },
+            Msg::Pake { s: "zz".into(), y: hex(&[0u8; 32]) },
+            Msg::Pake { s: hex(&[1u8; SID_BYTES]), y: hex(&[0u8; 32]) },
         ] {
             let mut input = Vec::new();
             write_msg(&mut input, &msg).unwrap();
             let mut out = Vec::new();
-            let res = run_guest(&mut BufReader::new(&input[..]), &mut out, &card(), &mut |_| true);
+            let res = run_guest(&mut BufReader::new(&input[..]), &mut out, "12345678", &card());
             assert!(matches!(res, Err(LanError::Protocol(_))));
         }
     }

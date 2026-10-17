@@ -1,8 +1,9 @@
 //! `goway circle pair-host` / `pair-join`: admit a machine over the local network.
 //!
-//! The admin listens briefly on a TCP port and prints its address; the new machine connects. Both
-//! screens show a six-digit code (see `goway_circle::lan`); each person types the code shown on
-//! the OTHER screen. Only when both match does the admin admit the card and send the welcome.
+//! The admin listens briefly on a TCP port and prints its address; the new machine connects.
+//! The admin's screen shows an eight-digit one-time code that the person on the new
+//! machine types (see `goway_circle::lan`, a `CPace` exchange). Only when the codes match and the
+//! admin has approved the card does the admin admit it and send the welcome.
 //! The listener is single use, expires, and rate limits. Addresses learned here become unsigned
 //! resolve hints: the pinned host key is still verified before any hint is trusted.
 
@@ -10,7 +11,9 @@ use std::io::BufReader;
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::time::{Duration, Instant};
 
-use goway_circle::{Card, LanError, ListenGuard, Refusal, run_guest, run_host, sas_matches};
+use goway_circle::{
+    Card, LanError, ListenGuard, Refusal, new_code, normalize_code, run_guest, run_host,
+};
 
 use crate::circle::{self, JoinOut};
 use crate::cli::{CircleAdmitArgs, CircleCardArgs, CirclePairHostArgs, CirclePairJoinArgs};
@@ -55,15 +58,17 @@ fn timed(stream: &TcpStream) -> std::io::Result<()> {
     stream.set_write_timeout(Some(SESSION_IO_TIMEOUT))
 }
 
-/// Serve the one pairing on `listener` for at most `ttl` seconds; `confirm` gets the code and the
-/// card and must return true only after a person matched the code shown on the new machine.
+/// Serve the one pairing on `listener` for at most `ttl` seconds, authenticated by `code`;
+/// `confirm` gets the card (whose holder already proved the code) and must return true only
+/// after the admin's person approved it.
 pub fn serve(
     paths: &Paths,
     renderer: Renderer,
     listener: &TcpListener,
     ttl: u64,
+    code: &str,
     circle: Option<&str>,
-    confirm: &mut dyn FnMut(&str, &Card) -> bool,
+    confirm: &mut dyn FnMut(&Card) -> bool,
 ) -> Result<PairedPeer> {
     let ident = circle::admin_ident(paths, renderer, circle)?;
     let started = Instant::now();
@@ -92,7 +97,7 @@ pub fn serve(
             return Err(Error::Usage(format!("{refusal}; nothing was changed")));
         }
         renderer.note(format!("connection from {peer}"));
-        match session(paths, renderer, stream, &ident, circle, confirm) {
+        match session(paths, renderer, stream, code, &ident, circle, confirm) {
             Ok(card) => {
                 guard.consume();
                 return Ok(PairedPeer { card, address: peer.ip() });
@@ -110,9 +115,10 @@ fn session(
     paths: &Paths,
     renderer: Renderer,
     stream: TcpStream,
+    code: &str,
     ident: &str,
     circle: Option<&str>,
-    confirm: &mut dyn FnMut(&str, &Card) -> bool,
+    confirm: &mut dyn FnMut(&Card) -> bool,
 ) -> std::result::Result<Card, LanError> {
     timed(&stream)?;
     let mut reader = BufReader::new(stream.try_clone()?);
@@ -120,12 +126,13 @@ fn session(
     let out = run_host(
         &mut reader,
         &mut writer,
+        code,
         &[ident.to_owned()],
         confirm,
         &mut |card| {
             let args = CircleAdmitArgs {
                 card: card.encode(),
-                // The card was bound into the confirmed code, so the code confirms its key.
+                // The card arrived under the code-keyed confirmation tag, so the code vouches for its key.
                 fingerprint: Some(circle::fingerprint_of(&card.key)),
                 circle: circle.map(str::to_owned),
             };
@@ -137,13 +144,12 @@ fn session(
     Ok(out.card)
 }
 
-/// Connect to `address`, pair, and join the circle; `confirm` gets the code and must return true
-/// only after a person matched the code shown on the admin machine.
+/// Connect to `address`, pair using the `code` shown on the admin machine, and join the circle.
 pub fn pair_join(
     paths: &Paths,
     renderer: Renderer,
     args: &CirclePairJoinArgs,
-    confirm: &mut dyn FnMut(&str) -> bool,
+    code: &str,
 ) -> Result<(JoinOut, SocketAddr)> {
     let card = circle::make_card(
         paths,
@@ -167,8 +173,8 @@ pub fn pair_join(
     let mut reader = BufReader::new(stream.try_clone().map_err(|e| Error::Usage(e.to_string()))?);
     let mut writer = stream;
     let (welcome, idents) =
-        run_guest(&mut reader, &mut writer, &card.card, confirm).map_err(lan_error)?;
-    // The code authenticated `idents`; they must be admins of the circle the welcome founds.
+        run_guest(&mut reader, &mut writer, code, &card.card).map_err(lan_error)?;
+    // The code-keyed exchange authenticated `idents`; they must be admins of the circle the welcome founds.
     let out = circle::join_welcome(paths, renderer, &welcome, &|admin_fps| {
         if idents.iter().all(|i| admin_fps.contains(i)) {
             Ok(())
@@ -183,17 +189,27 @@ pub fn pair_join(
     Ok((out, addr))
 }
 
-/// Ask a person to type the code shown on the other machine; false when they cannot or differ.
-fn typed_matches(renderer: Renderer, code: &str) -> bool {
-    renderer.headline(format!("confirmation code on this screen: {code}"));
-    renderer.next("each person types the code shown on the OTHER machine's screen");
-    match render::ask("code from the other machine: ") {
-        Some(line) => sas_matches(code, &line),
+/// Ask the admin's person to approve admitting `card`; false when they decline or cannot answer.
+fn approve(renderer: Renderer, card: &Card) -> bool {
+    renderer.line(format!("  `{}` asks for {}", card.name, card.roles));
+    match render::ask("admit this machine? [y/N]: ") {
+        Some(line) => matches!(line.trim().to_ascii_lowercase().as_str(), "y" | "yes"),
         None => {
             renderer.warn("cannot ask here; run this in a terminal");
             false
         }
     }
+}
+
+/// Ask the new machine's person for the code shown on the admin machine.
+fn ask_code(renderer: Renderer) -> Option<String> {
+    renderer.next("type the one-time code shown on the admin machine");
+    let line = render::ask("pairing code: ")?;
+    let code = normalize_code(&line);
+    if code.is_none() {
+        renderer.warn("the code is eight digits");
+    }
+    code
 }
 
 /// The `host:port` the new machine should dial, when it is known without guessing.
@@ -245,16 +261,16 @@ pub fn pair_host_cli(paths: &Paths, renderer: Renderer, args: &CirclePairHostArg
         }
         None => renderer.next(format!("on the new machine run `goway circle pair-join <this machine's LAN address>:{}`", local.port())),
     }
+    let code = new_code().map_err(lan_error)?;
+    renderer.headline(format!("one-time pairing code: {code}"));
     let peer = serve(
         paths,
         renderer,
         &listener,
         args.wait * 60,
+        &code,
         args.circle.as_deref(),
-        &mut |code, card| {
-            renderer.line(format!("  `{}` asks for {}", card.name, card.roles));
-            typed_matches(renderer, code)
-        },
+        &mut |card| approve(renderer, card),
     )?;
     renderer.ok(format!("admitted `{}`", peer.card.name));
     remember_hint(paths, &peer.card.name, peer.address);
@@ -263,7 +279,8 @@ pub fn pair_host_cli(paths: &Paths, renderer: Renderer, args: &CirclePairHostArg
 
 /// `goway circle pair-join`.
 pub fn pair_join_cli(paths: &Paths, renderer: Renderer, args: &CirclePairJoinArgs) -> Result<()> {
-    let (out, addr) = pair_join(paths, renderer, args, &mut |code| typed_matches(renderer, code))?;
+    let code = ask_code(renderer).ok_or_else(|| Error::Usage("no valid pairing code was entered; nothing was changed".into()))?;
+    let (out, addr) = pair_join(paths, renderer, args, &code)?;
     renderer.ok(format!("joined circle {} ({} members)", out.id, out.members));
     if let Some(peer) = &args.peer {
         remember_hint(paths, peer, addr.ip());
@@ -289,8 +306,7 @@ mod tests {
     use crate::cli::{CircleInitArgs, CircleSelect};
     use crate::render::ColorWhen;
     use std::path::Path;
-    use std::sync::Mutex;
-
+    
     #[test]
     fn qr_ascii_is_ascii_square_with_quiet_zone() {
         let qr = qr_ascii("192.168.1.20:41234").unwrap();
@@ -369,56 +385,44 @@ mod tests {
         Rig { _tmp: tmp, admin, joiner, listener: bind_listener("127.0.0.1", 0).unwrap() }
     }
 
-    /// Run host and guest at once; each side's confirm returns what the closure says.
+    /// Run host and guest at once; the host approves per `host_says`, the guest types `guest_code`.
     fn pair(
         rig: &Rig,
         host_says: bool,
-        guest_says: bool,
-    ) -> (Result<PairedPeer>, Result<(JoinOut, SocketAddr)>, Vec<String>, Vec<String>) {
+        guest_code: &str,
+    ) -> (Result<PairedPeer>, Result<(JoinOut, SocketAddr)>) {
         let addr = rig.listener.local_addr().unwrap();
-        let host_codes = Mutex::new(Vec::new());
-        let guest_codes = Mutex::new(Vec::new());
-        let (h, g) = std::thread::scope(|sc| {
+        std::thread::scope(|sc| {
             let host = sc.spawn(|| {
-                serve(&rig.admin, quiet(), &rig.listener, 2, None, &mut |code, _| {
-                    host_codes.lock().unwrap().push(code.to_owned());
-                    host_says
-                })
+                serve(&rig.admin, quiet(), &rig.listener, 2, "1234 5678", None, &mut |_| host_says)
             });
-            let guest = sc.spawn(|| {
-                pair_join(&rig.joiner, quiet(), &join_args(addr), &mut |code| {
-                    guest_codes.lock().unwrap().push(code.to_owned());
-                    guest_says
-                })
-            });
+            let guest = sc.spawn(|| pair_join(&rig.joiner, quiet(), &join_args(addr), guest_code));
             (host.join().unwrap(), guest.join().unwrap())
-        });
-        (h, g, host_codes.into_inner().unwrap(), guest_codes.into_inner().unwrap())
+        })
     }
 
     // frob:tests crates/goway/src/lanpair.rs::pair_join
     // frob:tests crates/goway/src/lanpair.rs::serve
     #[test]
-    fn both_people_confirming_admits_the_machine_over_loopback() {
+    fn the_right_code_and_an_approving_admin_admit_the_machine_over_loopback() {
         let rig = rig();
         let before = members(&rig.admin).unwrap();
-        let (host, guest, hc, gc) = pair(&rig, true, true);
+        let (host, guest) = pair(&rig, true, "1234 5678");
         let peer = host.unwrap();
         assert_eq!(peer.card.name, "newbox");
         assert!(peer.address.is_loopback());
         let (out, _) = guest.unwrap();
         assert_eq!(out.members, 3);
-        assert_eq!(hc, gc, "both screens show the same code");
         assert_eq!(members(&rig.admin), Some(before + 1));
         assert!(members(&rig.joiner).is_some());
     }
 
     // frob:tests crates/goway/src/lanpair.rs::pair_join
     #[test]
-    fn a_guest_who_does_not_confirm_changes_nothing_anywhere() {
+    fn a_wrong_code_changes_nothing_anywhere() {
         let rig = rig();
         let before = members(&rig.admin);
-        let (host, guest, ..) = pair(&rig, true, false);
+        let (host, guest) = pair(&rig, true, "1234 5679");
         assert!(guest.is_err());
         assert!(host.is_err(), "the host session fails and the listener times out or strikes");
         assert_eq!(members(&rig.admin), before);
@@ -427,10 +431,10 @@ mod tests {
 
     // frob:tests crates/goway/src/lanpair.rs::serve
     #[test]
-    fn a_host_who_does_not_confirm_changes_nothing_anywhere() {
+    fn an_admin_who_does_not_approve_changes_nothing_anywhere() {
         let rig = rig();
         let before = members(&rig.admin);
-        let (host, guest, ..) = pair(&rig, false, true);
+        let (host, guest) = pair(&rig, false, "1234 5678");
         assert!(guest.is_err());
         assert!(host.is_err());
         assert_eq!(members(&rig.admin), before);
@@ -442,7 +446,7 @@ mod tests {
     fn an_expired_listener_admits_nobody() {
         let rig = rig();
         let before = members(&rig.admin);
-        let r = serve(&rig.admin, quiet(), &rig.listener, 0, None, &mut |_, _| true);
+        let r = serve(&rig.admin, quiet(), &rig.listener, 0, "1234 5678", None, &mut |_| true);
         assert!(r.is_err());
         assert_eq!(members(&rig.admin), before);
     }
@@ -451,7 +455,7 @@ mod tests {
     #[test]
     fn a_machine_that_is_not_an_admin_cannot_host() {
         let rig = rig();
-        let r = serve(&rig.joiner, quiet(), &rig.listener, 5, None, &mut |_, _| true);
+        let r = serve(&rig.joiner, quiet(), &rig.listener, 5, "1234 5678", None, &mut |_| true);
         assert!(r.is_err());
     }
 
