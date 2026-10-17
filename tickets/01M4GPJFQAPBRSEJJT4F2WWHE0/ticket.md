@@ -7,7 +7,7 @@ priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-09T16:05:07Z"
-updated = "2026-10-17T08:42:23Z"
+updated = "2026-10-17T08:43:53Z"
 
 [[acceptance]]
 text = "Given the condition in the title, when a fix lands, then a test reproduces it and the condition no longer occurs"
