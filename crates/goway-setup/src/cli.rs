@@ -141,14 +141,10 @@ pub enum Command {
         /// Host: ask no questions; when WSL needs a restart, print the command instead of offering it.
         #[arg(long)]
         yes: bool,
-        /// Host (WSL): after the install, join the circle in this `gww1.` welcome inside the distro
-        /// and install its access lines (`goway circle join`, then `goway circle access`).
-        #[arg(
-            long,
-            value_name = "WELCOME",
-            requires = "host",
-            conflicts_with = "native"
-        )]
+        /// Host: after the install, join the circle in this `gww1.` welcome (inside the distro, or
+        /// on this laptop with `--native`) and install its access lines (`goway circle join`,
+        /// then `goway circle access`); the node key and card are made first when missing.
+        #[arg(long, value_name = "WELCOME", requires = "host")]
         join: Option<String>,
         /// Host: the admin key fingerprint the admin showed, checked against the welcome.
         #[arg(long, value_name = "SHA256:...", requires = "join")]
@@ -671,6 +667,9 @@ fn install(r: Renderer, profile: &str, req: &InstallRequest) -> Result<(), Setup
                 if !req.elevate.is_child {
                     if req.native {
                         show_native_block(r, &layout);
+                        if let Some((welcome, fingerprint)) = &req.join {
+                            join_native(r, &layout, welcome, fingerprint);
+                        }
                     } else {
                         after_host_install(r, &layout, req);
                     }
@@ -782,7 +781,44 @@ fn after_host_install(r: Renderer, layout: &Layout, req: &InstallRequest) {
 /// Join the circle inside the distro and install its access lines; a failure is reported with the
 /// exact commands to retry, never failing the finished install.
 fn join_circle(r: Renderer, distro: &str, welcome: &str, fingerprint: &str) {
-    match HostSystem::new(distro).join_circle(welcome, fingerprint) {
+    let sys = HostSystem::new(distro);
+    show_card(r, sys.circle_card());
+    report_join(
+        r,
+        sys.join_circle(welcome, fingerprint),
+        welcome,
+        fingerprint,
+    );
+}
+
+/// [`join_circle`] for a native helper, running the installed `goway.exe` as the current user.
+fn join_native(r: Renderer, layout: &Layout, welcome: &str, fingerprint: &str) {
+    let sys = HostSystem::new(DEFAULT_DISTRO);
+    show_card(r, sys.native_circle_card(&layout.goway_exe));
+    report_join(
+        r,
+        sys.native_join_circle(&layout.goway_exe, welcome, fingerprint),
+        welcome,
+        fingerprint,
+    );
+}
+
+/// Print this machine's circle card, or say why there is none (the install is not failed).
+fn show_card(r: Renderer, card: Result<String, SystemError>) {
+    match card {
+        Ok(text) => r.notice(&format!("this helper's circle card:\n{text}")),
+        Err(e) => {
+            tracing::error!(error = %e, "could not make the circle card");
+            r.notice(&format!(
+                "could not make the circle card ({e}); run: goway circle card"
+            ));
+        }
+    }
+}
+
+/// Report the outcome of a circle join, with the retry command on failure.
+fn report_join(r: Renderer, result: Result<String, SystemError>, welcome: &str, fingerprint: &str) {
+    match result {
         Ok(text) => {
             tracing::info!("joined the circle from the welcome");
             r.notice(&format!("joined the circle. {text}"));
@@ -790,7 +826,7 @@ fn join_circle(r: Renderer, distro: &str, welcome: &str, fingerprint: &str) {
         Err(e) => {
             tracing::error!(error = %e, "could not join the circle");
             r.notice(&format!(
-                "could not join the circle ({e}); in the distro run: {}",
+                "could not join the circle ({e}); run: {}",
                 helper::join_command(welcome, fingerprint)
             ));
         }

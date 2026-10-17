@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T08:12:32Z"
+digest = "01394e2c1b18c1d4505406dd83410bcad2199c21b7298c291c7026a02d7fb980"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID b77ae876-9ab9-49da-a109-f6d92b131e97 with nextest profile: default
+    Starting 2 tests across 15 binaries (160 tests skipped)
+        PASS [   0.005s] goway-setup::hostsys the_card_comes_from_goway_circle_card_as_the_user
+        PASS [   0.006s] goway-setup::hostsys a_native_join_runs_join_then_access_and_stops_on_failure
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.007s] 2 tests run: 2 passed, 160 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup -E test(/circle_card|card_comes|native_join/)"
+size = 669
+status = "measured"
+test_count = 2
+tests_digest = "5bc571b342d0c56fbf12b4f32d8e24307340244722c9c14249d7bef8540f77d2"
+at = "2026-10-17T08:12:32Z"
+actor = "lognd"
+rev = 1
