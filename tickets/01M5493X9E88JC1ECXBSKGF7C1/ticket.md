@@ -12,7 +12,7 @@ scope = ["crates/goway-circle/**"]
 
 [[acceptance]]
 text = "generate_sk_keypair runs ssh-keygen -t ed25519-sk through an injectable program and returns the key pair"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "generate_sk_keypair reports tool failure and never overwrites an existing key"
