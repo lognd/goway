@@ -2,7 +2,8 @@
 id = "01M55SHEZJMS47VT8RXNXTGZVG"
 title = "Audit M6: OS keystore saves a typed passphrase before it is verified"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
