@@ -7,9 +7,9 @@ priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-17T21:41:51Z"
-updated = "2026-10-17T21:46:06Z"
+updated = "2026-10-17T21:46:36Z"
 idempotency_key = "audit-l6l10"
-scope = ["crates/goway-circle/src/state.rs", "crates/goway-circle/src/keys.rs", "crates/goway-circle/tests/roster.rs", "changelog.d/01M55X0T6HNRH6D9RJWJEPYXQC.fixed.md"]
+scope = ["crates/goway-circle/src/state.rs", "crates/goway-circle/src/keys.rs", "crates/goway-circle/tests/roster.rs", "changelog.d/01M55X0T6HNRH6D9RJWJEPYXQC.fixed.md", "crates/goway-circle/src/crypto.rs"]
 
 [[acceptance]]
 text = "Admit of existing member refused; symlinked key dir mode checked"
