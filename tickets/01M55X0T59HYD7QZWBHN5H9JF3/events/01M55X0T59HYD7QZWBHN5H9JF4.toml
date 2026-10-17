@@ -1,0 +1,13 @@
+kind = "create"
+title = "Audit L4+L7: cert options and circle-name marker collision"
+type = "bug"
+category = "todo"
+priority = "low"
+points = 2
+idempotency_key = "audit-l4l7"
+scope = ["crates/goway-circle/src/sshcert.rs"]
+acceptance = ["Certs carry no-forwarding options; same-name circles do not overwrite"]
+body = "See audit-0.2.0.md L4 and L7. Mint certs with documented -O options; put short circle id in marker, still match old form when removing."
+at = "2026-10-17T21:41:51Z"
+actor = "lognd"
+rev = 1
