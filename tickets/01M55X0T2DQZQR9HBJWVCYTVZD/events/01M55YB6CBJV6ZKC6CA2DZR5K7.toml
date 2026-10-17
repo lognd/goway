@@ -1,0 +1,23 @@
+kind = "evidence"
+captured_at = "2026-10-17T22:05:00Z"
+digest = "804f5ecdfbb528a379d913d24723bb529494bd1aaaa527fc95aa6e98bf4faa70"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 67e7b7e1-0e8f-42eb-a852-75bb93667871 with nextest profile: default
+    Starting 1 test across 65 binaries (866 tests skipped)
+        PASS [   0.041s] goway circle::tests::parents_come_from_applied_ops_only
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.043s] 1 test run: 1 passed, 866 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(parents_come)'"
+size = 549
+status = "measured"
+test_count = 1
+tests_digest = "4387d1c11598ee5f7e93ab4bb9544fbe671c77f3d95c4565a83be6c39deda8bd"
+at = "2026-10-17T22:05:00Z"
+actor = "lognd"
+rev = 1
