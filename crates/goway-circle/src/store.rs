@@ -9,7 +9,7 @@ use tracing::{debug, info, warn};
 
 use crate::error::StoreError;
 use crate::op::{Kind, MAX_OP_BYTES, MAX_OPS, Op, parse_ops};
-use crate::state::{accept_roster, heads};
+use crate::state::{accept_roster, accept_superset, heads};
 
 /// Where file writes go; a host program journals them, tests write plainly.
 pub trait FileSink {
@@ -30,6 +30,15 @@ impl FileSink for PlainSink {
         tmp.persist(path).map_err(|e| e.error)?;
         Ok(())
     }
+}
+
+/// How long a writer waits for another writer's lock before giving up.
+const LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// An exclusive advisory lock on one circle's directory, released on drop.
+#[derive(Debug)]
+pub struct StoreLock {
+    _file: std::fs::File,
 }
 
 /// The stored heads, as written to `heads.json`.
@@ -155,10 +164,68 @@ impl Store {
         }
     }
 
+    /// Take the circle's exclusive writer lock, waiting a bounded time for another writer.
+    ///
+    /// Hold it across load, merge and commit so a concurrent writer cannot lose an operation.
+    pub fn lock(&self) -> Result<StoreLock, StoreError> {
+        self.lock_for(LOCK_WAIT)
+    }
+
+    /// [`Store::lock`] with an explicit wait.
+    fn lock_for(&self, wait: std::time::Duration) -> Result<StoreLock, StoreError> {
+        let path = self.dir.join(".lock");
+        let io = |source| StoreError::Io {
+            op: "lock",
+            path: path.clone(),
+            source,
+        };
+        std::fs::create_dir_all(&self.dir).map_err(io)?;
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(&path)
+            .map_err(io)?;
+        let start = std::time::Instant::now();
+        loop {
+            match file.try_lock() {
+                Ok(()) => {
+                    debug!(circle = %self.id, "circle lock taken");
+                    return Ok(StoreLock { _file: file });
+                }
+                Err(std::fs::TryLockError::WouldBlock) if start.elapsed() < wait => {
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                }
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    warn!(circle = %self.id, "timed out waiting for the circle lock");
+                    return Err(io(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "another goway process is updating this circle",
+                    )));
+                }
+                Err(std::fs::TryLockError::Error(e)) => return Err(io(e)),
+            }
+        }
+    }
+
+    /// Accept `offered` as the new roster under the writer lock (taken here).
+    ///
+    /// Callers that loaded the roster first should hold [`Store::lock`] and use
+    /// [`Store::commit_locked`] so the load is inside the lock too.
+    pub fn commit(&self, offered: &[Op], sink: &dyn FileSink) -> Result<(), StoreError> {
+        let guard = self.lock()?;
+        self.commit_locked(&guard, offered, sink)
+    }
+
     /// Accept `offered` as the new roster: refuse a rollback, then write ops and heads.
     ///
     /// The offer must hold exactly one genesis whose id matches this store.
-    pub fn commit(&self, offered: &[Op], sink: &dyn FileSink) -> Result<(), StoreError> {
+    pub fn commit_locked(
+        &self,
+        _lock: &StoreLock,
+        offered: &[Op],
+        sink: &dyn FileSink,
+    ) -> Result<(), StoreError> {
         let genesis: Vec<String> = offered
             .iter()
             .filter(|o| o.kind == Kind::Genesis)
@@ -168,6 +235,7 @@ impl Store {
             return Err(StoreError::NoGenesis);
         }
         accept_roster(&self.seen_heads()?, offered)?;
+        accept_superset(&self.ops()?, offered)?;
         let mut text = String::new();
         for op in offered {
             text.push_str(&op.to_line());
@@ -223,6 +291,56 @@ mod tests {
 
     // frob:tests crates/goway-circle/src/store.rs::Store
     #[test]
+    fn concurrent_writers_serialise_and_none_is_lost() {
+        let dir = tempfile::tempdir().unwrap();
+        let admin = FakeCrypto::new("admin");
+        let g = genesis(&admin);
+        let store = Store::for_genesis(dir.path(), &g.id());
+        store.commit(std::slice::from_ref(&g), &PlainSink).unwrap();
+        let threads: Vec<_> = (0..8)
+            .map(|i| {
+                let store = store.clone();
+                let admin = FakeCrypto::new("admin");
+                std::thread::spawn(move || {
+                    let guard = store.lock().unwrap();
+                    let mut ops = store.ops().unwrap();
+                    let name = format!("m{i}");
+                    let parents: Vec<String> = heads(&ops).into_iter().collect();
+                    let op = Op::signed(
+                        Kind::Admit,
+                        &[
+                            ("key", name.as_str()),
+                            ("name", name.as_str()),
+                            ("roles", "helper"),
+                            ("host_fp", ""),
+                        ],
+                        &parents,
+                        &[&admin],
+                    )
+                    .unwrap();
+                    ops.push(op);
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    store.commit_locked(&guard, &ops, &PlainSink).unwrap();
+                })
+            })
+            .collect();
+        for t in threads {
+            t.join().unwrap();
+        }
+        assert_eq!(store.ops().unwrap().len(), 9);
+    }
+
+    #[test]
+    fn a_held_lock_times_out_a_second_writer() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::for_genesis(dir.path(), "abcdef0123456789");
+        let _held = store.lock().unwrap();
+        let second = store.lock_for(std::time::Duration::from_millis(100));
+        assert!(matches!(second, Err(StoreError::Io { op: "lock", .. })));
+    }
+
+    // frob:tests crates/goway-circle/src/store.rs::Store
+    #[test]
     fn an_oversized_ops_file_is_refused_unread() {
         let dir = tempfile::tempdir().unwrap();
         let store = Store::for_genesis(dir.path(), "abcdef0123456789");
@@ -258,6 +376,37 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, StoreError::Circle(_)), "{err}");
         assert_eq!(store.ops().unwrap().len(), 2);
+    }
+
+    // frob:tests crates/goway-circle/src/state.rs::accept_superset
+    #[test]
+    fn an_offer_keeping_the_head_but_dropping_an_ancestor_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let admin = FakeCrypto::new("admin");
+        let g = genesis(&admin);
+        let child = |k: &str, parent: &Op| {
+            Op::signed(
+                Kind::Admit,
+                &[
+                    ("key", k),
+                    ("name", k),
+                    ("roles", "helper"),
+                    ("host_fp", ""),
+                ],
+                &[parent.id()],
+                &[&admin],
+            )
+            .unwrap()
+        };
+        let a = child("a", &g);
+        let b = child("b", &a);
+        let store = Store::for_genesis(dir.path(), &g.id());
+        store
+            .commit(&[g.clone(), a.clone(), b.clone()], &PlainSink)
+            .unwrap();
+        let err = store.commit(&[g, b], &PlainSink).unwrap_err();
+        assert!(matches!(err, StoreError::Circle(_)), "{err}");
+        assert_eq!(store.ops().unwrap().len(), 3);
     }
 
     #[test]

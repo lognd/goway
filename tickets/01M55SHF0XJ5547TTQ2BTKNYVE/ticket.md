@@ -8,13 +8,13 @@ points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
 reporter = "lognd"
 created = "2026-10-17T20:41:03Z"
-updated = "2026-10-17T20:41:08Z"
+updated = "2026-10-17T20:57:27Z"
 idempotency_key = "audit-m7"
 scope = ["crates/goway/src/circle_admin.rs"]
 
 [[acceptance]]
 text = "Given admin cosign, when run, then the operation is shown and confirmed before signing"
-bound = false
+bound = true
 +++
 
 Render the op and require confirmation (or --yes).

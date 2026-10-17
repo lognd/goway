@@ -1,0 +1,51 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T20:45:49Z"
+digest = "5d84b3670aebff9983ddc6579143c4a2813b86618414c6b660ffb226144738b5"
+exit_code = 100
+failed_tests = ["backdated_revoke_of_honest_admin_cannot_undo_a_revoke"]
+inline = '''
+    Blocking waiting for file lock on build directory
+   Compiling goway-setup v0.2.0 (<worktree>/crates/goway-setup)
+   Compiling goway-journal v0.2.0 (<worktree>/crates/goway-journal)
+   Compiling goway-circle v0.2.0 (<worktree>/crates/goway-circle)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3m 16s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 58f86286-b12a-4ad4-9f3e-ce16469bbc62 with nextest profile: default
+    Starting 3 tests across 90 binaries (1169 tests skipped)
+        PASS [   0.009s] goway-circle::roster ops_signed_before_the_removal_still_count
+        FAIL [   0.009s] goway-circle::roster backdated_revoke_of_honest_admin_cannot_undo_a_revoke
+  output \u{2500}\u{2500}\u{2500}
+
+    running 1 test
+
+    thread 'backdated_revoke_of_honest_admin_cannot_undo_a_revoke' (60486) panicked at crates/goway-circle/tests/roster.rs:517:5:
+    assertion failed: s.admins.is_empty()
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+    test backdated_revoke_of_honest_admin_cannot_undo_a_revoke ... FAILED
+
+    failures:
+
+    failures:
+        backdated_revoke_of_honest_admin_cannot_undo_a_revoke
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 31 filtered out; finished in 0.00s
+
+
+  Cancelling due to test failure: 1 test still running
+        PASS [   0.012s] goway-circle::roster backdated_admin_additions_cannot_break_the_revoke_quorum
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.015s] 3 tests run: 2 passed, 1 failed, 1169 skipped
+        FAIL [   0.009s] goway-circle::roster backdated_revoke_of_honest_admin_cannot_undo_a_revoke
+error: test run failed
+'''
+passed = false
+provider = "nextest"
+ref = "-E 'test(backdated_revoke_of_honest_admin_cannot_undo_a_revoke) | test(backdated_admin_additions_cannot_break_the_revoke_quorum) | test(ops_signed_before_the_removal_still_count)'"
+size = 1785
+status = "measured"
+test_count = 3
+tests_digest = "26ab703cdf2a8df251b173de5d470ba90a22eec8dfbfdfa4b2ddcf761aa850e2"
+at = "2026-10-17T20:45:49Z"
+actor = "lognd"
+rev = 1

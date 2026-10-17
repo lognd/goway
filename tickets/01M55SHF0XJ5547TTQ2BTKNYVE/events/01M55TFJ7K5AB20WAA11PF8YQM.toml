@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T20:57:27Z"
+digest = "5a4e855b2988fd3a86618a4a47d03b8a647ba670039e728bae32f75a3b11e02b"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID fedbfddd-2f5e-4fc5-ab39-267481fa301c with nextest profile: default
+    Starting 1 test across 65 binaries (860 tests skipped)
+        PASS [   1.281s] goway::circle_admin three_admins_need_a_second_signature_to_add_a_fourth
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   1.283s] 1 test run: 1 passed, 860 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway -E 'test(=three_admins_need_a_second_signature_to_add_a_fourth)'"
+size = 566
+status = "measured"
+test_count = 1
+tests_digest = "72974dc526ac410b140bf1bea725b8ca7a2474f1d620049f828f210a8eccb8c9"
+at = "2026-10-17T20:57:27Z"
+actor = "lognd"
+rev = 1

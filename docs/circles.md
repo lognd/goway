@@ -107,13 +107,21 @@ State is computed by deterministic replay (the `fold` function of the model):
 - Each operation is validated against the state at its own point of replay.
   An invalid or unauthorized operation is ignored, not an error, so a bad
   operation cannot block the circle.
+- Removal dominates backdating. A valid `revoke` or `remove_admin` is judged
+  against the state of its own causal past (its ancestors). Every op signed by
+  the removed key that is not an ancestor of that removal is ignored, so a
+  stolen admin key cannot choose old parents to act "before" its revocation.
+  Two admins that remove each other concurrently are both removed (fail
+  closed): a stolen key can then brick the circle, which must be re-founded,
+  but it can never take it over or undo the honest revoke.
 - A revoked node key is tombstoned forever. A later `admit` of that key is
   ignored (remove wins). Re-joining takes a new key.
 - Merging two rosters is set union followed by replay. Operations
   authenticate themselves, so they may arrive over ssh, a pasted string or a
   USB stick; the transport is not trusted.
 - Anti-rollback: each node stores the heads it has seen per admin and refuses
-  a roster that lacks any of them. An explicit `--accept-reset` is the only
+  a roster that lacks any of them or any stored operation (head ids alone
+  are not enough, an ancestor such as a revoke could be omitted). An explicit `--accept-reset` is the only
   way past it.
 - Size caps: at most 4096 operations and 64 KiB per operation. Parsing is
   strict (unknown fields rejected), as with helper answers today.
@@ -134,7 +142,7 @@ A helper has, once, one line per admin in `authorized_keys`:
   The line is tagged `goway:<id>` and managed through `goway-journal`, so
   uninstall removes it. Windows uses `administrators_authorized_keys` through
   the existing elevated `goway-setup` path.
-- **Epoch**: bumping the epoch (on `revoke`, `remove_admin`) invalidates every
+- **Epoch**: bumping the epoch (on `revoke`, `remove_admin`, and `roles` removing the `lead` role) invalidates every
   outstanding certificate; admins reissue to the remaining leads. A helper
   learns the new epoch the next time any trusted member contacts it. The
   revocation window for an offline helper is therefore at most the
@@ -376,7 +384,7 @@ Last seen comes only from these pushes.
 | 1 | Mitigated | Quorum rules in `state.rs`; admin key may be agent or FIDO2 only (6.2) |
 | 2 | Fixed | `keys.rs::ensure_keypair` refuses loose modes, symlinks, writable key dirs (INV-CIRCLE-001); tests `loose_key_mode_is_refused`, `symlinked_key_is_refused`, `writable_key_dir_is_refused` |
 | 3 | Enforced | `lan.rs` size and count caps, CPace PAKE, single-use `ListenGuard`, timeouts |
-| 4 | Enforced | `Store::commit` and `accept_roster`; tests `rollback_is_refused_and_nothing_is_written`, `rollback_is_refused` |
+| 4 | Enforced | `Store::commit`, `accept_roster` and `accept_superset`; tests `rollback_is_refused_and_nothing_is_written`, `rollback_is_refused`, `an_offer_keeping_the_head_but_dropping_an_ancestor_is_refused` |
 | 5 | Out of scope | SECURITY.md |
 | 6 | Enforced | Principal `goway-lead:<circle>:e<epoch>` plus `principals=` pin; `sshcert.rs` `accepts` tests; pin mismatch refused (INV-CIRCLE-003) |
 | 7 | Mitigated | 5 minute backdate in `sshcert.rs`; doctor skew check |

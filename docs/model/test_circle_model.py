@@ -170,6 +170,39 @@ class RosterTests(unittest.TestCase):
         plain = m.sign("revoke", {"key": "X"}, (parent,), ("A",))
         self.assertIn("X", m.fold(set(ops) | {plain}).tombstones)
 
+    def two_admins(self):
+        """Genesis A, lead B, B made admin; return ops and the add_admin id."""
+        g = genesis()
+        b = admit("A", "B", "lead", (g.id,))
+        add = m.sign("add_admin", {"key": "B"}, (b.id,), ("A",))
+        return {g, b, add}, add.id
+
+    def test_backdated_revoke_cannot_undo_a_revoke(self):
+        ops, add = self.two_admins()
+        honest = m.sign("revoke", {"key": "A"}, (add,), ("B",))
+        backdated = m.sign("revoke", {"key": "B"}, (add,), ("A",))
+        s = m.fold(ops | {honest, backdated})
+        self.assertIn("A", s.tombstones)
+        self.assertEqual(s.admins, set())  # fail closed, attacker never wins
+        self.assertEqual(m.fold(ops | {backdated, honest}).admins, set())
+
+    def test_backdated_admin_additions_cannot_break_revoke_quorum(self):
+        ops, add = self.two_admins()
+        honest = m.sign("revoke", {"key": "A"}, (add,), ("B",))
+        evil = admit("A", "EVIL", "lead", (add,))
+        evil_admin = m.sign("add_admin", {"key": "EVIL"}, (evil.id,), ("A",))
+        s = m.fold(ops | {honest, evil, evil_admin})
+        self.assertEqual(s.admins, {"B"})
+        self.assertNotIn("EVIL", s.members)
+
+    def test_ops_signed_before_the_removal_still_count(self):
+        ops, add = self.two_admins()
+        early = admit("A", "H", "helper", (add,))
+        revoke = m.sign("revoke", {"key": "A"}, (early.id,), ("B",))
+        s = m.fold(ops | {early, revoke})
+        self.assertIn("H", s.members)
+        self.assertEqual(s.admins, {"B"})
+
     def test_missing_parent_is_ignored_not_fatal(self):
         g = genesis()
         orphan = admit("A", "X", "lead", ("deadbeef",))
@@ -190,6 +223,16 @@ class RosterTests(unittest.TestCase):
         known = m.heads({g, l, h})
         self.assertFalse(m.accept_roster(known, {g, l}))
         self.assertTrue(m.accept_roster(known, {g, l, h}))
+
+    def test_offer_dropping_an_ancestor_is_refused(self):
+        g, l, h = self.chain()
+        self.assertFalse(m.accept_superset({g, l, h}, {g, h}))
+        self.assertTrue(m.accept_superset({g, l, h}, {g, l, h}))
+
+    def test_removing_lead_role_bumps_epoch(self):
+        g, l, h = self.chain()
+        demote = m.sign("set_roles", {"key": "L", "roles": "helper"}, (h.id,), ("A",))
+        self.assertEqual(m.fold({g, l, h, demote}).epoch, m.fold({g, l, h}).epoch + 1)
 
     def test_merge_is_commutative_and_idempotent(self):
         g, l, h = self.chain()

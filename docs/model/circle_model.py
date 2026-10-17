@@ -79,7 +79,7 @@ def _admin_quorum(state: State, signers: tuple) -> bool:
     return len(good) >= need
 
 
-def _apply(state: State, op: Op) -> bool:
+def _apply(state: State, op: Op, forced: bool = False) -> bool:
     """Apply one op to state if valid at this point; return whether it applied."""
     if not sig_ok(op):
         log.warning("op %s rejected: bad signature", op.id[:8])
@@ -95,7 +95,7 @@ def _apply(state: State, op: Op) -> bool:
         return True
     if not state.circle:
         return False
-    is_admin = signer in state.admins
+    is_admin = forced or signer in state.admins
     if op.kind == "admit":
         key = body["key"]
         roles = set(body["roles"].split(","))
@@ -107,7 +107,7 @@ def _apply(state: State, op: Op) -> bool:
         key = body["key"]
         if not is_admin or key == signer:
             return False
-        if key in state.admins and not _admin_quorum(state, op.signers):
+        if not forced and key in state.admins and not _admin_quorum(state, op.signers):
             return False
         state.members.pop(key, None)
         state.admins.discard(key)
@@ -121,18 +121,20 @@ def _apply(state: State, op: Op) -> bool:
             return False
         if key in state.admins and "lead" not in roles:
             return False
+        if "lead" in state.members[key]["roles"] and "lead" not in roles:
+            state.epoch += 1
         state.members[key]["roles"] = roles
         return True
     if op.kind == "add_admin":
         key = body["key"]
         member = state.members.get(key)
-        if not _admin_quorum(state, op.signers) or member is None or "lead" not in member["roles"]:
+        if not (forced or _admin_quorum(state, op.signers)) or member is None or "lead" not in member["roles"]:
             return False
         state.admins.add(key)
         return True
     if op.kind == "remove_admin":
         key = body["key"]
-        if not _admin_quorum(state, op.signers) or key not in state.admins or len(state.admins) < 2:
+        if not (forced or _admin_quorum(state, op.signers)) or key not in state.admins or len(state.admins) < 2:
             return False
         state.admins.discard(key)
         state.epoch += 1
@@ -147,12 +149,43 @@ def _apply(state: State, op: Op) -> bool:
     return False
 
 
-def fold(ops: set) -> State:
-    """Replay ops deterministically; the result depends only on the op set."""
+def _ancestors(ops: dict, op_id: str) -> Optional[set]:
+    """Return strict ancestors of op_id, or None when one has a parent outside ops."""
+    seen: set = set()
+    stack = list(ops[op_id].parents)
+    while stack:
+        p = stack.pop()
+        if p not in ops:
+            return None
+        if p not in seen:
+            seen.add(p)
+            stack.extend(ops[p].parents)
+    return seen
+
+
+def _derive(ops: dict, verdicts: dict) -> tuple:
+    """Return (excluded, forced) ids from removals already judged valid in their own past.
+
+    A key a valid removal takes out loses every op it signed that does not causally precede
+    that removal, so it cannot backdate parents to act before its own revocation. Admin-vs-admin
+    removals stay in force even if the other side is removed too (fail closed).
+    """
+    forced = {r for r, v in verdicts.items() if r in ops and v["admin_target"]}
+    excluded: set = set()
+    for rid, v in verdicts.items():
+        if rid not in ops:
+            continue
+        for oid, op in ops.items():
+            if (oid != rid and op.kind != "genesis" and oid not in v["anc"]
+                    and oid not in forced and v["target"] in op.signers):
+                excluded.add(oid)
+    return excluded, forced
+
+
+def _replay(ops: dict, excluded: set, forced: set) -> State:
+    """Kahn-layer replay of ops, skipping excluded ids and forcing the forced removals."""
     state = State()
-    pending = {o.id: o for o in ops if sig_ok(o)}
-    if len(pending) > MAX_OPS:
-        raise ValueError("too many ops")
+    pending = dict(ops)
     done: set = set()
     while pending:
         ready = [o for o in pending.values() if all(p in done for p in o.parents)]
@@ -161,11 +194,40 @@ def fold(ops: set) -> State:
             break
         ready.sort(key=lambda o: (o.kind not in REMOVING, o.id))
         for op in ready:
-            _apply(state, op)
+            if op.id not in excluded:
+                _apply(state, op, op.id in forced)
             done.add(op.id)
             del pending[op.id]
     state.applied = done
     return state
+
+
+def _resolve(ops: dict) -> tuple:
+    """Judge every removal against the state of its own causal past, smallest past first."""
+    removals = []
+    for oid, op in ops.items():
+        anc = _ancestors(ops, oid) if op.kind in REMOVING else None
+        if anc is not None:
+            removals.append((len(anc), oid, anc))
+    verdicts: dict = {}
+    for _, oid, anc in sorted(removals, key=lambda r: (r[0], r[1])):
+        op = ops[oid]
+        target = dict(op.body).get("key")
+        past = {a: ops[a] for a in anc}
+        state = _replay(past, *_derive(past, verdicts))
+        admin_target = target in state.admins
+        if _apply(state, op):
+            verdicts[oid] = {"target": target, "admin_target": admin_target, "anc": anc}
+    return _derive(ops, verdicts)
+
+
+def fold(ops: set) -> State:
+    """Replay ops deterministically; the result depends only on the op set."""
+    pending = {o.id: o for o in ops if sig_ok(o)}
+    if len(pending) > MAX_OPS:
+        raise ValueError("too many ops")
+    excluded, forced = _resolve(pending)
+    return _replay(pending, excluded, forced)
 
 
 def merge(a: set, b: set) -> set:
@@ -185,6 +247,14 @@ def accept_roster(known_heads: set, offered: set) -> bool:
     ok = known_heads <= ids
     if not ok:
         log.error("rollback refused: offered roster lacks known heads")
+    return ok
+
+
+def accept_superset(stored: set, offered: set) -> bool:
+    """Anti-rollback by ancestry: the offer must contain every stored op."""
+    ok = {o.id for o in stored} <= {o.id for o in offered}
+    if not ok:
+        log.error("rollback refused: offered roster lacks stored ops")
     return ok
 
 
