@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T20:45:27Z"
+digest = "8349e8a41372273a07bab45c27edebde20eb08ffc8afcd9839936372d4a9eb63"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID d3234d27-eb4b-4c36-afc2-b7b369701da3 with nextest profile: default
+    Starting 1 test across 4 binaries (94 tests skipped)
+        PASS [   0.509s] goway-circle passphrase::tests::passphrase_unlock_check_accepts_only_the_right_one
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.509s] 1 test run: 1 passed, 94 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E 'test(passphrase_unlock_check_accepts_only_the_right_one)'"
+size = 573
+status = "measured"
+test_count = 1
+tests_digest = "925735b4eaddc64cca9be6115a96f54fa12be30e1dc9e0d054cb4075ce2ee7b3"
+at = "2026-10-17T20:45:27Z"
+actor = "lognd"
+rev = 1

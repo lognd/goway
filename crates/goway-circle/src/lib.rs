@@ -39,7 +39,7 @@ pub use op::{Kind, MAX_OP_BYTES, MAX_OPS, Op, Sig, parse_ops};
 pub use pairing::{Card, Welcome, decode_blob, encode_blob, valid_name, valid_roles};
 pub use passphrase::{
     FixedPassphrase, Passphrase, PassphraseSource, ScriptedPassphrase, TtyPrompt,
-    ask_new_passphrase, key_is_encrypted,
+    ask_new_passphrase, key_is_encrypted, passphrase_unlocks_key,
 };
 pub use sshcert::{
     ParsedCert, Policy, Rejection, accepts, authority_lines, lead_principal, line_marker,
