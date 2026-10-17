@@ -1,0 +1,1 @@
+Re-running the installer over an existing install now upgrades the goway binary in place and updates the install journal, instead of telling you to uninstall first; a binary you changed by hand is refused and named.

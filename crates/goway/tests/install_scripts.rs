@@ -125,6 +125,7 @@ fn newer_build(dir: &Path) -> PathBuf {
     new
 }
 
+/// frob:ticket 01M45D6N5HJJ6VVK0XNQYFK0KC
 #[test]
 fn a_changed_binary_is_kept_and_an_upgrade_over_it_is_refused() {
     let home = tempfile::tempdir().unwrap();
@@ -154,6 +155,7 @@ fn rerunning_the_same_build_changes_nothing() {
     assert_eq!(snapshot(home.path()), before);
 }
 
+/// frob:ticket 01M45D6N5HJJ6VVK0XNQYFK0KC
 #[test]
 fn a_newer_build_upgrades_in_place_and_uninstall_stays_exact() {
     let home = tempfile::tempdir().unwrap();
