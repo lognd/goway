@@ -7,12 +7,12 @@ priority = "high"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T06:49:44Z"
-updated = "2026-10-17T08:58:22Z"
+updated = "2026-10-17T08:59:46Z"
 scope = ["scripts/install.sh", "crates/goway/tests/install_scripts.rs"]
 
 [[acceptance]]
 text = "Given an install recorded in the install journal, When install.sh runs again with a newer release, Then it replaces the binary, updates the journal, and goway --version shows the new version"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Given the installed binary was changed by hand (hash differs from the journal), When install.sh runs, Then it refuses and names the file"
