@@ -2,7 +2,8 @@
 id = "01M44QABBBGGQFS25HF0RKW5RF"
 title = "Doctor's Windows facts probe runs rustup and vswhere with no server-side time limit"
 type = "bug"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 1
 reporter = "lognd"
