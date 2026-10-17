@@ -13,6 +13,10 @@ scope = ["crates/goway/src/remote.sh", "crates/goway/src/pool.rs", "crates/goway
 [[acceptance]]
 text = "the_probe_reports_running_jobs_per_repository passes"
 bound = false
+
+[[acceptance]]
+text = "a_repository_with_no_peak_is_held_only_behind_its_own_runs passes"
+bound = false
 +++
 
 Found while working ~9SKK7DR: with no peak on any host a repository is admitted only to a host running no goway jobs, because the probe counts jobs without saying which repository they belong to. A per-repository running count would hold it only behind its own runs.
