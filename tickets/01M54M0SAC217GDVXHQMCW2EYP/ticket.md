@@ -2,7 +2,8 @@
 id = "01M54M0SAC217GDVXHQMCW2EYP"
 title = "goway-setup: journal the distro goway symlink and run native join as the sshd account"
 type = "task"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "medium"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
