@@ -18,7 +18,6 @@ use goway_circle::{
     key_is_encrypted, read_public_key, valid_roles,
 };
 
-use crate::changelog;
 use crate::cli::{
     CircleAdmitArgs, CircleCardArgs, CircleCommand, CircleInitArgs, CircleJoinArgs,
     CircleRevokeArgs, CircleRolesArgs, CircleSelect, CircleSyncArgs,
@@ -53,21 +52,20 @@ pub(crate) fn admin_key_path(paths: &Paths) -> PathBuf {
     circle_dir(paths).join("admin_ed25519")
 }
 
-/// A [`goway_circle::FileSink`] that records each write in the config dir's change log.
-struct JournalSink {
-    log_dir: PathBuf,
+/// The sink for circle store writes. Deliberately not journaled: `goway undo` restoring an older
+/// `ops.jsonl` or `heads.json` would bypass anti-rollback (see `changelog::undo`).
+fn sink(_paths: &Paths) -> goway_circle::PlainSink {
+    goway_circle::PlainSink
 }
 
-impl goway_circle::FileSink for JournalSink {
-    fn write(&self, path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-        changelog::write_file_in(&self.log_dir, path, bytes).map_err(std::io::Error::other)
-    }
-}
-
-fn sink(paths: &Paths) -> JournalSink {
-    JournalSink {
-        log_dir: paths.config_dir.clone(),
-    }
+/// Parent ids for a new op: the heads of the ops the fold applied, never an unverified one.
+pub(crate) fn applied_heads(ops: &[Op], state: &State) -> Vec<String> {
+    let kept: Vec<Op> = ops
+        .iter()
+        .filter(|o| state.applied.contains(&o.id()))
+        .cloned()
+        .collect();
+    goway_circle::heads(&kept).into_iter().collect()
 }
 
 /// Load or create a key pair under the circle dir; tightens the ACL of a new key on Windows.
@@ -403,7 +401,7 @@ pub fn admit(paths: &Paths, renderer: Renderer, args: &CircleAdmitArgs) -> Resul
             ("roles", card.roles.as_str()),
             ("host_fp", card.host_fp.as_str()),
         ],
-        &goway_circle::heads(&ops).into_iter().collect::<Vec<_>>(),
+        &applied_heads(&ops, &state),
         &[&signer as &dyn Signer],
     )?;
     let key = card.key.clone();
@@ -569,7 +567,7 @@ fn admin_op(
     let op = Op::signed(
         kind,
         &body,
-        &goway_circle::heads(&ops).into_iter().collect::<Vec<_>>(),
+        &applied_heads(&ops, &state),
         &[&signer as &dyn Signer],
     )?;
     append_checked(paths, &store, ops, op, |s| applied(s, &key), refusal)?;
@@ -694,6 +692,20 @@ pub fn sync_roster(paths: &Paths, renderer: Renderer, args: &CircleSyncArgs) -> 
     let (store, ops, _) = load(paths, args.circle.as_deref())?;
     let merged = goway_circle::merge(&ops, &offered);
     let state = fold(&merged, &SshKeygenVerifier)?;
+    // Keep what is already stored, and of the offer only ops the fold reached: an op with a bad
+    // signature or a missing parent must not become a head that later ops cite.
+    let stored: BTreeSet<String> = ops.iter().map(Op::id).collect();
+    let merged: Vec<Op> = merged
+        .into_iter()
+        .filter(|o| {
+            let id = o.id();
+            let keep = stored.contains(&id) || state.applied.contains(&id);
+            if !keep {
+                tracing::warn!(op = %id, "offered op dropped: it did not verify or apply");
+            }
+            keep
+        })
+        .collect();
     if merged.len() == ops.len() {
         tracing::debug!(circle = store.id(), "offered roster adds nothing");
     } else {
@@ -883,6 +895,7 @@ pub fn run(paths: &Paths, renderer: Renderer, command: &CircleCommand) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::changelog;
     use crate::render::ColorWhen;
     use goway_circle::ScriptedPassphrase;
 
@@ -1146,7 +1159,7 @@ mod tests {
     }
 
     #[test]
-    fn keys_are_private_and_changes_are_journaled() {
+    fn keys_are_private_and_roster_writes_are_not_journaled() {
         let p = pair();
         #[cfg(unix)]
         {
@@ -1156,9 +1169,10 @@ mod tests {
                 assert_eq!(mode & 0o077, 0, "{}", key.display());
             }
         }
-        let log = std::fs::read_to_string(changelog::journal_path(&p.admin.config_dir)).unwrap();
-        assert!(log.contains("ops.jsonl"), "{log}");
-        assert!(!log.contains("PRIVATE KEY"));
+        let log = changelog::journal_path(&p.admin.config_dir);
+        let text = std::fs::read_to_string(&log).unwrap_or_default();
+        assert!(!text.contains("ops.jsonl"), "{text}");
+        assert!(!text.contains("PRIVATE KEY"));
     }
 
     // frob:tests crates/goway/src/circle.rs::offered_text
@@ -1247,5 +1261,75 @@ mod tests {
     #[test]
     fn machine_name_is_a_valid_label() {
         assert!(goway_circle::valid_name(&machine_name()));
+    }
+
+    /// An op signed by this admin that cites a parent nobody has: it never reaches the fold.
+    fn orphan_op(p: &Paths) -> Op {
+        let pair = key_pair(&admin_key_path(p), quiet()).unwrap();
+        let signer = signer_for(&pair).unwrap();
+        Op::signed(
+            Kind::Admit,
+            &[("key", "ssh-ed25519 AAAA"), ("name", "ghost")],
+            &["deadbeef".repeat(8)],
+            &[&signer as &dyn Signer],
+        )
+        .unwrap()
+    }
+
+    // frob:tests crates/goway/src/circle.rs::sync_roster
+    #[test]
+    fn sync_drops_an_offered_op_that_never_applies() {
+        let p = pair();
+        let (store, mut ops, _) = load(&p.admin, None).unwrap();
+        let before = ops.len();
+        let stored_heads = goway_circle::heads(&ops);
+        ops.push(orphan_op(&p.admin));
+        let text = ops.iter().map(Op::to_line).collect::<Vec<_>>().join("\n");
+        sync_roster(
+            &p.admin,
+            quiet(),
+            &CircleSyncArgs {
+                ops: URL_SAFE_NO_PAD.encode(text),
+                circle: None,
+            },
+        )
+        .unwrap();
+        let after = store.ops().unwrap();
+        assert_eq!(after.len(), before, "the orphan must not be stored");
+        assert_eq!(goway_circle::heads(&after), stored_heads);
+    }
+
+    // frob:tests crates/goway/src/circle.rs::applied_heads
+    #[test]
+    fn parents_come_from_applied_ops_only() {
+        let p = pair();
+        let (_, mut ops, state) = load(&p.admin, None).unwrap();
+        let real = goway_circle::heads(&ops).into_iter().collect::<Vec<_>>();
+        ops.push(orphan_op(&p.admin));
+        assert_eq!(applied_heads(&ops, &state), real);
+    }
+
+    #[test]
+    fn roster_writes_stay_out_of_the_change_log() {
+        let p = pair();
+        let card = make_card(&p.joiner, quiet(), &card_args("box")).unwrap();
+        admit(
+            &p.admin,
+            quiet(),
+            &admit_args(&card, Some(&card.fingerprint)),
+        )
+        .unwrap();
+        let log = changelog::journal_path(&p.admin.config_dir);
+        if log.exists() {
+            let text = std::fs::read_to_string(&log).unwrap();
+            assert!(!text.contains("ops.jsonl"), "{text}");
+            assert!(!text.contains("heads.json"), "{text}");
+        }
+        assert!(
+            circles_dir(&p.admin)
+                .join(&p.id)
+                .join("ops.jsonl")
+                .is_file()
+        );
     }
 }

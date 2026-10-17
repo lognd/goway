@@ -112,7 +112,7 @@ pub fn propose(
             format!("`{}` is not an admin", args.name)
         }));
     }
-    let parents = goway_circle::heads(&ops).into_iter().collect::<Vec<_>>();
+    let parents = crate::circle::applied_heads(&ops, &state);
     let body = [("key", key.as_str())];
     let applied = |s: &State| s.admins.contains(&key) == adding;
     let refusal = "the roster refused this admin change (the member must be a lead; the last admin cannot be removed)";

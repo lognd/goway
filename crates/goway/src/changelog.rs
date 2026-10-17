@@ -297,6 +297,19 @@ pub fn settle_from(dir: &Path, from: usize) -> Result<()> {
     }
 }
 
+/// True for a journaled write under the circle store (`circle/circles/`), which undo must not
+/// restore: an older `ops.jsonl` or `heads.json` would roll the roster back.
+fn is_circle_store(entry: &Entry) -> bool {
+    let Change::WriteFile { path, .. } = &entry.change else {
+        return false;
+    };
+    let parts: Vec<_> = path.components().collect();
+    parts.windows(2).any(|w| {
+        w[0].as_os_str() == std::ffi::OsStr::new("circle")
+            && w[1].as_os_str() == std::ffi::OsStr::new("circles")
+    })
+}
+
 /// What `undo` did with one entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Undone {
@@ -342,7 +355,26 @@ pub fn undo_with(
     let (fixes, local): (Vec<usize>, Vec<usize>) = take
         .iter()
         .partition(|&&i| pinned_of(&journal.entries[i]).is_some());
+    let (sealed, local): (Vec<usize>, Vec<usize>) = local
+        .into_iter()
+        .partition(|&i| is_circle_store(&journal.entries[i]));
     let mut done = Vec::new();
+    for &index in &sealed {
+        // Restoring an older roster would bypass anti-rollback; settle the entry, change nothing.
+        tracing::warn!(
+            entry = index + 1,
+            "circle roster write not undone: not reversible"
+        );
+        journal.entries[index].reverted = true;
+        done.push(Undone {
+            number: index + 1,
+            what: describe(&journal.entries[index]),
+            outcome: Outcome::NotReversible(
+                "circle rosters are not rolled back; revoke a member with `goway circle revoke`"
+                    .to_owned(),
+            ),
+        });
+    }
     if !local.is_empty() {
         let mut part = Journal {
             entries: local.iter().map(|&i| journal.entries[i].clone()).collect(),
@@ -518,4 +550,33 @@ pub fn undo_command(paths: &Paths, renderer: Renderer, last: usize, all: bool) -
         }
     }
     Ok(code)
+}
+
+#[cfg(test)]
+mod circle_store_tests {
+    use super::*;
+
+    // frob:tests crates/goway/src/changelog.rs::undo
+    #[test]
+    fn undo_never_restores_a_circle_roster_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let ops = dir
+            .path()
+            .join("circle")
+            .join("circles")
+            .join("abc")
+            .join("ops.jsonl");
+        std::fs::create_dir_all(ops.parent().unwrap()).unwrap();
+        std::fs::write(&ops, "old\n").unwrap();
+        let log = journal_path(dir.path());
+        Journal::record_write_at(&log, &ops, Some("old\n".to_owned()), "new\n").unwrap();
+        crate::config::write_atomic(&ops, b"new\n").unwrap();
+        let done = undo(dir.path(), None).unwrap();
+        assert_eq!(done.len(), 1);
+        assert!(
+            matches!(done[0].outcome, Outcome::NotReversible(_)),
+            "{done:?}"
+        );
+        assert_eq!(std::fs::read_to_string(&ops).unwrap(), "new\n");
+    }
 }
