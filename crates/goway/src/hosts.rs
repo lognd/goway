@@ -743,6 +743,23 @@ mod tests {
     }
 
     // frob:tests crates/goway/src/hosts.rs::is_windows_banner
+    // frob:tests crates/goway/src/hosts.rs::read_banner
+    #[test]
+    fn a_banner_reader_gets_the_first_line_a_server_sends() {
+        use std::io::Write as _;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            let (mut c, _) = listener.accept().unwrap();
+            c.write_all(b"SSH-2.0-OpenSSH_for_Windows_9.5\r\n").unwrap();
+        });
+        assert_eq!(
+            read_banner("127.0.0.1", port).as_deref(),
+            Some("SSH-2.0-OpenSSH_for_Windows_9.5")
+        );
+    }
+
+    // frob:tests crates/goway/src/hosts.rs::is_windows_banner
     #[test]
     fn windows_banner_is_recognised() {
         assert!(is_windows_banner("SSH-2.0-OpenSSH_for_Windows_9.5"));
