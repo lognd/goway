@@ -2,7 +2,8 @@
 id = "01M55SHEX3HH4R2RFHA2Z7M6QZ"
 title = "Audit M2: roster read-merge-write is not locked, concurrent sync can lose a revoke"
 type = "security"
-category = "in-progress"
+category = "done"
+outcome = "done"
 priority = "high"
 points = 3
 parent = "01M54433AG8J1V0GYT3ZWY9C9A"
