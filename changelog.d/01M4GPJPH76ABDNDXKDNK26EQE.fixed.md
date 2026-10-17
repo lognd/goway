@@ -1,0 +1,1 @@
+The fitted memory estimate now carries a documented 15% safety margin above its line, so a run whose peak scatters above the line (3.7 GiB estimated, 4.2 GiB used on the small helper) is no longer under-estimated.
