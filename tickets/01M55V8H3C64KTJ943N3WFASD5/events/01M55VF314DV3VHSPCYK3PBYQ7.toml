@@ -1,0 +1,25 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T21:14:41Z"
+digest = "bf1dc8ced349dbf5e6533f403ee0f87ccda6bb13d44275f4965b7499590044e8"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.49s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 86327778-b744-4495-9ae7-5e4710d0382d with nextest profile: default
+    Starting 1 test across 15 binaries (166 tests skipped)
+        PASS [   0.005s] goway-setup::hostsys a_large_welcome_never_appears_in_argv
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.006s] 1 test run: 1 passed, 166 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup -E 'test(a_large_welcome_never_appears_in_argv)'"
+size = 606
+status = "measured"
+test_count = 1
+tests_digest = "806ad2d37b435e8f1fc55fce5f9b966ff1f7f8f0137cbaaef514426cc8cad8d5"
+at = "2026-10-17T21:14:41Z"
+actor = "lognd"
+rev = 1

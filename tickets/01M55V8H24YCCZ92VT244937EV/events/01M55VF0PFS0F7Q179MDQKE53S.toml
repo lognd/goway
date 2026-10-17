@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T21:14:39Z"
+digest = "39348937e98d1a0e49618fd03f473fdaa6460354a6c2b3a68635763c146a6543"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 195c01b8-7675-4f01-96e2-eec8c2104b95 with nextest profile: default
+    Starting 1 test across 4 binaries (103 tests skipped)
+        PASS [   0.016s] goway-circle sshcert::tests::lines_are_restricted_and_replace_the_old_epoch
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.017s] 1 test run: 1 passed, 103 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-circle -E 'test(lines_are_restricted)'"
+size = 568
+status = "measured"
+test_count = 1
+tests_digest = "8620b1223b1159b23a26510387dc928aaf04696ba7d3158333b749cfe69bb806"
+at = "2026-10-17T21:14:39Z"
+actor = "lognd"
+rev = 1
