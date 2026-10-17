@@ -7,8 +7,8 @@ priority = "medium"
 points = 3
 reporter = "lognd"
 created = "2026-10-17T06:06:07Z"
-updated = "2026-10-17T11:44:55Z"
-scope = ["crates/goway-circle/src/lan.rs"]
+updated = "2026-10-17T11:44:59Z"
+scope = ["crates/goway-circle/src/lan.rs", "crates/goway-circle/**", "crates/goway/src/lanpair.rs", "docs/circles.md", "README.md", "Cargo.lock"]
 
 [[acceptance]]
 text = "A correct one-time code plus admin approval admits the machine over loopback"
