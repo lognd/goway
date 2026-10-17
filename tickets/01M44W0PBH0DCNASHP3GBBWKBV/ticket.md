@@ -2,12 +2,12 @@
 id = "01M44W0PBH0DCNASHP3GBBWKBV"
 title = "A short Windows run warns that its lifeline broke although the job finished normally"
 type = "bug"
-category = "todo"
+category = "in-progress"
 priority = "medium"
 points = 2
 reporter = "lognd"
 created = "2026-10-05T01:49:23Z"
-updated = "2026-10-05T01:49:23Z"
+updated = "2026-10-17T08:41:03Z"
 scope = ["crates/goway/src/run.rs"]
 
 [[acceptance]]
