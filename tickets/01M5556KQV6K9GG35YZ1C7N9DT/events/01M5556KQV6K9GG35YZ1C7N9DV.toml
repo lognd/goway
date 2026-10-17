@@ -1,0 +1,13 @@
+kind = "create"
+title = "run_admin keygen arm has no test"
+type = "task"
+category = "todo"
+priority = "low"
+points = 1
+parent = "01M54433AG8J1V0GYT3ZWY9C9A"
+idempotency_key = "gap-keygen"
+labels = ["circles"]
+acceptance = ["Given the run_admin keygen arm, when the suite runs, then a test exercises it"]
+at = "2026-10-17T14:45:35Z"
+actor = "lognd"
+rev = 1
