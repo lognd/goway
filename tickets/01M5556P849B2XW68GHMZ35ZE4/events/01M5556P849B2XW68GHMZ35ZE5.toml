@@ -1,0 +1,13 @@
+kind = "create"
+title = "render_misses lacks the Windows hint"
+type = "task"
+category = "todo"
+priority = "low"
+points = 1
+parent = "01M54433AG8J1V0GYT3ZWY9C9A"
+idempotency_key = "gap-misses"
+labels = ["circles"]
+acceptance = ["Given render_misses on Windows, when a tool is missing, then the Windows hint is shown"]
+at = "2026-10-17T14:45:38Z"
+actor = "lognd"
+rev = 1
