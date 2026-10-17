@@ -1,0 +1,27 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T07:45:10Z"
+digest = "fbde74ed40deed97d6cdee7acb35adf259543df720a76c174e0d836eb2b9950c"
+exit_code = 0
+inline = '''
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 26s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 6895431e-2b9e-4514-9fbd-d36748bb33ea with nextest profile: default
+    Starting 3 tests across 15 binaries (156 tests skipped)
+        PASS [   0.005s] goway-setup::hostsys a_failed_join_stops_before_access
+        PASS [   0.006s] goway-setup::helper join_needs_a_whole_welcome_and_a_fingerprint
+        PASS [   0.006s] goway-setup::hostsys joining_runs_join_then_access_as_the_user
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.007s] 3 tests run: 3 passed, 156 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup -E test(join)"
+size = 783
+status = "measured"
+test_count = 3
+tests_digest = "4bb1f01e13a55ce376c360bd189c815634e27d3194a644ff3afe68ede603ccce"
+at = "2026-10-17T07:45:10Z"
+actor = "lognd"
+rev = 1

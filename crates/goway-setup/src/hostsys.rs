@@ -528,6 +528,33 @@ impl<R: Runner> HostSystem<R> {
         }
     }
 
+    /// Join the circle in `welcome` as the distro's default user (`goway circle join`, confirmed
+    /// by `fingerprint`), then install its access lines (`goway circle access`); returns the
+    /// last command's output.
+    pub fn join_circle(&self, welcome: &str, fingerprint: &str) -> SysResult<String> {
+        for argv in [
+            vec![
+                "goway",
+                "circle",
+                "join",
+                welcome,
+                "--fingerprint",
+                fingerprint,
+            ],
+            vec!["goway", "circle", "access"],
+        ] {
+            let out = self.wsl_user(&argv)?;
+            if !out.success() {
+                return Err(cmd_error("wsl goway circle", &out));
+            }
+            tracing::info!(step = argv[2], "circle step done in the distro");
+            if argv[2] == "access" {
+                return Ok(out.text());
+            }
+        }
+        unreachable!("the loop returns at the access step")
+    }
+
     /// Whether systemd runs as PID 1 in the distro.
     pub fn systemd_running(&self) -> SysResult<bool> {
         let out = self.wsl_raw(&["ps", "-p", "1", "-o", "comm="], None)?;

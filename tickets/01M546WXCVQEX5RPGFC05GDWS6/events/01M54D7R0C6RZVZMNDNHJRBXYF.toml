@@ -1,0 +1,7 @@
+kind = "field"
+field = "labels"
+old = ["circles", "creates:changelog.d/01M54C1N7Q3XK8D2V5R9T4WS6B.added.md"]
+new = ["circles", "creates:changelog.d/01M546WXCVQEX5RPGFC05GDWS6.added.md"]
+at = "2026-10-17T07:46:47Z"
+actor = "lognd"
+rev = 1

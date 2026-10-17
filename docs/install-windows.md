@@ -26,6 +26,10 @@ If an older build prompts just to start, see "Installation problems" in docs/tro
 
     goway-setup.exe install --host
 
+To make this helper join a circle in the same step (see `docs/circles.md`), add
+`--join <welcome> --join-fingerprint <fp>`; after the install it runs `goway circle join` and
+`goway circle access` inside the distro.
+
 Windows asks permission once (the administrator prompt); say yes. What you are asked: nothing else,
 except possibly "Restart WSL now? [y/N]". Answer `n` (the default) if you have Linux windows open: the
 restart closes them, and the installer then prints the exact command to run when you are ready.

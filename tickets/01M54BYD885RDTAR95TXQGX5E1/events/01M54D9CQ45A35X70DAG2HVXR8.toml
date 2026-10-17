@@ -1,0 +1,29 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T07:47:40Z"
+digest = "84245e0608a998337ffa94f56b5f89f3becf9e07626e0780908826082439c814"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID bda2e409-5611-490e-8479-317fc1f3dbed with nextest profile: default
+    Starting 6 tests across 1 binary (89 binaries skipped)
+        PASS [   0.006s] goway::circle_revoke_now ago_words
+        PASS [   0.009s] goway::circle_revoke_now offer_command_carries_the_roster_and_is_size_capped
+        PASS [   0.178s] goway::circle_revoke_now revoke_without_now_contacts_nobody
+        PASS [   0.413s] goway::circle_revoke_now an_old_roster_cannot_roll_a_helper_back
+        PASS [   0.478s] goway::circle_revoke_now revoke_now_pushes_to_reachable_helpers_and_records_last_seen
+        PASS [   0.483s] goway::circle_revoke_now pushed_roster_makes_a_stale_helper_adopt_the_revoke
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.484s] 6 tests run: 6 passed, 0 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-E binary(circle_revoke_now)"
+size = 1017
+status = "measured"
+test_count = 6
+tests_digest = "5de0f11a0e936b3a20a2efa6e31a4be503b14eee84843e1be96ff63551df9271"
+at = "2026-10-17T07:47:40Z"
+actor = "lognd"
+rev = 1

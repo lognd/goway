@@ -353,3 +353,25 @@ fn the_add_command_is_shell_quoted() {
     assert!(cmd.contains("'n; id'"));
     assert!(cmd.contains("'a b'"));
 }
+
+// frob:tests crates/goway-setup/src/helper.rs::validate_join
+// frob:tests crates/goway-setup/src/helper.rs::join_command
+#[test]
+fn join_needs_a_whole_welcome_and_a_fingerprint() {
+    use goway_setup::helper::{join_command, validate_join};
+    assert_eq!(validate_join(None, None).unwrap(), None);
+    let ok = validate_join(Some(" gww1.ABC234 "), Some(FP))
+        .unwrap()
+        .unwrap();
+    assert_eq!(ok, ("gww1.ABC234".to_owned(), FP.to_owned()));
+    assert!(validate_join(Some("gww1.ABC234"), None).is_err());
+    assert!(validate_join(None, Some(FP)).is_err());
+    assert!(validate_join(Some("gwc1.ABC"), Some(FP)).is_err());
+    assert!(validate_join(Some("gww1."), Some(FP)).is_err());
+    assert!(validate_join(Some("gww1.AB CD"), Some(FP)).is_err());
+    assert!(validate_join(Some("gww1.ABC"), Some("nope")).is_err());
+    assert!(
+        join_command("gww1.ABC", FP)
+            .starts_with("goway circle join gww1.ABC --fingerprint SHA256:")
+    );
+}

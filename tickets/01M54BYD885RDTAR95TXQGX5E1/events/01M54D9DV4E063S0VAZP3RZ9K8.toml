@@ -1,0 +1,24 @@
+kind = "evidence"
+accepts = [1]
+captured_at = "2026-10-17T07:47:41Z"
+digest = "3c872897eb67e16494b6b1eacc41615008ec749254f88a702e1779e6ff937aef"
+exit_code = 0
+inline = '''
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID 8870b0c1-fdb5-4d32-8faa-347e076d3d3e with nextest profile: default
+    Starting 1 test across 90 binaries (1127 tests skipped)
+        PASS [   0.660s] goway::circle_revoke_now pushed_roster_makes_a_stale_helper_adopt_the_revoke
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.663s] 1 test run: 1 passed, 1127 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "pushed_roster_makes_a_stale_helper_adopt_the_revoke"
+size = 572
+status = "measured"
+test_count = 1
+tests_digest = "8de8ccdefcf2ddb5b8a5ac847f1023301821e0a53101f0707d7a5ef6be4e00bb"
+at = "2026-10-17T07:47:41Z"
+actor = "lognd"
+rev = 1

@@ -58,6 +58,9 @@ pub enum SetupError {
         "cannot authorize that key: {0}; pass one ssh public key line (ssh-ed25519 AAAA... comment) or the path of a .pub file"
     )]
     BadAuthorizedKey(String),
+    /// The `--join` welcome or fingerprint is unusable.
+    #[error("join: {0}")]
+    BadJoin(String),
     /// A native-helper install option cannot be honored.
     #[error("native install: {0}")]
     NativeOption(String),

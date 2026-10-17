@@ -4,6 +4,7 @@
 //! Everything here is pure text from probe results, so it is tested off Windows; the probes
 //! themselves live in [`crate::hostsys`].
 
+use crate::error::SetupError;
 use crate::host::{DEFAULT_PORT, NetworkMode};
 
 /// The ssh host key type goway pins; the one the next-steps block fingerprints.
@@ -126,6 +127,43 @@ fn shell_quote(value: &str) -> String {
     } else {
         format!("'{}'", value.replace('\'', "'\\''"))
     }
+}
+
+/// Check the `--join` pair up front: both or neither, a `gww1.` base32 welcome and a `SHA256:`
+/// fingerprint, so nothing is changed before a bad paste is noticed.
+pub fn validate_join(
+    welcome: Option<&str>,
+    fingerprint: Option<&str>,
+) -> Result<Option<(String, String)>, SetupError> {
+    let bad = |m: &str| SetupError::BadJoin(m.to_owned());
+    let (Some(w), Some(f)) = (welcome, fingerprint) else {
+        return match (welcome, fingerprint) {
+            (None, None) => Ok(None),
+            _ => Err(bad(
+                "--join needs --join-fingerprint (the admin key fingerprint the admin showed)",
+            )),
+        };
+    };
+    let w = w.trim();
+    let body = w.strip_prefix("gww1.").unwrap_or("");
+    if body.is_empty() || !body.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err(bad(
+            "the welcome must be the whole `gww1.` text; was it cut when pasted?",
+        ));
+    }
+    if parse_fingerprint(f).as_deref() != Some(f.trim()) {
+        return Err(bad("the fingerprint must look like SHA256:..."));
+    }
+    Ok(Some((w.to_owned(), f.trim().to_owned())))
+}
+
+/// The command that joins the circle inside the distro, for the retry hint.
+pub fn join_command(welcome: &str, fingerprint: &str) -> String {
+    format!(
+        "goway circle join {} --fingerprint {} && goway circle access",
+        shell_quote(welcome),
+        shell_quote(fingerprint)
+    )
 }
 
 /// What the next-steps block needs to know about this helper.
