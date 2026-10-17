@@ -173,6 +173,16 @@ fn read_proposal(file: &Path) -> Result<String> {
 
 /// Run one `goway circle admin` verb.
 pub fn run_admin(paths: &Paths, renderer: Renderer, command: &CircleAdminCommand) -> Result<()> {
+    run_admin_with(paths, renderer, command, Path::new("ssh-keygen"))
+}
+
+/// Run one `goway circle admin` verb, making keys with `keygen_program` (a parameter so tests can fake it).
+pub fn run_admin_with(
+    paths: &Paths,
+    renderer: Renderer,
+    command: &CircleAdminCommand,
+    keygen_program: &Path,
+) -> Result<()> {
     match command {
         CircleAdminCommand::Card(args) => {
             let (card, fp) = admin_card(paths, renderer, args)?;
@@ -181,7 +191,7 @@ pub fn run_admin(paths: &Paths, renderer: Renderer, command: &CircleAdminCommand
             renderer.next("paste it into `goway circle admit` on an admin, then `goway circle admin add NAME`");
         }
         CircleAdminCommand::Keygen => {
-            let (pair, fp) = keygen(paths, renderer, Path::new("ssh-keygen"))?;
+            let (pair, fp) = keygen(paths, renderer, keygen_program)?;
             renderer.ok(format!("admin key made at {}", pair.private.display()));
             renderer.note(format!("admin key fingerprint: {fp}"));
             renderer.next("run `goway circle admin card` to get its card");

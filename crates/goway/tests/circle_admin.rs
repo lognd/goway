@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use goway::access::{needs_renewal, run_policy, run_renew};
 use goway::circle::{admit, init, join, make_card};
-use goway::circle_admin::{Proposed, admin_card, cosign, propose};
+use goway::circle_admin::{Proposed, admin_card, cosign, propose, run_admin_with};
 use goway::cli::{
     CircleAdminCardArgs, CircleAdminChangeArgs, CircleAdmitArgs, CircleCardArgs, CircleCosignArgs,
     CircleInitArgs, CircleJoinArgs, CirclePolicyArgs, CircleRenewArgs,
@@ -333,4 +333,20 @@ fn keygen_makes_the_admin_key_once() {
     assert!(pair.public.starts_with("sk-ssh-ed25519@openssh.com "));
     assert!(fp.starts_with("SHA256:"));
     assert!(goway::circle_admin::keygen(&p, quiet(), &tool).is_err());
+}
+
+// frob:tests crates/goway/src/circle_admin.rs::run_admin_with
+#[cfg(unix)]
+#[test]
+fn run_admin_keygen_arm_makes_the_key() {
+    let tmp = tempfile::tempdir().unwrap();
+    let p = paths(&tmp.path().join("lap"));
+    let tool = fake_keygen(tmp.path());
+    let cmd = goway::cli::CircleAdminCommand::Keygen;
+    run_admin_with(&p, quiet(), &cmd, &tool).unwrap();
+    assert!(p.config_dir.join("circle").join("admin_ed25519").exists());
+    assert!(
+        run_admin_with(&p, quiet(), &cmd, &tool).is_err(),
+        "never overwrites"
+    );
 }
