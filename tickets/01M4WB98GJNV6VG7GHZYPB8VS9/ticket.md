@@ -7,12 +7,12 @@ priority = "low"
 points = 2
 reporter = "lognd"
 created = "2026-10-14T04:38:44Z"
-updated = "2026-10-17T09:40:56Z"
+updated = "2026-10-17T09:41:48Z"
 scope = ["crates/goway/src/sshenv.rs"]
 
 [[acceptance]]
 text = "The local ssh check counts a host's configured identity (when its .pub exists) as a key and does not warn"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "It still warns when neither the agent, the ssh defaults nor the host's identity provides a key"
