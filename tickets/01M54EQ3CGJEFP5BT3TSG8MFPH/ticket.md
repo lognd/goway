@@ -13,7 +13,7 @@ scope = ["crates/goway-setup/**"]
 
 [[acceptance]]
 text = "native join runs end to end against a real child process standing in for goway.exe (card, join, access)"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "the WSL join links goway.exe into the distro PATH when goway is missing and never replaces an existing one"
