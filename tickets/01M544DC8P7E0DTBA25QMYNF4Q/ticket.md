@@ -7,7 +7,7 @@ priority = "high"
 points = 5
 reporter = "lognd"
 created = "2026-10-17T05:12:34Z"
-updated = "2026-10-17T05:54:44Z"
+updated = "2026-10-17T05:55:01Z"
 idempotency_key = "nova-windows-host-add"
 labels = ["windows", "onboarding"]
 
@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "host add --windows prints Windows setup commands and writes nothing"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "the Windows advice names OpenSSH.Server, administrators_authorized_keys, icacls and DefaultShell, not passwd/faillock"
