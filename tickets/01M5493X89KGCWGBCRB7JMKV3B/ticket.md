@@ -12,7 +12,7 @@ scope = ["crates/goway-circle/**"]
 
 [[acceptance]]
 text = "A node key can be created encrypted and signing works only with the right passphrase"
-bound = false
+bound = true
 
 [[acceptance]]
 text = "Passphrase values are redacted in Debug and empty passphrases are refused"
