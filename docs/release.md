@@ -3,7 +3,7 @@
 A release is built by `.github/workflows/release.yml` when a version tag
 of the form `goway-vX.Y.Z` is pushed:
 
-    git tag -a goway-v0.1.0 -m "goway 0.1.0" && git push origin goway-v0.1.0
+    git tag -a goway-v0.2.0 -m "goway 0.2.0" && git push origin goway-v0.2.0
 
 The `version-tag` job first checks that the tag names the version in
 `Cargo.toml` (`[workspace.package] version`); a mismatch stops the

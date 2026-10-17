@@ -4,7 +4,7 @@ The quickest install is the one in the README (`install.sh` on Linux
 and WSL, `goway-setup.exe` on Windows). goway is also published as a
 Python package on PyPI and as a Rust crate on crates.io, so the tools
 you may already use can install it. Every command on this page is
-**available from v0.1.0**, the first release that is published to PyPI
+**available from v0.2.0**, the first release that is published to PyPI
 and crates.io.
 
 Whichever way you install, the next step is the same: add a helper
@@ -40,7 +40,7 @@ Python programs each in their own environment, so nothing clashes with
 other software. Install uv first by following its page, then:
 
 ```bash
-uv tool install goway    # available from v0.1.0
+uv tool install goway    # available from v0.2.0
 uv tool update-shell     # once: puts ~/.local/bin on PATH in your shell profile
 uv tool upgrade goway    # later, to update
 uv tool uninstall goway  # to remove the program
@@ -56,7 +56,7 @@ code. Next step: `goway add`.
 [pipx](https://pipx.pypa.io/) does the same job as `uv tool`:
 
 ```bash
-pipx install goway       # available from v0.1.0
+pipx install goway       # available from v0.2.0
 pipx ensurepath          # once: puts ~/.local/bin on PATH
 pipx upgrade goway       # later, to update
 pipx uninstall goway     # to remove the program
@@ -70,7 +70,7 @@ The program is `~/.local/bin/goway`; the environment is under
 
 ```bash
 python3 -m venv ~/goway-venv                 # once
-~/goway-venv/bin/pip install goway           # available from v0.1.0
+~/goway-venv/bin/pip install goway           # available from v0.2.0
 ~/goway-venv/bin/goway --version
 ```
 
@@ -92,7 +92,7 @@ create the environment for you.
 [rustup](https://rustup.rs) installs Rust and cargo. Then:
 
 ```bash
-cargo install --locked goway   # available from v0.1.0
+cargo install --locked goway   # available from v0.2.0
 cargo uninstall goway          # to remove the program
 ```
 

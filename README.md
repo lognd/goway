@@ -53,7 +53,7 @@ hardware.
 
 **Downloads.** Every version's ready-made files are on the
 [Releases page](https://github.com/lognd/goway/releases). These links
-always fetch the newest release (from v0.1.0):
+always fetch the newest release (from v0.2.0):
 
 | Your computer | Download |
 |---|---|
@@ -112,16 +112,16 @@ curl -fsSL https://github.com/lognd/goway/releases/latest/download/install.sh | 
 
 ### Other ways to install
 
-From v0.1.0 goway is also on PyPI and crates.io, so uv, pipx, pip (in a
+From v0.2.0 goway is also on PyPI and crates.io, so uv, pipx, pip (in a
 virtual environment) and cargo can install it. Each is available from
-v0.1.0; the details, the PEP 668 explanation of why system pip is
+v0.2.0; the details, the PEP 668 explanation of why system pip is
 refused on Debian and Ubuntu, and where each puts the program are in
 [docs/install-methods.md](docs/install-methods.md).
 
 ```bash
-uv tool install goway          # available from v0.1.0 (preferred; install uv first: https://docs.astral.sh/uv/getting-started/installation/)
-pipx install goway             # available from v0.1.0
-cargo install --locked goway   # available from v0.1.0 (needs a Rust toolchain: https://rustup.rs)
+uv tool install goway          # available from v0.2.0 (preferred; install uv first: https://docs.astral.sh/uv/getting-started/installation/)
+pipx install goway             # available from v0.2.0
+cargo install --locked goway   # available from v0.2.0 (needs a Rust toolchain: https://rustup.rs)
 ```
 
 After any of them, the next step is `goway add`. `goway uninstall`
