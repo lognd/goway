@@ -7,7 +7,7 @@ priority = "low"
 points = 1
 reporter = "lognd"
 created = "2026-10-05T06:47:09Z"
-updated = "2026-10-17T08:42:01Z"
+updated = "2026-10-17T08:43:14Z"
 scope = ["scripts/install.sh", "crates/goway/tests/install_scripts.rs"]
 
 [[acceptance]]
