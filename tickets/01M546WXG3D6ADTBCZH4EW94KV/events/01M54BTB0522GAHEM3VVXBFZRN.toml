@@ -1,0 +1,6 @@
+kind = "field"
+field = "scope"
+new = ["crates/goway/src/circle_push.rs"]
+at = "2026-10-17T07:21:59Z"
+actor = "lognd"
+rev = 1
