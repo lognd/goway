@@ -248,6 +248,14 @@ def accept_roster(known_heads: set, offered: set) -> bool:
     return ok
 
 
+def accept_superset(stored: set, offered: set) -> bool:
+    """Anti-rollback by ancestry: the offer must contain every stored op."""
+    ok = {o.id for o in stored} <= {o.id for o in offered}
+    if not ok:
+        log.error("rollback refused: offered roster lacks stored ops")
+    return ok
+
+
 @dataclass(frozen=True)
 class Cert:
     """Modelled ssh certificate: signer, subject key, principal, expiry day."""

@@ -45,5 +45,7 @@ pub use sshcert::{
     ParsedCert, Policy, Rejection, accepts, authority_lines, lead_principal, line_marker,
     merge_authorized_keys, mint_lead_cert, parse_cert, pin_line,
 };
-pub use state::{Member, Role, State, accept_roster, fold, fold_pinned, heads, merge};
+pub use state::{
+    Member, Role, State, accept_roster, accept_superset, fold, fold_pinned, heads, merge,
+};
 pub use store::{FileSink, PlainSink, Store, StoreLock};

@@ -120,7 +120,8 @@ State is computed by deterministic replay (the `fold` function of the model):
   authenticate themselves, so they may arrive over ssh, a pasted string or a
   USB stick; the transport is not trusted.
 - Anti-rollback: each node stores the heads it has seen per admin and refuses
-  a roster that lacks any of them. An explicit `--accept-reset` is the only
+  a roster that lacks any of them or any stored operation (head ids alone
+  are not enough, an ancestor such as a revoke could be omitted). An explicit `--accept-reset` is the only
   way past it.
 - Size caps: at most 4096 operations and 64 KiB per operation. Parsing is
   strict (unknown fields rejected), as with helper answers today.
@@ -379,7 +380,7 @@ Last seen comes only from these pushes.
 | 1 | Mitigated | Quorum rules in `state.rs`; admin key may be agent or FIDO2 only (6.2) |
 | 2 | Fixed | `keys.rs::ensure_keypair` refuses loose modes, symlinks, writable key dirs (INV-CIRCLE-001); tests `loose_key_mode_is_refused`, `symlinked_key_is_refused`, `writable_key_dir_is_refused` |
 | 3 | Enforced | `lan.rs` size and count caps, CPace PAKE, single-use `ListenGuard`, timeouts |
-| 4 | Enforced | `Store::commit` and `accept_roster`; tests `rollback_is_refused_and_nothing_is_written`, `rollback_is_refused` |
+| 4 | Enforced | `Store::commit`, `accept_roster` and `accept_superset`; tests `rollback_is_refused_and_nothing_is_written`, `rollback_is_refused`, `an_offer_keeping_the_head_but_dropping_an_ancestor_is_refused` |
 | 5 | Out of scope | SECURITY.md |
 | 6 | Enforced | Principal `goway-lead:<circle>:e<epoch>` plus `principals=` pin; `sshcert.rs` `accepts` tests; pin mismatch refused (INV-CIRCLE-003) |
 | 7 | Mitigated | 5 minute backdate in `sshcert.rs`; doctor skew check |

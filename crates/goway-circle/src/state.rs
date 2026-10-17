@@ -435,3 +435,24 @@ pub fn accept_roster(known_heads: &BTreeSet<String>, offered: &[Op]) -> Result<(
         Err(CircleError::Rollback { missing })
     }
 }
+
+/// Anti-rollback by ancestry: the offered roster must contain every op already stored.
+///
+/// Head ids alone are not enough, since an offer can keep a head while omitting its ancestors.
+pub fn accept_superset(stored: &[Op], offered: &[Op]) -> Result<(), CircleError> {
+    let ids: BTreeSet<String> = offered.iter().map(Op::id).collect();
+    let missing: Vec<String> = stored
+        .iter()
+        .map(Op::id)
+        .filter(|id| !ids.contains(id))
+        .collect();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        warn!(
+            missing = missing.len(),
+            "rollback refused: offered roster lacks stored ops"
+        );
+        Err(CircleError::Rollback { missing })
+    }
+}

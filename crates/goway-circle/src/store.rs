@@ -9,7 +9,7 @@ use tracing::{debug, info, warn};
 
 use crate::error::StoreError;
 use crate::op::{Kind, MAX_OP_BYTES, MAX_OPS, Op, parse_ops};
-use crate::state::{accept_roster, heads};
+use crate::state::{accept_roster, accept_superset, heads};
 
 /// Where file writes go; a host program journals them, tests write plainly.
 pub trait FileSink {
@@ -235,6 +235,7 @@ impl Store {
             return Err(StoreError::NoGenesis);
         }
         accept_roster(&self.seen_heads()?, offered)?;
+        accept_superset(&self.ops()?, offered)?;
         let mut text = String::new();
         for op in offered {
             text.push_str(&op.to_line());
@@ -375,6 +376,37 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, StoreError::Circle(_)), "{err}");
         assert_eq!(store.ops().unwrap().len(), 2);
+    }
+
+    // frob:tests crates/goway-circle/src/state.rs::accept_superset
+    #[test]
+    fn an_offer_keeping_the_head_but_dropping_an_ancestor_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let admin = FakeCrypto::new("admin");
+        let g = genesis(&admin);
+        let child = |k: &str, parent: &Op| {
+            Op::signed(
+                Kind::Admit,
+                &[
+                    ("key", k),
+                    ("name", k),
+                    ("roles", "helper"),
+                    ("host_fp", ""),
+                ],
+                &[parent.id()],
+                &[&admin],
+            )
+            .unwrap()
+        };
+        let a = child("a", &g);
+        let b = child("b", &a);
+        let store = Store::for_genesis(dir.path(), &g.id());
+        store
+            .commit(&[g.clone(), a.clone(), b.clone()], &PlainSink)
+            .unwrap();
+        let err = store.commit(&[g, b], &PlainSink).unwrap_err();
+        assert!(matches!(err, StoreError::Circle(_)), "{err}");
+        assert_eq!(store.ops().unwrap().len(), 3);
     }
 
     #[test]
