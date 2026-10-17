@@ -1,0 +1,33 @@
+kind = "evidence"
+accepts = [2]
+captured_at = "2026-10-17T11:13:03Z"
+digest = "d841f319c2b4cfd7157694751a99e9912b5bc702673b9b7dac5651aaf3401a85"
+exit_code = 0
+inline = '''
+warning: unused variable: `layout`
+   --> crates/goway-setup/src/cli.rs:783:29
+    |
+783 | fn join_circle(r: Renderer, layout: &Layout, distro: &str, welcome: &str, fingerprint: &str) {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_layout`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `goway-setup` (lib) generated 1 warning (run `cargo fix --lib -p goway-setup` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+ Nextest run ID ed3276a2-00ac-4206-8cf6-02863f022572 with nextest profile: default
+    Starting 1 test across 1 binary (15 tests skipped)
+        PASS [   0.004s] goway-setup::native only_the_ssh_login_account_counts_as_the_installing_account
+\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+     Summary [   0.005s] 1 test run: 1 passed, 15 skipped
+'''
+passed = true
+provider = "nextest"
+ref = "-p goway-setup --test native -E test(only_the_ssh_login_account_counts_as_the_installing_account)"
+size = 1064
+status = "measured"
+test_count = 1
+tests_digest = "bbcaea7891a9e691915f60ff242e4c80ba4968c116798d97ac392f33dfd62ad1"
+at = "2026-10-17T11:13:03Z"
+actor = "lognd"
+rev = 1

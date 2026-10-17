@@ -17,7 +17,7 @@ bound = true
 
 [[acceptance]]
 text = "Native join is not run as an account other than the ssh login account"
-bound = false
+bound = true
 +++
 
 found while working ~SG8MFPH: /usr/local/bin/goway link is not journaled (undo does not remove it); native join runs as the invoking user, not the sshd account if different
