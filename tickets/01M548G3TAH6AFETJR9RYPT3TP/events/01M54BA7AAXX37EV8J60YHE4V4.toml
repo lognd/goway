@@ -1,0 +1,7 @@
+kind = "field"
+field = "acceptance"
+new = ["A circle roster host (label circle, no address) resolves by roster name in a Roster stage after peer hints, with the host key still verified"]
+moved = []
+at = "2026-10-17T07:13:11Z"
+actor = "lognd"
+rev = 1
