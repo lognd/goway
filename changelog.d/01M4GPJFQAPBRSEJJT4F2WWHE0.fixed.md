@@ -1,1 +1,0 @@
-A long run no longer ends with a false warning that the lifeline connection broke (ssh exit status 0): a lifeline that closes together with the finished job is normal, and the warning is printed only when it ended while the job was still running.

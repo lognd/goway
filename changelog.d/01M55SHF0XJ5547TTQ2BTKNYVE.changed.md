@@ -1,1 +1,0 @@
-`goway circle admin cosign` now prints the operation it approves (promote or demote, member name, key fingerprints) and asks for confirmation; `--yes` skips the prompt and is required without a terminal.

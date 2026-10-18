@@ -1,1 +1,0 @@
-goway circle revoke --now now sends the roster to helpers over ssh stdin, so large rosters are no longer refused, and goway circle list shows the certificate expiry of members whose certificate this machine issued.

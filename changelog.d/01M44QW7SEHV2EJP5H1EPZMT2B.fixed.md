@@ -1,1 +1,0 @@
-`goway-setup tune --memory` now refuses a size that leaves Windows under its headroom (at least 3 GB, a quarter of the RAM on large machines) unless `--force` is given, `--memory max` picks the largest safe size, and `goway doctor` warns about a helper whose `.wslconfig` memory is already too high, with the journaled `tune` command that fixes it.

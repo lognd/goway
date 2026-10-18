@@ -1,1 +1,0 @@
-A revoked or removed admin key can no longer act by backdating its operation parents: each removal is judged against its own causal past and later or concurrent operations by the removed key are ignored. Two admins removing each other concurrently are both removed, so the circle fails closed.

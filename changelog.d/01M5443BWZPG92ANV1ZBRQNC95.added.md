@@ -1,1 +1,0 @@
-Add peer-to-peer circles: a signed roster of your own machines (`goway circle init|list|roles|revoke`), pairing cards and welcomes to admit a machine (`card|admit|join`), ssh certificates and pinned host keys (`access|cert|pin`), LAN pairing with a code compared on both screens (`pair-host|pair-join`), and key-at-rest and threat-model hardening. See docs/circles.md.

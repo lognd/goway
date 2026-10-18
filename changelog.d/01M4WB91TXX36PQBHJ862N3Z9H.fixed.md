@@ -1,1 +1,0 @@
-`goway-setup install --host` without `--distro` now uses WSL's default distro, or the only installed Ubuntu/Debian distro (for example `Ubuntu-22.04`), instead of the literal `Ubuntu`; with several candidates and no default it lists them and asks for `--distro NAME`.

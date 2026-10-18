@@ -1,1 +1,0 @@
-Installing the host again after a rollback or uninstall no longer stops on openssh-server left in dpkg state rc: it is treated as absent and reinstalled without purging, so the same sshd_config and host keys come back.

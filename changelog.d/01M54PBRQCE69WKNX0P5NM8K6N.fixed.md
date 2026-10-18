@@ -1,1 +1,0 @@
-Four tests that failed on main are fixed: doctor's ssh probes now spawn under the spawn lock, the journal invariant allowlist covers circle_push's last-seen state and doctor's read-only ssh-keygen probe, the tiny-budget eviction test no longer writes a duplicate min_free key, and the footprint tests no longer depend on the real free space of the machine running them.

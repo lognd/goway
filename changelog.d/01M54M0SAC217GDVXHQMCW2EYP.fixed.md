@@ -1,1 +1,0 @@
-The WSL install now journals the distro's /usr/local/bin/goway wrapper so uninstall removes it, and a native --join no longer runs as an account other than the ssh login account (it prints the command to run as that account).
